@@ -69,7 +69,7 @@ impl AuthManager {
         // Initialize API key manager
         let storage_backend = match config.api_key_validation {
             crate::config::ApiKeyValidation::Database => ApiKeyStorage::Database,
-            crate::config::ApiKeyValidation::Environment => ApiKeyStorage::Memory, // For now
+            crate::config::ApiKeyValidation::Environment => ApiKeyStorage::Environment,
             crate::config::ApiKeyValidation::Redis => ApiKeyStorage::Redis,
         };
 

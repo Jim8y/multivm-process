@@ -198,6 +198,22 @@ pub struct RedisConfig {
 
     /// Key prefix for namespacing
     pub key_prefix: String,
+
+    /// Circuit breaker failure threshold
+    pub circuit_breaker_threshold: u32,
+
+    /// Circuit breaker timeout
+    #[serde(with = "humantime_serde")]
+    pub circuit_breaker_timeout: Duration,
+
+    /// Hot cache max size in bytes
+    pub hot_cache_max_size: u64,
+
+    /// Enable connection pooling
+    pub enable_connection_pooling: bool,
+
+    /// Enable pipelining for batch operations
+    pub enable_pipelining: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -590,6 +606,11 @@ impl Default for RedisConfig {
             connection_timeout: Duration::from_secs(5),
             command_timeout: Duration::from_secs(5),
             key_prefix: "multivm:app:".to_string(),
+            circuit_breaker_threshold: 5,
+            circuit_breaker_timeout: Duration::from_secs(60),
+            hot_cache_max_size: 10 * 1024 * 1024, // 10MB
+            enable_connection_pooling: true,
+            enable_pipelining: true,
         }
     }
 }
@@ -601,6 +622,65 @@ impl Default for MemoryCacheConfig {
             max_memory_bytes: 100 * 1024 * 1024, // 100MB
             cleanup_interval: Duration::from_secs(60),
         }
+    }
+}
+
+impl AuthConfig {
+    /// Load authentication configuration with secure environment overrides
+    pub fn load_secure() -> ApplicationResult<Self> {
+        // Start with default configuration
+        let mut config = Self::default();
+
+        // Override JWT secret from environment (critical for production)
+        if let Ok(jwt_secret) = std::env::var("MULTIVM_JWT_SECRET") {
+            if jwt_secret.len() < 32 {
+                return Err(ApplicationError::ConfigurationError {
+                    component: "auth".to_string(),
+                    message: "JWT secret must be at least 32 characters long".to_string(),
+                });
+            }
+            config.jwt_secret = jwt_secret;
+        } else if config.jwt_secret == "your-jwt-secret-key-must-be-at-least-32-characters-long" {
+            // In production, we should never use the default secret
+            if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
+                return Err(ApplicationError::ConfigurationError {
+                    component: "auth".to_string(),
+                    message: "MULTIVM_JWT_SECRET environment variable must be set in production".to_string(),
+                });
+            }
+        }
+
+        // Load JWT expiration from environment
+        if let Ok(exp_str) = std::env::var("MULTIVM_JWT_EXPIRATION") {
+            if let Ok(exp_seconds) = exp_str.parse::<u64>() {
+                config.jwt_expiration = Duration::from_secs(exp_seconds);
+            }
+        }
+
+        // Load API key configuration from environment
+        if let Ok(enable_str) = std::env::var("MULTIVM_ENABLE_API_KEYS") {
+            config.enable_api_keys = enable_str.to_lowercase() == "true";
+        }
+
+        // Load API key validation method from environment
+        if let Ok(validation_str) = std::env::var("MULTIVM_API_KEY_VALIDATION") {
+            config.api_key_validation = match validation_str.to_lowercase().as_str() {
+                "database" => ApiKeyValidation::Database,
+                "environment" => ApiKeyValidation::Environment,
+                "redis" => ApiKeyValidation::Redis,
+                _ => {
+                    return Err(ApplicationError::ConfigurationError {
+                        component: "auth".to_string(),
+                        message: format!("Invalid API key validation method: {}. Valid options: database, environment, redis", validation_str),
+                    });
+                }
+            };
+        }
+
+        // Load admin API key from environment
+        config.admin_api_key = std::env::var("MULTIVM_ADMIN_API_KEY").ok();
+
+        Ok(config)
     }
 }
 
@@ -776,7 +856,12 @@ impl ApplicationConfig {
             .build()
             .map_err(ApplicationError::from)?;
 
-        settings.try_deserialize().map_err(ApplicationError::from)
+        let mut config: Self = settings.try_deserialize().map_err(ApplicationError::from)?;
+        
+        // Override with secure authentication configuration
+        config.auth = AuthConfig::load_secure()?;
+        
+        Ok(config)
     }
 
     /// Validate configuration

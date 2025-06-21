@@ -1,6 +1,7 @@
 pub mod block_router;
 pub mod coordinator;
 pub mod health;
+pub mod ipc;
 pub mod ipc_transport;
 pub mod manager;
 pub mod process;

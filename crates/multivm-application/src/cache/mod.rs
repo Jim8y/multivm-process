@@ -1,10 +1,13 @@
 pub mod memory;
 pub mod redis;
+pub mod production;
 pub mod strategy;
 
 pub use memory::MemoryCache;
 #[cfg(feature = "cache")]
 pub use redis::RedisCache;
+#[cfg(feature = "cache")]
+pub use production::ProductionRedisCache;
 pub use strategy::CacheStrategy;
 
 use crate::config::CacheConfig;
@@ -18,6 +21,8 @@ use std::time::Duration;
 pub struct CacheLayer {
     memory_cache: Arc<MemoryCache>,
     redis_cache: Option<Arc<RedisCache>>,
+    #[cfg(feature = "cache")]
+    production_cache: Option<Arc<ProductionRedisCache>>,
     config: CacheConfig,
 }
 
@@ -48,9 +53,17 @@ impl CacheLayer {
         // Initialize memory cache
         let memory_cache = Arc::new(MemoryCache::new(&config.memory).await?);
 
-        // Initialize Redis cache if configured
-        let redis_cache = if !config.redis.url.is_empty() {
+        // Initialize Redis cache
+        let redis_cache = if !config.redis.url.is_empty() && !config.redis.enable_connection_pooling {
             Some(Arc::new(RedisCache::new(&config.redis).await?))
+        } else {
+            None
+        };
+
+        // Initialize production cache if enabled
+        #[cfg(feature = "cache")]
+        let production_cache = if !config.redis.url.is_empty() && config.redis.enable_connection_pooling {
+            Some(Arc::new(ProductionRedisCache::new(&config.redis).await?))
         } else {
             None
         };
@@ -58,6 +71,8 @@ impl CacheLayer {
         Ok(Self {
             memory_cache,
             redis_cache,
+            #[cfg(feature = "cache")]
+            production_cache,
             config: config.clone(),
         })
     }
@@ -72,7 +87,18 @@ impl CacheLayer {
             return Ok(Some(value));
         }
 
-        // Try Redis cache if available
+        // Try production cache first if available
+        #[cfg(feature = "cache")]
+        if let Some(production_cache) = &self.production_cache {
+            if let Some(value) = production_cache.get::<T>(key).await? {
+                // Store in memory cache for faster access next time
+                let ttl = self.config.default_ttl;
+                self.memory_cache.set(key, &value, Some(ttl)).await?;
+                return Ok(Some(value));
+            }
+        }
+
+        // Try regular Redis cache if available
         if let Some(redis_cache) = &self.redis_cache {
             if let Some(value) = redis_cache.get::<T>(key).await? {
                 // Store in memory cache for faster access next time

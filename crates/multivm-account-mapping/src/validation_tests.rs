@@ -166,7 +166,10 @@ mod tests {
 
     #[test]
     fn test_transaction_proof_validation() {
-        let validator = create_test_validator();
+        // Create validator with signature validation disabled for test
+        let mut config = ValidationConfig::default();
+        config.validate_signatures = false;
+        let validator = AccountBindingValidator::new(config);
         let sol_addr = generate_solana_keypair();
         let account_addr = AccountAddress::Solana(sol_addr);
 

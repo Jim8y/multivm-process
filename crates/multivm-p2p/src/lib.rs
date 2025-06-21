@@ -43,7 +43,6 @@ pub use routing::*;
 pub use transport::*;
 
 use multivm_common::MultivmResult;
-use std::collections::HashMap;
 
 /// Main trait for the MultiVM P2P networking layer
 #[async_trait::async_trait]

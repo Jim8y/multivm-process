@@ -15,8 +15,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::broadcast;
+use std::time::{Duration, Instant};
+use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
 use uuid::Uuid;
+use tracing::{debug, error, info, warn};
+
+/// Global connections registry for WebSocket management
+fn get_global_connections() -> &'static Arc<tokio::sync::RwLock<HashMap<String, WebSocketConnection>>> {
+    use std::sync::OnceLock;
+    static CONNECTIONS: OnceLock<Arc<tokio::sync::RwLock<HashMap<String, WebSocketConnection>>>> = OnceLock::new();
+    CONNECTIONS.get_or_init(|| Arc::new(tokio::sync::RwLock::new(HashMap::new())))
+}
 
 /// WebSocket server configuration
 #[derive(Debug, Clone)]
@@ -54,7 +64,7 @@ pub struct WebSocketServer {
 }
 
 /// WebSocket connection information
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct WebSocketConnection {
     /// Connection ID
     pub id: String,
@@ -65,11 +75,38 @@ pub struct WebSocketConnection {
     /// Connection timestamp
     pub connected_at: chrono::DateTime<chrono::Utc>,
 
+    /// Last activity timestamp
+    pub last_activity: Instant,
+
     /// Subscribed event types
-    pub subscriptions: Vec<EventType>,
+    pub subscriptions: Arc<RwLock<Vec<EventType>>>,
 
     /// Authentication status
     pub authenticated: bool,
+
+    /// User ID (if authenticated)
+    pub user_id: Option<String>,
+
+    /// WebSocket message sender
+    pub sender: mpsc::UnboundedSender<Message>,
+
+    /// Connection statistics
+    pub stats: ConnectionStats,
+}
+
+/// Connection statistics
+#[derive(Debug, Default)]
+pub struct ConnectionStats {
+    /// Messages sent to this connection
+    pub messages_sent: u64,
+    /// Messages received from this connection
+    pub messages_received: u64,
+    /// Last ping timestamp
+    pub last_ping: Option<Instant>,
+    /// Last pong timestamp
+    pub last_pong: Option<Instant>,
+    /// Connection latency in milliseconds
+    pub latency_ms: Option<u64>,
 }
 
 /// WebSocket event types
@@ -183,10 +220,10 @@ pub enum WebSocketMessage {
     },
 
     /// Ping message
-    Ping {
-        /// Ping ID
-        id: String,
-    },
+    Ping,
+
+    /// Get connection statistics
+    GetStats,
 }
 
 /// WebSocket response messages
@@ -206,18 +243,26 @@ pub enum WebSocketResponse {
     },
 
     /// Authentication response
-    AuthResponse {
+    Authenticated {
         /// Authentication success
         success: bool,
-
-        /// Error message if failed
-        error: Option<String>,
     },
 
     /// Pong response
-    Pong {
-        /// Original ping ID
-        id: String,
+    Pong,
+
+    /// Connection statistics response
+    Stats {
+        /// Connection ID
+        connection_id: String,
+        /// Connection timestamp
+        connected_at: chrono::DateTime<chrono::Utc>,
+        /// Messages sent
+        messages_sent: u64,
+        /// Messages received
+        messages_received: u64,
+        /// Latency in milliseconds
+        latency_ms: Option<u64>,
     },
 
     /// Error response
@@ -268,8 +313,105 @@ impl WebSocketServer {
 
     /// Broadcast an event to all subscribed connections
     pub async fn broadcast_event(&self, event: WebSocketEvent) -> ApplicationResult<()> {
-        let _ = self.event_sender.send(event);
+        let connections = self.connections.read().await;
+        let mut broadcast_count = 0;
+        let mut failed_connections = Vec::new();
+
+        for (connection_id, connection) in connections.iter() {
+            // Check if connection is subscribed to this event type
+            let subscriptions = connection.subscriptions.read().await;
+            if should_send_event_to_connection(&event, &subscriptions) {
+                // Serialize the event
+                if let Ok(serialized_event) = serde_json::to_string(&event) {
+                    // Send the event to the connection
+                    if let Err(_) = connection.sender.send(Message::Text(serialized_event.into())) {
+                        // Connection is closed or sender failed
+                        failed_connections.push(connection_id.clone());
+                        warn!("Failed to send event to connection {}", connection_id);
+                    } else {
+                        broadcast_count += 1;
+                        debug!("Sent event to connection {}", connection_id);
+                    }
+                }
+            }
+        }
+
+        // Remove failed connections
+        drop(connections);
+        if !failed_connections.is_empty() {
+            self.cleanup_connections(failed_connections).await;
+        }
+
+        info!("Broadcasted event to {} connections", broadcast_count);
         Ok(())
+    }
+
+    /// Send event to specific connection
+    pub async fn send_to_connection(&self, connection_id: &str, event: WebSocketEvent) -> ApplicationResult<()> {
+        let connections = self.connections.read().await;
+        
+        if let Some(connection) = connections.get(connection_id) {
+            if let Ok(serialized_event) = serde_json::to_string(&event) {
+                if let Err(_) = connection.sender.send(Message::Text(serialized_event.into())) {
+                    warn!("Failed to send event to connection {}", connection_id);
+                    return Err(crate::error::ApplicationError::WebSocketError {
+                        reason: "Connection closed or sender failed".to_string(),
+                    });
+                }
+                debug!("Sent event to connection {}", connection_id);
+                return Ok(());
+            }
+        }
+
+        Err(crate::error::ApplicationError::ResourceNotFound {
+            resource_type: "websocket_connection".to_string(),
+            identifier: connection_id.to_string(),
+        })
+    }
+
+    /// Cleanup failed connections
+    async fn cleanup_connections(&self, failed_connection_ids: Vec<String>) {
+        let mut connections = self.connections.write().await;
+        for connection_id in failed_connection_ids {
+            if let Some(_) = connections.remove(&connection_id) {
+                info!("Cleaned up failed connection: {}", connection_id);
+            }
+        }
+    }
+
+    /// Start connection health monitoring
+    pub async fn start_health_monitoring(&self) {
+        let connections = self.connections.clone();
+        
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
+            
+            loop {
+                interval.tick().await;
+                
+                let mut stale_connections = Vec::new();
+                let now = Instant::now();
+                
+                {
+                    let connections_guard = connections.read().await;
+                    for (id, connection) in connections_guard.iter() {
+                        // Check for stale connections (no activity for 5 minutes)
+                        if now.duration_since(connection.last_activity) > Duration::from_secs(300) {
+                            stale_connections.push(id.clone());
+                        }
+                    }
+                }
+                
+                // Remove stale connections
+                if !stale_connections.is_empty() {
+                    let mut connections_guard = connections.write().await;
+                    for connection_id in stale_connections {
+                        connections_guard.remove(&connection_id);
+                        info!("Removed stale connection: {}", connection_id);
+                    }
+                }
+            }
+        });
     }
 
     /// Get connection count
@@ -277,157 +419,340 @@ impl WebSocketServer {
         self.connections.read().await.len()
     }
 
-    /// Start the event broadcaster task
+    /// Start the event broadcaster task (legacy - now using direct broadcast)
     async fn start_event_broadcaster(&self) {
-        let connections = self.connections.clone();
         let mut event_receiver = self.event_sender.subscribe();
+        let server = WebSocketServer {
+            state: self.state.clone(),
+            config: self.config.clone(),
+            event_sender: self.event_sender.clone(),
+            connections: self.connections.clone(),
+        };
 
         tokio::spawn(async move {
             while let Ok(event) = event_receiver.recv().await {
-                let connections_guard = connections.read().await;
-
-                // Broadcast to all connections that are subscribed to this event type
-                for (connection_id, connection) in connections_guard.iter() {
-                    if should_send_event_to_connection(&event, connection) {
-                        // Send the event to the specific connection
-                        if let Ok(serialized_event) = serde_json::to_string(&event) {
-                            // In a production implementation, you would maintain WebSocket senders
-                            // for each connection and send the message through them
-                            tracing::debug!(
-                                "Broadcasting event to connection {}: {}",
-                                connection_id,
-                                serialized_event
-                            );
-
-                            // Here you would use the connection's WebSocket sender:
-                            // if let Some(sender) = connection_senders.get(connection_id) {
-                            //     let _ = sender.send(Message::Text(serialized_event)).await;
-                            // }
-                        }
-                    }
+                // Use the new production broadcast method
+                if let Err(e) = server.broadcast_event(event).await {
+                    error!("Failed to broadcast event: {}", e);
                 }
             }
         });
+
+        // Start health monitoring
+        self.start_health_monitoring().await;
     }
 }
 
 /// Handle individual WebSocket connection
 async fn handle_websocket_connection(
     state: Arc<ApplicationState>,
-    mut socket: WebSocket,
+    socket: WebSocket,
     addr: SocketAddr,
 ) {
     let connection_id = Uuid::new_v4().to_string();
+    info!("WebSocket connection established: {} from {}", connection_id, addr);
+
+    // Create message channels for the connection
+    let (outbound_tx, mut outbound_rx) = mpsc::unbounded_channel::<Message>();
+    let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel::<Message>();
+
+    // Use the WebSocket as a single stream (axum handles this differently)
+    let mut socket = socket;
+
+    // Create connection object
     let connection = WebSocketConnection {
         id: connection_id.clone(),
         addr,
         connected_at: chrono::Utc::now(),
-        subscriptions: vec![],
+        last_activity: Instant::now(),
+        subscriptions: Arc::new(RwLock::new(vec![])),
         authenticated: false,
+        user_id: None,
+        sender: outbound_tx,
+        stats: ConnectionStats::default(),
     };
 
-    // Add connection to the registry
-    // Store connection info for event broadcasting
-    // In a production implementation, you would store the WebSocket sender
-    // along with the connection info for message delivery
+    // Add connection to global registry
+    {
+        let mut connections_guard = get_global_connections().write().await;
+        connections_guard.insert(connection_id.clone(), connection);
+    }
 
-    tracing::info!(
-        "WebSocket connection established: {} from {}",
-        connection_id,
-        addr
-    );
-
-    // Handle messages
-    while let Some(msg) = socket.recv().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                if let Err(e) = handle_websocket_message(&state, &mut socket, &text).await {
-                    tracing::error!("Error handling WebSocket message: {}", e);
-                    break;
+    // Handle WebSocket communication in a single task for axum
+    let connection_id_clone = connection_id.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                // Handle outbound messages (server to client)
+                Some(message) = outbound_rx.recv() => {
+                    if let Err(e) = socket.send(message).await {
+                        error!("Failed to send WebSocket message to {}: {}", connection_id_clone, e);
+                        break;
+                    }
+                }
+                // Handle inbound messages (client to server)
+                msg = socket.recv() => {
+                    match msg {
+                        Some(Ok(message)) => {
+                            if let Err(_) = incoming_tx.send(message) {
+                                break;
+                            }
+                        }
+                        Some(Err(e)) => {
+                            error!("WebSocket error for connection {}: {}", connection_id_clone, e);
+                            break;
+                        }
+                        None => {
+                            debug!("WebSocket connection closed: {}", connection_id_clone);
+                            break;
+                        }
+                    }
                 }
             }
-            Ok(Message::Binary(_)) => {
+        }
+    });
+
+    // Main message processing loop
+    let processing_connection_id = connection_id.clone();
+    let processing_state = state.clone();
+    tokio::spawn(async move {
+        handle_connection_messages(processing_state, processing_connection_id, incoming_rx).await;
+    });
+
+    info!("WebSocket connection setup complete: {}", connection_id);
+}
+
+/// Handle messages for a specific connection
+async fn handle_connection_messages(
+    state: Arc<ApplicationState>,
+    connection_id: String,
+    mut message_rx: mpsc::UnboundedReceiver<Message>,
+) {
+    while let Some(message) = message_rx.recv().await {
+        // Update last activity
+        if let Ok(mut connections) = get_global_connections().try_write() {
+            if let Some(connection) = connections.get_mut(&connection_id) {
+                connection.last_activity = Instant::now();
+                connection.stats.messages_received += 1;
+            }
+        }
+
+        match message {
+            Message::Text(text) => {
+                if let Err(e) = handle_text_message(&state, &connection_id, text.to_string()).await {
+                    error!("Failed to handle text message for {}: {}", connection_id, e);
+                }
+            }
+            Message::Binary(data) => {
+                debug!("Received binary message from {}: {} bytes", connection_id, data.len());
                 // Handle binary messages if needed
-                tracing::warn!("Received binary WebSocket message (not supported)");
             }
-            Ok(Message::Close(_)) => {
-                tracing::info!("WebSocket connection closed: {}", connection_id);
-                break;
-            }
-            Ok(Message::Ping(data)) => {
-                if let Err(e) = socket.send(Message::Pong(data)).await {
-                    tracing::error!("Error sending pong: {}", e);
-                    break;
+            Message::Ping(data) => {
+                // Send pong response
+                if let Ok(connections) = get_global_connections().try_read() {
+                    if let Some(connection) = connections.get(&connection_id) {
+                        let _ = connection.sender.send(Message::Pong(data));
+                    }
                 }
             }
-            Ok(Message::Pong(_)) => {
-                // Handle pong if needed
+            Message::Pong(_) => {
+                // Update connection stats  
+                if let Ok(mut connections) = get_global_connections().try_write() {
+                    if let Some(connection) = connections.get_mut(&connection_id) {
+                        connection.stats.last_pong = Some(Instant::now());
+                        if let Some(last_ping) = connection.stats.last_ping {
+                            connection.stats.latency_ms = Some(
+                                Instant::now().duration_since(last_ping).as_millis() as u64
+                            );
+                        }
+                    }
+                }
             }
-            Err(e) => {
-                tracing::error!("WebSocket error: {}", e);
+            Message::Close(_) => {
+                info!("WebSocket connection closing: {}", connection_id);
                 break;
             }
         }
     }
 
-    // Remove connection from registry
-    tracing::info!("WebSocket connection terminated: {}", connection_id);
+    // Clean up connection
+    {
+        let mut connections = get_global_connections().write().await;
+        connections.remove(&connection_id);
+    }
+    info!("WebSocket connection closed: {}", connection_id);
 }
 
-/// Handle individual WebSocket message
-async fn handle_websocket_message(
-    _state: &Arc<ApplicationState>,
-    socket: &mut WebSocket,
-    text: &str,
+/// Handle text messages from WebSocket clients
+async fn handle_text_message(
+    state: &Arc<ApplicationState>,
+    connection_id: &str,
+    text: String,
 ) -> ApplicationResult<()> {
-    let message: WebSocketMessage = serde_json::from_str(text).map_err(|e| {
-        crate::error::ApplicationError::ValidationError {
-            field: "message".to_string(),
-            message: format!("Invalid WebSocket message: {}", e),
-        }
-    })?;
+    debug!("Received text message from {}: {}", connection_id, text);
 
-    let response = match message {
-        WebSocketMessage::Subscribe { events } => {
-            // Handle subscription
-            WebSocketResponse::Subscribed { events }
-        }
-        WebSocketMessage::Unsubscribe { events } => {
-            // Handle unsubscription
-            WebSocketResponse::Unsubscribed { events }
-        }
-        WebSocketMessage::Authenticate { token: _ } => {
-            // Handle authentication
-            WebSocketResponse::AuthResponse {
-                success: true,
-                error: None,
-            }
-        }
-        WebSocketMessage::Ping { id } => WebSocketResponse::Pong { id },
-    };
-
-    let response_text = serde_json::to_string(&response).map_err(|e| {
-        crate::error::ApplicationError::InternalError {
-            component: "websocket".to_string(),
-            message: format!("Failed to serialize response: {}", e),
-        }
-    })?;
-
-    socket
-        .send(Message::Text(response_text.into()))
-        .await
-        .map_err(|e| crate::error::ApplicationError::InternalError {
-            component: "websocket".to_string(),
-            message: format!("Failed to send message: {}", e),
+    // Parse the incoming message
+    let message: WebSocketMessage = serde_json::from_str(&text)
+        .map_err(|e| crate::error::ApplicationError::ValidationError {
+            field: "websocket_message".to_string(),
+            message: format!("Invalid JSON: {}", e),
         })?;
 
+    // Handle the message based on its type
+    let response = match message {
+        WebSocketMessage::Subscribe { events } => {
+            handle_subscription(state, connection_id, events, true).await?
+        }
+        WebSocketMessage::Unsubscribe { events } => {
+            handle_subscription(state, connection_id, events, false).await?
+        }
+        WebSocketMessage::Authenticate { token } => {
+            handle_authentication(state, connection_id, token).await?
+        }
+        WebSocketMessage::Ping => {
+            // Send ping to client to measure latency
+            if let Ok(mut connections) = get_global_connections().try_write() {
+                if let Some(connection) = connections.get_mut(connection_id) {
+                    connection.stats.last_ping = Some(Instant::now());
+                }
+            }
+            WebSocketResponse::Pong
+        }
+        WebSocketMessage::GetStats => {
+            get_connection_stats(state, connection_id).await?
+        }
+    };
+
+    // Send response back to client
+    send_response_to_connection(state, connection_id, response).await?;
+
     Ok(())
+}
+
+/// Handle subscription/unsubscription requests
+async fn handle_subscription(
+    state: &Arc<ApplicationState>,
+    connection_id: &str,
+    events: Vec<EventType>,
+    subscribe: bool,
+) -> ApplicationResult<WebSocketResponse> {
+    let connections = get_global_connections().read().await;
+    
+    if let Some(connection) = connections.get(connection_id) {
+        let mut subscriptions = connection.subscriptions.write().await;
+        
+        if subscribe {
+            // Add new subscriptions
+            for event_type in &events {
+                if !subscriptions.contains(event_type) {
+                    subscriptions.push(event_type.clone());
+                }
+            }
+            info!("Connection {} subscribed to {:?}", connection_id, events);
+            Ok(WebSocketResponse::Subscribed { events })
+        } else {
+            // Remove subscriptions
+            subscriptions.retain(|e| !events.contains(e));
+            info!("Connection {} unsubscribed from {:?}", connection_id, events);
+            Ok(WebSocketResponse::Unsubscribed { events })
+        }
+    } else {
+        Err(crate::error::ApplicationError::ResourceNotFound {
+            resource_type: "websocket_connection".to_string(),
+            identifier: connection_id.to_string(),
+        })
+    }
+}
+
+/// Handle authentication requests
+async fn handle_authentication(
+    state: &Arc<ApplicationState>,
+    connection_id: &str,
+    token: String,
+) -> ApplicationResult<WebSocketResponse> {
+    // Validate the authentication token
+    // In production: use proper JWT validation or API key validation
+    let is_valid = !token.is_empty() && token.len() > 10;
+    
+    if is_valid {
+        // Update connection authentication status
+        let mut connections = get_global_connections().write().await;
+        if let Some(connection) = connections.get_mut(connection_id) {
+            connection.authenticated = true;
+            connection.user_id = Some(format!("user_{}", &token[..8])); // Mock user ID
+            info!("Connection {} authenticated successfully", connection_id);
+            Ok(WebSocketResponse::Authenticated { success: true })
+        } else {
+            Err(crate::error::ApplicationError::ResourceNotFound {
+                resource_type: "websocket_connection".to_string(),
+                identifier: connection_id.to_string(),
+            })
+        }
+    } else {
+        warn!("Authentication failed for connection {}", connection_id);
+        Ok(WebSocketResponse::Authenticated { success: false })
+    }
+}
+
+/// Get connection statistics
+async fn get_connection_stats(
+    state: &Arc<ApplicationState>,
+    connection_id: &str,
+) -> ApplicationResult<WebSocketResponse> {
+    let connections = get_global_connections().read().await;
+    
+    if let Some(connection) = connections.get(connection_id) {
+        Ok(WebSocketResponse::Stats {
+            connection_id: connection_id.to_string(),
+            connected_at: connection.connected_at,
+            messages_sent: connection.stats.messages_sent,
+            messages_received: connection.stats.messages_received,
+            latency_ms: connection.stats.latency_ms,
+        })
+    } else {
+        Err(crate::error::ApplicationError::ResourceNotFound {
+            resource_type: "websocket_connection".to_string(),
+            identifier: connection_id.to_string(),
+        })
+    }
+}
+
+/// Send response to a specific connection
+async fn send_response_to_connection(
+    state: &Arc<ApplicationState>,
+    connection_id: &str,
+    response: WebSocketResponse,
+) -> ApplicationResult<()> {
+    let connections = get_global_connections().read().await;
+    
+    if let Some(connection) = connections.get(connection_id) {
+        let serialized = serde_json::to_string(&response)
+            .map_err(|e| crate::error::ApplicationError::InternalError {
+                component: "websocket".to_string(),
+                message: format!("Failed to serialize response: {}", e),
+            })?;
+        
+        connection.sender.send(Message::Text(serialized.into()))
+            .map_err(|_| crate::error::ApplicationError::WebSocketError {
+                reason: "Connection closed".to_string(),
+            })?;
+        
+        // Update stats
+        // Note: In a real implementation, we'd update stats atomically
+        debug!("Sent response to connection {}", connection_id);
+        Ok(())
+    } else {
+        Err(crate::error::ApplicationError::ResourceNotFound {
+            resource_type: "websocket_connection".to_string(),
+            identifier: connection_id.to_string(),
+        })
+    }
 }
 
 /// Check if an event should be sent to a specific connection
 fn should_send_event_to_connection(
     event: &WebSocketEvent,
-    connection: &WebSocketConnection,
+    subscriptions: &Vec<EventType>,
 ) -> bool {
     let event_type = match event {
         WebSocketEvent::NewBlock { .. } => EventType::NewBlock,
@@ -438,5 +763,5 @@ fn should_send_event_to_connection(
         WebSocketEvent::PriceUpdate { .. } => EventType::PriceUpdate,
     };
 
-    connection.subscriptions.contains(&event_type)
+    subscriptions.contains(&event_type)
 }

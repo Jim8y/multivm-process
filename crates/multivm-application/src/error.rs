@@ -19,6 +19,9 @@ pub enum ApplicationError {
     #[error("Validation error: {field}: {message}")]
     ValidationError { field: String, message: String },
 
+    #[error("Parse error: {field}: {value} - {message}")]
+    ParseError { field: String, value: String, message: String },
+
     /// VM-specific errors
     #[error("SVM error: {message}")]
     SvmError { message: String },
@@ -29,9 +32,28 @@ pub enum ApplicationError {
     #[error("Cross-VM operation failed: {operation}: {reason}")]
     CrossVmError { operation: String, reason: String },
 
+    #[error("Consensus error: {message}")]
+    ConsensusError { message: String },
+
+    /// RPC validation errors
+    #[error("RPC validation failed: {field} - {reason}")]
+    RpcValidationError { field: String, reason: String },
+
+    #[error("RPC error: {endpoint} - {message}")]
+    RpcError { endpoint: String, message: String },
+
+    #[error("Transaction validation failed: {tx_hash} - {reason}")]
+    TransactionValidationError { tx_hash: String, reason: String },
+
+    #[error("Blockchain state inconsistency: {details}")]
+    StateInconsistency { details: String },
+
     /// Service errors
     #[error("Cache error: {operation}: {message}")]
     CacheError { operation: String, message: String },
+
+    #[error("External service error: {service}: {message}")]
+    ExternalServiceError { service: String, message: String },
 
     #[error("Database error: {operation}: {message}")]
     DatabaseError { operation: String, message: String },
@@ -127,7 +149,7 @@ impl ApplicationError {
     /// Get error category for metrics and monitoring
     pub fn category(&self) -> ErrorCategory {
         match self {
-            ApplicationError::InvalidRequest { .. } | ApplicationError::ValidationError { .. } => {
+            ApplicationError::InvalidRequest { .. } | ApplicationError::ValidationError { .. } | ApplicationError::ParseError { .. } => {
                 ErrorCategory::Client
             }
 
@@ -138,7 +160,12 @@ impl ApplicationError {
 
             ApplicationError::SvmError { .. }
             | ApplicationError::EvmError { .. }
-            | ApplicationError::CrossVmError { .. } => ErrorCategory::Blockchain,
+            | ApplicationError::CrossVmError { .. }
+            | ApplicationError::ConsensusError { .. }
+            | ApplicationError::RpcValidationError { .. }
+            | ApplicationError::RpcError { .. }
+            | ApplicationError::TransactionValidationError { .. }
+            | ApplicationError::StateInconsistency { .. } => ErrorCategory::Blockchain,
 
             ApplicationError::ResourceNotFound { .. }
             | ApplicationError::ResourceConflict { .. } => ErrorCategory::Resource,
@@ -147,7 +174,7 @@ impl ApplicationError {
                 ErrorCategory::Network
             }
 
-            ApplicationError::CacheError { .. } | ApplicationError::DatabaseError { .. } => {
+            ApplicationError::CacheError { .. } | ApplicationError::DatabaseError { .. } | ApplicationError::ExternalServiceError { .. } => {
                 ErrorCategory::Storage
             }
 
@@ -170,7 +197,7 @@ impl ApplicationError {
     /// Get HTTP status code for REST API responses
     pub fn http_status(&self) -> u16 {
         match self {
-            ApplicationError::InvalidRequest { .. } | ApplicationError::ValidationError { .. } => {
+            ApplicationError::InvalidRequest { .. } | ApplicationError::ValidationError { .. } | ApplicationError::ParseError { .. } => {
                 400
             } // Bad Request
 

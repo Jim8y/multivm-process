@@ -1,4 +1,5 @@
 pub mod api_key;
+pub mod environment;
 pub mod jwt;
 pub mod manager;
 pub mod permissions;

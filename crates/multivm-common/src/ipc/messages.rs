@@ -83,6 +83,9 @@ pub enum IpcCommand {
     UpdateConfig {
         config_data: Vec<u8>, // Serialized configuration
     },
+
+    /// Health check command
+    HealthCheck,
 }
 
 /// Responses that can be sent between processes
@@ -122,6 +125,9 @@ pub enum IpcResponse {
         message: String,
         details: Option<String>,
     },
+
+    /// Health check response
+    HealthCheck,
 }
 
 #[cfg(test)]

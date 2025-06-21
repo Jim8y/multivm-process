@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+// Production implementation
+use super::svm_production::{ProductionSvmGateway, SvmGatewayConfig, CommitmentLevel};
+
 /// SVM API Gateway
 #[derive(Debug)]
 pub struct SvmApiGateway {
@@ -15,6 +18,8 @@ pub struct SvmApiGateway {
     cache: Arc<CacheLayer>,
     stats: Arc<tokio::sync::RwLock<GatewayStats>>,
     start_time: Instant,
+    // Production gateway when enabled
+    production_gateway: Option<ProductionSvmGateway>,
 }
 
 /// Solana RPC request
@@ -86,12 +91,37 @@ impl SvmApiGateway {
                 message: e.to_string(),
             })?;
 
+        // Check if we should use production gateway
+        let production_gateway = if std::env::var("MULTIVM_PRODUCTION_SVM").unwrap_or_default() == "true" {
+            let svm_config = SvmGatewayConfig {
+                rpc_url: config.rpc_url.clone(),
+                ws_url: Some(config.ws_url.clone()),
+                request_timeout: config.timeout,
+                max_retries: config.retry.max_retries,
+                commitment: match std::env::var("MULTIVM_SVM_COMMITMENT").as_deref() {
+                    Ok("processed") => CommitmentLevel::Processed,
+                    Ok("finalized") => CommitmentLevel::Finalized,
+                    _ => CommitmentLevel::Confirmed,
+                },
+                preflight_checks: std::env::var("MULTIVM_SVM_PREFLIGHT").unwrap_or_default() != "false",
+            };
+            
+            Some(ProductionSvmGateway::new(svm_config, cache.clone()).await
+                .map_err(|e| ApplicationError::ConfigurationError {
+                    component: "svm_production_gateway".to_string(),
+                    message: e.to_string(),
+                })?)
+        } else {
+            None
+        };
+
         Ok(Self {
             client,
             config: config.clone(),
             cache,
             stats: Arc::new(tokio::sync::RwLock::new(GatewayStats::default())),
             start_time: Instant::now(),
+            production_gateway,
         })
     }
 
@@ -800,6 +830,11 @@ mod tests {
                 connection_timeout: Duration::from_secs(5),
                 command_timeout: Duration::from_secs(5),
                 key_prefix: "test:".to_string(),
+                circuit_breaker_threshold: 5,
+                circuit_breaker_timeout: Duration::from_secs(60),
+                hot_cache_max_size: 1024 * 1024,
+                enable_connection_pooling: true,
+                enable_pipelining: false,
             },
             memory: MemoryCacheConfig {
                 max_items: 1000,

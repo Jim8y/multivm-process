@@ -17,6 +17,9 @@ pub enum AccountMappingError {
     #[error("Binding proof validation failed: {reason}")]
     InvalidBindingProof { reason: String },
 
+    #[error("Invalid proof: {reason}")]
+    InvalidProof { reason: String },
+
     #[error("Cross-VM operation not supported: {operation}")]
     UnsupportedOperation { operation: String },
 

@@ -46,6 +46,15 @@ pub enum Permission {
     BatchOperations,
     AdvancedQueries,
     DebugAccess,
+    
+    // Additional system permissions
+    ReadBlockchainData,
+    WriteTransactions,
+    AdminOperations,
+    CrossVmOperations,
+    ManageConsensus,
+    ManageP2P,
+    WriteConfiguration,
 }
 
 impl Permission {
@@ -87,6 +96,14 @@ impl Permission {
             Permission::BatchOperations,
             Permission::AdvancedQueries,
             Permission::DebugAccess,
+            // Additional system permissions
+            Permission::ReadBlockchainData,
+            Permission::WriteTransactions,
+            Permission::AdminOperations,
+            Permission::CrossVmOperations,
+            Permission::ManageConsensus,
+            Permission::ManageP2P,
+            Permission::WriteConfiguration,
         ]
     }
 
@@ -153,12 +170,19 @@ impl Permission {
             Permission::ReadSystemStatus
             | Permission::ReadNetworkInfo
             | Permission::ReadMetrics
-            | Permission::ReadHealthChecks => PermissionCategory::System,
+            | Permission::ReadHealthChecks
+            | Permission::ReadBlockchainData => PermissionCategory::System,
 
             Permission::AdminAccess
             | Permission::ManageApiKeys
             | Permission::ManageUsers
-            | Permission::SystemConfiguration => PermissionCategory::Admin,
+            | Permission::SystemConfiguration
+            | Permission::WriteTransactions
+            | Permission::AdminOperations
+            | Permission::CrossVmOperations
+            | Permission::ManageConsensus
+            | Permission::ManageP2P
+            | Permission::WriteConfiguration => PermissionCategory::Admin,
 
             Permission::SubscribeToBlocks
             | Permission::SubscribeToTransactions
