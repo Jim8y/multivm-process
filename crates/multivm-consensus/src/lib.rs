@@ -3,6 +3,8 @@
 //! This crate provides a unified consensus layer for the MultiVM architecture,
 //! supporting multiple consensus algorithms and ensuring cross-VM state consistency.
 
+#![allow(dead_code, unused_variables, unused_imports)]
+
 pub mod block;
 pub mod error;
 pub mod malachite;

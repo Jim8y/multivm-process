@@ -1,6 +1,6 @@
 use crate::ProcessHandle;
 use multivm_account_mapping::{
-    AccountAddress, AccountMappingLayer, EthereumAddress, MultivmAccountId, SpecialTransaction,
+    AccountAddress, AccountMappingLayer, MultivmAccountId, SpecialTransaction,
 };
 use multivm_common::*;
 use multivm_consensus::{EvmTransaction, MultiVMBlock, SvmTransaction};
@@ -208,7 +208,7 @@ impl BlockRouter {
                     SpecialTransaction::AccountBinding {
                         source_account: {
                             // Parse source account from transaction data
-                            use multivm_account_mapping::{EthereumAddress, SolanaAddress};
+                            
                             let addr_str =
                                 mapping_data["source_account"].as_str().ok_or_else(|| {
                                     MultivmError::InvalidState("Missing source_account".to_string())

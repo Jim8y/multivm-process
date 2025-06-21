@@ -36,9 +36,11 @@ pub enum SolanaEngineError {
     Configuration(String),
 
     #[error("Block processing error: {0}")]
+    #[allow(dead_code)]
     BlockProcessing(String),
 
     #[error("Invalid block data: {0}")]
+    #[allow(dead_code)]
     InvalidBlock(String),
 
     #[error("Process error: {0}")]
@@ -1004,6 +1006,7 @@ fn get_cpu_usage_standard() -> f64 {
 }
 
 /// Generate mock Solana block data for testing
+#[allow(dead_code)]
 pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> SolanaBlockData {
     use solana_sdk::hash::Hash;
 

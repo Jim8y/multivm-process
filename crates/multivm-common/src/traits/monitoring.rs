@@ -1,6 +1,5 @@
 use crate::{HealthStatus, MultivmError, ResourceLimits};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Trait for metrics collection and reporting

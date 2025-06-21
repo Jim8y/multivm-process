@@ -229,6 +229,7 @@ impl MessageRouter {
     }
 
     /// Handle routing commands
+    #[allow(dead_code)]
     async fn handle_command(&self, command: RoutingCommand) -> Result<()> {
         match command {
             RoutingCommand::AddRoute {
@@ -266,10 +267,10 @@ impl MessageRouter {
         command: RoutingCommand,
         routing_table: &RwLock<HashMap<MessageType, Vec<RouteEntry>>>,
         subscribed_topics: &RwLock<HashSet<String>>,
-        dht_entries: &RwLock<HashMap<Vec<u8>, PeerId>>,
-        message_sender: &mpsc::Sender<(PeerId, NetworkMessage)>,
-        stats: &RwLock<RoutingStats>,
-        config: &RoutingConfig,
+        _dht_entries: &RwLock<HashMap<Vec<u8>, PeerId>>,
+        _message_sender: &mpsc::Sender<(PeerId, NetworkMessage)>,
+        _stats: &RwLock<RoutingStats>,
+        _config: &RoutingConfig,
     ) -> Result<()> {
         match command {
             RoutingCommand::AddRoute {
@@ -277,14 +278,14 @@ impl MessageRouter {
                 peer_id,
                 address,
             } => {
-                Self::add_route_static(message_type, peer_id, address, routing_table, stats)
+                Self::add_route_static(message_type, peer_id, address, routing_table, _stats)
                     .await?;
             }
             RoutingCommand::RemoveRoute {
                 message_type,
                 peer_id,
             } => {
-                Self::remove_route_static(message_type, peer_id, routing_table, stats).await?;
+                Self::remove_route_static(message_type, peer_id, routing_table, _stats).await?;
             }
             RoutingCommand::Subscribe(topic) => {
                 Self::subscribe_topic_static(topic, subscribed_topics).await?;
@@ -293,12 +294,12 @@ impl MessageRouter {
                 Self::unsubscribe_topic_static(topic, subscribed_topics).await?;
             }
             RoutingCommand::UpdateReliability { peer_id, success } => {
-                Self::update_peer_reliability_static(peer_id, success, routing_table, config)
+                Self::update_peer_reliability_static(peer_id, success, routing_table, _config)
                     .await?;
             }
             RoutingCommand::GetStats(sender) => {
                 let stats =
-                    Self::get_routing_stats_static(routing_table, subscribed_topics, stats).await;
+                    Self::get_routing_stats_static(routing_table, subscribed_topics, _stats).await;
                 let _ = sender.send(stats);
             }
         }
@@ -429,6 +430,7 @@ impl MessageRouter {
     }
 
     /// Add a new route to the routing table
+    #[allow(dead_code)]
     async fn add_route(
         &self,
         message_type: MessageType,
@@ -462,6 +464,7 @@ impl MessageRouter {
     }
 
     /// Remove a route from the routing table
+    #[allow(dead_code)]
     async fn remove_route(&self, message_type: MessageType, peer_id: PeerId) -> Result<()> {
         let mut table = self.routing_table.write().await;
 
@@ -479,6 +482,7 @@ impl MessageRouter {
     }
 
     /// Subscribe to a GossipSub topic
+    #[allow(dead_code)]
     async fn subscribe_topic(&self, topic: String) -> Result<()> {
         let mut topics = self.subscribed_topics.write().await;
         topics.insert(topic.clone());
@@ -487,6 +491,7 @@ impl MessageRouter {
     }
 
     /// Unsubscribe from a GossipSub topic
+    #[allow(dead_code)]
     async fn unsubscribe_topic(&self, topic: String) -> Result<()> {
         let mut topics = self.subscribed_topics.write().await;
         topics.remove(&topic);
@@ -495,6 +500,7 @@ impl MessageRouter {
     }
 
     /// Update peer reliability score
+    #[allow(dead_code)]
     async fn update_peer_reliability(&self, peer_id: PeerId, success: bool) -> Result<()> {
         let mut table = self.routing_table.write().await;
 
@@ -572,7 +578,7 @@ impl MessageRouter {
         peer_id: PeerId,
         address: Multiaddr,
         routing_table: &RwLock<HashMap<MessageType, Vec<RouteEntry>>>,
-        stats: &RwLock<RoutingStats>,
+        _stats: &RwLock<RoutingStats>,
     ) -> Result<()> {
         let mut table = routing_table.write().await;
         let routes = table.entry(message_type.clone()).or_insert_with(Vec::new);
@@ -605,7 +611,7 @@ impl MessageRouter {
         message_type: MessageType,
         peer_id: PeerId,
         routing_table: &RwLock<HashMap<MessageType, Vec<RouteEntry>>>,
-        stats: &RwLock<RoutingStats>,
+        _stats: &RwLock<RoutingStats>,
     ) -> Result<()> {
         let mut table = routing_table.write().await;
 
@@ -649,7 +655,7 @@ impl MessageRouter {
         peer_id: PeerId,
         success: bool,
         routing_table: &RwLock<HashMap<MessageType, Vec<RouteEntry>>>,
-        config: &RoutingConfig,
+        _config: &RoutingConfig,
     ) -> Result<()> {
         let mut table = routing_table.write().await;
 
@@ -677,10 +683,10 @@ impl MessageRouter {
     /// Static version of get_routing_stats
     async fn get_routing_stats_static(
         routing_table: &RwLock<HashMap<MessageType, Vec<RouteEntry>>>,
-        subscribed_topics: &RwLock<HashSet<String>>,
-        stats: &RwLock<RoutingStats>,
+        _subscribed_topics: &RwLock<HashSet<String>>,
+        _stats: &RwLock<RoutingStats>,
     ) -> RoutingStats {
-        let mut current_stats = stats.read().await.clone();
+        let mut current_stats = _stats.read().await.clone();
         let table = routing_table.read().await;
 
         current_stats.active_routes = table.values().map(|routes| routes.len()).sum();

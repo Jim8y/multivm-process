@@ -23,6 +23,8 @@
 //! └─────────────────┴─────────────────┴─────────────────────────┘
 //! ```
 
+#![allow(dead_code, unused_variables, unused_imports)]
+
 pub mod config;
 pub mod discovery;
 pub mod error;

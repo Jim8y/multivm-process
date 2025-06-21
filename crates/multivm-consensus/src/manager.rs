@@ -757,6 +757,7 @@ impl MultiVMConsensusManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn handle_ping(
         &mut self,
         timestamp: chrono::DateTime<chrono::Utc>,
@@ -773,6 +774,7 @@ impl MultiVMConsensusManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn handle_pong(
         &mut self,
         timestamp: chrono::DateTime<chrono::Utc>,
@@ -1327,6 +1329,7 @@ impl MultiVMConsensusManager {
         format!("0x{}", hex::encode(hasher.finalize()))
     }
 
+    #[allow(dead_code)]
     async fn generate_state_sync_response(
         &self,
         height: u64,

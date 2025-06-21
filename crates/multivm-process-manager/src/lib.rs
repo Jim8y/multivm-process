@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod block_router;
 pub mod coordinator;
 pub mod health;

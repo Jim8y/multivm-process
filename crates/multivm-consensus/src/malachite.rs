@@ -771,6 +771,7 @@ pub struct MalachiteConsensus {
     /// MultiVM context for Malachite integration
     context: MultiVMContext,
     /// Channel for receiving blocks to propose
+    #[allow(dead_code)]
     block_receiver: mpsc::Receiver<MultiVMBlock>,
     /// Channel for sending committed blocks
     commit_sender: mpsc::Sender<MultiVMBlock>,
@@ -893,7 +894,7 @@ impl MalachiteConsensus {
         let proposal_sender_clone = proposal_sender.clone();
 
         // Clone block sender for new block proposals
-        let (block_sender, mut block_receiver_for_proposal) = mpsc::channel::<MultiVMBlock>(100);
+        let (_block_sender, mut block_receiver_for_proposal) = mpsc::channel::<MultiVMBlock>(100);
 
         tokio::spawn(async move {
             loop {
@@ -1559,8 +1560,8 @@ impl ConsensusEngine for MalachiteConsensus {
         );
 
         // Send the proposal through consensus channels
-        let malachite_height = BlockHeight(height);
-        let round = Round::new(*self.current_round.read().await);
+        let _malachite_height = BlockHeight(height);
+        let _round = Round::new(*self.current_round.read().await);
 
         // In production: use actual Malachite proposal channels
         // For now: validate and store the proposal locally
@@ -1739,7 +1740,7 @@ impl ConsensusEngine for MalachiteConsensus {
         }
 
         // Commit through consensus channels
-        let malachite_height = BlockHeight(block.header.height);
+        let _malachite_height = BlockHeight(block.header.height);
 
         // In production: use actual Malachite commit channels
         // For now: update consensus state and finalize the block

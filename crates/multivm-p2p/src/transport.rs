@@ -368,7 +368,7 @@ impl TransportLayer {
 
     /// Handle outgoing messages
     async fn handle_outgoing_message<TBehaviour: NetworkBehaviour>(
-        swarm: &mut Swarm<TBehaviour>,
+        _swarm: &mut Swarm<TBehaviour>,
         peer_id: PeerId,
         message: NetworkMessage,
         event_sender: &mpsc::Sender<TransportEvent>,

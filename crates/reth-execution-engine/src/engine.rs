@@ -1168,6 +1168,7 @@ fn get_cpu_usage_standard() -> f64 {
 }
 
 /// Generate mock Reth block data for testing
+#[allow(dead_code)]
 pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> Block {
     let mut transactions = Vec::new();
     for i in 0..transaction_count {

@@ -3,7 +3,6 @@ use multivm_common::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::info;
 
 /// Health monitor for tracking the health of engine processes
 #[derive(Clone)]

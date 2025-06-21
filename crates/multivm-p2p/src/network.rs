@@ -170,6 +170,7 @@ pub struct P2PNetwork {
     /// Subscribed topics for gossipsub
     subscribed_topics: Arc<RwLock<HashSet<String>>>,
     /// Bootstrap peers for initial connection
+    #[allow(dead_code)]
     bootstrap_peers: Vec<Multiaddr>,
     /// Network configuration
     config: NetworkConfig,
@@ -235,7 +236,7 @@ impl P2PNetwork {
         info!("Starting P2P network with peer ID: {}", local_peer_id);
 
         // Create transport
-        let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
+        let _transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
             .upgrade(libp2p::core::upgrade::Version::V1)
             .authenticate(noise::Config::new(&local_key)?)
             .multiplex(yamux::Config::default())
