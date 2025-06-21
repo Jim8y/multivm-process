@@ -1,0 +1,163 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Cancel old PR check runs when new commits are pushed
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Analyze PR changes
+      run: |
+        echo "## PR Analysis" > pr-analysis.md
+        echo "Generated on: $(date)" >> pr-analysis.md
+        echo "" >> pr-analysis.md
+        
+        # Get changed files
+        echo "### Changed Files:" >> pr-analysis.md
+        git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD >> pr-analysis.md
+        
+        echo "" >> pr-analysis.md
+        echo "### Lines Changed:" >> pr-analysis.md
+        git diff --stat origin/${{ github.event.pull_request.base.ref }}..HEAD >> pr-analysis.md
+        
+        # Check for specific file types
+        echo "" >> pr-analysis.md
+        echo "### File Type Summary:" >> pr-analysis.md
+        
+        RUST_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep '\.rs$' | wc -l)
+        TOML_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep '\.toml$' | wc -l)
+        YML_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -E '\.(yml|yaml)$' | wc -l)
+        MD_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep '\.md$' | wc -l)
+        
+        echo "- Rust files: $RUST_FILES" >> pr-analysis.md
+        echo "- TOML files: $TOML_FILES" >> pr-analysis.md
+        echo "- YAML files: $YML_FILES" >> pr-analysis.md
+        echo "- Markdown files: $MD_FILES" >> pr-analysis.md
+        
+        # Check for breaking changes indicators
+        echo "" >> pr-analysis.md
+        echo "### Potential Breaking Changes:" >> pr-analysis.md
+        
+        if git diff origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "^-.*pub.*fn\|^-.*pub.*struct\|^-.*pub.*enum"; then
+          echo "⚠️ Potential breaking changes detected in public APIs" >> pr-analysis.md
+        else
+          echo "✅ No obvious breaking changes detected" >> pr-analysis.md
+        fi
+    
+    - name: Upload PR analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: pr-analysis-${{ github.event.pull_request.number }}
+        path: pr-analysis.md
+        retention-days: 30
+
+  check-conventional-commits:
+    name: Check Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check commit messages
+      run: |
+        echo "Checking commit messages for conventional commit format..."
+        
+        # Get all commit messages in this PR
+        COMMITS=$(git log --pretty=format:"%s" origin/${{ github.event.pull_request.base.ref }}..HEAD)
+        
+        CONVENTIONAL_PATTERN="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,50}"
+        
+        INVALID_COMMITS=""
+        while IFS= read -r commit; do
+          if [[ ! "$commit" =~ $CONVENTIONAL_PATTERN ]]; then
+            INVALID_COMMITS="$INVALID_COMMITS\n- $commit"
+          fi
+        done <<< "$COMMITS"
+        
+        if [ -n "$INVALID_COMMITS" ]; then
+          echo "❌ Some commits don't follow conventional commit format:"
+          echo -e "$INVALID_COMMITS"
+          echo ""
+          echo "Expected format: type(scope): description"
+          echo "Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+          exit 1
+        else
+          echo "✅ All commits follow conventional commit format"
+        fi
+
+  dependency-changes:
+    name: Check Dependency Changes
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout base
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.base.ref }}
+        path: base
+    
+    - name: Checkout PR
+      uses: actions/checkout@v4
+      with:
+        path: pr
+    
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Compare dependencies
+      run: |
+        echo "## Dependency Changes" > dependency-changes.md
+        echo "Generated on: $(date)" >> dependency-changes.md
+        echo "" >> dependency-changes.md
+        
+        # Generate Cargo.lock for both versions
+        cd base && cargo generate-lockfile && cd ..
+        cd pr && cargo generate-lockfile && cd ..
+        
+        # Compare lockfiles
+        if diff -u base/Cargo.lock pr/Cargo.lock > lockfile-diff.txt; then
+          echo "✅ No dependency changes detected" >> dependency-changes.md
+        else
+          echo "### Dependency Changes Detected:" >> dependency-changes.md
+          echo "\`\`\`diff" >> dependency-changes.md
+          cat lockfile-diff.txt >> dependency-changes.md
+          echo "\`\`\`" >> dependency-changes.md
+          
+          # Check for potential security issues
+          echo "" >> dependency-changes.md
+          echo "### Security Check:" >> dependency-changes.md
+          
+          cd pr
+          if cargo audit 2>/dev/null; then
+            echo "✅ No security vulnerabilities found in updated dependencies" >> ../dependency-changes.md
+          else
+            echo "⚠️ Security audit found issues - please review" >> ../dependency-changes.md
+          fi
+        fi
+    
+    - name: Upload dependency analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-changes-${{ github.event.pull_request.number }}
+        path: dependency-changes.md
+        retention-days: 30
