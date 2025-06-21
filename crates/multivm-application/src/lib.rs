@@ -53,7 +53,14 @@
 
 #![warn(rust_2018_idioms)]
 #![warn(clippy::all)]
-#![allow(dead_code, unused_variables, unused_imports, missing_docs, deprecated, unused_comparisons)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    missing_docs,
+    deprecated,
+    unused_comparisons
+)]
 
 pub mod admin;
 pub mod api;

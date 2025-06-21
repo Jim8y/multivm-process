@@ -111,10 +111,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| format!("Config validation failed: {}", e))?;
     println!("✅ Configuration validated");
 
-    // Create network manager  
+    // Create network manager
     // Note: Demo temporarily disabled due to API changes
     println!("🌐 Network manager would be created here (demo disabled)");
-    
+
     // In production, this would be:
     // let mut network = NetworkManager::new(network_config).await?;
     // network.set_event_handler(std::sync::Arc::new(DemoEventHandler));

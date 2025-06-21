@@ -208,7 +208,7 @@ impl BlockRouter {
                     SpecialTransaction::AccountBinding {
                         source_account: {
                             // Parse source account from transaction data
-                            
+
                             let addr_str =
                                 mapping_data["source_account"].as_str().ok_or_else(|| {
                                     MultivmError::InvalidState("Missing source_account".to_string())

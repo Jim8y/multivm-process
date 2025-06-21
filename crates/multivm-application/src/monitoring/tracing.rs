@@ -35,8 +35,6 @@ impl TracingService {
         );
 
         // Set up OpenTelemetry tracing backend
-        
-        
 
         if let Some(_endpoint) = &self.config.endpoint {
             // Note: OpenTelemetry Jaeger integration would be configured here
