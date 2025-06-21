@@ -1,0 +1,79 @@
+# Default configuration for MultiVM Application
+
+[server.rest]
+host = "0.0.0.0"
+port = 8080
+
+[server.graphql]
+host = "0.0.0.0"
+port = 8081
+playground = true
+
+[server.websocket]
+host = "0.0.0.0"
+port = 8082
+
+[server.admin]
+host = "0.0.0.0"
+port = 8083
+enable_ui = true
+enable_api = true
+
+[database]
+url = "postgresql://multivm:multivm@localhost/multivm"
+max_connections = 20
+min_connections = 5
+
+[cache]
+strategy = "WriteThrough"
+default_ttl = 300
+
+[cache.memory]
+max_size = 1073741824  # 1GB
+ttl_seconds = 300
+eviction_policy = "LRU"
+
+[cache.redis]
+url = ""
+key_prefix = "multivm:"
+
+[solana_client]
+rpc_url = "http://localhost:8899"
+ws_url = "ws://localhost:8900"
+
+[reth_client]
+rpc_url = "http://localhost:8545"
+ws_url = "ws://localhost:8546"
+
+[multivm_client]
+consensus_endpoint = "http://localhost:26657"
+account_mapping_endpoint = "http://localhost:26658"
+
+[auth]
+jwt_secret = "your-secret-key-change-in-production"
+jwt_expiry_hours = 24
+api_key_header = "X-API-Key"
+enable_jwt = true
+enable_api_keys = true
+
+[rate_limit]
+requests_per_second = 100
+burst_size = 200
+window_seconds = 60
+
+[monitoring]
+enable_metrics = true
+enable_health_check = true
+enable_tracing = false
+
+[monitoring.metrics]
+port = 9090
+path = "/metrics"
+
+[monitoring.health_check]
+interval_seconds = 30
+timeout_seconds = 5
+
+[monitoring.tracing]
+endpoint = "http://localhost:4317"
+service_name = "multivm-application"

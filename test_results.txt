@@ -1,0 +1,5286 @@
+warning: field `event_sender` is never read
+  --> multivm-p2p/src/network.rs:23:5
+   |
+15 | pub struct P2PNetwork {
+   |            ---------- field in this struct
+...
+23 |     event_sender: Option<mpsc::UnboundedSender<NetworkMessage>>,
+   |     ^^^^^^^^^^^^
+   |
+   = note: `P2PNetwork` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `multivm-p2p` (lib) generated 1 warning
+warning: field `block_receiver` is never read
+   --> multivm-consensus/src/malachite.rs:108:5
+    |
+104 | pub struct MalachiteConsensus {
+    |            ------------------ field in this struct
+...
+108 |     block_receiver: mpsc::Receiver<MultiVMBlock>,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `MalachiteConsensus` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` on by default
+
+warning: `multivm-consensus` (lib) generated 1 warning
+warning: unused variable: `addr_str`
+   --> multivm-process-manager/src/block_router.rs:211:33
+    |
+211 | ...                   let addr_str =
+    |                           ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_addr_str`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `addr_str`
+   --> multivm-process-manager/src/block_router.rs:223:33
+    |
+223 | ...                   let addr_str =
+    |                           ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_addr_str`
+
+warning: field `account_mapping` is never read
+  --> multivm-process-manager/src/block_router.rs:79:5
+   |
+77 | pub struct BlockRouter {
+   |            ----------- field in this struct
+78 |     process_handles: Arc<RwLock<HashMap<ProcessId, ProcessHandle>>>,
+79 |     account_mapping: Arc<dyn AccountMappingLayer>,
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: multiple methods are never used
+   --> multivm-process-manager/src/block_router.rs:194:14
+    |
+82  | impl BlockRouter {
+    | ---------------- methods in this implementation
+...
+194 |     async fn extract_account_mapping(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^
+...
+296 |     async fn extract_cross_vm_operations(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+310 |     async fn process_cross_vm_operations(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+366 |     async fn resolve_transaction_dependencies(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+398 |     fn has_circular_dependency(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+...
+542 |     async fn create_svm_burn_transaction(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+563 |     async fn create_svm_mint_transaction(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+584 |     async fn create_evm_burn_transaction(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+618 |     async fn create_evm_mint_transaction(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+692 |     fn generate_recent_blockhash(&self) -> String {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `receiver` is never read
+  --> multivm-process-manager/src/ipc_transport.rs:19:5
+   |
+17 | struct ConnectionHandle {
+   |        ---------------- field in this struct
+18 |     sender: mpsc::UnboundedSender<IpcMessage>,
+19 |     receiver: Arc<RwLock<mpsc::UnboundedReceiver<IpcResponse>>>,
+   |     ^^^^^^^^
+
+warning: fields `socket_path` and `listener` are never read
+  --> multivm-process-manager/src/ipc_transport.rs:23:5
+   |
+22 | pub struct UnixSocketTransport {
+   |            ------------------- fields in this struct
+23 |     socket_path: PathBuf,
+   |     ^^^^^^^^^^^
+24 |     listener: Option<tokio::net::UnixListener>,
+   |     ^^^^^^^^
+
+warning: fields `bind_address` and `listener` are never read
+  --> multivm-process-manager/src/ipc_transport.rs:29:5
+   |
+28 | pub struct TcpSocketTransport {
+   |            ------------------ fields in this struct
+29 |     bind_address: SocketAddr,
+   |     ^^^^^^^^^^^^
+30 |     listener: Option<tokio::net::TcpListener>,
+   |     ^^^^^^^^
+
+warning: field `block_router` is never read
+  --> multivm-process-manager/src/manager.rs:27:5
+   |
+23 | struct MultivmProcessManagerInner {
+   |        -------------------------- field in this struct
+...
+27 |     block_router: BlockRouter,
+   |     ^^^^^^^^^^^^
+
+warning: field `total_processing_time` is never read
+  --> multivm-process-manager/src/manager.rs:46:5
+   |
+44 | struct SystemMetrics {
+   |        ------------- field in this struct
+45 |     blocks_processed: HashMap<BlockchainType, u64>,
+46 |     total_processing_time: HashMap<BlockchainType, Duration>,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `SystemMetrics` has derived impls for the traits `Default` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: `multivm-process-manager` (lib) generated 9 warnings
+   Compiling solana-execution-engine v0.1.0 (/home/neo/git/multivm-process/solana-execution-engine)
+   Compiling multivm-application v0.1.0 (/home/neo/git/multivm-process/multivm-application)
+   Compiling reth-execution-engine v0.1.0 (/home/neo/git/multivm-process/reth-execution-engine)
+warning: unused imports: `AccountAddress`, `BindingProof`, `ProofType`, and `SolanaAddress`
+   --> multivm-consensus/src/block.rs:354:35
+    |
+354 |     use multivm_account_mapping::{AccountAddress, BindingProof, ProofType, SolanaAddress};
+    |                                   ^^^^^^^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^  ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `crate::block::MultiVMBlock`
+   --> multivm-consensus/src/messages.rs:526:9
+    |
+526 |     use crate::block::MultiVMBlock;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `AccountAddress`, `BindingProof`, `EthereumAddress`, `ProofType`, and `SolanaAddress`
+   --> multivm-consensus/src/state.rs:693:9
+    |
+693 |         AccountAddress, BindingProof, EthereumAddress, ProofType, SolanaAddress,
+    |         ^^^^^^^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^  ^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: `multivm-consensus` (lib test) generated 4 warnings (1 duplicate) (run `cargo fix --lib -p multivm-consensus --tests` to apply 3 suggestions)
+   Compiling multivm-integration-tests v0.1.0 (/home/neo/git/multivm-process/tests)
+   Compiling multivm-consensus v0.1.0 (/home/neo/git/multivm-process/multivm-consensus)
+   Compiling multivm-examples v0.1.0 (/home/neo/git/multivm-process/examples)
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `raft`
+   --> examples/consensus_demo.rs:322:27
+    |
+322 |         let raft_config = raft::RaftConfig::default();
+    |                           ^^^^ use of unresolved module or unlinked crate `raft`
+    |
+    = help: if you wanted to use a crate named `raft`, use `cargo add raft` to add it to your `Cargo.toml`
+help: consider importing one of these structs
+    |
+312 +     use crate::RaftConfig;
+    |
+312 +     use multivm_consensus::RaftConfig;
+    |
+help: if you import `RaftConfig`, refer to it directly
+    |
+322 -         let raft_config = raft::RaftConfig::default();
+322 +         let raft_config = RaftConfig::default();
+    |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `raft`
+   --> examples/consensus_demo.rs:365:53
+    |
+365 |             algorithm_config: AlgorithmConfig::Raft(raft::RaftConfig::default()),
+    |                                                     ^^^^ use of unresolved module or unlinked crate `raft`
+    |
+    = help: if you wanted to use a crate named `raft`, use `cargo add raft` to add it to your `Cargo.toml`
+help: consider importing one of these structs
+    |
+312 +     use crate::RaftConfig;
+    |
+312 +     use multivm_consensus::RaftConfig;
+    |
+help: if you import `RaftConfig`, refer to it directly
+    |
+365 -             algorithm_config: AlgorithmConfig::Raft(raft::RaftConfig::default()),
+365 +             algorithm_config: AlgorithmConfig::Raft(RaftConfig::default()),
+    |
+
+error[E0432]: unresolved import `multivm_account_mapping::AccountMapping`
+ --> tests/enhanced_integration_tests.rs:4:5
+  |
+4 |     AccountMapping, AccountMappingLayer, EthereumAddress, SolanaAddress, SpecialTransaction,
+  |     ^^^^^^^^^^^^^^
+  |     |
+  |     no `AccountMapping` in the root
+  |     help: a similar name exists in the module: `AccountMapper`
+  |
+  = help: consider importing one of these variants instead:
+          crate::MultivmError::AccountMapping
+          multivm_common::MultivmError::AccountMapping
+          multivm_process_manager::DependencyType::AccountMapping
+          multivm_process_manager::MultivmError::AccountMapping
+
+error[E0432]: unresolved imports `multivm_consensus::ConsensusTrait`, `multivm_consensus::MultivmBlock`, `multivm_consensus::Transaction`
+ --> tests/enhanced_integration_tests.rs:8:5
+  |
+8 |     ConsensusTrait, EvmTransaction, MalachiteConfig, MultivmBlock, SvmTransaction, Transaction,
+  |     ^^^^^^^^^^^^^^                                   ^^^^^^^^^^^^                  ^^^^^^^^^^^ no `Transaction` in the root
+  |     |                                                |
+  |     no `ConsensusTrait` in the root                  no `MultivmBlock` in the root
+  |
+  = help: consider importing one of these variants instead:
+          multivm_account_mapping::ProofType::Transaction
+          multivm_p2p::EvmMessage::Transaction
+          multivm_p2p::SvmMessage::Transaction
+help: a similar name exists in the module
+  |
+8 -     ConsensusTrait, EvmTransaction, MalachiteConfig, MultivmBlock, SvmTransaction, Transaction,
+8 +     ConsensusStats, EvmTransaction, MalachiteConfig, MultivmBlock, SvmTransaction, Transaction,
+  |
+help: a similar name exists in the module
+  |
+8 -     ConsensusTrait, EvmTransaction, MalachiteConfig, MultivmBlock, SvmTransaction, Transaction,
+8 +     ConsensusTrait, EvmTransaction, MalachiteConfig, MultiVMBlock, SvmTransaction, Transaction,
+  |
+help: a similar name exists in the module
+  |
+8 |     ConsensusTrait, EvmTransaction, MalachiteConfig, MultivmBlock, SvmTransaction, TransactionId,
+  |                                                                                               ++
+
+error[E0432]: unresolved import `multivm_p2p::NetworkConfig`
+  --> tests/enhanced_integration_tests.rs:10:19
+   |
+10 | use multivm_p2p::{NetworkConfig, P2PNetworkLayer};
+   |                   ^^^^^^^^^^^^^
+   |                   |
+   |                   no `NetworkConfig` in the root
+   |                   help: a similar name exists in the module: `P2PNetworkConfig`
+   |
+   = help: consider importing one of these structs instead:
+           multivm_consensus::NetworkConfig
+           multivm_consensus::malachite::NetworkConfig
+           multivm_p2p::config::NetworkConfig
+
+error[E0432]: unresolved import `multivm_process_manager::ProcessManager`
+  --> tests/enhanced_integration_tests.rs:11:83
+   |
+11 | use multivm_process_manager::{BlockRouter, CoordinatorConfig, MultivmCoordinator, ProcessManager};
+   |                                                                                   ^^^^^^^^^^^^^^
+   |                                                                                   |
+   |                                                                                   no `ProcessManager` in the root
+   |                                                                                   help: a similar name exists in the module: `ProcessHandle`
+   |
+   = help: consider importing this trait instead:
+           multivm_common::ProcessManager
+
+warning: unused import: `AccountMappingLayer`
+ --> tests/enhanced_integration_tests.rs:4:21
+  |
+4 |     AccountMapping, AccountMappingLayer, EthereumAddress, SolanaAddress, SpecialTransaction,
+  |                     ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `BlockchainType`, `MultivmConfig`, `MultivmError`, and `MultivmResult`
+ --> tests/enhanced_integration_tests.rs:6:22
+  |
+6 | use multivm_common::{BlockchainType, MultivmConfig, MultivmError, MultivmResult, SystemConfig};
+  |                      ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused import: `BlockRouter`
+  --> tests/enhanced_integration_tests.rs:11:31
+   |
+11 | use multivm_process_manager::{BlockRouter, CoordinatorConfig, MultivmCoordinator, ProcessManager};
+   |                               ^^^^^^^^^^^
+
+warning: unused import: `tokio::sync::RwLock`
+  --> tests/enhanced_integration_tests.rs:15:5
+   |
+15 | use tokio::sync::RwLock;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `set_event_listener` found for struct `multivm_consensus::MultiVMConsensusManager` in the current scope
+  --> examples/consensus_demo.rs:69:23
+   |
+69 |     consensus_manager.set_event_listener(event_sender);
+   |                       ^^^^^^^^^^^^^^^^^^ method not found in `MultiVMConsensusManager`
+
+error[E0027]: pattern does not mention field `height`
+   --> examples/consensus_demo.rs:158:17
+    |
+158 |                 ConsensusEvent::BlockProposed { block, proposer } => {
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing field `height`
+    |
+help: include the missing field in the pattern
+    |
+158 |                 ConsensusEvent::BlockProposed { block, proposer, height } => {
+    |                                                                ++++++++
+help: if you don't care about this missing field, you can explicitly ignore it
+    |
+158 |                 ConsensusEvent::BlockProposed { block, proposer, height: _ } => {
+    |                                                                +++++++++++
+help: or always ignore missing fields here
+    |
+158 |                 ConsensusEvent::BlockProposed { block, proposer, .. } => {
+    |                                                                ++++
+
+error[E0027]: pattern does not mention field `block_hash`
+   --> examples/consensus_demo.rs:166:17
+    |
+166 |                 ConsensusEvent::BlockCommitted { block, height } => {
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing field `block_hash`
+    |
+help: include the missing field in the pattern
+    |
+166 |                 ConsensusEvent::BlockCommitted { block, height, block_hash } => {
+    |                                                               ++++++++++++
+help: if you don't care about this missing field, you can explicitly ignore it
+    |
+166 |                 ConsensusEvent::BlockCommitted { block, height, block_hash: _ } => {
+    |                                                               +++++++++++++++
+help: or always ignore missing fields here
+    |
+166 |                 ConsensusEvent::BlockCommitted { block, height, .. } => {
+    |                                                               ++++
+
+error[E0027]: pattern does not mention field `message`
+   --> examples/consensus_demo.rs:179:17
+    |
+179 |                 ConsensusEvent::Error { error, context } => {
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing field `message`
+    |
+help: include the missing field in the pattern
+    |
+179 |                 ConsensusEvent::Error { error, context, message } => {
+    |                                                       +++++++++
+help: if you don't care about this missing field, you can explicitly ignore it
+    |
+179 |                 ConsensusEvent::Error { error, context, message: _ } => {
+    |                                                       ++++++++++++
+help: or always ignore missing fields here
+    |
+179 |                 ConsensusEvent::Error { error, context, .. } => {
+    |                                                       ++++
+
+error[E0599]: no method named `is_healthy` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:27:26
+   |
+27 |     assert!(!coordinator.is_healthy().await);
+   |                          ^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `process_special_transaction` found for struct `multivm_consensus::MultiVMConsensusManager` in the current scope
+   --> examples/consensus_demo.rs:205:10
+    |
+204 |       match consensus_manager
+    |  ___________-
+205 | |         .process_special_transaction(binding_tx)
+    | |_________-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `process_cross_vm_transaction` with a similar name
+    |
+205 -         .process_special_transaction(binding_tx)
+205 +         .process_cross_vm_transaction(binding_tx)
+    |
+
+error[E0599]: no method named `is_healthy` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:36:25
+   |
+36 |     assert!(coordinator.is_healthy().await);
+   |                         ^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `process_special_transaction` found for struct `multivm_consensus::MultiVMConsensusManager` in the current scope
+   --> examples/consensus_demo.rs:215:10
+    |
+214 |       match consensus_manager
+    |  ___________-
+215 | |         .process_special_transaction(transfer_tx)
+    | |_________-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `process_cross_vm_transaction` with a similar name
+    |
+215 -         .process_special_transaction(transfer_tx)
+215 +         .process_cross_vm_transaction(transfer_tx)
+    |
+
+error[E0599]: no method named `consensus_healthy` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:37:25
+   |
+37 |     assert!(coordinator.consensus_healthy().await);
+   |                         ^^^^^^^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `p2p_healthy` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:38:25
+   |
+38 |     assert!(coordinator.p2p_healthy().await);
+   |                         ^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `engines_healthy` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:39:25
+   |
+39 |     assert!(coordinator.engines_healthy().await);
+   |                         ^^^^^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `sync_state_to_height` found for struct `multivm_consensus::MultiVMConsensusManager` in the current scope
+   --> examples/consensus_demo.rs:272:10
+    |
+271 | /     consensus_manager
+272 | |         .sync_state_to_height(target_height)
+    | |_________-^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `sync_to_height` with a similar name
+    |
+272 -         .sync_state_to_height(target_height)
+272 +         .sync_to_height(target_height)
+    |
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:42:25
+   |
+42 |     assert!(coordinator.shutdown().await.is_ok());
+   |                         ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `is_healthy` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:45:26
+   |
+45 |     assert!(!coordinator.is_healthy().await);
+   |                          ^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no function or associated item named `default` found for struct `multivm_consensus::ConsensusManagerConfig` in the current scope
+   --> examples/consensus_demo.rs:317:46
+    |
+317 |         let config = ConsensusManagerConfig::default();
+    |                                              ^^^^^^^ function or associated item not found in `ConsensusManagerConfig`
+
+error[E0599]: no method named `unwrap` found for opaque type `impl Future<Output = Result<multivm_consensus::MultiVMConsensusManager, ConsensusError>>` in the current scope
+   --> examples/consensus_demo.rs:318:60
+    |
+318 |         let manager = MultiVMConsensusManager::new(config).unwrap();
+    |                                                            ^^^^^^ method not found in `impl Future<Output = Result<MultiVMConsensusManager, ConsensusError>>`
+    |
+help: consider `await`ing on the `Future` and calling the method on its `Output`
+    |
+318 |         let manager = MultiVMConsensusManager::new(config).await.unwrap();
+    |                                                            ++++++
+
+warning: unused import: `std::path::Path`
+ --> solana-execution-engine/src/ipc_client.rs:2:5
+  |
+2 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `std::net::SocketAddr`
+ --> solana-execution-engine/src/rpc_server.rs:2:5
+  |
+2 | use std::net::SocketAddr;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `wait_for_block_finalization` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:65:21
+   |
+65 |         coordinator.wait_for_block_finalization(block.height),
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0277]: the trait bound `multivm_consensus::ConsensusManagerConfig: Default` is not satisfied
+   --> examples/consensus_demo.rs:369:15
+    |
+369 |             ..Default::default()
+    |               ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `multivm_consensus::ConsensusManagerConfig`
+
+error[E0599]: no method named `get_engine_stats` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:79:36
+   |
+79 |     let engine_stats = coordinator.get_engine_stats().await;
+   |                                    ^^^^^^^^^^^^^^^^
+   |
+help: there is a method `get_state` with a similar name
+   |
+79 -     let engine_stats = coordinator.get_engine_stats().await;
+79 +     let engine_stats = coordinator.get_state().await;
+   |
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+  --> tests/enhanced_integration_tests.rs:83:17
+   |
+83 |     coordinator.shutdown().await.unwrap();
+   |                 ^^^^^^^^ method not found in `MultivmCoordinator`
+
+Some errors have detailed explanations: E0027, E0277, E0433, E0599.
+For more information about an error, try `rustc --explain E0027`.
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `tracing_subscriber`
+  --> multivm-consensus/examples/malachite_example.rs:19:5
+   |
+19 |     tracing_subscriber::init();
+   |     ^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `tracing_subscriber`
+   |
+   = help: if you wanted to use a crate named `tracing_subscriber`, use `cargo add tracing_subscriber` to add it to your `Cargo.toml`
+
+error: could not compile `multivm-examples` (bin "consensus_demo" test) due to 12 previous errors
+warning: build failed, waiting for other jobs to finish...
+warning: use of deprecated function `base64::decode`: Use Engine::decode
+   --> solana-execution-engine/src/engine.rs:426:42
+    |
+426 |             if let Ok(decoded) = base64::decode(tx_data) {
+    |                                          ^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+error[E0560]: struct `ConsensusManagerConfig` has no field named `malachite_config`
+  --> multivm-consensus/examples/malachite_example.rs:55:9
+   |
+55 |         malachite_config,
+   |         ^^^^^^^^^^^^^^^^ `ConsensusManagerConfig` does not have this field
+   |
+   = note: available fields are: `algorithm`, `algorithm_config`
+
+warning: field `test_timeout` is never read
+  --> tests/integration_tests.rs:20:5
+   |
+18 | struct IntegrationTestConfig {
+   |        --------------------- field in this struct
+19 |     coordinator_config: CoordinatorConfig,
+20 |     test_timeout: Duration,
+   |     ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+error[E0599]: no method named `get_account_mapping_stats` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:124:37
+    |
+124 |     let mapping_stats = coordinator.get_account_mapping_stats().await;
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+warning: comparison is useless due to type limits
+   --> tests/integration_tests.rs:257:13
+    |
+257 |     assert!(routing_result.routing_metadata.routing_time_ms >= 0);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_comparisons)]` on by default
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:129:17
+    |
+129 |     coordinator.shutdown().await.unwrap();
+    |                 ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0609]: no field `consensus_config` on type `CoordinatorConfig`
+   --> tests/enhanced_integration_tests.rs:140:16
+    |
+140 |         config.consensus_config.validator_id = format!("validator{}", i);
+    |                ^^^^^^^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `consensus`, `health_check_interval`, `block_timeout`, `max_concurrent_blocks`, `enable_recovery`
+
+Some errors have detailed explanations: E0433, E0560.
+For more information about an error, try `rustc --explain E0433`.
+error: could not compile `multivm-consensus` (example "malachite_example") due to 2 previous errors
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:154:21
+    |
+154 |     coordinators[3].shutdown().await.unwrap();
+    |                     ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `wait_for_block_finalization` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:160:25
+    |
+160 |         coordinators[0].wait_for_block_finalization(block.height),
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:168:21
+    |
+168 |         coordinator.shutdown().await.unwrap();
+    |                     ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:190:30
+    |
+190 |             signatures: vec![vec![i as u8; 64]],
+    |                              ^^^^^^^^^^^^^^^^^ expected `String`, found `Vec<u8>`
+    |
+    = note: expected struct `String`
+               found struct `Vec<u8>`
+    = note: this error originates in the macro `vec` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `accounts`, `fee`, `id` and 2 other fields in initializer of `SvmTransaction`
+   --> tests/enhanced_integration_tests.rs:188:44
+    |
+188 |         transactions.push(Transaction::Svm(SvmTransaction {
+    |                                            ^^^^^^^^^^^^^^ missing `accounts`, `fee`, `id` and 2 other fields
+
+error[E0063]: missing fields `from`, `gas_limit`, `gas_price` and 7 other fields in initializer of `EvmTransaction`
+   --> tests/enhanced_integration_tests.rs:196:44
+    |
+196 |         transactions.push(Transaction::Evm(EvmTransaction {
+    |                                            ^^^^^^^^^^^^^^ missing `from`, `gas_limit`, `gas_price` and 7 other fields
+
+error[E0599]: no method named `get_routing_stats` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:223:37
+    |
+223 |     let routing_stats = coordinator.get_routing_stats().await;
+    |                                     ^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `get_state` with a similar name
+    |
+223 -     let routing_stats = coordinator.get_routing_stats().await;
+223 +     let routing_stats = coordinator.get_state().await;
+    |
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:229:17
+    |
+229 |     coordinator.shutdown().await.unwrap();
+    |                 ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:251:38
+    |
+251 |                     signatures: vec![vec![i as u8; 64]],
+    |                                      ^^^^^^^^^^^^^^^^^ expected `String`, found `Vec<u8>`
+    |
+    = note: expected struct `String`
+               found struct `Vec<u8>`
+    = note: this error originates in the macro `vec` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `accounts`, `fee`, `id` and 2 other fields in initializer of `SvmTransaction`
+   --> tests/enhanced_integration_tests.rs:249:53
+    |
+249 |                 transactions: vec![Transaction::Svm(SvmTransaction {
+    |                                                     ^^^^^^^^^^^^^^ missing `accounts`, `fee`, `id` and 2 other fields
+
+error[E0599]: no method named `get_consensus_stats` found for struct `Arc<MultivmCoordinator>` in the current scope
+   --> tests/enhanced_integration_tests.rs:273:29
+    |
+273 |     let stats = coordinator.get_consensus_stats().await;
+    |                             ^^^^^^^^^^^^^^^^^^^ method not found in `Arc<MultivmCoordinator>`
+
+error[E0599]: no method named `shutdown` found for struct `Arc<MultivmCoordinator>` in the current scope
+   --> tests/enhanced_integration_tests.rs:276:17
+    |
+276 |     coordinator.shutdown().await.unwrap();
+    |                 ^^^^^^^^ method not found in `Arc<MultivmCoordinator>`
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:310:17
+    |
+310 |     coordinator.shutdown().await.unwrap();
+    |                 ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:332:38
+    |
+332 |                     signatures: vec![vec![0; 64]],
+    |                                      ^^^^^^^^^^^ expected `String`, found `Vec<{integer}>`
+    |
+    = note: expected struct `String`
+               found struct `Vec<{integer}>`
+    = note: this error originates in the macro `vec` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `accounts`, `fee`, `id` and 2 other fields in initializer of `SvmTransaction`
+   --> tests/enhanced_integration_tests.rs:330:52
+    |
+330 |                 transactions.push(Transaction::Svm(SvmTransaction {
+    |                                                    ^^^^^^^^^^^^^^ missing `accounts`, `fee`, `id` and 2 other fields
+
+error[E0063]: missing fields `from`, `gas_limit`, `gas_price` and 7 other fields in initializer of `EvmTransaction`
+   --> tests/enhanced_integration_tests.rs:335:52
+    |
+335 |                 transactions.push(Transaction::Evm(EvmTransaction {
+    |                                                    ^^^^^^^^^^^^^^ missing `from`, `gas_limit`, `gas_price` and 7 other fields
+
+error[E0599]: no method named `wait_for_block_finalization` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:357:21
+    |
+357 |         coordinator.wait_for_block_finalization(num_blocks as u64),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0599]: no method named `shutdown` found for struct `MultivmCoordinator` in the current scope
+   --> tests/enhanced_integration_tests.rs:374:17
+    |
+374 |     coordinator.shutdown().await.unwrap();
+    |                 ^^^^^^^^ method not found in `MultivmCoordinator`
+
+error[E0560]: struct `CoordinatorConfig` has no field named `consensus_config`
+   --> tests/enhanced_integration_tests.rs:381:9
+    |
+381 |         consensus_config: MalachiteConfig {
+    |         ^^^^^^^^^^^^^^^^ `CoordinatorConfig` does not have this field
+    |
+    = note: available fields are: `consensus`, `health_check_interval`, `block_timeout`, `max_concurrent_blocks`, `enable_recovery`
+
+error[E0560]: struct `MalachiteConfig` has no field named `validator_id`
+   --> tests/enhanced_integration_tests.rs:382:13
+    |
+382 |             validator_id: "test-validator".to_string(),
+    |             ^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:383:30
+    |
+383 |             validators: vec!["test-validator".to_string()],
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `ValidatorInfo`, found `String`
+
+error[E0560]: struct `MalachiteConfig` has no field named `propose_timeout`
+   --> tests/enhanced_integration_tests.rs:384:13
+    |
+384 |             propose_timeout: Duration::from_millis(100),
+    |             ^^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `MalachiteConfig` has no field named `prevote_timeout`
+   --> tests/enhanced_integration_tests.rs:385:13
+    |
+385 |             prevote_timeout: Duration::from_millis(100),
+    |             ^^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `MalachiteConfig` has no field named `precommit_timeout`
+   --> tests/enhanced_integration_tests.rs:386:13
+    |
+386 |             precommit_timeout: Duration::from_millis(100),
+    |             ^^^^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `MalachiteConfig` has no field named `commit_timeout`
+   --> tests/enhanced_integration_tests.rs:387:13
+    |
+387 |             commit_timeout: Duration::from_millis(100),
+    |             ^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `MalachiteConfig` has no field named `round_step_duration`
+   --> tests/enhanced_integration_tests.rs:388:13
+    |
+388 |             round_step_duration: Duration::from_millis(50),
+    |             ^^^^^^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `MalachiteConfig` has no field named `max_block_size`
+   --> tests/enhanced_integration_tests.rs:389:13
+    |
+389 |             max_block_size: 1024 * 1024,
+    |             ^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `MalachiteConfig` has no field named `max_rounds_per_height`
+   --> tests/enhanced_integration_tests.rs:390:13
+    |
+390 |             max_rounds_per_height: 10,
+    |             ^^^^^^^^^^^^^^^^^^^^^ `MalachiteConfig` does not have this field
+    |
+    = note: available fields are: `node_id`, `network_config`, `consensus_params`
+
+error[E0560]: struct `CoordinatorConfig` has no field named `system_config`
+   --> tests/enhanced_integration_tests.rs:392:9
+    |
+392 |         system_config: SystemConfig {
+    |         ^^^^^^^^^^^^^ `CoordinatorConfig` does not have this field
+    |
+    = note: available fields are: `consensus`, `health_check_interval`, `block_timeout`, `max_concurrent_blocks`, `enable_recovery`
+
+error[E0560]: struct `SystemConfig` has no field named `name`
+   --> tests/enhanced_integration_tests.rs:393:13
+    |
+393 |             name: "test-multivm".to_string(),
+    |             ^^^^ `SystemConfig` does not have this field
+    |
+    = note: available fields are: `resource_limits`, `max_processes`, `process_restart_delay`, `health_check_interval`, `metrics_port`
+
+error[E0560]: struct `SystemConfig` has no field named `enable_monitoring`
+   --> tests/enhanced_integration_tests.rs:395:13
+    |
+395 |             enable_monitoring: false,
+    |             ^^^^^^^^^^^^^^^^^ `SystemConfig` does not have this field
+    |
+    = note: available fields are: `resource_limits`, `max_processes`, `process_restart_delay`, `health_check_interval`, `metrics_port`
+
+error[E0560]: struct `CoordinatorConfig` has no field named `network_config`
+   --> tests/enhanced_integration_tests.rs:399:9
+    |
+399 |         network_config: NetworkConfig {
+    |         ^^^^^^^^^^^^^^ `CoordinatorConfig` does not have this field
+    |
+    = note: available fields are: `consensus`, `health_check_interval`, `block_timeout`, `max_concurrent_blocks`, `enable_recovery`
+
+error[E0609]: no field `consensus_config` on type `CoordinatorConfig`
+   --> tests/enhanced_integration_tests.rs:422:12
+    |
+422 |     config.consensus_config.validators = validators;
+    |            ^^^^^^^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `consensus`, `health_check_interval`, `block_timeout`, `max_concurrent_blocks`, `enable_recovery`
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:442:34
+    |
+442 |                 signatures: vec![vec![0; 64]],
+    |                                  ^^^^^^^^^^^ expected `String`, found `Vec<{integer}>`
+    |
+    = note: expected struct `String`
+               found struct `Vec<{integer}>`
+    = note: this error originates in the macro `vec` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `accounts`, `fee`, `id` and 2 other fields in initializer of `SvmTransaction`
+   --> tests/enhanced_integration_tests.rs:440:30
+    |
+440 |             Transaction::Svm(SvmTransaction {
+    |                              ^^^^^^^^^^^^^^ missing `accounts`, `fee`, `id` and 2 other fields
+
+error[E0063]: missing fields `from`, `gas_limit`, `gas_price` and 7 other fields in initializer of `EvmTransaction`
+   --> tests/enhanced_integration_tests.rs:444:30
+    |
+444 |             Transaction::Evm(EvmTransaction {
+    |                              ^^^^^^^^^^^^^^ missing `from`, `gas_limit`, `gas_price` and 7 other fields
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:463:34
+    |
+463 |                 signatures: vec![vec![0; 64], vec![1; 64]],
+    |                                  ^^^^^^^^^^^ expected `String`, found `Vec<{integer}>`
+    |
+    = note: expected struct `String`
+               found struct `Vec<{integer}>`
+    = note: this error originates in the macro `vec` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `accounts`, `fee`, `id` and 2 other fields in initializer of `SvmTransaction`
+   --> tests/enhanced_integration_tests.rs:461:30
+    |
+461 |             Transaction::Svm(SvmTransaction {
+    |                              ^^^^^^^^^^^^^^ missing `accounts`, `fee`, `id` and 2 other fields
+
+error[E0308]: mismatched types
+   --> tests/enhanced_integration_tests.rs:467:34
+    |
+467 |                 signatures: vec![vec![2; 64]],
+    |                                  ^^^^^^^^^^^ expected `String`, found `Vec<{integer}>`
+    |
+    = note: expected struct `String`
+               found struct `Vec<{integer}>`
+    = note: this error originates in the macro `vec` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `accounts`, `fee`, `id` and 2 other fields in initializer of `SvmTransaction`
+   --> tests/enhanced_integration_tests.rs:465:30
+    |
+465 |             Transaction::Svm(SvmTransaction {
+    |                              ^^^^^^^^^^^^^^ missing `accounts`, `fee`, `id` and 2 other fields
+
+error[E0063]: missing fields `from`, `gas_limit`, `gas_price` and 7 other fields in initializer of `EvmTransaction`
+   --> tests/enhanced_integration_tests.rs:470:30
+    |
+470 |             Transaction::Evm(EvmTransaction {
+    |                              ^^^^^^^^^^^^^^ missing `from`, `gas_limit`, `gas_price` and 7 other fields
+
+error[E0063]: missing fields `from`, `gas_limit`, `gas_price` and 7 other fields in initializer of `EvmTransaction`
+   --> tests/enhanced_integration_tests.rs:473:30
+    |
+473 |             Transaction::Evm(EvmTransaction {
+    |                              ^^^^^^^^^^^^^^ missing `from`, `gas_limit`, `gas_price` and 7 other fields
+
+error[E0599]: no variant or associated item named `AccountMapping` found for enum `multivm_account_mapping::SpecialTransaction` in the current scope
+   --> tests/enhanced_integration_tests.rs:486:25
+    |
+486 |     SpecialTransaction::AccountMapping(AccountMapping {
+    |                         ^^^^^^^^^^^^^^ variant or associated item not found in `SpecialTransaction`
+    |
+help: there is a variant with a similar name
+    |
+486 -     SpecialTransaction::AccountMapping(AccountMapping {
+487 -         multivm_account_id: vec![1; 32],
+488 -         solana_address: Some(SolanaAddress([2; 32])),
+489 -         ethereum_address: None,
+490 -         proof: vec![0; 64], // Solana signature only
+491 -         timestamp: 1000000,
+492 -     })
+486 +     SpecialTransaction::AccountBinding { source_account: /* value */, target_account: /* value */, proof: /* value */, metadata: /* value */ }
+    |
+
+error[E0599]: no variant or associated item named `AccountMapping` found for enum `multivm_account_mapping::SpecialTransaction` in the current scope
+   --> tests/enhanced_integration_tests.rs:496:25
+    |
+496 |     SpecialTransaction::AccountMapping(AccountMapping {
+    |                         ^^^^^^^^^^^^^^ variant or associated item not found in `SpecialTransaction`
+    |
+help: there is a variant with a similar name
+    |
+496 -     SpecialTransaction::AccountMapping(AccountMapping {
+497 -         multivm_account_id: vec![3; 32],
+498 -         solana_address: None,
+499 -         ethereum_address: Some(EthereumAddress([4; 20])),
+500 -         proof: vec![0; 65], // Ethereum signature only
+501 -         timestamp: 1000001,
+502 -     })
+496 +     SpecialTransaction::AccountBinding { source_account: /* value */, target_account: /* value */, proof: /* value */, metadata: /* value */ }
+    |
+
+error[E0599]: no variant or associated item named `AccountMapping` found for enum `multivm_account_mapping::SpecialTransaction` in the current scope
+   --> tests/enhanced_integration_tests.rs:506:25
+    |
+506 |     SpecialTransaction::AccountMapping(AccountMapping {
+    |                         ^^^^^^^^^^^^^^ variant or associated item not found in `SpecialTransaction`
+    |
+help: there is a variant with a similar name
+    |
+506 -     SpecialTransaction::AccountMapping(AccountMapping {
+507 -         multivm_account_id: vec![5; 32],
+508 -         solana_address: Some(SolanaAddress([6; 32])),
+509 -         ethereum_address: Some(EthereumAddress([7; 20])),
+510 -         proof: vec![0; 129], // Both signatures
+511 -         timestamp: 1000002,
+512 -     })
+506 +     SpecialTransaction::AccountBinding { source_account: /* value */, target_account: /* value */, proof: /* value */, metadata: /* value */ }
+    |
+
+error[E0599]: no variant or associated item named `AccountMapping` found for enum `multivm_account_mapping::SpecialTransaction` in the current scope
+   --> tests/enhanced_integration_tests.rs:516:25
+    |
+516 |     SpecialTransaction::AccountMapping(AccountMapping {
+    |                         ^^^^^^^^^^^^^^ variant or associated item not found in `SpecialTransaction`
+    |
+help: there is a variant with a similar name
+    |
+516 -     SpecialTransaction::AccountMapping(AccountMapping {
+517 -         multivm_account_id: vec![index as u8; 32],
+518 -         solana_address: if index % 2 == 0 {
+519 -             Some(SolanaAddress([(index * 2) as u8; 32]))
+520 -         } else {
+521 -             None
+522 -         },
+523 -         ethereum_address: if index % 2 == 1 {
+524 -             Some(EthereumAddress([(index * 3) as u8; 20]))
+525 -         } else {
+526 -             None
+527 -         },
+528 -         proof: vec![index as u8; if index % 2 == 0 { 64 } else { 65 }],
+529 -         timestamp: 1000000 + index as u64,
+530 -     })
+516 +     SpecialTransaction::AccountBinding { source_account: /* value */, target_account: /* value */, proof: /* value */, metadata: /* value */ }
+    |
+
+warning: unused import: `P2PNetworkLayer`
+  --> tests/enhanced_integration_tests.rs:10:34
+   |
+10 | use multivm_p2p::{NetworkConfig, P2PNetworkLayer};
+   |                                  ^^^^^^^^^^^^^^^
+
+Some errors have detailed explanations: E0063, E0308, E0432, E0560, E0599, E0609.
+For more information about an error, try `rustc --explain E0063`.
+warning: `multivm-integration-tests` (test "enhanced_integration_tests") generated 5 warnings
+error: could not compile `multivm-integration-tests` (test "enhanced_integration_tests") due to 63 previous errors; 5 warnings emitted
+warning: variant `Transaction` is never constructed
+  --> solana-execution-engine/src/engine.rs:39:5
+   |
+25 | pub enum SolanaEngineError {
+   |          ----------------- variant in this enum
+...
+39 |     Transaction(String),
+   |     ^^^^^^^^^^^
+   |
+   = note: `SolanaEngineError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` on by default
+
+warning: field `max_compute_units` is never read
+   --> solana-execution-engine/src/engine.rs:122:9
+    |
+111 | pub struct SolanaConfig {
+    |            ------------ field in this struct
+...
+122 |     pub max_compute_units: u64,
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `SolanaConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `deserialize_solana_transaction`, `submit_raw_transaction_data`, and `try_parse_and_submit_transaction` are never used
+   --> solana-execution-engine/src/engine.rs:404:8
+    |
+160 | impl SolanaExecutionEngine {
+    | -------------------------- methods in this implementation
+...
+404 |     fn deserialize_solana_transaction(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+417 |     async fn submit_raw_transaction_data(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+467 |     async fn try_parse_and_submit_transaction(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `IpcStream` is never used
+ --> solana-execution-engine/src/ipc_client.rs:6:10
+  |
+6 | pub enum IpcStream {
+  |          ^^^^^^^^^
+
+warning: struct `SolanaIpcClient` is never constructed
+  --> solana-execution-engine/src/ipc_client.rs:18:12
+   |
+18 | pub struct SolanaIpcClient {
+   |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `connect_unix`, `connect_tcp`, `receive_command`, `send_response`, and `send_heartbeat` are never used
+   --> solana-execution-engine/src/ipc_client.rs:23:18
+    |
+22  | impl SolanaIpcClient {
+    | -------------------- associated items in this implementation
+23  |     pub async fn new(address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    |                  ^^^
+...
+39  |     async fn connect_unix(socket_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    |              ^^^^^^^^^^^^
+...
+59  |     async fn connect_tcp(address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    |              ^^^^^^^^^^^
+...
+71  |     pub async fn receive_command(&mut self) -> Result<IpcCommand, MultivmError> {
+    |                  ^^^^^^^^^^^^^^^
+...
+116 |     pub async fn send_response(&mut self, response: IpcResponse) -> Result<(), MultivmError> {
+    |                  ^^^^^^^^^^^^^
+...
+161 |     pub async fn send_heartbeat(
+    |                  ^^^^^^^^^^^^^^
+
+warning: struct `SolanaRpcServer` is never constructed
+ --> solana-execution-engine/src/rpc_server.rs:4:12
+  |
+4 | pub struct SolanaRpcServer {
+  |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `start`, `stop`, and `is_running` are never used
+  --> solana-execution-engine/src/rpc_server.rs:10:12
+   |
+9  | impl SolanaRpcServer {
+   | -------------------- associated items in this implementation
+10 |     pub fn new(port: u16) -> Self {
+   |            ^^^
+...
+17 |     pub async fn start(&mut self) -> Result<(), MultivmError> {
+   |                  ^^^^^
+...
+28 |     pub async fn stop(&mut self) -> Result<(), MultivmError> {
+   |                  ^^^^
+...
+34 |     pub fn is_running(&self) -> bool {
+   |            ^^^^^^^^^^
+
+warning: multiple fields are never read
+  --> reth-execution-engine/src/engine.rs:38:9
+   |
+36 | pub struct BlockHeader {
+   |            ----------- fields in this struct
+37 |     pub parent_hash: B256,
+38 |     pub ommers_hash: B256,
+   |         ^^^^^^^^^^^
+...
+41 |     pub transactions_root: B256,
+   |         ^^^^^^^^^^^^^^^^^
+...
+44 |     pub difficulty: U256,
+   |         ^^^^^^^^^^
+...
+51 |     pub nonce: u64,
+   |         ^^^^^
+52 |     pub base_fee_per_gas: Option<u64>,
+53 |     pub withdrawals_root: Option<B256>,
+   |         ^^^^^^^^^^^^^^^^
+54 |     pub blob_gas_used: Option<u64>,
+   |         ^^^^^^^^^^^^^
+55 |     pub excess_blob_gas: Option<u64>,
+   |         ^^^^^^^^^^^^^^^
+56 |     pub parent_beacon_block_root: Option<B256>,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `BlockHeader` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` on by default
+
+warning: multiple fields are never read
+  --> reth-execution-engine/src/engine.rs:89:9
+   |
+88 | pub struct Transaction {
+   |            ----------- fields in this struct
+89 |     pub hash: B256,
+   |         ^^^^
+90 |     pub nonce: u64,
+   |         ^^^^^
+91 |     pub gas_price: Option<u64>,
+   |         ^^^^^^^^^
+92 |     pub gas_limit: u64,
+   |         ^^^^^^^^^
+93 |     pub to: Option<Address>,
+   |         ^^
+94 |     pub value: U256,
+   |         ^^^^^
+95 |     pub data: Vec<u8>,
+   |         ^^^^
+96 |     pub signature: TransactionSignature,
+   |         ^^^^^^^^^
+   |
+   = note: `Transaction` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `v`, `r`, and `s` are never read
+   --> reth-execution-engine/src/engine.rs:102:9
+    |
+101 | pub struct TransactionSignature {
+    |            -------------------- fields in this struct
+102 |     pub v: u64,
+    |         ^
+103 |     pub r: U256,
+    |         ^
+104 |     pub s: U256,
+    |         ^
+    |
+    = note: `TransactionSignature` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `ommers` and `withdrawals` are never read
+   --> reth-execution-engine/src/engine.rs:111:9
+    |
+109 | pub struct BlockBody {
+    |            --------- fields in this struct
+110 |     pub transactions: Vec<Transaction>,
+111 |     pub ommers: Vec<BlockHeader>,
+    |         ^^^^^^
+112 |     pub withdrawals: Option<Vec<serde_json::Value>>,
+    |         ^^^^^^^^^^^
+    |
+    = note: `BlockBody` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: associated function `new` is never used
+   --> reth-execution-engine/src/engine.rs:134:12
+    |
+133 | impl Block {
+    | ---------- associated function in this implementation
+134 |     pub fn new() -> Self {
+    |            ^^^
+
+warning: multiple fields are never read
+   --> reth-execution-engine/src/engine.rs:220:9
+    |
+219 | pub struct RethExecutionResult {
+    |            ------------------- fields in this struct
+220 |     pub block_hash: B256,
+    |         ^^^^^^^^^^
+221 |     pub block_number: u64,
+    |         ^^^^^^^^^^^^
+222 |     pub gas_used: u64,
+    |         ^^^^^^^^
+223 |     pub transactions_count: usize,
+    |         ^^^^^^^^^^^^^^^^^^
+224 |     pub processing_time: Duration,
+    |         ^^^^^^^^^^^^^^^
+225 |     pub state_root: B256,
+    |         ^^^^^^^^^^
+226 |     pub success: bool,
+    |         ^^^^^^^
+227 |     pub error: Option<String>,
+    |         ^^^^^
+    |
+    = note: `RethExecutionResult` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `BlockProcessing`, `InvalidBlock`, and `EngineApi` are never constructed
+   --> reth-execution-engine/src/engine.rs:243:5
+    |
+232 | pub enum RethEngineError {
+    |          --------------- variants in this enum
+...
+243 |     BlockProcessing(String),
+    |     ^^^^^^^^^^^^^^^
+...
+246 |     InvalidBlock(String),
+    |     ^^^^^^^^^^^^
+...
+249 |     EngineApi(String),
+    |     ^^^^^^^^^
+    |
+    = note: `RethEngineError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `get_chain_id_from_reth` is never used
+   --> reth-execution-engine/src/engine.rs:763:14
+    |
+264 | impl RethExecutionEngine {
+    | ------------------------ method in this implementation
+...
+763 |     async fn get_chain_id_from_reth(&self) -> Result<u64, RethEngineError> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `IpcStream` is never used
+ --> reth-execution-engine/src/ipc_client.rs:5:10
+  |
+5 | pub enum IpcStream {
+  |          ^^^^^^^^^
+
+warning: struct `RethIpcClient` is never constructed
+  --> reth-execution-engine/src/ipc_client.rs:17:12
+   |
+17 | pub struct RethIpcClient {
+   |            ^^^^^^^^^^^^^
+
+warning: associated items `new`, `connect_unix`, `connect_tcp`, `receive_command`, `send_response`, and `send_heartbeat` are never used
+   --> reth-execution-engine/src/ipc_client.rs:22:18
+    |
+21  | impl RethIpcClient {
+    | ------------------ associated items in this implementation
+22  |     pub async fn new(address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    |                  ^^^
+...
+38  |     async fn connect_unix(socket_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    |              ^^^^^^^^^^^^
+...
+58  |     async fn connect_tcp(address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    |              ^^^^^^^^^^^
+...
+70  |     pub async fn receive_command(&mut self) -> Result<IpcCommand, MultivmError> {
+    |                  ^^^^^^^^^^^^^^^
+...
+115 |     pub async fn send_response(&mut self, response: IpcResponse) -> Result<(), MultivmError> {
+    |                  ^^^^^^^^^^^^^
+...
+160 |     pub async fn send_heartbeat(
+    |                  ^^^^^^^^^^^^^^
+
+warning: struct `RethRpcServer` is never constructed
+ --> reth-execution-engine/src/rpc_server.rs:3:12
+  |
+3 | pub struct RethRpcServer {
+  |            ^^^^^^^^^^^^^
+
+warning: associated items `new`, `start`, `stop`, and `is_running` are never used
+  --> reth-execution-engine/src/rpc_server.rs:9:12
+   |
+8  | impl RethRpcServer {
+   | ------------------ associated items in this implementation
+9  |     pub fn new(port: u16) -> Self {
+   |            ^^^
+...
+16 |     pub async fn start(&mut self) -> Result<(), MultivmError> {
+   |                  ^^^^^
+...
+27 |     pub async fn stop(&mut self) -> Result<(), MultivmError> {
+   |                  ^^^^
+...
+33 |     pub fn is_running(&self) -> bool {
+   |            ^^^^^^^^^^
+
+warning: `reth-execution-engine` (bin "reth-execution-engine" test) generated 13 warnings
+warning: unused variable: `value`
+  --> multivm-application/src/cache/redis.rs:50:43
+   |
+50 |     pub async fn set<T>(&self, key: &str, value: &T, ttl: Option<Duration>) -> ApplicationResult<()>
+   |                                           ^^^^^ help: if this is intentional, prefix it with an underscore: `_value`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `state`
+   --> multivm-application/src/api/graphql/mod.rs:146:13
+    |
+146 |         let state = ctx.data::<Arc<ApplicationState>>()?;
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `query`
+   --> multivm-application/src/api/graphql/mod.rs:162:9
+    |
+162 |         query: TransactionSearchInput,
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_query`
+
+warning: `solana-execution-engine` (bin "solana-execution-engine" test) generated 11 warnings (run `cargo fix --bin "solana-execution-engine" --tests` to apply 2 suggestions)
+warning: unused variable: `state`
+   --> multivm-application/src/api/graphql/mod.rs:275:12
+    |
+275 |     State((state, schema)): State<(Arc<ApplicationState>, MultivmSchema)>,
+    |            ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `state`
+  --> multivm-application/src/api/graphql/resolvers/query.rs:91:13
+   |
+91 |         let state = get_app_state(ctx)?;
+   |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `limit`
+   --> multivm-application/src/api/graphql/resolvers/query.rs:112:14
+    |
+112 |         let (limit, offset) = utils::apply_pagination_limits(query.limit, query.offset);
+    |              ^^^^^ help: if this is intentional, prefix it with an underscore: `_limit`
+
+warning: unused variable: `offset`
+   --> multivm-application/src/api/graphql/resolvers/query.rs:112:21
+    |
+112 |         let (limit, offset) = utils::apply_pagination_limits(query.limit, query.offset);
+    |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_offset`
+
+warning: unused variable: `offset`
+   --> multivm-application/src/api/graphql/resolvers/query.rs:141:21
+    |
+141 |         let (limit, offset) = utils::apply_pagination_limits(limit, offset);
+    |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_offset`
+
+warning: unused variable: `connection`
+   --> multivm-application/src/api/websocket/mod.rs:312:9
+    |
+312 |     let connection = WebSocketConnection {
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_connection`
+
+warning: unused variable: `initial_size`
+   --> multivm-application/src/cache/memory.rs:191:13
+    |
+191 |         let initial_size = stats.size;
+    |             ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_initial_size`
+
+warning: unused variable: `initial_size`
+   --> multivm-application/src/cache/memory.rs:263:21
+    |
+263 |                 let initial_size = stats_guard.size;
+    |                     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_initial_size`
+
+warning: unused variable: `ttl`
+   --> multivm-application/src/cache/redis.rs:109:9
+    |
+109 |         ttl: Option<Duration>,
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_ttl`
+
+warning: unused variable: `value`
+   --> multivm-application/src/cache/redis.rs:130:46
+    |
+130 |     pub async fn set_nx<T>(&self, key: &str, value: &T, ttl: Duration) -> ApplicationResult<bool>
+    |                                              ^^^^^ help: if this is intentional, prefix it with an underscore: `_value`
+
+warning: unused variable: `call_data`
+   --> multivm-application/src/gateway/evm.rs:147:30
+    |
+147 |     pub async fn call(&self, call_data: EvmCallData) -> ApplicationResult<String> {
+    |                              ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_call_data`
+
+warning: unused variable: `tx`
+   --> multivm-application/src/gateway/evm.rs:153:38
+    |
+153 |     pub async fn estimate_gas(&self, tx: &EvmTransaction) -> ApplicationResult<u64> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_tx`
+
+warning: unused variable: `mint`
+   --> multivm-application/src/gateway/svm.rs:628:9
+    |
+628 |         mint: &str,
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_mint`
+
+warning: unused variable: `mint`
+   --> multivm-application/src/gateway/svm.rs:649:9
+    |
+649 |         mint: &str,
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_mint`
+
+error[E0599]: no method named `as_ref` found for opaque type `impl Future<Output = Result<AuthManager, ApplicationError>>` in the current scope
+   --> multivm-application/src/auth/manager.rs:391:14
+    |
+390 |           let auth_request = auth_manager
+    |  ____________________________-
+391 | |             .as_ref()
+    | |             -^^^^^^ method not found in `impl Future<Output = Result<AuthManager, ApplicationError>>`
+    | |_____________|
+    |
+    |
+help: consider `await`ing on the `Future` and calling the method on its `Output`
+    |
+391 |             .await.as_ref()
+    |              ++++++
+
+error[E0599]: no method named `as_ref` found for opaque type `impl Future<Output = Result<AuthManager, ApplicationError>>` in the current scope
+   --> multivm-application/src/auth/manager.rs:402:14
+    |
+401 |           let auth_request = auth_manager
+    |  ____________________________-
+402 | |             .as_ref()
+    | |             -^^^^^^ method not found in `impl Future<Output = Result<AuthManager, ApplicationError>>`
+    | |_____________|
+    |
+    |
+help: consider `await`ing on the `Future` and calling the method on its `Output`
+    |
+402 |             .await.as_ref()
+    |              ++++++
+
+error[E0599]: no method named `as_ref` found for opaque type `impl Future<Output = Result<AuthManager, ApplicationError>>` in the current scope
+   --> multivm-application/src/auth/manager.rs:413:14
+    |
+412 |           let auth_request = auth_manager
+    |  ____________________________-
+413 | |             .as_ref()
+    | |             -^^^^^^ method not found in `impl Future<Output = Result<AuthManager, ApplicationError>>`
+    | |_____________|
+    |
+    |
+help: consider `await`ing on the `Future` and calling the method on its `Output`
+    |
+413 |             .await.as_ref()
+    |              ++++++
+
+warning: unused variable: `message`
+   --> multivm-application/src/api/rest/handlers/mod.rs:131:5
+    |
+131 |     message: &str,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message`
+
+warning: unused variable: `request_id`
+   --> multivm-application/src/api/rest/handlers/mod.rs:132:5
+    |
+132 |     request_id: String,
+    |     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_request_id`
+
+warning: unused variable: `response_time`
+   --> multivm-application/src/api/rest/handlers/mod.rs:133:5
+    |
+133 |     response_time: u64,
+    |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_response_time`
+
+warning: unused variable: `request`
+   --> multivm-application/src/api/rest/middleware/mod.rs:158:51
+    |
+158 | fn extract_client_identifier(headers: &HeaderMap, request: &Request) -> String {
+    |                                                   ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_request`
+
+warning: unused variable: `cors`
+  --> multivm-application/src/api/rest/mod.rs:98:9
+   |
+98 |     let cors = CorsLayer::new()
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_cors`
+
+warning: unused variable: `state`
+   --> multivm-application/src/api/rest/mod.rs:115:21
+    |
+115 | fn create_v1_routes(state: Arc<ApplicationState>) -> Router<Arc<ApplicationState>> {
+    |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: `multivm-integration-tests` (test "integration_tests") generated 2 warnings
+warning: unused variable: `method`
+  --> multivm-application/src/monitoring/metrics.rs:34:39
+   |
+34 |     pub fn record_http_request(&self, method: &str, path: &str, status: u16, duration_ms: f64) {
+   |                                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_method`
+
+warning: unused variable: `path`
+  --> multivm-application/src/monitoring/metrics.rs:34:53
+   |
+34 |     pub fn record_http_request(&self, method: &str, path: &str, status: u16, duration_ms: f64) {
+   |                                                     ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+
+warning: unused variable: `operation`
+  --> multivm-application/src/monitoring/metrics.rs:60:40
+   |
+60 |     pub fn record_graphql_query(&self, operation: &str, duration_ms: f64, success: bool) {
+   |                                        ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_operation`
+
+warning: unused variable: `duration_ms`
+  --> multivm-application/src/monitoring/metrics.rs:70:70
+   |
+70 |     pub fn record_cache_operation(&self, operation: &str, hit: bool, duration_ms: f64) {
+   |                                                                      ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_duration_ms`
+
+warning: unused variable: `operation`
+  --> multivm-application/src/monitoring/metrics.rs:89:9
+   |
+89 |         operation: &str,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_operation`
+
+warning: unused variable: `duration_ms`
+  --> multivm-application/src/monitoring/metrics.rs:91:9
+   |
+91 |         duration_ms: f64,
+   |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_duration_ms`
+
+For more information about this error, try `rustc --explain E0599`.
+warning: `multivm-application` (lib test) generated 29 warnings
+error: could not compile `multivm-application` (lib test) due to 3 previous errors; 29 warnings emitted
+warning: fields `state` and `config` are never read
+  --> multivm-application/src/admin/mod.rs:46:5
+   |
+45 | pub struct AdminServer {
+   |            ----------- fields in this struct
+46 |     state: Arc<ApplicationState>,
+   |     ^^^^^
+47 |     config: AdminConfig,
+   |     ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: field `state` is never read
+  --> multivm-application/src/api/mod.rs:98:5
+   |
+97 | pub struct UnifiedApiServer {
+   |            ---------------- field in this struct
+98 |     state: Arc<ApplicationState>,
+   |     ^^^^^
+
+warning: fields `state` and `config` are never read
+  --> multivm-application/src/api/graphql/mod.rs:48:5
+   |
+47 | pub struct GraphQLServer {
+   |            ------------- fields in this struct
+48 |     state: Arc<ApplicationState>,
+   |     ^^^^^
+49 |     config: GraphQLConfig,
+   |     ^^^^^^
+
+warning: fields `state` and `config` are never read
+  --> multivm-application/src/api/websocket/mod.rs:50:5
+   |
+49 | pub struct WebSocketServer {
+   |            --------------- fields in this struct
+50 |     state: Arc<ApplicationState>,
+   |     ^^^^^
+51 |     config: WebSocketConfig,
+   |     ^^^^^^
+
+warning: field `config` is never read
+  --> multivm-application/src/auth/manager.rs:14:5
+   |
+11 | pub struct AuthManager {
+   |            ----------- field in this struct
+...
+14 |     config: AuthConfig,
+   |     ^^^^^^
+   |
+   = note: `AuthManager` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `remaining_ttl` is never used
+   --> multivm-application/src/cache/memory.rs:290:8
+    |
+283 | impl CacheItem {
+    | -------------- method in this implementation
+...
+290 |     fn remaining_ttl(&self) -> Duration {
+    |        ^^^^^^^^^^^^^
+
+warning: field `endpoint` is never read
+  --> multivm-application/src/gateway/evm.rs:12:5
+   |
+10 | pub struct EvmApiGateway {
+   |            ------------- field in this struct
+11 |     cache: Arc<CacheLayer>,
+12 |     endpoint: String,
+   |     ^^^^^^^^
+   |
+   = note: `EvmApiGateway` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `consensus_endpoint` and `account_mapping_endpoint` are never read
+  --> multivm-application/src/gateway/multivm.rs:14:5
+   |
+12 | pub struct MultivmApiGateway {
+   |            ----------------- fields in this struct
+13 |     cache: Arc<CacheLayer>,
+14 |     consensus_endpoint: String,
+   |     ^^^^^^^^^^^^^^^^^^
+15 |     account_mapping_endpoint: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `MultivmApiGateway` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `jsonrpc` and `id` are never read
+  --> multivm-application/src/gateway/svm.rs:32:5
+   |
+31 | struct SolanaRpcResponse<T> {
+   |        ----------------- fields in this struct
+32 |     jsonrpc: String,
+   |     ^^^^^^^
+33 |     id: u64,
+   |     ^^
+   |
+   = note: `SolanaRpcResponse` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: missing documentation for a module
+  --> multivm-application/src/lib.rs:60:1
+   |
+60 | pub mod auth;
+   | ^^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> multivm-application/src/lib.rs:54:9
+   |
+54 | #![warn(missing_docs)]
+   |         ^^^^^^^^^^^^
+
+warning: missing documentation for a module
+  --> multivm-application/src/lib.rs:61:1
+   |
+61 | pub mod cache;
+   | ^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+  --> multivm-application/src/lib.rs:62:1
+   |
+62 | pub mod config;
+   | ^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+  --> multivm-application/src/lib.rs:63:1
+   |
+63 | pub mod error;
+   | ^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+  --> multivm-application/src/lib.rs:64:1
+   |
+64 | pub mod gateway;
+   | ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+  --> multivm-application/src/lib.rs:65:1
+   |
+65 | pub mod monitoring;
+   | ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+   --> multivm-application/src/lib.rs:411:1
+    |
+411 | pub const NAME: &str = env!("CARGO_PKG_NAME");
+    | ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+   --> multivm-application/src/lib.rs:412:1
+    |
+412 | pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:331:1
+    |
+331 | pub struct SystemStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:332:5
+    |
+332 |     pub running: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:333:5
+    |
+333 |     pub uptime: Option<u64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:334:5
+    |
+334 |     pub version: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:335:5
+    |
+335 |     pub components: ComponentsStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:336:5
+    |
+336 |     pub vm_nodes: VmNodesStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:340:1
+    |
+340 | pub struct ComponentsStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:341:5
+    |
+341 |     pub svm_gateway: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:342:5
+    |
+342 |     pub evm_gateway: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:343:5
+    |
+343 |     pub multivm_gateway: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:344:5
+    |
+344 |     pub rest_api: bool,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:345:5
+    |
+345 |     pub graphql_api: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:346:5
+    |
+346 |     pub websocket_api: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:347:5
+    |
+347 |     pub admin_interface: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:351:1
+    |
+351 | pub struct VmNodesStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:352:5
+    |
+352 |     pub solana_node: NodeStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:353:5
+    |
+353 |     pub reth_node: NodeStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:357:1
+    |
+357 | pub struct NodeStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:358:5
+    |
+358 |     pub connected: bool,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:359:5
+    |
+359 |     pub last_block: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:360:5
+    |
+360 |     pub sync_status: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:366:1
+    |
+366 | pub struct NodesStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:367:5
+    |
+367 |     pub solana_node: DetailedNodeStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:368:5
+    |
+368 |     pub reth_node: DetailedNodeStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:372:1
+    |
+372 | pub struct DetailedNodeStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:373:5
+    |
+373 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:374:5
+    |
+374 |     pub status: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:375:5
+    |
+375 |     pub version: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:376:5
+    |
+376 |     pub last_block: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:377:5
+    |
+377 |     pub peer_count: u32,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:378:5
+    |
+378 |     pub memory_usage: u64, // MB
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:379:5
+    |
+379 |     pub cpu_usage: f64,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:380:5
+    |
+380 |     pub disk_usage: f64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:384:1
+    |
+384 | pub struct RestartNodeRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:385:5
+    |
+385 |     pub node_name: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:389:1
+    |
+389 | pub struct OperationResult {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:390:5
+    |
+390 |     pub success: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:391:5
+    |
+391 |     pub message: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:392:5
+    |
+392 |     pub operation_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:396:1
+    |
+396 | pub struct ConfigData {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:397:5
+    |
+397 |     pub server: ServerConfigData,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:398:5
+    |
+398 |     pub database: DatabaseConfigData,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:399:5
+    |
+399 |     pub cache: CacheConfigData,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:400:5
+    |
+400 |     pub monitoring: MonitoringConfigData,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:404:1
+    |
+404 | pub struct ServerConfigData {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:405:5
+    |
+405 |     pub rest_port: u16,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:406:5
+    |
+406 |     pub graphql_port: u16,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:407:5
+    |
+407 |     pub websocket_port: u16,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:408:5
+    |
+408 |     pub admin_port: u16,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:412:1
+    |
+412 | pub struct DatabaseConfigData {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:413:5
+    |
+413 |     pub url: String,
+    |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:414:5
+    |
+414 |     pub max_connections: u32,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:415:5
+    |
+415 |     pub min_connections: u32,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:419:1
+    |
+419 | pub struct CacheConfigData {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:420:5
+    |
+420 |     pub strategy: String,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:421:5
+    |
+421 |     pub ttl_seconds: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:425:1
+    |
+425 | pub struct MonitoringConfigData {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:426:5
+    |
+426 |     pub enable_metrics: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:427:5
+    |
+427 |     pub metrics_port: u16,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:431:1
+    |
+431 | pub struct UpdateConfigRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:432:5
+    |
+432 |     pub server: Option<ServerConfigData>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:433:5
+    |
+433 |     pub cache: Option<CacheConfigData>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:434:5
+    |
+434 |     pub monitoring: Option<MonitoringConfigData>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:438:1
+    |
+438 | pub struct LogsResponse {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:439:5
+    |
+439 |     pub logs: Vec<LogEntry>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:440:5
+    |
+440 |     pub total: usize,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:441:5
+    |
+441 |     pub page: usize,
+    |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:442:5
+    |
+442 |     pub per_page: usize,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:446:1
+    |
+446 | pub struct LogEntry {
+    | ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:447:5
+    |
+447 |     pub timestamp: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:448:5
+    |
+448 |     pub level: String,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:449:5
+    |
+449 |     pub component: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:450:5
+    |
+450 |     pub message: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:454:1
+    |
+454 | pub struct BackupResult {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:455:5
+    |
+455 |     pub success: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:456:5
+    |
+456 |     pub backup_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:457:5
+    |
+457 |     pub backup_path: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:458:5
+    |
+458 |     pub size_bytes: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:459:5
+    |
+459 |     pub created_at: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/admin/mod.rs:463:1
+    |
+463 | pub struct RestoreBackupRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/admin/mod.rs:464:5
+    |
+464 |     pub backup_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/evm.rs:204:1
+    |
+204 | pub struct EvmAccountInfo {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/evm.rs:205:5
+    |
+205 |     pub address: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/evm.rs:206:5
+    |
+206 |     pub balance: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/evm.rs:207:5
+    |
+207 |     pub nonce: u64,
+    |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/evm.rs:208:5
+    |
+208 |     pub code_hash: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:175:1
+    |
+175 | pub struct AccountBindingRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:176:5
+    |
+176 |     pub svm_account: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:177:5
+    |
+177 |     pub evm_account: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:181:1
+    |
+181 | pub struct AccountBindingResponse {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:182:5
+    |
+182 |     pub multivm_account: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:183:5
+    |
+183 |     pub svm_account: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:184:5
+    |
+184 |     pub evm_account: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:185:5
+    |
+185 |     pub binding_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:189:1
+    |
+189 | pub struct AccountBindings {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:190:5
+    |
+190 |     pub multivm_account: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:191:5
+    |
+191 |     pub bindings: Vec<AccountBinding>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:195:1
+    |
+195 | pub struct AccountBinding {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:196:5
+    |
+196 |     pub vm_type: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:197:5
+    |
+197 |     pub vm_account: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:198:5
+    |
+198 |     pub binding_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:199:5
+    |
+199 |     pub created_at: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:203:1
+    |
+203 | pub struct AccountUnbindingRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:204:5
+    |
+204 |     pub binding_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:208:1
+    |
+208 | pub struct CrossVmTransactionRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:209:5
+    |
+209 |     pub from_vm: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:210:5
+    |
+210 |     pub to_vm: String,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:211:5
+    |
+211 |     pub transaction_data: serde_json::Value,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:215:1
+    |
+215 | pub struct CrossVmTransactionResponse {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:216:5
+    |
+216 |     pub transaction_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:217:5
+    |
+217 |     pub status: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:221:1
+    |
+221 | pub struct CrossVmTransactionStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:222:5
+    |
+222 |     pub transaction_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:223:5
+    |
+223 |     pub status: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:224:5
+    |
+224 |     pub svm_tx_signature: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:225:5
+    |
+225 |     pub evm_tx_hash: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:229:1
+    |
+229 | pub struct MultivmBlock {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:230:5
+    |
+230 |     pub block_number: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:231:5
+    |
+231 |     pub block_hash: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:232:5
+    |
+232 |     pub svm_components: Vec<serde_json::Value>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:233:5
+    |
+233 |     pub evm_components: Vec<serde_json::Value>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:234:5
+    |
+234 |     pub multivm_transactions: Vec<serde_json::Value>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:238:1
+    |
+238 | pub struct SystemState {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:239:5
+    |
+239 |     pub latest_block: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:240:5
+    |
+240 |     pub total_accounts: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:241:5
+    |
+241 |     pub total_transactions: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:242:5
+    |
+242 |     pub vm_states: VmStates,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/multivm.rs:246:1
+    |
+246 | pub struct VmStates {
+    | ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:247:5
+    |
+247 |     pub solana_latest_slot: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/multivm.rs:248:5
+    |
+248 |     pub reth_latest_block: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:446:1
+    |
+446 | pub struct PaginationQuery {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:448:5
+    |
+448 |     pub limit: usize,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:450:5
+    |
+450 |     pub offset: usize,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:458:1
+    |
+458 | pub struct SendTransactionRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:459:5
+    |
+459 |     pub transaction_data: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:463:1
+    |
+463 | pub struct SimulateTransactionRequest {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:464:5
+    |
+464 |     pub transaction_data: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:468:1
+    |
+468 | pub struct SvmBalance {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:469:5
+    |
+469 |     pub lamports: u64,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:473:1
+    |
+473 | pub struct SvmTransaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:474:5
+    |
+474 |     pub signature: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:475:5
+    |
+475 |     pub slot: u64,
+    |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:476:5
+    |
+476 |     pub block_time: Option<i64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:477:5
+    |
+477 |     pub meta: TransactionMeta,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:478:5
+    |
+478 |     pub transaction: TransactionData,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:482:1
+    |
+482 | pub struct TransactionMeta {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:483:5
+    |
+483 |     pub fee: u64,
+    |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:484:5
+    |
+484 |     pub pre_balances: Vec<u64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:485:5
+    |
+485 |     pub post_balances: Vec<u64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:486:5
+    |
+486 |     pub status: TransactionStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:490:1
+    |
+490 | pub struct TransactionStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:491:5
+    |
+491 |     pub success: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:492:5
+    |
+492 |     pub err: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:496:1
+    |
+496 | pub struct TransactionData {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:497:5
+    |
+497 |     pub message: MessageData,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:498:5
+    |
+498 |     pub signatures: Vec<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:502:1
+    |
+502 | pub struct MessageData {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:503:5
+    |
+503 |     pub account_keys: Vec<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:504:5
+    |
+504 |     pub instructions: Vec<InstructionData>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:505:5
+    |
+505 |     pub recent_blockhash: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:509:1
+    |
+509 | pub struct InstructionData {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:510:5
+    |
+510 |     pub program_id_index: u8,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:511:5
+    |
+511 |     pub accounts: Vec<u8>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:512:5
+    |
+512 |     pub data: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:516:1
+    |
+516 | pub struct SvmTransactionList {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:517:5
+    |
+517 |     pub transactions: Vec<GatewaySvmTransaction>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:518:5
+    |
+518 |     pub total: usize,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:519:5
+    |
+519 |     pub limit: usize,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:520:5
+    |
+520 |     pub offset: usize,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:524:1
+    |
+524 | pub struct TransactionResponse {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:525:5
+    |
+525 |     pub signature: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:529:1
+    |
+529 | pub struct SimulationResult {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:530:5
+    |
+530 |     pub accounts: Vec<SvmAccountInfo>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:531:5
+    |
+531 |     pub logs: Vec<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:532:5
+    |
+532 |     pub return_data: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:533:5
+    |
+533 |     pub units_consumed: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:534:5
+    |
+534 |     pub err: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:538:1
+    |
+538 | pub struct SvmBlock {
+    | ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:539:5
+    |
+539 |     pub slot: u64,
+    |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:540:5
+    |
+540 |     pub parent_slot: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:541:5
+    |
+541 |     pub blockhash: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:542:5
+    |
+542 |     pub previous_blockhash: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:543:5
+    |
+543 |     pub block_time: Option<i64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:544:5
+    |
+544 |     pub transactions: Vec<GatewaySvmTransaction>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:545:5
+    |
+545 |     pub rewards: Vec<Reward>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:549:1
+    |
+549 | pub struct Reward {
+    | ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:550:5
+    |
+550 |     pub pubkey: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:551:5
+    |
+551 |     pub lamports: i64,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:552:5
+    |
+552 |     pub post_balance: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:553:5
+    |
+553 |     pub reward_type: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:554:5
+    |
+554 |     pub commission: Option<u8>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:558:1
+    |
+558 | pub struct SvmTokenAccount {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:559:5
+    |
+559 |     pub pubkey: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:560:5
+    |
+560 |     pub account: SvmAccountInfo,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:561:5
+    |
+561 |     pub token_amount: TokenAmount,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:565:1
+    |
+565 | pub struct TokenAmount {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:566:5
+    |
+566 |     pub amount: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:567:5
+    |
+567 |     pub decimals: u8,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:568:5
+    |
+568 |     pub ui_amount: Option<f64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:569:5
+    |
+569 |     pub ui_amount_string: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/svm.rs:573:1
+    |
+573 | pub struct TokenSupply {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:574:5
+    |
+574 |     pub amount: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:575:5
+    |
+575 |     pub decimals: u8,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:576:5
+    |
+576 |     pub ui_amount: Option<f64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/svm.rs:577:5
+    |
+577 |     pub ui_amount_string: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:196:1
+    |
+196 | pub struct SystemStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:197:5
+    |
+197 |     pub status: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:198:5
+    |
+198 |     pub uptime: Option<std::time::Duration>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:199:5
+    |
+199 |     pub version: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:200:5
+    |
+200 |     pub components: ComponentStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:201:5
+    |
+201 |     pub vm_nodes: VmNodeStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:205:1
+    |
+205 | pub struct ComponentStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:206:5
+    |
+206 |     pub svm_gateway: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:207:5
+    |
+207 |     pub evm_gateway: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:208:5
+    |
+208 |     pub multivm_gateway: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:209:5
+    |
+209 |     pub auth_manager: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:210:5
+    |
+210 |     pub cache_layer: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:211:5
+    |
+211 |     pub monitoring: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:215:1
+    |
+215 | pub struct VmNodeStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:216:5
+    |
+216 |     pub solana_node: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:217:5
+    |
+217 |     pub reth_node: bool,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:221:1
+    |
+221 | pub struct SystemInfo {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:222:5
+    |
+222 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:223:5
+    |
+223 |     pub version: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:224:5
+    |
+224 |     pub description: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:225:5
+    |
+225 |     pub build_info: BuildInfo,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:226:5
+    |
+226 |     pub runtime_info: RuntimeInfo,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:227:5
+    |
+227 |     pub api_endpoints: ApiEndpoints,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:231:1
+    |
+231 | pub struct BuildInfo {
+    | ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:232:5
+    |
+232 |     pub target: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:233:5
+    |
+233 |     pub profile: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:234:5
+    |
+234 |     pub rustc_version: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:235:5
+    |
+235 |     pub built_at: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:239:1
+    |
+239 | pub struct RuntimeInfo {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:240:5
+    |
+240 |     pub platform: String,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:241:5
+    |
+241 |     pub architecture: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:242:5
+    |
+242 |     pub pid: u32,
+    |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:243:5
+    |
+243 |     pub thread_count: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:247:1
+    |
+247 | pub struct ApiEndpoints {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:248:5
+    |
+248 |     pub rest: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:249:5
+    |
+249 |     pub graphql: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:250:5
+    |
+250 |     pub websocket: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:251:5
+    |
+251 |     pub admin: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:255:1
+    |
+255 | pub struct SystemMetrics {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:256:5
+    |
+256 |     pub memory_usage: MemoryMetrics,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:257:5
+    |
+257 |     pub cpu_usage: CpuMetrics,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:258:5
+    |
+258 |     pub network_metrics: NetworkMetrics,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:259:5
+    |
+259 |     pub request_metrics: RequestMetrics,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:263:1
+    |
+263 | pub struct MemoryMetrics {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:264:5
+    |
+264 |     pub total_bytes: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:265:5
+    |
+265 |     pub used_bytes: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:266:5
+    |
+266 |     pub available_bytes: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:270:1
+    |
+270 | pub struct CpuMetrics {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:271:5
+    |
+271 |     pub usage_percentage: f64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:272:5
+    |
+272 |     pub load_average: Vec<f64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:276:1
+    |
+276 | pub struct NetworkMetrics {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:277:5
+    |
+277 |     pub bytes_sent: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:278:5
+    |
+278 |     pub bytes_received: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:279:5
+    |
+279 |     pub connections_active: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:283:1
+    |
+283 | pub struct RequestMetrics {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:284:5
+    |
+284 |     pub total_requests: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:285:5
+    |
+285 |     pub requests_per_second: f64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:286:5
+    |
+286 |     pub average_response_time_ms: f64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:287:5
+    |
+287 |     pub error_rate: f64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:291:1
+    |
+291 | pub struct HealthStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:292:5
+    |
+292 |     pub overall_health: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:293:5
+    |
+293 |     pub checks: Vec<HealthCheck>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/api/rest/handlers/system.rs:297:1
+    |
+297 | pub struct HealthCheck {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:298:5
+    |
+298 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:299:5
+    |
+299 |     pub status: String,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:300:5
+    |
+300 |     pub message: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/api/rest/handlers/system.rs:301:5
+    |
+301 |     pub last_check: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> multivm-application/src/auth/mod.rs:1:1
+  |
+1 | pub mod api_key;
+  | ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> multivm-application/src/auth/mod.rs:2:1
+  |
+2 | pub mod jwt;
+  | ^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> multivm-application/src/auth/mod.rs:3:1
+  |
+3 | pub mod manager;
+  | ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> multivm-application/src/auth/mod.rs:4:1
+  |
+4 | pub mod permissions;
+  | ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/auth/api_key.rs:139:5
+    |
+139 |     pub key_info: ApiKeyInfo,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/auth/api_key.rs:140:5
+    |
+140 |     pub is_expired: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/auth/api_key.rs:141:5
+    |
+141 |     pub is_rate_limited: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/auth/api_key.rs:142:5
+    |
+142 |     pub remaining_requests: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/api_key.rs:147:5
+    |
+147 |     Memory,
+    |     ^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/api_key.rs:148:5
+    |
+148 |     Database,
+    |     ^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/api_key.rs:149:5
+    |
+149 |     Redis,
+    |     ^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/jwt.rs:70:5
+   |
+70 |     Guest,
+   |     ^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/jwt.rs:71:5
+   |
+71 |     User,
+   |     ^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/jwt.rs:72:5
+   |
+72 |     PowerUser,
+   |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/jwt.rs:73:5
+   |
+73 |     Admin,
+   |     ^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/jwt.rs:74:5
+   |
+74 |     SuperAdmin,
+   |     ^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/auth/jwt.rs:80:5
+   |
+80 |     pub ip_address: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/auth/jwt.rs:81:5
+   |
+81 |     pub user_agent: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/auth/jwt.rs:82:5
+   |
+82 |     pub application_name: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/auth/jwt.rs:88:5
+   |
+88 |     pub claims: TokenClaims,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/auth/jwt.rs:89:5
+   |
+89 |     pub is_expired: bool,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/auth/jwt.rs:90:5
+   |
+90 |     pub expires_in: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/manager.rs:45:5
+   |
+45 |     Jwt,
+   |     ^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/manager.rs:46:5
+   |
+46 |     ApiKey,
+   |     ^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/manager.rs:47:5
+   |
+47 |     Anonymous,
+   |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+ --> multivm-application/src/auth/permissions.rs:9:5
+  |
+9 |     ReadSvmAccounts,
+  |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:10:5
+   |
+10 |     ReadSvmTransactions,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:11:5
+   |
+11 |     ReadSvmBlocks,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:12:5
+   |
+12 |     SubmitSvmTransactions,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:13:5
+   |
+13 |     QuerySvmPrograms,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:16:5
+   |
+16 |     ReadEvmAccounts,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:17:5
+   |
+17 |     ReadEvmTransactions,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:18:5
+   |
+18 |     ReadEvmBlocks,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:19:5
+   |
+19 |     SubmitEvmTransactions,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:20:5
+   |
+20 |     QueryEvmContracts,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:23:5
+   |
+23 |     BindAccounts,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:24:5
+   |
+24 |     UnbindAccounts,
+   |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:25:5
+   |
+25 |     CrossVmTransfer,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:26:5
+   |
+26 |     ReadAccountBindings,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:29:5
+   |
+29 |     ReadSystemStatus,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:30:5
+   |
+30 |     ReadNetworkInfo,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:31:5
+   |
+31 |     ReadMetrics,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:32:5
+   |
+32 |     ReadHealthChecks,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:35:5
+   |
+35 |     AdminAccess,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:36:5
+   |
+36 |     ManageApiKeys,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:37:5
+   |
+37 |     ManageUsers,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:38:5
+   |
+38 |     SystemConfiguration,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:41:5
+   |
+41 |     SubscribeToBlocks,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:42:5
+   |
+42 |     SubscribeToTransactions,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:43:5
+   |
+43 |     SubscribeToEvents,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:46:5
+   |
+46 |     BatchOperations,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:47:5
+   |
+47 |     AdvancedQueries,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/auth/permissions.rs:48:5
+   |
+48 |     DebugAccess,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/auth/permissions.rs:207:1
+    |
+207 | pub enum PermissionCategory {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:208:5
+    |
+208 |     Svm,
+    |     ^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:209:5
+    |
+209 |     Evm,
+    |     ^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:210:5
+    |
+210 |     MultiVm,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:211:5
+    |
+211 |     System,
+    |     ^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:212:5
+    |
+212 |     Admin,
+    |     ^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:213:5
+    |
+213 |     WebSocket,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/auth/permissions.rs:214:5
+    |
+214 |     Advanced,
+    |     ^^^^^^^^
+
+warning: missing documentation for a module
+ --> multivm-application/src/cache/mod.rs:1:1
+  |
+1 | pub mod memory;
+  | ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:27:5
+   |
+27 |     pub data: T,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:28:5
+   |
+28 |     pub created_at: std::time::SystemTime,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:29:5
+   |
+29 |     pub ttl: Duration,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:35:5
+   |
+35 |     pub memory_hits: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:36:5
+   |
+36 |     pub memory_misses: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:37:5
+   |
+37 |     pub redis_hits: u64,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:38:5
+   |
+38 |     pub redis_misses: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:39:5
+   |
+39 |     pub total_requests: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:40:5
+   |
+40 |     pub hit_ratio: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:41:5
+   |
+41 |     pub memory_size: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/mod.rs:42:5
+   |
+42 |     pub redis_connected: bool,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/memory.rs:31:5
+   |
+31 |     pub hits: u64,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/memory.rs:32:5
+   |
+32 |     pub misses: u64,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/memory.rs:33:5
+   |
+33 |     pub evictions: u64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/memory.rs:34:5
+   |
+34 |     pub size: usize,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/memory.rs:35:5
+   |
+35 |     pub item_count: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/redis.rs:19:5
+   |
+19 |     pub hits: u64,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/cache/redis.rs:20:5
+   |
+20 |     pub misses: u64,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> multivm-application/src/config.rs:54:1
+   |
+54 | pub struct RestServerConfig {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> multivm-application/src/config.rs:79:1
+   |
+79 | pub struct GraphQLServerConfig {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:101:1
+    |
+101 | pub struct WebSocketServerConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:124:1
+    |
+124 | pub struct AdminServerConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:184:1
+    |
+184 | pub struct RedisConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:204:1
+    |
+204 | pub struct MemoryCacheConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/config.rs:217:1
+    |
+217 | pub enum CacheStrategy {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:218:5
+    |
+218 |     WriteThrough,
+    |     ^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:219:5
+    |
+219 |     WriteBack,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:220:5
+    |
+220 |     WriteAround,
+    |     ^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/config.rs:244:1
+    |
+244 | pub enum ApiKeyValidation {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:245:5
+    |
+245 |     Database,
+    |     ^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:246:5
+    |
+246 |     Environment,
+    |     ^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:247:5
+    |
+247 |     Redis,
+    |     ^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/config.rs:273:1
+    |
+273 | pub enum RateLimitStorage {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:274:5
+    |
+274 |     Memory,
+    |     ^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:275:5
+    |
+275 |     Redis,
+    |     ^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:298:1
+    |
+298 | pub struct MetricsConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/config.rs:314:1
+    |
+314 | pub enum MetricsFormat {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:315:5
+    |
+315 |     Prometheus,
+    |     ^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/config.rs:316:5
+    |
+316 |     Json,
+    |     ^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:320:1
+    |
+320 | pub struct HealthCheckConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:337:1
+    |
+337 | pub struct TracingConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:365:1
+    |
+365 | pub struct SolanaClientConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:381:1
+    |
+381 | pub struct RethClientConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:400:1
+    |
+400 | pub struct MultivmClientConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> multivm-application/src/config.rs:419:1
+    |
+419 | pub struct RetryConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> multivm-application/src/error.rs:8:22
+  |
+8 |     InvalidRequest { message: String },
+  |                      ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:11:5
+   |
+11 |     AuthenticationFailed { reason: String },
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:11:28
+   |
+11 |     AuthenticationFailed { reason: String },
+   |                            ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:14:5
+   |
+14 |     AuthorizationDenied { resource: String },
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:14:27
+   |
+14 |     AuthorizationDenied { resource: String },
+   |                           ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:17:5
+   |
+17 |     RateLimitExceeded { limit: u64, window: String },
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:17:25
+   |
+17 |     RateLimitExceeded { limit: u64, window: String },
+   |                         ^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:17:37
+   |
+17 |     RateLimitExceeded { limit: u64, window: String },
+   |                                     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:20:5
+   |
+20 |     ValidationError { field: String, message: String },
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:20:23
+   |
+20 |     ValidationError { field: String, message: String },
+   |                       ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:20:38
+   |
+20 |     ValidationError { field: String, message: String },
+   |                                      ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:24:16
+   |
+24 |     SvmError { message: String },
+   |                ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:27:5
+   |
+27 |     EvmError { message: String },
+   |     ^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:27:16
+   |
+27 |     EvmError { message: String },
+   |                ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:30:5
+   |
+30 |     CrossVmError { operation: String, reason: String },
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:30:20
+   |
+30 |     CrossVmError { operation: String, reason: String },
+   |                    ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:30:39
+   |
+30 |     CrossVmError { operation: String, reason: String },
+   |                                       ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:34:18
+   |
+34 |     CacheError { operation: String, message: String },
+   |                  ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:34:37
+   |
+34 |     CacheError { operation: String, message: String },
+   |                                     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:37:5
+   |
+37 |     DatabaseError { operation: String, message: String },
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:37:21
+   |
+37 |     DatabaseError { operation: String, message: String },
+   |                     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:37:40
+   |
+37 |     DatabaseError { operation: String, message: String },
+   |                                        ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:40:5
+   |
+40 |     NetworkError { endpoint: String, message: String },
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:40:20
+   |
+40 |     NetworkError { endpoint: String, message: String },
+   |                    ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:40:38
+   |
+40 |     NetworkError { endpoint: String, message: String },
+   |                                      ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:44:26
+   |
+44 |     ConfigurationError { component: String, message: String },
+   |                          ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:44:45
+   |
+44 |     ConfigurationError { component: String, message: String },
+   |                                             ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:47:5
+   |
+47 |     StartupError { service: String, message: String },
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:47:20
+   |
+47 |     StartupError { service: String, message: String },
+   |                    ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:47:37
+   |
+47 |     StartupError { service: String, message: String },
+   |                                     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:50:5
+   |
+50 |     ServiceUnavailable { service: String, reason: String },
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:50:26
+   |
+50 |     ServiceUnavailable { service: String, reason: String },
+   |                          ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:50:43
+   |
+50 |     ServiceUnavailable { service: String, reason: String },
+   |                                           ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:55:9
+   |
+55 |         resource_type: String,
+   |         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:56:9
+   |
+56 |         identifier: String,
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:60:5
+   |
+60 |     ResourceConflict { resource: String, reason: String },
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:60:24
+   |
+60 |     ResourceConflict { resource: String, reason: String },
+   |                        ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:60:42
+   |
+60 |     ResourceConflict { resource: String, reason: String },
+   |                                          ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:63:5
+   |
+63 |     ResourceExhausted { resource: String, limit: String },
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:63:25
+   |
+63 |     ResourceExhausted { resource: String, limit: String },
+   |                         ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:63:43
+   |
+63 |     ResourceExhausted { resource: String, limit: String },
+   |                                           ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:67:22
+   |
+67 |     WebSocketError { reason: String },
+   |                      ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:70:5
+   |
+70 |     SubscriptionError {
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:71:9
+   |
+71 |         subscription_type: String,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:72:9
+   |
+72 |         message: String,
+   |         ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:77:27
+   |
+77 |     GraphQLParsingError { query: String, message: String },
+   |                           ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:77:42
+   |
+77 |     GraphQLParsingError { query: String, message: String },
+   |                                          ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:80:5
+   |
+80 |     GraphQLExecutionError { field: String, message: String },
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:80:29
+   |
+80 |     GraphQLExecutionError { field: String, message: String },
+   |                             ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:80:44
+   |
+80 |     GraphQLExecutionError { field: String, message: String },
+   |                                            ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:84:20
+   |
+84 |     TimeoutError { operation: String, timeout_ms: u64 },
+   |                    ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:84:39
+   |
+84 |     TimeoutError { operation: String, timeout_ms: u64 },
+   |                                       ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:87:5
+   |
+87 |     PerformanceDegraded {
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:88:9
+   |
+88 |         metric: String,
+   |         ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:89:9
+   |
+89 |         current: String,
+   |         ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:90:9
+   |
+90 |         threshold: String,
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:95:21
+   |
+95 |     InternalError { component: String, message: String },
+   |                     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:95:40
+   |
+95 |     InternalError { component: String, message: String },
+   |                                        ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/error.rs:98:5
+   |
+98 |     Unknown { message: String },
+   |     ^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/error.rs:98:15
+   |
+98 |     Unknown { message: String },
+   |               ^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/error.rs:227:1
+    |
+227 | pub enum ErrorCategory {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:228:5
+    |
+228 |     Client,
+    |     ^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:229:5
+    |
+229 |     Authentication,
+    |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:230:5
+    |
+230 |     RateLimit,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:231:5
+    |
+231 |     Blockchain,
+    |     ^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:232:5
+    |
+232 |     Resource,
+    |     ^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:233:5
+    |
+233 |     Network,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:234:5
+    |
+234 |     Storage,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:235:5
+    |
+235 |     WebSocket,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:236:5
+    |
+236 |     GraphQL,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/error.rs:237:5
+    |
+237 |     Server,
+    |     ^^^^^^
+
+warning: missing documentation for a method
+   --> multivm-application/src/error.rs:241:5
+    |
+241 |     pub fn as_str(&self) -> &'static str {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a type alias
+   --> multivm-application/src/error.rs:262:1
+    |
+262 | pub type AuthResult<T> = ApplicationResult<T>;
+    | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a type alias
+   --> multivm-application/src/error.rs:263:1
+    |
+263 | pub type CacheResult<T> = ApplicationResult<T>;
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a type alias
+   --> multivm-application/src/error.rs:264:1
+    |
+264 | pub type WebSocketResult<T> = ApplicationResult<T>;
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a type alias
+   --> multivm-application/src/error.rs:265:1
+    |
+265 | pub type GraphQLResult<T> = ApplicationResult<T>;
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+   --> multivm-application/src/error.rs:341:5
+    |
+341 |     pub fn invalid_request(message: impl Into<String>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+   --> multivm-application/src/error.rs:347:5
+    |
+347 |     pub fn auth_failed(reason: impl Into<String>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+   --> multivm-application/src/error.rs:353:5
+    |
+353 |     pub fn not_found(resource_type: impl Into<String>, identifier: impl Into<String>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+   --> multivm-application/src/error.rs:360:5
+    |
+360 |     pub fn internal_error(component: impl Into<String>, message: impl Into<String>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+   --> multivm-application/src/error.rs:367:5
+    |
+367 |     pub fn service_unavailable(service: impl Into<String>, reason: impl Into<String>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> multivm-application/src/gateway/mod.rs:3:1
+  |
+3 | pub mod svm;
+  | ^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:17:5
+   |
+17 |     pub timeout: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:18:5
+   |
+18 |     pub max_retries: u32,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:19:5
+   |
+19 |     pub retry_delay: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:25:5
+   |
+25 |     pub data: T,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:26:5
+   |
+26 |     pub metadata: ResponseMetadata,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:32:5
+   |
+32 |     pub cached: bool,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:33:5
+   |
+33 |     pub response_time_ms: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:34:5
+   |
+34 |     pub vm_type: VmType,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:35:5
+   |
+35 |     pub request_id: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/gateway/mod.rs:41:5
+   |
+41 |     Svm,
+   |     ^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/gateway/mod.rs:42:5
+   |
+42 |     Evm,
+   |     ^^^
+
+warning: missing documentation for a variant
+  --> multivm-application/src/gateway/mod.rs:43:5
+   |
+43 |     MultiVm,
+   |     ^^^^^^^
+
+warning: missing documentation for an associated type
+  --> multivm-application/src/gateway/mod.rs:49:5
+   |
+49 |     type Config;
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for an associated type
+  --> multivm-application/src/gateway/mod.rs:50:5
+   |
+50 |     type Error;
+   |     ^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:67:5
+   |
+67 |     pub total_requests: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:68:5
+   |
+68 |     pub successful_requests: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:69:5
+   |
+69 |     pub failed_requests: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:70:5
+   |
+70 |     pub cache_hits: u64,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:71:5
+   |
+71 |     pub cache_misses: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:72:5
+   |
+72 |     pub average_response_time_ms: f64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/mod.rs:73:5
+   |
+73 |     pub uptime_seconds: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:178:5
+    |
+178 |     pub number: u64,
+    |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:179:5
+    |
+179 |     pub hash: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:180:5
+    |
+180 |     pub timestamp: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:181:5
+    |
+181 |     pub transactions: Vec<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:187:5
+    |
+187 |     pub hash: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:188:5
+    |
+188 |     pub from: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:189:5
+    |
+189 |     pub to: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:190:5
+    |
+190 |     pub value: String,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:191:5
+    |
+191 |     pub gas: u64,
+    |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:192:5
+    |
+192 |     pub gas_price: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:193:5
+    |
+193 |     pub nonce: u64,
+    |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:194:5
+    |
+194 |     pub data: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:200:5
+    |
+200 |     pub from: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:201:5
+    |
+201 |     pub to: String,
+    |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:202:5
+    |
+202 |     pub data: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:203:5
+    |
+203 |     pub value: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/evm.rs:204:5
+    |
+204 |     pub gas: Option<u64>,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:312:5
+    |
+312 |     pub multivm_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:313:5
+    |
+313 |     pub svm_address: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:314:5
+    |
+314 |     pub evm_address: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:315:5
+    |
+315 |     pub created_at: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:316:5
+    |
+316 |     pub last_activity: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:322:5
+    |
+322 |     pub tx_hash: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:323:5
+    |
+323 |     pub status: TxStatusType,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:324:5
+    |
+324 |     pub created_at: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:325:5
+    |
+325 |     pub updated_at: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:326:5
+    |
+326 |     pub svm_tx_hash: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:327:5
+    |
+327 |     pub evm_tx_hash: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:328:5
+    |
+328 |     pub error: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/gateway/multivm.rs:332:1
+    |
+332 | pub enum TxStatusType {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:333:5
+    |
+333 |     Pending,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:334:5
+    |
+334 |     Processing,
+    |     ^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:335:5
+    |
+335 |     Completed,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:336:5
+    |
+336 |     Failed,
+    |     ^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:342:5
+    |
+342 |     pub current_height: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:343:5
+    |
+343 |     pub finalized_height: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:344:5
+    |
+344 |     pub validator_set_size: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:345:5
+    |
+345 |     pub is_syncing: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:346:5
+    |
+346 |     pub peers_connected: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:352:5
+    |
+352 |     pub consensus_healthy: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:353:5
+    |
+353 |     pub svm_healthy: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:354:5
+    |
+354 |     pub evm_healthy: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:355:5
+    |
+355 |     pub account_mapping_healthy: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:356:5
+    |
+356 |     pub overall_status: HealthStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/gateway/multivm.rs:357:5
+    |
+357 |     pub last_check: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+   --> multivm-application/src/gateway/multivm.rs:361:1
+    |
+361 | pub enum HealthStatus {
+    | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:362:5
+    |
+362 |     Healthy,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:363:5
+    |
+363 |     Degraded,
+    |     ^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/gateway/multivm.rs:364:5
+    |
+364 |     Unhealthy,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:48:5
+   |
+48 |     pub lamports: u64,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:49:5
+   |
+49 |     pub owner: String,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:50:5
+   |
+50 |     pub executable: bool,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:51:5
+   |
+51 |     pub rent_epoch: u64,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:52:5
+   |
+52 |     pub data: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:58:5
+   |
+58 |     pub signature: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:59:5
+   |
+59 |     pub slot: u64,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:60:5
+   |
+60 |     pub block_time: Option<i64>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:61:5
+   |
+61 |     pub confirmations: Option<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:62:5
+   |
+62 |     pub err: Option<serde_json::Value>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:68:5
+   |
+68 |     pub slot: u64,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:69:5
+   |
+69 |     pub blockhash: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:70:5
+   |
+70 |     pub parent_slot: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:71:5
+   |
+71 |     pub block_time: Option<i64>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/gateway/svm.rs:72:5
+   |
+72 |     pub transactions: Vec<SvmTransaction>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/monitoring/mod.rs:11:5
+   |
+11 |     pub metrics: Arc<metrics::MetricsService>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/monitoring/mod.rs:12:5
+   |
+12 |     pub health: Arc<health::HealthCheckService>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> multivm-application/src/monitoring/mod.rs:13:5
+   |
+13 |     pub tracing: Arc<tracing::TracingService>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:169:5
+    |
+169 |     pub overall_status: ServiceStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:170:5
+    |
+170 |     pub last_check: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:171:5
+    |
+171 |     pub failing_checks: Vec<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/health.rs:187:5
+    |
+187 |     Healthy,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/health.rs:188:5
+    |
+188 |     Degraded,
+    |     ^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/health.rs:189:5
+    |
+189 |     Unhealthy,
+    |     ^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:195:5
+    |
+195 |     pub status: ServiceStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:196:5
+    |
+196 |     pub timestamp: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:197:5
+    |
+197 |     pub services: Vec<ServiceHealth>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:198:5
+    |
+198 |     pub checks: Vec<HealthCheck>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:204:5
+    |
+204 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:205:5
+    |
+205 |     pub status: ServiceStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:206:5
+    |
+206 |     pub uptime: std::time::Duration,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:207:5
+    |
+207 |     pub last_error: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:213:5
+    |
+213 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:214:5
+    |
+214 |     pub healthy: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:215:5
+    |
+215 |     pub severity: CheckSeverity,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:216:5
+    |
+216 |     pub message: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/health.rs:217:5
+    |
+217 |     pub duration_ms: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/health.rs:223:5
+    |
+223 |     Info,
+    |     ^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/health.rs:224:5
+    |
+224 |     Warning,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/health.rs:225:5
+    |
+225 |     Critical,
+    |     ^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:203:5
+    |
+203 |     pub http_requests_total: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:204:5
+    |
+204 |     pub http_requests_success: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:205:5
+    |
+205 |     pub http_requests_client_error: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:206:5
+    |
+206 |     pub http_requests_server_error: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:207:5
+    |
+207 |     pub http_request_duration_avg: f64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:208:5
+    |
+208 |     pub ws_connections_active: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:209:5
+    |
+209 |     pub ws_connections_total: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:210:5
+    |
+210 |     pub graphql_queries_total: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:211:5
+    |
+211 |     pub graphql_queries_success: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:212:5
+    |
+212 |     pub cache_hits: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:213:5
+    |
+213 |     pub cache_gets_total: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:214:5
+    |
+214 |     pub cache_hit_rate: f64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:215:5
+    |
+215 |     pub svm_operations_total: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:216:5
+    |
+216 |     pub svm_operations_success: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:217:5
+    |
+217 |     pub evm_operations_total: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/metrics.rs:218:5
+    |
+218 |     pub evm_operations_success: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:131:5
+    |
+131 |     pub trace_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:132:5
+    |
+132 |     pub span_id: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:133:5
+    |
+133 |     pub parent_span_id: Option<String>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:134:5
+    |
+134 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:135:5
+    |
+135 |     pub operation: String,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:136:5
+    |
+136 |     pub start_time: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:137:5
+    |
+137 |     pub end_time: Option<chrono::DateTime<chrono::Utc>>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:138:5
+    |
+138 |     pub duration_ms: Option<f64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:139:5
+    |
+139 |     pub tags: Vec<SpanTag>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:140:5
+    |
+140 |     pub events: Vec<SpanEvent>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:141:5
+    |
+141 |     pub status: SpanStatus,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:147:5
+    |
+147 |     pub key: String,
+    |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:148:5
+    |
+148 |     pub value: String,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:154:5
+    |
+154 |     pub timestamp: chrono::DateTime<chrono::Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:155:5
+    |
+155 |     pub name: String,
+    |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> multivm-application/src/monitoring/tracing.rs:156:5
+    |
+156 |     pub message: String,
+    |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/tracing.rs:162:5
+    |
+162 |     Running,
+    |     ^^^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/tracing.rs:163:5
+    |
+163 |     Ok,
+    |     ^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/tracing.rs:164:5
+    |
+164 |     Error,
+    |     ^^^^^
+
+warning: missing documentation for a variant
+   --> multivm-application/src/monitoring/tracing.rs:165:5
+    |
+165 |     Cancelled,
+    |     ^^^^^^^^^
+
+warning: `multivm-application` (lib) generated 653 warnings (29 duplicates)

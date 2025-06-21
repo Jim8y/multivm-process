@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions - MultiVM Admin</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th { background-color: #f2f2f2; }
+        .tx-hash { font-family: monospace; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Recent Transactions</h1>
+        <a href="/admin/dashboard">← Back to Dashboard</a>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Type</th>
+                    <th>Transaction Hash</th>
+                    <th>Status</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>2 mins ago</td>
+                    <td>SVM</td>
+                    <td class="tx-hash">5J3m...8Kf2</td>
+                    <td>Success</td>
+                    <td>1.5 SOL</td>
+                </tr>
+                <tr>
+                    <td>5 mins ago</td>
+                    <td>EVM</td>
+                    <td class="tx-hash">0x1a2b...9f8e</td>
+                    <td>Success</td>
+                    <td>0.05 ETH</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

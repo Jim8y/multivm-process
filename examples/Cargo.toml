@@ -1,0 +1,46 @@
+[package]
+name = "multivm-examples"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "account_mapping_demo"
+path = "account_mapping_demo.rs"
+
+[[bin]]
+name = "p2p_demo"
+path = "p2p_demo.rs"
+
+[[bin]]
+name = "consensus_demo"
+path = "consensus_demo.rs"
+
+[[bin]]
+name = "end_to_end_demo"
+path = "end_to_end_demo.rs"
+
+[dependencies]
+# Core dependencies
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+
+# Internal dependencies
+multivm-common = { path = "../multivm-common" }
+multivm-account-mapping = { path = "../multivm-account-mapping" }
+multivm-process-manager = { path = "../multivm-process-manager" }
+multivm-p2p = { path = "../multivm-p2p" }
+multivm-consensus = { path = "../multivm-consensus" }
+
+# Additional dependencies for end-to-end demo
+blake3 = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4" 

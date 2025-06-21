@@ -1,0 +1,40 @@
+[package]
+name = "multivm-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Common types and traits for multi-VM blockchain processing"
+
+[dependencies]
+# Core async and serialization support
+tokio = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Async trait support
+async-trait = { workspace = true }
+
+# Configuration support
+toml = { workspace = true }
+
+# Authentication and security
+sha2 = { workspace = true }
+bincode = { workspace = true }
+jsonwebtoken = { workspace = true }
+rand = { workspace = true }
+hmac = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Blockchain-specific dependencies moved to execution engines
+# solana-sdk moved to solana-execution-engine
+# alloy-primitives moved to reth-execution-engine  
+# Cryptographic dependencies moved to respective execution engines
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = { workspace = true } 

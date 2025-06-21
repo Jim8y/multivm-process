@@ -1,0 +1,67 @@
+[package]
+name = "multivm-p2p"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "P2P networking layer for MultiVM unified network interface"
+
+[dependencies]
+# Workspace dependencies
+multivm-common = { path = "../multivm-common" }
+multivm-account-mapping = { path = "../multivm-account-mapping" }
+
+# Async runtime
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# Networking - libp2p for production P2P networking
+libp2p = { version = "0.54", features = [
+    "kad",
+    "gossipsub", 
+    "mdns",
+    "tcp",
+    "noise",
+    "yamux",
+    "identify",
+    "autonat",
+    "relay",
+    "dcutr",
+    "ping",
+    "metrics",
+    "serde",
+    "macros",
+    "tokio"
+]}
+multiaddr = "0.18"
+libp2p-swarm = "0.45"
+libp2p-core = "0.42"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Cryptography
+sha2 = { workspace = true }
+rand = { workspace = true }
+
+# Time and utilities
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Additional networking utilities
+bytes = "1.0"
+hex = "0.4"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio-test = "0.4"

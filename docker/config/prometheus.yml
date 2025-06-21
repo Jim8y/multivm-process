@@ -1,0 +1,65 @@
+# Prometheus Configuration for MultiVM Monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # Add rule files here if needed
+
+scrape_configs:
+  # MultiVM Node 1
+  - job_name: 'multivm-node-1'
+    static_configs:
+      - targets: ['multivm-node-1:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    labels:
+      node_id: 'node-1'
+      node_type: 'bootstrap'
+      role: 'validator'
+
+  # MultiVM Node 2
+  - job_name: 'multivm-node-2'
+    static_configs:
+      - targets: ['multivm-node-2:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    labels:
+      node_id: 'node-2'
+      node_type: 'validator'
+      role: 'validator'
+
+  # MultiVM Node 3
+  - job_name: 'multivm-node-3'
+    static_configs:
+      - targets: ['multivm-node-3:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    labels:
+      node_id: 'node-3'
+      node_type: 'validator'
+      role: 'validator'
+
+  # MultiVM Node 4
+  - job_name: 'multivm-node-4'
+    static_configs:
+      - targets: ['multivm-node-4:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    labels:
+      node_id: 'node-4'
+      node_type: 'full'
+      role: 'observer'
+
+  # System metrics (if node_exporter is available)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 15s
+
+# Alerting configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093

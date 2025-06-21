@@ -1,0 +1,147 @@
+[workspace]
+members = [
+    "multivm-common",
+    "multivm-account-mapping",
+    "multivm-process-manager",
+    "multivm-p2p",
+    "multivm-consensus",
+    "solana-execution-engine",
+    "reth-execution-engine",
+    "multivm-application",
+    "multivm-cli",
+    "examples",
+    "tests"
+]
+# Note: Agave and Reth components will be used as dependencies
+# but not included as workspace members to avoid compilation complexity
+
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/user/multivm-process"
+
+[workspace.dependencies]
+# Common dependencies
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+
+# Solana dependencies (using published versions for initial integration)
+solana-runtime = "2.0"
+solana-validator = "2.0"  
+solana-program-runtime = "2.0"
+solana-accounts-db = "2.0"
+solana-ledger = "2.0"
+solana-rpc = "2.0"
+solana-core = "2.0"
+solana-sdk = "2.0"
+solana-client = "2.0"
+solana-transaction-status = "2.0"
+
+# Reth dependencies (using published versions for initial integration)
+reth-node-ethereum = "1.1"
+reth-node-builder = "1.1"
+reth-primitives = "1.1"
+reth-execution-types = "1.1"
+reth-provider = "1.1"
+reth-rpc = "1.1"
+
+# Malachite consensus from Informal Systems
+informalsystems-malachitebft-core-consensus = "0.2"
+informalsystems-malachitebft-engine = "0.2"
+informalsystems-malachitebft-core-types = "0.2"
+informalsystems-malachitebft-proto = "0.2"
+informalsystems-malachitebft-app-channel = "0.2"
+informalsystems-malachitebft-codec = "0.2"
+informalsystems-malachitebft-config = "0.2"
+
+# Additional shared dependencies
+hex = "0.4"
+base64 = "0.22"
+bs58 = "0.5"
+jsonwebtoken = "9.2"
+hmac = "0.12"
+reqwest = { version = "0.12", features = ["json"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+humantime-serde = "1.1"
+
+# Additional dependencies for compatibility
+futures = "0.3"
+futures-util = "0.3"
+bincode = "1.3"
+toml = "0.8"
+eyre = "0.6"
+chrono = { version = "0.4", features = ["serde"] }
+jsonrpsee = { version = "0.22", features = ["server", "http-client", "client", "macros"] }
+
+# Legacy JSON-RPC dependencies (for compatibility)
+jsonrpc-http-server = "18.0"
+jsonrpc-core = "18.0"
+hyper = { version = "0.14", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace", "compression-gzip", "timeout"] }
+sha2 = "0.10"
+sha3 = "0.10"
+blake3 = "1.5"
+clap = { version = "4.5", features = ["derive"] }
+config = "0.14"
+proptest = "1.4"
+tempfile = "3.8"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Additional application dependencies
+axum = { version = "0.8", features = ["ws", "macros"] }
+async-graphql = { version = "7.0", features = ["chrono", "uuid", "tracing"] }
+async-graphql-axum = "7.0"
+async-stream = "0.3"
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+dashmap = "5.5"
+governor = "0.6"
+nonzero_ext = "0.3"
+prometheus = "0.13"
+metrics = "0.22"
+metrics-prometheus = "0.6"
+validator = { version = "0.18", features = ["derive"] }
+parking_lot = "0.12"
+once_cell = "1.19"
+rand = "0.8"
+sqlx = { version = "0.7", features = ["runtime-tokio", "postgres", "chrono", "uuid"] }
+
+# Ethereum primitives (updated versions)
+alloy-primitives = "1.0"
+alloy-consensus = "1.0"
+alloy-rlp = "0.3"
+revm = "24.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+
+[profile.dev]
+debug = true
+opt-level = 0
+
+[profile.release]
+debug = false
+opt-level = 3
+lto = true
+
+[profile.bench]
+debug = true
+
+# Benchmarks are defined in individual crates

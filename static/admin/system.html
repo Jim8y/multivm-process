@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Info - MultiVM Admin</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+        .metric-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>System Information</h1>
+        <a href="/admin/dashboard">← Back to Dashboard</a>
+        
+        <h2>System Metrics</h2>
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-label">CPU Usage</div>
+                <div class="metric-value">25%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Memory Usage</div>
+                <div class="metric-value">2.1 GB / 8 GB</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Network In</div>
+                <div class="metric-value">125 MB/s</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Network Out</div>
+                <div class="metric-value">89 MB/s</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Requests/sec</div>
+                <div class="metric-value">1,234</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Avg Response Time</div>
+                <div class="metric-value">45 ms</div>
+            </div>
+        </div>
+        
+        <h2>Build Info</h2>
+        <ul>
+            <li>Version: 0.1.0</li>
+            <li>Build: Release</li>
+            <li>Platform: Linux</li>
+            <li>Architecture: x86_64</li>
+        </ul>
+    </div>
+</body>
+</html>

@@ -1,0 +1,54 @@
+[package]
+name = "multivm-account-mapping"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Account mapping layer for MultiVM cross-VM account management"
+
+[dependencies]
+# Workspace dependencies
+multivm-common = { path = "../multivm-common" }
+
+# Async runtime
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Storage (using simple in-memory for now)
+# Note: Database storage can be added later
+
+# Cryptography
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+blake3 = { workspace = true }
+ed25519-dalek = { version = "2.0", features = ["serde"] }
+k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
+rand = { workspace = true }
+
+# Ethereum primitives
+alloy-primitives = { workspace = true }
+
+# Solana primitives  
+solana-sdk = { workspace = true }
+
+# Additional
+chrono = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+criterion = { workspace = true }

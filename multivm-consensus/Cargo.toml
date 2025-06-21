@@ -1,0 +1,49 @@
+[package]
+name = "multivm-consensus"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+multivm-common = { path = "../multivm-common" }
+multivm-account-mapping = { path = "../multivm-account-mapping" }
+multivm-p2p = { path = "../multivm-p2p" }
+
+# Core dependencies
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+parking_lot = "0.12"
+futures = { workspace = true }
+chrono = { workspace = true }
+
+# Consensus specific
+sha2 = { workspace = true }
+blake3 = { workspace = true }
+hex = { workspace = true }
+
+# Malachite consensus engine
+informalsystems-malachitebft-engine = { workspace = true }
+informalsystems-malachitebft-core-consensus = { workspace = true }
+informalsystems-malachitebft-core-types = { workspace = true }
+informalsystems-malachitebft-proto = { workspace = true }
+informalsystems-malachitebft-app-channel = { workspace = true }
+informalsystems-malachitebft-codec = { workspace = true }
+informalsystems-malachitebft-config = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = { workspace = true }
+criterion = { workspace = true }
+rand = "0.8"
+tracing-subscriber = "0.3"
+
+[[bench]]
+name = "consensus_bench"
+harness = false

@@ -1,0 +1,79 @@
+# Rust build artifacts
+/target/
+**/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Build results and benchmarks
+benchmarks/results/
+benchmark_*/
+**/benchmark_*/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test and benchmark results
+benchmarks/results/
+test-results/
+*.profraw
+*.profdata
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+
+# Documentation build artifacts
+docs/_build/
+docs/.doctrees/
+*.pdf
+*.aux
+*.out
+*.toc
+*.synctex.gz
+
+# Generated documentation
+docs/**/*.pdf
+**/*_simple.rs
+**/usage_example.rs
+
+# Status and cleanup documents
+**/CLEANUP_SUMMARY.md
+**/PROJECT_COMPLETION_STATUS.md
+**/*_STATUS_*.md
+QUICK_START_LEARNING.md
+QUICK_START_GUIDE.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*.old
+*_old.*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node modules (if any frontend exists)
+node_modules/
+
+# Python cache (if any scripts)
+__pycache__/
+*.pyc
+
+# Coverage reports
+*.lcov
+coverage/

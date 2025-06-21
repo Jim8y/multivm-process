@@ -1,0 +1,56 @@
+[package]
+name = "solana-execution-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["mock"]
+mock = []
+real-validator = []
+
+[dependencies]
+# Workspace dependencies
+multivm-common = { path = "../multivm-common" }
+
+# Async runtime and utilities
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Crypto and encoding
+hex = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+
+# CLI parsing
+clap = { workspace = true }
+
+# Solana dependencies (simplified for initial implementation)
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+solana-transaction-status = { workspace = true }
+
+# RPC and networking (using modern JSON-RPC library)
+jsonrpsee = { workspace = true }
+
+# Legacy JSON-RPC for compatibility
+jsonrpc-http-server = { workspace = true }
+jsonrpc-core = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio-test = "0.4" 

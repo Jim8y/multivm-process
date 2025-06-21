@@ -1,0 +1,28 @@
+# MultiVM Process - Test Runner
+FROM rust:1.70-slim
+
+# Install test dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    build-essential \
+    curl \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create test directory
+WORKDIR /opt/multivm
+
+# Copy test files
+COPY tests/ ./tests/
+COPY docker/scripts/test-runner.sh ./bin/
+COPY docker/config/test-config.toml ./config/
+
+# Make scripts executable
+RUN chmod +x ./bin/test-runner.sh
+
+# Install test dependencies
+RUN cargo install --force cargo-nextest
+
+# Default test command
+CMD ["./bin/test-runner.sh"]

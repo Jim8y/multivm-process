@@ -1,0 +1,38 @@
+[package]
+name = "multivm-integration-tests"
+version = "0.1.0"
+edition = "2021"
+
+[[test]]
+name = "integration_tests"
+path = "integration_tests.rs"
+
+[[test]]
+name = "enhanced_integration_tests"
+path = "enhanced_integration_tests.rs"
+
+[dependencies]
+# Core testing dependencies
+tokio = { version = "1.0", features = ["full"] }
+tokio-test = "0.4"
+tracing = "0.1"
+tracing-test = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Serialization and utilities
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+blake3 = "1.5"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Internal dependencies
+multivm-common = { path = "../multivm-common" }
+multivm-consensus = { path = "../multivm-consensus" }
+multivm-account-mapping = { path = "../multivm-account-mapping" }
+multivm-process-manager = { path = "../multivm-process-manager" }
+multivm-p2p = { path = "../multivm-p2p" }
+
+# Development dependencies for testing
+tempfile = "3.8"
+proptest = "1.4"
+criterion = { version = "0.5", features = ["html_reports"] }

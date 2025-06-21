@@ -1,0 +1,41 @@
+[package]
+name = "multivm-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Multi-VM Team"]
+description = "Command-line interface for multi-VM blockchain processing"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "multivm-node"
+path = "src/main.rs"
+
+[dependencies]
+# Common types and traits
+multivm-common = { path = "../multivm-common" }
+multivm-consensus = { path = "../multivm-consensus" }
+multivm-process-manager = { path = "../multivm-process-manager" }
+
+# Core dependencies
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Configuration
+# Directory utilities removed for simplicity
+
+# Time handling
+chrono = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.0" 

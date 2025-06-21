@@ -1,0 +1,68 @@
+[package]
+name = "reth-execution-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["mock"]
+mock = []
+real-node = []
+
+[dependencies]
+# Workspace dependencies
+multivm-common = { path = "../multivm-common" }
+
+# Async runtime and utilities
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Crypto and encoding
+hex = { workspace = true }
+
+# HTTP client for RPC communication
+reqwest = { workspace = true }
+
+# CLI parsing
+clap = { workspace = true }
+
+# Random number generation for JWT secrets
+rand = { workspace = true }
+
+# Basic Ethereum utilities (avoiding version conflicts for now)
+# alloy-primitives = "0.7"
+# alloy-consensus = "0.1" 
+# alloy-rlp = "0.3"
+
+# EVM for execution (simplified initial implementation)
+# revm = "12.1"
+
+# JSON RPC (using current stable versions)
+jsonrpsee = { workspace = true }
+
+# Legacy JSON-RPC for compatibility
+jsonrpc-http-server = { workspace = true }
+jsonrpc-core = { workspace = true }
+
+# Crypto hash dependencies
+sha2 = { workspace = true }
+sha3 = "0.10"
+keccak = "0.1"
+
+[dev-dependencies]
+tempfile = "3.0"
+tokio-test = "0.4" 

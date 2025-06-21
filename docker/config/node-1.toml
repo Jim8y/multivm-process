@@ -1,0 +1,48 @@
+# MultiVM Node 1 Configuration (Bootstrap Node)
+
+[node]
+id = "node-1"
+type = "bootstrap"
+role = "validator"
+
+[network]
+p2p_listen_addr = "0.0.0.0:26656"
+api_listen_addr = "0.0.0.0:8080"
+bootstrap_nodes = []
+max_peers = 50
+connection_timeout_ms = 5000
+
+[consensus]
+algorithm = "malachite"
+validator_key = "validator-1-key"
+timeout_propose_ms = 3000
+timeout_prevote_ms = 1000
+timeout_precommit_ms = 1000
+max_validators = 10
+
+[logging]
+level = "info"
+file = "/opt/multivm/logs/node-1.log"
+format = "json"
+
+[storage]
+data_dir = "/opt/multivm/data"
+cache_size_mb = 256
+
+[api]
+rest_enabled = true
+rest_addr = "0.0.0.0:8080"
+graphql_enabled = true
+websocket_enabled = true
+cors_origins = ["*"]
+
+[execution]
+solana_mode = "mock"
+reth_mode = "mock"
+mock_block_time_ms = 1000
+mock_tx_per_block = 10
+
+[monitoring]
+metrics_enabled = true
+health_check_interval_ms = 30000
+resource_monitoring = true
