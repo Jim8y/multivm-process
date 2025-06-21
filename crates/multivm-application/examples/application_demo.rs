@@ -119,6 +119,11 @@ fn create_demo_config() -> ApplicationConfig {
                 connection_timeout: Duration::from_secs(5),
                 command_timeout: Duration::from_secs(5),
                 key_prefix: "demo:".to_string(),
+                circuit_breaker_threshold: 5,
+                circuit_breaker_timeout: Duration::from_secs(60),
+                hot_cache_max_size: 10 * 1024 * 1024, // 10MB
+                enable_connection_pooling: true,
+                enable_pipelining: true,
             },
             memory: multivm_application::MemoryCacheConfig {
                 max_items: 1000,

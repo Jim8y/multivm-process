@@ -6,7 +6,7 @@
 // Common types are imported as needed
 use multivm_account_mapping::{
     AccountAddress, AccountBinding, AccountBindingValidator, AccountMappingLayer,
-    AccountMappingStorage, BindingConfiguration, BindingFlags, BindingMetadata, BindingProof,
+    AccountMappingStorage, BindingConfiguration, BindingMetadata, BindingProof,
     EthereumAddress, MemoryStorage, ProofType, SolanaAddress, SpecialTransaction, ValidationConfig,
 };
 use multivm_consensus::{EvmTransaction, MalachiteConfig, MultiVMBlock, SvmTransaction};
@@ -169,11 +169,7 @@ async fn test_account_mapping_integration() {
             label: None,
             active: true,
             last_used: None,
-            flags: BindingFlags {
-                allow_transfers: true,
-                allow_discovery: true,
-                require_confirmation: false,
-            },
+            // Configuration is handled via the config field
             notes: None,
             tags: vec![],
             config: BindingConfiguration::default(),
