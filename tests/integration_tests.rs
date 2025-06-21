@@ -6,8 +6,8 @@
 // Common types are imported as needed
 use multivm_account_mapping::{
     AccountAddress, AccountBinding, AccountBindingValidator, AccountMappingLayer,
-    AccountMappingStorage, BindingConfiguration, BindingMetadata, BindingProof,
-    EthereumAddress, MemoryStorage, ProofType, SolanaAddress, SpecialTransaction, ValidationConfig,
+    AccountMappingStorage, BindingConfiguration, BindingMetadata, BindingProof, EthereumAddress,
+    MemoryStorage, ProofType, SolanaAddress, SpecialTransaction, ValidationConfig,
 };
 use multivm_consensus::{EvmTransaction, MalachiteConfig, MultiVMBlock, SvmTransaction};
 use multivm_process_manager::{BlockRouter, CoordinatorConfig, MultivmCoordinator};
