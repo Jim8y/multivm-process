@@ -711,7 +711,7 @@ impl MultiVMConsensusManager {
         );
 
         // Check if we support the requested VM types
-        let our_vm_types = vec![multivm_p2p::VmType::Svm, multivm_p2p::VmType::Evm];
+        let our_vm_types = [multivm_p2p::VmType::Svm, multivm_p2p::VmType::Evm];
         let supported = requested_capabilities
             .iter()
             .filter(|cap| our_vm_types.contains(cap))
@@ -1018,8 +1018,7 @@ impl MultiVMConsensusManager {
             .and_then(|v| v.as_array())
             .unwrap_or(&Vec::new())
             .iter()
-            .enumerate()
-            .map(|(_i, tx)| SvmTransaction {
+            .map(|tx| SvmTransaction {
                 id: uuid::Uuid::new_v4(),
                 signatures: vec![tx
                     .get("signature")

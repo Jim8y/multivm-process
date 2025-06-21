@@ -1,17 +1,16 @@
 //! Performance benchmarks for the MultiVM system
 
+#![allow(dead_code, unused_variables, unused_imports)]
+
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use multivm_account_mapping::{
-    AccountMapping, AccountMappingValidator, EthereumAddress, SolanaAddress,
-};
+use multivm_account_mapping::{AccountBindingValidator, EthereumAddress, SolanaAddress};
 use multivm_consensus::{
-    EvmTransaction, MalachiteConfig, MalachiteConsensus, MultivmBlock, SvmTransaction, Transaction,
+    EvmTransaction, MalachiteConfig, MalachiteConsensus, MultiVMBlock, SvmTransaction,
 };
-use multivm_process_manager::{BlockRouter, BlockRouterConfig};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-fn create_test_block(height: u64, tx_count: usize) -> MultivmBlock {
+fn create_test_block(height: u64, tx_count: usize) -> MultiVMBlock {
     let mut transactions = vec![];
 
     for i in 0..tx_count {

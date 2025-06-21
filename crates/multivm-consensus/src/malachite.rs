@@ -655,7 +655,7 @@ impl MultiVMSigningScheme {
             hasher.update(data);
             hasher.finalize().to_vec()
         };
-        signature == expected_signature && public_key == &self.public_key
+        signature == expected_signature && public_key == self.public_key
     }
 
     pub fn public_key(&self) -> &[u8] {
