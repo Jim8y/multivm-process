@@ -742,7 +742,7 @@ pub enum StorageBackend {
     /// In-memory storage (testing only)
     Memory,
     /// File-based persistence
-    File { 
+    File {
         /// Directory for state files
         data_dir: PathBuf,
         /// Enable compression
@@ -837,11 +837,7 @@ impl StatePersistenceError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        match self {
-            Self::CorruptionDetected(_) => true,
-            Self::VerificationFailed(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::CorruptionDetected(_) | Self::VerificationFailed(_))
     }
 
     /// Get error category for metrics
@@ -877,9 +873,16 @@ pub struct RecoveryPoint {
 impl RecoveryPoint {
     /// Create a new recovery point
     pub fn new(height: u64, state: CrossVMState) -> Self {
-        let id = format!("recovery-{}-{}", height, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs());
+        let id = format!(
+            "recovery-{}-{}",
+            height,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
         let checksum = Self::compute_checksum(&state);
-        
+
         Self {
             id,
             height,
@@ -993,7 +996,9 @@ pub struct PersistenceMetrics {
 impl StatePersistenceManager {
     /// Create a new state persistence manager
     pub async fn new(config: StatePersistenceConfig) -> Result<Self, StatePersistenceError> {
-        config.validate().map_err(|e| StatePersistenceError::RecoveryFailed(e))?;
+        config
+            .validate()
+            .map_err(StatePersistenceError::RecoveryFailed)?;
 
         // Ensure data directory exists for file backend
         if let StorageBackend::File { data_dir, .. } = &config.backend {
@@ -1019,7 +1024,11 @@ impl StatePersistenceManager {
     }
 
     /// Save current state as a recovery point
-    pub async fn save_state(&self, height: u64, state: CrossVMState) -> Result<String, StatePersistenceError> {
+    pub async fn save_state(
+        &self,
+        height: u64,
+        state: CrossVMState,
+    ) -> Result<String, StatePersistenceError> {
         let start_time = Instant::now();
         let recovery_point = RecoveryPoint::new(height, state);
         let point_id = recovery_point.id.clone();
@@ -1028,7 +1037,7 @@ impl StatePersistenceManager {
         {
             let mut points = self.recovery_points.write().await;
             points.push(recovery_point.clone());
-            
+
             // Prune old recovery points
             while points.len() > self.config.max_recovery_points {
                 points.remove(0);
@@ -1042,7 +1051,8 @@ impl StatePersistenceManager {
         {
             let mut metrics = self.metrics.write().await;
             metrics.save_operations += 1;
-            metrics.avg_save_time_ms = (metrics.avg_save_time_ms + start_time.elapsed().as_millis() as u64) / 2;
+            metrics.avg_save_time_ms =
+                (metrics.avg_save_time_ms + start_time.elapsed().as_millis() as u64) / 2;
             metrics.last_operation = Some(SystemTime::now());
         }
 
@@ -1056,14 +1066,14 @@ impl StatePersistenceManager {
     /// Load state from the latest recovery point
     pub async fn load_latest_state(&self) -> Result<Option<CrossVMState>, StatePersistenceError> {
         let start_time = Instant::now();
-        
+
         let recovery_points = self.recovery_points.read().await;
         let latest_point = recovery_points.last();
 
         let result = if let Some(point) = latest_point {
             if self.config.verify_on_load && !point.verify_integrity() {
                 return Err(StatePersistenceError::VerificationFailed(
-                    "Recovery point failed integrity check".to_string()
+                    "Recovery point failed integrity check".to_string(),
                 ));
             }
             Some(point.state_snapshot.clone())
@@ -1075,7 +1085,8 @@ impl StatePersistenceManager {
         {
             let mut metrics = self.metrics.write().await;
             metrics.load_operations += 1;
-            metrics.avg_load_time_ms = (metrics.avg_load_time_ms + start_time.elapsed().as_millis() as u64) / 2;
+            metrics.avg_load_time_ms =
+                (metrics.avg_load_time_ms + start_time.elapsed().as_millis() as u64) / 2;
             metrics.last_operation = Some(SystemTime::now());
         }
 
@@ -1083,11 +1094,14 @@ impl StatePersistenceManager {
     }
 
     /// Recover to a specific height
-    pub async fn recover_to_height(&self, target_height: u64) -> Result<Option<CrossVMState>, StatePersistenceError> {
+    pub async fn recover_to_height(
+        &self,
+        target_height: u64,
+    ) -> Result<Option<CrossVMState>, StatePersistenceError> {
         let start_time = Instant::now();
-        
+
         let recovery_points = self.recovery_points.read().await;
-        
+
         // Find the recovery point closest to but not exceeding the target height
         let mut best_point: Option<&RecoveryPoint> = None;
         for point in recovery_points.iter().rev() {
@@ -1101,12 +1115,16 @@ impl StatePersistenceManager {
             if self.config.verify_on_load && !point.verify_integrity() {
                 let mut metrics = self.metrics.write().await;
                 metrics.verification_failures += 1;
-                return Err(StatePersistenceError::VerificationFailed(
-                    format!("Recovery point at height {} failed integrity check", point.height)
-                ));
+                return Err(StatePersistenceError::VerificationFailed(format!(
+                    "Recovery point at height {} failed integrity check",
+                    point.height
+                )));
             }
 
-            info!("Recovered to height {} using recovery point at height {}", target_height, point.height);
+            info!(
+                "Recovered to height {} using recovery point at height {}",
+                target_height, point.height
+            );
             Some(point.state_snapshot.clone())
         } else {
             warn!("No recovery point found for height {}", target_height);
@@ -1136,7 +1154,10 @@ impl StatePersistenceManager {
     }
 
     /// Persist recovery point to storage backend
-    async fn persist_recovery_point(&self, point: &RecoveryPoint) -> Result<(), StatePersistenceError> {
+    async fn persist_recovery_point(
+        &self,
+        point: &RecoveryPoint,
+    ) -> Result<(), StatePersistenceError> {
         match &self.config.backend {
             StorageBackend::Memory => {
                 // No actual persistence for memory backend
@@ -1145,7 +1166,7 @@ impl StatePersistenceManager {
             StorageBackend::File { data_dir, compress } => {
                 let file_path = data_dir.join(format!("recovery-{}.bin", point.height));
                 let serialized = bincode::serialize(point)?;
-                
+
                 let data = if *compress {
                     // Simple compression would go here
                     serialized
@@ -1177,9 +1198,13 @@ impl StatePersistenceManager {
 
                 while let Some(entry) = entries.next_entry().await? {
                     let path = entry.path();
-                    if path.extension().map_or(false, |ext| ext == "bin") && 
-                       path.file_name().unwrap().to_string_lossy().starts_with("recovery-") {
-                        
+                    if path.extension().is_some_and(|ext| ext == "bin")
+                        && path
+                            .file_name()
+                            .unwrap()
+                            .to_string_lossy()
+                            .starts_with("recovery-")
+                    {
                         if let Ok(data) = tokio::fs::read(&path).await {
                             if let Ok(point) = bincode::deserialize::<RecoveryPoint>(&data) {
                                 if point.verify_integrity() {
@@ -1210,10 +1235,12 @@ impl CrossVMStateManager {
         persistence_config: StatePersistenceConfig,
     ) -> ConsensusResult<Self> {
         let manager = Self::new(config);
-        
+
         let _persistence = StatePersistenceManager::new(persistence_config)
             .await
-            .map_err(|e| ConsensusError::Internal(format!("Failed to create persistence manager: {}", e)))?;
+            .map_err(|e| {
+                ConsensusError::Internal(format!("Failed to create persistence manager: {}", e))
+            })?;
 
         // Integration with persistence would happen here
         info!("State manager with persistence initialized");

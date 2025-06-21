@@ -106,11 +106,7 @@ impl NetworkRecoveryError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        match self {
-            Self::PartitionDetected(_) => true,
-            Self::InsufficientConnectivity { .. } => true,
-            _ => false,
-        }
+        matches!(self, Self::PartitionDetected(_) | Self::InsufficientConnectivity { .. })
     }
 
     /// Get error category for metrics
@@ -287,7 +283,9 @@ pub struct ValidatorStatus {
 impl NetworkRecoveryManager {
     /// Create a new network recovery manager
     pub async fn new(config: NetworkRecoveryConfig) -> Result<Self, NetworkRecoveryError> {
-        config.validate().map_err(|e| NetworkRecoveryError::InvalidNetworkState(e))?;
+        config
+            .validate()
+            .map_err(NetworkRecoveryError::InvalidNetworkState)?;
 
         let initial_health = NetworkHealth {
             status: NetworkHealthStatus::Healthy,
@@ -321,17 +319,24 @@ impl NetworkRecoveryManager {
     }
 
     /// Update validator status
-    pub async fn update_validator_status(&self, validator_id: String, connected: bool, height: u64) {
+    pub async fn update_validator_status(
+        &self,
+        validator_id: String,
+        connected: bool,
+        height: u64,
+    ) {
         let mut status_map = self.validator_status.write().await;
-        
-        let status = status_map.entry(validator_id.clone()).or_insert_with(|| ValidatorStatus {
-            id: validator_id.clone(),
-            connected: false,
-            last_seen: SystemTime::now(),
-            last_known_height: 0,
-            failed_health_checks: 0,
-            rtt_ms: None,
-        });
+
+        let status = status_map
+            .entry(validator_id.clone())
+            .or_insert_with(|| ValidatorStatus {
+                id: validator_id.clone(),
+                connected: false,
+                last_seen: SystemTime::now(),
+                last_known_height: 0,
+                failed_health_checks: 0,
+                rtt_ms: None,
+            });
 
         status.connected = connected;
         status.last_known_height = height;
@@ -343,7 +348,10 @@ impl NetworkRecoveryManager {
             status.failed_health_checks += 1;
         }
 
-        debug!("Updated validator {} status: connected={}, height={}", validator_id, connected, height);
+        debug!(
+            "Updated validator {} status: connected={}, height={}",
+            validator_id, connected, height
+        );
     }
 
     /// Perform comprehensive network health check
@@ -367,9 +375,10 @@ impl NetworkRecoveryManager {
         let validator_status = self.validator_status.read().await;
         health.total_validators = validator_status.len();
         health.connected_validators = validator_status.values().filter(|v| v.connected).count();
-        
+
         if health.total_validators > 0 {
-            health.connectivity_percentage = ((health.connected_validators * 100) / health.total_validators) as u8;
+            health.connectivity_percentage =
+                ((health.connected_validators * 100) / health.total_validators) as u8;
         }
 
         // Check for partition indicators
@@ -377,8 +386,8 @@ impl NetworkRecoveryManager {
 
         // Low connectivity check
         if health.connectivity_percentage < self.config.min_connectivity_percentage {
-            indicators.push(PartitionIndicator::LowConnectivity { 
-                percentage: health.connectivity_percentage 
+            indicators.push(PartitionIndicator::LowConnectivity {
+                percentage: health.connectivity_percentage,
             });
             health.status = NetworkHealthStatus::Partitioned;
         }
@@ -389,7 +398,7 @@ impl NetworkRecoveryManager {
             .filter(|v| !v.connected && v.failed_health_checks > 3)
             .map(|v| v.id.clone())
             .collect();
-        
+
         if !failed_validators.is_empty() {
             indicators.push(PartitionIndicator::HeartbeatFailures { failed_validators });
             if health.status == NetworkHealthStatus::Healthy {
@@ -400,10 +409,13 @@ impl NetworkRecoveryManager {
         // Check for consensus progress
         let now = SystemTime::now();
         let timeout_duration = Duration::from_secs(self.config.partition_detection_timeout_secs);
-        
+
         if let Some(last_activity) = health.last_consensus_activity {
             if now.duration_since(last_activity).unwrap_or(Duration::ZERO) > timeout_duration {
-                let duration_secs = now.duration_since(last_activity).unwrap_or(Duration::ZERO).as_secs();
+                let duration_secs = now
+                    .duration_since(last_activity)
+                    .unwrap_or(Duration::ZERO)
+                    .as_secs();
                 indicators.push(PartitionIndicator::NoProgress { duration_secs });
                 health.status = NetworkHealthStatus::Critical;
             }
@@ -413,7 +425,9 @@ impl NetworkRecoveryManager {
         if let Some(fork_detector) = &self.fork_detector {
             let active_forks = fork_detector.get_active_forks().await;
             if active_forks.len() > 1 {
-                indicators.push(PartitionIndicator::MultipleForks { count: active_forks.len() });
+                indicators.push(PartitionIndicator::MultipleForks {
+                    count: active_forks.len(),
+                });
                 if health.status == NetworkHealthStatus::Healthy {
                     health.status = NetworkHealthStatus::Degraded;
                 }
@@ -437,21 +451,30 @@ impl NetworkRecoveryManager {
         // Update last health check time
         *self.last_health_check.write().await = Instant::now();
 
-        info!("Health check completed: status={:?}, connectivity={}%", health.status, health.connectivity_percentage);
+        info!(
+            "Health check completed: status={:?}, connectivity={}%",
+            health.status, health.connectivity_percentage
+        );
         Ok(health)
     }
 
     /// Detect if network partition exists
     pub async fn detect_partition(&self) -> Result<bool, NetworkRecoveryError> {
         let health = self.perform_health_check().await?;
-        
-        let is_partitioned = matches!(health.status, NetworkHealthStatus::Partitioned | NetworkHealthStatus::Critical);
-        
+
+        let is_partitioned = matches!(
+            health.status,
+            NetworkHealthStatus::Partitioned | NetworkHealthStatus::Critical
+        );
+
         if is_partitioned {
             let mut metrics = self.metrics.write().await;
             metrics.partitions_detected += 1;
-            
-            warn!("Network partition detected: {:?}", health.partition_indicators);
+
+            warn!(
+                "Network partition detected: {:?}",
+                health.partition_indicators
+            );
         }
 
         Ok(is_partitioned)
@@ -460,11 +483,19 @@ impl NetworkRecoveryManager {
     /// Attempt to recover from network partition
     pub async fn attempt_recovery(&self) -> Result<RecoveryStatus, NetworkRecoveryError> {
         if !self.config.auto_recovery {
-            return Err(NetworkRecoveryError::RecoveryFailed("Auto recovery is disabled".to_string()));
+            return Err(NetworkRecoveryError::RecoveryFailed(
+                "Auto recovery is disabled".to_string(),
+            ));
         }
 
-        let recovery_id = format!("recovery-{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs());
-        
+        let recovery_id = format!(
+            "recovery-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+
         let mut recovery_status = RecoveryStatus {
             id: recovery_id.clone(),
             started_at: SystemTime::now(),
@@ -498,21 +529,27 @@ impl NetworkRecoveryManager {
                 _ => recovery_status.progress,
             };
 
-            info!("Recovery phase: {:?} ({}%)", phase, recovery_status.progress);
+            info!(
+                "Recovery phase: {:?} ({}%)",
+                phase, recovery_status.progress
+            );
 
-            match self.execute_recovery_phase(&phase, &mut recovery_status).await {
+            match self
+                .execute_recovery_phase(&phase, &mut recovery_status)
+                .await
+            {
                 Ok(_) => {
                     debug!("Recovery phase {:?} completed successfully", phase);
                 }
                 Err(e) => {
                     error!("Recovery phase {:?} failed: {}", phase, e);
                     recovery_status.errors.push(format!("{:?}: {}", phase, e));
-                    
+
                     if recovery_status.attempts >= self.config.max_recovery_attempts {
                         recovery_status.phase = RecoveryPhase::Failed;
                         break;
                     }
-                    
+
                     // Retry with exponential backoff
                     let backoff = Duration::from_secs(2_u64.pow(recovery_status.attempts.min(6)));
                     tokio::time::sleep(backoff).await;
@@ -536,7 +573,7 @@ impl NetworkRecoveryManager {
             let mut metrics = self.metrics.write().await;
             if success {
                 metrics.successful_recoveries += 1;
-                metrics.avg_recovery_time_ms = 
+                metrics.avg_recovery_time_ms =
                     (metrics.avg_recovery_time_ms + recovery_time.as_millis() as u64) / 2;
                 if recovery_time.as_millis() as u64 > metrics.max_recovery_time_ms {
                     metrics.max_recovery_time_ms = recovery_time.as_millis() as u64;
@@ -550,7 +587,7 @@ impl NetworkRecoveryManager {
         {
             let mut history = self.recovery_history.write().await;
             history.push(recovery_status.clone());
-            
+
             // Prune old history
             while history.len() > 50 {
                 history.remove(0);
@@ -558,9 +595,15 @@ impl NetworkRecoveryManager {
         }
 
         if success {
-            info!("Network recovery completed successfully in {:?}", recovery_time);
+            info!(
+                "Network recovery completed successfully in {:?}",
+                recovery_time
+            );
         } else {
-            error!("Network recovery failed after {} attempts", recovery_status.attempts);
+            error!(
+                "Network recovery failed after {} attempts",
+                recovery_status.attempts
+            );
         }
 
         Ok(recovery_status)
@@ -604,22 +647,23 @@ impl NetworkRecoveryManager {
     /// Attempt to reconnect disconnected validators
     async fn attempt_validator_reconnection(&self) -> Result<(), NetworkRecoveryError> {
         let validator_status = self.validator_status.read().await;
-        let disconnected_validators: Vec<_> = validator_status
-            .values()
-            .filter(|v| !v.connected)
-            .collect();
+        let disconnected_validators: Vec<_> =
+            validator_status.values().filter(|v| !v.connected).collect();
 
         if disconnected_validators.is_empty() {
             return Ok(());
         }
 
-        info!("Attempting to reconnect {} validators", disconnected_validators.len());
+        info!(
+            "Attempting to reconnect {} validators",
+            disconnected_validators.len()
+        );
 
         // In a real implementation, this would involve:
         // - Sending reconnection requests
         // - Updating network topology
         // - Re-establishing communication channels
-        
+
         // For now, simulate reconnection attempts
         for validator in disconnected_validators {
             debug!("Attempting to reconnect validator: {}", validator.id);
@@ -632,12 +676,12 @@ impl NetworkRecoveryManager {
     /// Synchronize state across network partitions
     async fn synchronize_partition_state(&self) -> Result<(), NetworkRecoveryError> {
         info!("Synchronizing state across partitions");
-        
+
         // In a real implementation, this would involve:
         // - Identifying the authoritative state
         // - Synchronizing state across all validators
         // - Verifying state consistency
-        
+
         Ok(())
     }
 
@@ -645,10 +689,10 @@ impl NetworkRecoveryManager {
     async fn resolve_partition_forks(&self) -> Result<(), NetworkRecoveryError> {
         if let Some(fork_detector) = &self.fork_detector {
             let active_forks = fork_detector.get_active_forks().await;
-            
+
             if !active_forks.is_empty() {
                 info!("Resolving {} forks caused by partition", active_forks.len());
-                
+
                 for fork in active_forks {
                     if let Err(e) = fork_detector.attempt_resolution(&fork.id).await {
                         warn!("Failed to resolve fork {}: {}", fork.id, e);
@@ -663,13 +707,13 @@ impl NetworkRecoveryManager {
     /// Resume normal consensus operation
     async fn resume_consensus_operation(&self) -> Result<(), NetworkRecoveryError> {
         info!("Resuming normal consensus operation");
-        
+
         // Grace period to allow network to stabilize
         tokio::time::sleep(Duration::from_secs(self.config.recovery_grace_period_secs)).await;
-        
+
         // Update network health status
         let _ = self.update_network_health().await;
-        
+
         Ok(())
     }
 
@@ -707,13 +751,13 @@ impl NetworkRecoveryManager {
 pub trait NetworkRecovery: Send + Sync {
     /// Detect network partition
     async fn detect_partition(&self) -> Result<bool, NetworkRecoveryError>;
-    
+
     /// Attempt network recovery
     async fn attempt_recovery(&self) -> Result<RecoveryStatus, NetworkRecoveryError>;
-    
+
     /// Get network health status
     async fn get_network_health(&self) -> NetworkHealth;
-    
+
     /// Get recovery metrics
     async fn get_metrics(&self) -> NetworkRecoveryMetrics;
 }
@@ -745,7 +789,7 @@ mod tests {
     async fn test_network_recovery_manager_creation() {
         let config = NetworkRecoveryConfig::default();
         let manager = NetworkRecoveryManager::new(config).await.unwrap();
-        
+
         let health = manager.get_network_health().await;
         assert_eq!(health.status, NetworkHealthStatus::Healthy);
     }
@@ -754,9 +798,11 @@ mod tests {
     async fn test_validator_status_update() {
         let config = NetworkRecoveryConfig::default();
         let manager = NetworkRecoveryManager::new(config).await.unwrap();
-        
-        manager.update_validator_status("validator1".to_string(), true, 100).await;
-        
+
+        manager
+            .update_validator_status("validator1".to_string(), true, 100)
+            .await;
+
         let status = manager.validator_status.read().await;
         assert!(status.contains_key("validator1"));
         assert!(status["validator1"].connected);
@@ -767,15 +813,23 @@ mod tests {
     async fn test_partition_detection() {
         let mut config = NetworkRecoveryConfig::default();
         config.min_connectivity_percentage = 75;
-        
+
         let manager = NetworkRecoveryManager::new(config).await.unwrap();
-        
+
         // Add validators with low connectivity
-        manager.update_validator_status("validator1".to_string(), true, 100).await;
-        manager.update_validator_status("validator2".to_string(), false, 90).await;
-        manager.update_validator_status("validator3".to_string(), false, 85).await;
-        manager.update_validator_status("validator4".to_string(), false, 80).await;
-        
+        manager
+            .update_validator_status("validator1".to_string(), true, 100)
+            .await;
+        manager
+            .update_validator_status("validator2".to_string(), false, 90)
+            .await;
+        manager
+            .update_validator_status("validator3".to_string(), false, 85)
+            .await;
+        manager
+            .update_validator_status("validator4".to_string(), false, 80)
+            .await;
+
         let is_partitioned = manager.detect_partition().await.unwrap();
         assert!(is_partitioned);
     }
@@ -784,7 +838,7 @@ mod tests {
     async fn test_config_validation() {
         let mut config = NetworkRecoveryConfig::default();
         assert!(config.validate().is_ok());
-        
+
         config.min_healthy_validators = 0;
         assert!(config.validate().is_err());
     }

@@ -116,11 +116,7 @@ impl BlockSyncError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        match self {
-            Self::InvalidBlockData(_) => true,
-            Self::VerificationFailed(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::InvalidBlockData(_) | Self::VerificationFailed(_))
     }
 
     /// Get error category for metrics
@@ -157,8 +153,15 @@ pub struct SyncRequest {
 impl SyncRequest {
     /// Create a new sync request
     pub fn new(start_height: u64, end_height: Option<u64>, max_blocks: usize) -> Self {
-        let id = format!("sync-{}-{}", start_height, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs());
-        
+        let id = format!(
+            "sync-{}-{}",
+            start_height,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+
         Self {
             id,
             start_height,
@@ -267,8 +270,15 @@ pub struct SyncOperation {
 impl SyncOperation {
     /// Create a new sync operation
     pub fn new(target_peer: String, start_height: u64, target_height: u64) -> Self {
-        let id = format!("syncop-{}-{}", start_height, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs());
-        
+        let id = format!(
+            "syncop-{}-{}",
+            start_height,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+
         Self {
             id,
             status: BlockSyncStatus::Syncing,
@@ -288,10 +298,10 @@ impl SyncOperation {
         if self.target_height <= self.start_height {
             return 100;
         }
-        
+
         let total_blocks = self.target_height - self.start_height;
         let synced_blocks = self.current_height.saturating_sub(self.start_height);
-        
+
         ((synced_blocks * 100) / total_blocks).min(100) as u8
     }
 }
@@ -353,7 +363,9 @@ pub struct BlockSyncManager {
 impl BlockSyncManager {
     /// Create a new block synchronization manager
     pub async fn new(config: BlockSyncConfig) -> Result<Self, BlockSyncError> {
-        config.validate().map_err(|e| BlockSyncError::InvalidBlockData(e))?;
+        config
+            .validate()
+            .map_err(BlockSyncError::InvalidBlockData)?;
 
         let (request_sender, _request_receiver) = mpsc::unbounded_channel();
         let (_response_sender, response_receiver) = mpsc::unbounded_channel();
@@ -389,7 +401,7 @@ impl BlockSyncManager {
 
         let peers = self.peer_heights.read().await;
         let max_peer_height = peers.values().max().copied().unwrap_or(0);
-        
+
         max_peer_height > current_height + self.config.sync_threshold_height
     }
 
@@ -398,17 +410,25 @@ impl BlockSyncManager {
         // Check if already syncing
         {
             let status = self.sync_status.read().await;
-            if matches!(*status, BlockSyncStatus::Syncing | BlockSyncStatus::FastSyncing) {
-                return Err(BlockSyncError::SyncRequestFailed("Sync already in progress".to_string()));
+            if matches!(
+                *status,
+                BlockSyncStatus::Syncing | BlockSyncStatus::FastSyncing
+            ) {
+                return Err(BlockSyncError::SyncRequestFailed(
+                    "Sync already in progress".to_string(),
+                ));
             }
         }
 
         // Find best peer for sync
-        let (target_peer, target_height) = self.find_best_sync_peer().await
-            .ok_or_else(|| BlockSyncError::PeerUnavailable("No suitable peers available".to_string()))?;
+        let (target_peer, target_height) = self.find_best_sync_peer().await.ok_or_else(|| {
+            BlockSyncError::PeerUnavailable("No suitable peers available".to_string())
+        })?;
 
         if target_height <= current_height {
-            return Err(BlockSyncError::SyncRequestFailed("No sync needed".to_string()));
+            return Err(BlockSyncError::SyncRequestFailed(
+                "No sync needed".to_string(),
+            ));
         }
 
         // Create sync operation
@@ -439,8 +459,10 @@ impl BlockSyncManager {
             metrics.current_status = self.sync_status.read().await.clone();
         }
 
-        info!("Started sync operation {} with peer {} (height {} -> {})", 
-              operation_id, target_peer, current_height, target_height);
+        info!(
+            "Started sync operation {} with peer {} (height {} -> {})",
+            operation_id, target_peer, current_height, target_height
+        );
 
         // Start sync process
         self.execute_sync_operation(&operation_id).await?;
@@ -451,9 +473,10 @@ impl BlockSyncManager {
     /// Find the best peer for synchronization
     async fn find_best_sync_peer(&self) -> Option<(String, u64)> {
         let peers = self.peer_heights.read().await;
-        
+
         // Find peer with highest height
-        peers.iter()
+        peers
+            .iter()
             .max_by_key(|(_, height)| *height)
             .map(|(peer, height)| (peer.clone(), *height))
     }
@@ -461,25 +484,32 @@ impl BlockSyncManager {
     /// Execute synchronization operation
     async fn execute_sync_operation(&self, operation_id: &str) -> Result<(), BlockSyncError> {
         let start_time = Instant::now();
-        
+
         loop {
             // Get current operation state
             let (target_peer, start_height, target_height, current_height) = {
                 let operations = self.active_operations.read().await;
-                let op = operations.get(operation_id)
-                    .ok_or_else(|| BlockSyncError::SyncRequestFailed("Operation not found".to_string()))?;
-                
+                let op = operations.get(operation_id).ok_or_else(|| {
+                    BlockSyncError::SyncRequestFailed("Operation not found".to_string())
+                })?;
+
                 if op.current_height >= op.target_height {
                     break; // Sync completed
                 }
-                
-                (op.target_peer.clone(), op.start_height, op.target_height, op.current_height)
+
+                (
+                    op.target_peer.clone(),
+                    op.start_height,
+                    op.target_height,
+                    op.current_height,
+                )
             };
 
             // Calculate blocks to request
             let remaining_blocks = target_height - current_height;
-            let blocks_to_request = remaining_blocks.min(self.config.max_blocks_per_request as u64) as usize;
-            
+            let blocks_to_request =
+                remaining_blocks.min(self.config.max_blocks_per_request as u64) as usize;
+
             // Create sync request
             let sync_request = SyncRequest::new(
                 current_height,
@@ -505,62 +535,82 @@ impl BlockSyncManager {
         }
 
         // Finalize operation
-        self.finalize_sync_operation(operation_id, start_time.elapsed()).await?;
-        
+        self.finalize_sync_operation(operation_id, start_time.elapsed())
+            .await?;
+
         Ok(())
     }
 
     /// Send synchronization request to peer
-    async fn send_sync_request(&self, peer: &str, request: SyncRequest) -> Result<SyncResponse, BlockSyncError> {
-        debug!("Sending sync request to peer {}: {} blocks from height {}", 
-               peer, request.max_blocks, request.start_height);
+    async fn send_sync_request(
+        &self,
+        peer: &str,
+        request: SyncRequest,
+    ) -> Result<SyncResponse, BlockSyncError> {
+        debug!(
+            "Sending sync request to peer {}: {} blocks from height {}",
+            peer, request.max_blocks, request.start_height
+        );
 
         // Check if request has expired
         if request.is_expired(self.config.sync_request_timeout_ms) {
-            return Err(BlockSyncError::SyncTimeout("Request expired before sending".to_string()));
+            return Err(BlockSyncError::SyncTimeout(
+                "Request expired before sending".to_string(),
+            ));
         }
 
         // Send request through request channel
         if let Some(sender) = &self.request_sender {
             if let Err(e) = sender.send(request.clone()) {
-                return Err(BlockSyncError::NetworkError(format!("Failed to send request: {}", e)));
+                return Err(BlockSyncError::NetworkError(format!(
+                    "Failed to send request: {}",
+                    e
+                )));
             }
         } else {
-            return Err(BlockSyncError::NetworkError("Request sender not available".to_string()));
+            return Err(BlockSyncError::NetworkError(
+                "Request sender not available".to_string(),
+            ));
         }
 
         // Wait for response with timeout
         let timeout_duration = Duration::from_millis(self.config.sync_request_timeout_ms);
-        let response_result = tokio::time::timeout(timeout_duration, self.wait_for_response(&request.id)).await;
+        let response_result =
+            tokio::time::timeout(timeout_duration, self.wait_for_response(&request.id)).await;
 
         match response_result {
             Ok(Ok(response)) => {
                 // Validate response
                 if response.request_id != request.id {
-                    return Err(BlockSyncError::InvalidBlockData("Response ID mismatch".to_string()));
+                    return Err(BlockSyncError::InvalidBlockData(
+                        "Response ID mismatch".to_string(),
+                    ));
                 }
-                
+
                 // Validate blocks are in expected range
                 for block in &response.blocks {
                     if block.header.height < request.start_height {
-                        return Err(BlockSyncError::InvalidBlockData(
-                            format!("Block height {} below requested start {}", block.header.height, request.start_height)
-                        ));
+                        return Err(BlockSyncError::InvalidBlockData(format!(
+                            "Block height {} below requested start {}",
+                            block.header.height, request.start_height
+                        )));
                     }
                     if let Some(end_height) = request.end_height {
                         if block.header.height > end_height {
-                            return Err(BlockSyncError::InvalidBlockData(
-                                format!("Block height {} above requested end {}", block.header.height, end_height)
-                            ));
+                            return Err(BlockSyncError::InvalidBlockData(format!(
+                                "Block height {} above requested end {}",
+                                block.header.height, end_height
+                            )));
                         }
                     }
                 }
-                
+
                 Ok(response)
             }
             Ok(Err(e)) => Err(e),
             Err(_) => Err(BlockSyncError::SyncTimeout(format!(
-                "Timeout waiting for sync response from peer {}", peer
+                "Timeout waiting for sync response from peer {}",
+                peer
             ))),
         }
     }
@@ -569,18 +619,27 @@ impl BlockSyncManager {
     async fn wait_for_response(&self, request_id: &str) -> Result<SyncResponse, BlockSyncError> {
         // This would typically be implemented with a response handler that matches responses to requests
         // For production, integrate with P2P network layer to receive actual responses
-        
+
         // Placeholder: In production, this would receive from response_receiver channel
-        Err(BlockSyncError::NetworkError("Response handler not implemented".to_string()))
+        Err(BlockSyncError::NetworkError(
+            "Response handler not implemented".to_string(),
+        ))
     }
 
     /// Process synchronization response
-    async fn process_sync_response(&self, operation_id: &str, response: SyncResponse) -> Result<(), BlockSyncError> {
+    async fn process_sync_response(
+        &self,
+        operation_id: &str,
+        response: SyncResponse,
+    ) -> Result<(), BlockSyncError> {
         // Verify blocks if enabled
         if self.config.verify_blocks_during_sync {
             for block in &response.blocks {
                 if let Err(e) = self.verify_sync_block(block).await {
-                    return Err(BlockSyncError::VerificationFailed(format!("Block verification failed: {}", e)));
+                    return Err(BlockSyncError::VerificationFailed(format!(
+                        "Block verification failed: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -590,7 +649,7 @@ impl BlockSyncManager {
             let mut cache = self.block_cache.write().await;
             for block in &response.blocks {
                 cache.insert(block.header.height, block.clone());
-                
+
                 // Prune cache if too large
                 while cache.len() > self.config.max_cached_blocks {
                     if let Some(min_height) = cache.keys().min().copied() {
@@ -626,11 +685,15 @@ impl BlockSyncManager {
     async fn verify_sync_block(&self, block: &MultiVMBlock) -> Result<(), BlockSyncError> {
         // Basic block validation
         if block.header.height == 0 {
-            return Err(BlockSyncError::InvalidBlockData("Invalid block height".to_string()));
+            return Err(BlockSyncError::InvalidBlockData(
+                "Invalid block height".to_string(),
+            ));
         }
 
         if block.header.proposer.is_empty() {
-            return Err(BlockSyncError::InvalidBlockData("Invalid proposer".to_string()));
+            return Err(BlockSyncError::InvalidBlockData(
+                "Invalid proposer".to_string(),
+            ));
         }
 
         // Additional validation would go here
@@ -638,7 +701,11 @@ impl BlockSyncManager {
     }
 
     /// Handle synchronization error
-    async fn handle_sync_error(&self, operation_id: &str, error: BlockSyncError) -> Result<(), BlockSyncError> {
+    async fn handle_sync_error(
+        &self,
+        operation_id: &str,
+        error: BlockSyncError,
+    ) -> Result<(), BlockSyncError> {
         error!("Sync error in operation {}: {}", operation_id, error);
 
         // Update operation with error
@@ -665,7 +732,11 @@ impl BlockSyncManager {
     }
 
     /// Finalize synchronization operation
-    async fn finalize_sync_operation(&self, operation_id: &str, duration: Duration) -> Result<(), BlockSyncError> {
+    async fn finalize_sync_operation(
+        &self,
+        operation_id: &str,
+        duration: Duration,
+    ) -> Result<(), BlockSyncError> {
         let blocks_synced = {
             let mut operations = self.active_operations.write().await;
             if let Some(op) = operations.get_mut(operation_id) {
@@ -673,7 +744,9 @@ impl BlockSyncManager {
                 op.completed_at = Some(SystemTime::now());
                 op.blocks_synced
             } else {
-                return Err(BlockSyncError::SyncRequestFailed("Operation not found".to_string()));
+                return Err(BlockSyncError::SyncRequestFailed(
+                    "Operation not found".to_string(),
+                ));
             }
         };
 
@@ -689,7 +762,7 @@ impl BlockSyncManager {
             metrics.sync_operations_completed += 1;
             metrics.active_sync_operations = metrics.active_sync_operations.saturating_sub(1);
             metrics.current_status = BlockSyncStatus::Completed;
-            
+
             // Calculate sync speed
             if duration.as_secs() > 0 {
                 let speed = blocks_synced as f64 / duration.as_secs_f64();
@@ -697,7 +770,10 @@ impl BlockSyncManager {
             }
         }
 
-        info!("Sync operation {} completed: {} blocks in {:?}", operation_id, blocks_synced, duration);
+        info!(
+            "Sync operation {} completed: {} blocks in {:?}",
+            operation_id, blocks_synced, duration
+        );
         Ok(())
     }
 
@@ -705,7 +781,7 @@ impl BlockSyncManager {
     pub async fn get_cached_blocks(&self, start_height: u64, count: usize) -> Vec<MultiVMBlock> {
         let cache = self.block_cache.read().await;
         let mut blocks = Vec::new();
-        
+
         for height in start_height..start_height + count as u64 {
             if let Some(block) = cache.get(&height) {
                 blocks.push(block.clone());
@@ -713,7 +789,7 @@ impl BlockSyncManager {
                 break; // Missing block, return what we have
             }
         }
-        
+
         blocks
     }
 
@@ -724,7 +800,12 @@ impl BlockSyncManager {
 
     /// Get active sync operations
     pub async fn get_active_operations(&self) -> Vec<SyncOperation> {
-        self.active_operations.read().await.values().cloned().collect()
+        self.active_operations
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Get synchronization metrics
@@ -741,7 +822,7 @@ impl BlockSyncManager {
         {
             let mut operations = self.active_operations.write().await;
             let cutoff_time = SystemTime::now() - Duration::from_secs(3600);
-            
+
             operations.retain(|_, op| {
                 if let Some(completed_at) = op.completed_at {
                     completed_at > cutoff_time
@@ -770,16 +851,16 @@ impl BlockSyncManager {
 pub trait BlockSynchronizer: Send + Sync {
     /// Check if synchronization is needed
     async fn needs_sync(&self, current_height: u64) -> bool;
-    
+
     /// Start block synchronization
     async fn start_sync(&self, current_height: u64) -> Result<String, BlockSyncError>;
-    
+
     /// Get cached blocks
     async fn get_cached_blocks(&self, start_height: u64, count: usize) -> Vec<MultiVMBlock>;
-    
+
     /// Get sync status
     async fn get_sync_status(&self) -> BlockSyncStatus;
-    
+
     /// Get sync metrics
     async fn get_metrics(&self) -> BlockSyncMetrics;
 }
@@ -815,7 +896,7 @@ mod tests {
     async fn test_block_sync_manager_creation() {
         let config = BlockSyncConfig::default();
         let manager = BlockSyncManager::new(config).await.unwrap();
-        
+
         let status = manager.get_sync_status().await;
         assert_eq!(status, BlockSyncStatus::Idle);
     }
@@ -833,10 +914,10 @@ mod tests {
     async fn test_sync_operation_progress() {
         let mut op = SyncOperation::new("peer1".to_string(), 100, 200);
         assert_eq!(op.progress_percentage(), 0);
-        
+
         op.current_height = 150;
         assert_eq!(op.progress_percentage(), 50);
-        
+
         op.current_height = 200;
         assert_eq!(op.progress_percentage(), 100);
     }
@@ -845,14 +926,14 @@ mod tests {
     async fn test_needs_sync_detection() {
         let config = BlockSyncConfig::default();
         let manager = BlockSyncManager::new(config).await.unwrap();
-        
+
         // No peers - no sync needed
         assert!(!manager.needs_sync(100).await);
-        
+
         // Add peer with higher height
         manager.update_peer_height("peer1".to_string(), 150).await;
         assert!(manager.needs_sync(100).await);
-        
+
         // Peer height not significantly higher
         assert!(!manager.needs_sync(145).await);
     }
@@ -861,7 +942,7 @@ mod tests {
     async fn test_config_validation() {
         let mut config = BlockSyncConfig::default();
         assert!(config.validate().is_ok());
-        
+
         config.max_blocks_per_request = 0;
         assert!(config.validate().is_err());
     }

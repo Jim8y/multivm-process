@@ -231,12 +231,13 @@ impl ConsensusMetricsCollector {
             let metrics = consensus.read().await.clone();
             aggregated.consensus_performance.current_height = metrics.current_height;
             aggregated.consensus_performance.avg_block_time_ms = metrics.avg_block_time_ms;
-            aggregated.consensus_performance.transactions_per_second = 
-                if metrics.avg_block_time_ms > 0 {
-                    (metrics.transactions_processed as f64 * 1000.0) / metrics.avg_block_time_ms as f64
-                } else {
-                    0.0
-                };
+            aggregated.consensus_performance.transactions_per_second = if metrics.avg_block_time_ms
+                > 0
+            {
+                (metrics.transactions_processed as f64 * 1000.0) / metrics.avg_block_time_ms as f64
+            } else {
+                0.0
+            };
             aggregated.error_summary.consensus_errors = metrics.consensus_errors;
             aggregated.error_summary.validation_errors = metrics.validation_errors;
             aggregated.component_metrics.consensus = Some(metrics);
@@ -272,12 +273,13 @@ impl ConsensusMetricsCollector {
         // Collect persistence metrics
         if let Some(persistence) = &self.persistence_metrics {
             let metrics = persistence.read().await.clone();
-            aggregated.error_summary.total_errors += 
+            aggregated.error_summary.total_errors +=
                 metrics.verification_failures + metrics.corruption_detections;
             if metrics.corruption_detections > 0 {
-                aggregated.error_summary.critical_errors.push(
-                    format!("{} corruption detections", metrics.corruption_detections)
-                );
+                aggregated.error_summary.critical_errors.push(format!(
+                    "{} corruption detections",
+                    metrics.corruption_detections
+                ));
             }
             aggregated.component_metrics.persistence = Some(metrics);
         }
@@ -306,8 +308,9 @@ impl ConsensusMetricsCollector {
         }
 
         // Critical if network is partitioned
-        if metrics.network_status.health.contains("Partitioned") || 
-           metrics.network_status.health.contains("Critical") {
+        if metrics.network_status.health.contains("Partitioned")
+            || metrics.network_status.health.contains("Critical")
+        {
             return SystemHealth::Critical;
         }
 
@@ -333,7 +336,7 @@ impl ConsensusMetricsCollector {
     /// Get a summary string of current metrics
     pub async fn get_summary(&self) -> String {
         let metrics = self.collect_metrics().await;
-        
+
         format!(
             "Consensus Metrics Summary:\n\
              - System Health: {:?}\n\
@@ -381,7 +384,7 @@ pub struct PrometheusExporter;
 impl MetricsExporter for PrometheusExporter {
     async fn export(&self, metrics: &AggregatedMetrics) -> Result<String, String> {
         let mut output = String::new();
-        
+
         // System metrics
         output.push_str(&format!(
             "# HELP multivm_consensus_height Current blockchain height\n\
@@ -389,28 +392,28 @@ impl MetricsExporter for PrometheusExporter {
              multivm_consensus_height {}\n",
             metrics.consensus_performance.current_height
         ));
-        
+
         output.push_str(&format!(
             "# HELP multivm_consensus_tps Transactions per second\n\
              # TYPE multivm_consensus_tps gauge\n\
              multivm_consensus_tps {:.2}\n",
             metrics.consensus_performance.transactions_per_second
         ));
-        
+
         output.push_str(&format!(
             "# HELP multivm_network_peers Connected peers\n\
              # TYPE multivm_network_peers gauge\n\
              multivm_network_peers {}\n",
             metrics.network_status.connected_peers
         ));
-        
+
         output.push_str(&format!(
             "# HELP multivm_errors_total Total errors\n\
              # TYPE multivm_errors_total counter\n\
              multivm_errors_total {}\n",
             metrics.error_summary.total_errors
         ));
-        
+
         Ok(output)
     }
 }
@@ -423,7 +426,7 @@ mod tests {
     async fn test_metrics_collector_creation() {
         let collector = ConsensusMetricsCollector::new(Duration::from_secs(60));
         let metrics = collector.collect_metrics().await;
-        
+
         assert_eq!(metrics.system_health, SystemHealth::Healthy);
         assert!(metrics.error_summary.critical_errors.is_empty());
     }
@@ -432,7 +435,7 @@ mod tests {
     async fn test_json_exporter() {
         let collector = ConsensusMetricsCollector::new(Duration::from_secs(60));
         let metrics = collector.collect_metrics().await;
-        
+
         let exporter = JsonExporter;
         let json = exporter.export(&metrics).await.unwrap();
         assert!(json.contains("\"system_health\""));
@@ -442,7 +445,7 @@ mod tests {
     async fn test_prometheus_exporter() {
         let collector = ConsensusMetricsCollector::new(Duration::from_secs(60));
         let metrics = collector.collect_metrics().await;
-        
+
         let exporter = PrometheusExporter;
         let prom = exporter.export(&metrics).await.unwrap();
         assert!(prom.contains("multivm_consensus_height"));

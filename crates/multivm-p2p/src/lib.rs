@@ -60,7 +60,7 @@ pub use routing::*;
 pub use transport::*;
 
 // Re-export commonly used types
-pub use messages::{Priority, ExecutionPriority};
+pub use messages::{ExecutionPriority, Priority};
 
 use multivm_common::MultivmResult;
 
@@ -78,8 +78,11 @@ pub trait P2PNetworkLayer: Send + Sync {
         -> MultivmResult<()>;
 
     /// Send a message to a specific peer (consensus-compatible alias)
-    async fn send_message(&mut self, peer_id: String, message: NetworkMessage)
-        -> MultivmResult<()> {
+    async fn send_message(
+        &mut self,
+        peer_id: String,
+        message: NetworkMessage,
+    ) -> MultivmResult<()> {
         self.send_to_peer(peer_id, message).await
     }
 
@@ -87,8 +90,11 @@ pub trait P2PNetworkLayer: Send + Sync {
     async fn broadcast(&mut self, message: NetworkMessage) -> MultivmResult<()>;
 
     /// Broadcast a message to all connected peers with optional topic (consensus-compatible)
-    async fn broadcast_message(&mut self, message: NetworkMessage, topic: Option<String>) 
-        -> MultivmResult<()> {
+    async fn broadcast_message(
+        &mut self,
+        message: NetworkMessage,
+        topic: Option<String>,
+    ) -> MultivmResult<()> {
         // Add topic to message metadata if provided
         let mut msg = message;
         if let Some(topic) = topic {

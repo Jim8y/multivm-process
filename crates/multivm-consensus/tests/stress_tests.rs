@@ -237,7 +237,10 @@ async fn stress_test_memory_usage() {
                 .await;
 
             if let Err(e) = result {
-                eprintln!("Error processing block {} from validator {}: {}", height, validator_id, e);
+                eprintln!(
+                    "Error processing block {} from validator {}: {}",
+                    height, validator_id, e
+                );
             }
         }
 
@@ -309,7 +312,11 @@ async fn stress_test_consensus_lifecycle() {
                 }
 
                 if iteration % 5 == 0 {
-                    println!("Instance {} completed {} iterations", instance_id, iteration + 1);
+                    println!(
+                        "Instance {} completed {} iterations",
+                        instance_id,
+                        iteration + 1
+                    );
                 }
             }
         });
@@ -338,7 +345,10 @@ async fn stress_test_mixed_operations() {
     const DURATION_SECONDS: u64 = 30;
     const OPERATION_INTERVAL_MS: u64 = 10;
 
-    println!("Starting mixed operations stress test for {} seconds", DURATION_SECONDS);
+    println!(
+        "Starting mixed operations stress test for {} seconds",
+        DURATION_SECONDS
+    );
 
     // Set up all components
     let fork_detector = Arc::new(
@@ -370,7 +380,8 @@ async fn stress_test_mixed_operations() {
         let handle = tokio::spawn(async move {
             let mut counter = 0;
             while std::time::Instant::now() < end_time {
-                let block = create_stress_test_block(counter % 100, format!("validator{}", counter % 10));
+                let block =
+                    create_stress_test_block(counter % 100, format!("validator{}", counter % 10));
                 let _ = detector
                     .process_block(block, format!("validator{}", counter % 10))
                     .await;

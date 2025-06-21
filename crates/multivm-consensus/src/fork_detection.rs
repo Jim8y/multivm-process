@@ -106,12 +106,7 @@ impl ForkDetectionError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        match self {
-            Self::ForkDetected { .. } => true,
-            Self::ResolutionFailed(_) => true,
-            Self::NetworkPartition(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::ForkDetected { .. } | Self::ResolutionFailed(_) | Self::NetworkPartition(_))
     }
 
     /// Get error category for metrics
@@ -151,8 +146,15 @@ pub struct ForkInfo {
 impl ForkInfo {
     /// Create a new fork info
     pub fn new(fork_height: u64, reason: ForkReason) -> Self {
-        let id = format!("fork-{}-{}", fork_height, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs());
-        
+        let id = format!(
+            "fork-{}-{}",
+            fork_height,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+
         Self {
             id,
             fork_height,
@@ -166,10 +168,15 @@ impl ForkInfo {
     }
 
     /// Add an alternative block to this fork
-    pub fn add_alternative_block(&mut self, block: MultiVMBlock, supporting_validators: HashSet<String>) {
+    pub fn add_alternative_block(
+        &mut self,
+        block: MultiVMBlock,
+        supporting_validators: HashSet<String>,
+    ) {
         let block_hash = block.calculate_hash();
         self.alternative_blocks.push(block);
-        self.validator_support.insert(block_hash, supporting_validators);
+        self.validator_support
+            .insert(block_hash, supporting_validators);
     }
 
     /// Get the most supported block
@@ -196,7 +203,8 @@ impl ForkInfo {
             return 0;
         }
 
-        let max_support = self.validator_support
+        let max_support = self
+            .validator_support
             .values()
             .map(|supporters| supporters.len())
             .max()
@@ -302,14 +310,33 @@ pub struct ForkDetectionManager {
 impl ForkDetectionManager {
     /// Create a new fork detection manager
     pub async fn new(config: ForkDetectionConfig) -> Result<Self, ForkDetectionError> {
-        config.validate().map_err(|e| ForkDetectionError::InvalidForkData(e))?;
+        config
+            .validate()
+            .map_err(ForkDetectionError::InvalidForkData)?;
 
         let mut strategies = HashMap::new();
-        strategies.insert(ForkReason::NetworkPartition, ForkResolutionStrategy::MajorityVote);
-        strategies.insert(ForkReason::ValidatorDisagreement, ForkResolutionStrategy::MajorityVote);
-        strategies.insert(ForkReason::ConcurrentProposals, ForkResolutionStrategy::LowestHash);
-        strategies.insert(ForkReason::ByzantineBehavior { validator: String::new() }, ForkResolutionStrategy::MajorityVote);
-        strategies.insert(ForkReason::ClockSkew { time_diff_ms: 0 }, ForkResolutionStrategy::LowestHash);
+        strategies.insert(
+            ForkReason::NetworkPartition,
+            ForkResolutionStrategy::MajorityVote,
+        );
+        strategies.insert(
+            ForkReason::ValidatorDisagreement,
+            ForkResolutionStrategy::MajorityVote,
+        );
+        strategies.insert(
+            ForkReason::ConcurrentProposals,
+            ForkResolutionStrategy::LowestHash,
+        );
+        strategies.insert(
+            ForkReason::ByzantineBehavior {
+                validator: String::new(),
+            },
+            ForkResolutionStrategy::MajorityVote,
+        );
+        strategies.insert(
+            ForkReason::ClockSkew { time_diff_ms: 0 },
+            ForkResolutionStrategy::LowestHash,
+        );
         strategies.insert(ForkReason::Unknown, ForkResolutionStrategy::MajorityVote);
 
         let manager = Self {
@@ -329,7 +356,10 @@ impl ForkDetectionManager {
     /// Update the validator set
     pub async fn update_validators(&self, validators: HashSet<String>) {
         *self.validators.write().await = validators;
-        debug!("Updated validator set with {} validators", self.validators.read().await.len());
+        debug!(
+            "Updated validator set with {} validators",
+            self.validators.read().await.len()
+        );
     }
 
     /// Process a new block and check for forks
@@ -343,12 +373,15 @@ impl ForkDetectionManager {
         }
 
         let height = block.header.height;
-        
+
         // Add block to cache
         {
             let mut cache = self.block_cache.write().await;
-            cache.entry(height).or_insert_with(Vec::new).push(block.clone());
-            
+            cache
+                .entry(height)
+                .or_insert_with(Vec::new)
+                .push(block.clone());
+
             // Prune old blocks (keep only recent heights)
             let cutoff_height = height.saturating_sub(100);
             cache.retain(|&h, _| h >= cutoff_height);
@@ -356,31 +389,34 @@ impl ForkDetectionManager {
 
         // Check for fork at this height
         let fork_detected = self.detect_fork_at_height(height).await?;
-        
+
         if let Some(mut fork_info) = fork_detected {
             // Add this block as an alternative
             let supporting_validators = HashSet::from([validator]);
             fork_info.add_alternative_block(block, supporting_validators);
-            
+
             // Store the fork
             {
                 let mut forks = self.active_forks.write().await;
                 let fork_id = fork_info.id.clone();
                 forks.insert(fork_id.clone(), fork_info.clone());
-                
+
                 // Update metrics
                 let mut metrics = self.metrics.write().await;
                 metrics.forks_detected += 1;
                 metrics.active_forks = forks.len();
                 metrics.last_detection = Some(SystemTime::now());
-                
+
                 if forks.len() > metrics.max_concurrent_forks {
                     metrics.max_concurrent_forks = forks.len();
                 }
             }
 
-            warn!("Fork detected at height {} with ID: {}", height, fork_info.id);
-            
+            warn!(
+                "Fork detected at height {} with ID: {}",
+                height, fork_info.id
+            );
+
             // Attempt automatic resolution if enabled
             if self.config.auto_resolution {
                 if let Err(e) = self.attempt_resolution(&fork_info.id).await {
@@ -395,15 +431,18 @@ impl ForkDetectionManager {
     }
 
     /// Detect if there's a fork at the specified height
-    async fn detect_fork_at_height(&self, height: u64) -> Result<Option<ForkInfo>, ForkDetectionError> {
+    async fn detect_fork_at_height(
+        &self,
+        height: u64,
+    ) -> Result<Option<ForkInfo>, ForkDetectionError> {
         let cache = self.block_cache.read().await;
-        
+
         if let Some(blocks) = cache.get(&height) {
             if blocks.len() > 1 {
                 // Multiple blocks at same height - potential fork
                 let reason = self.analyze_fork_reason(blocks).await;
                 let fork_info = ForkInfo::new(height, reason);
-                
+
                 // Check if this is a genuine fork (not just network delay)
                 if self.is_genuine_fork(blocks).await {
                     return Ok(Some(fork_info));
@@ -422,14 +461,18 @@ impl ForkDetectionManager {
 
         // Check for clock skew
         let timestamps: Vec<_> = blocks.iter().map(|b| b.header.timestamp).collect();
-        if let (Some(min_time), Some(max_time)) = (timestamps.iter().min(), timestamps.iter().max()) {
+        if let (Some(min_time), Some(max_time)) = (timestamps.iter().min(), timestamps.iter().max())
+        {
             if let (Ok(min_duration), Ok(max_duration)) = (
                 min_time.duration_since(SystemTime::UNIX_EPOCH),
-                max_time.duration_since(SystemTime::UNIX_EPOCH)
+                max_time.duration_since(SystemTime::UNIX_EPOCH),
             ) {
                 let time_diff = max_duration.as_millis() as i64 - min_duration.as_millis() as i64;
-                if time_diff.abs() > 10000 { // 10 second threshold
-                    return ForkReason::ClockSkew { time_diff_ms: time_diff };
+                if time_diff.abs() > 10000 {
+                    // 10 second threshold
+                    return ForkReason::ClockSkew {
+                        time_diff_ms: time_diff,
+                    };
                 }
             }
         }
@@ -455,7 +498,10 @@ impl ForkDetectionManager {
         // Check for significant differences in block content
         for i in 0..blocks.len() {
             for j in (i + 1)..blocks.len() {
-                if self.blocks_significantly_different(&blocks[i], &blocks[j]).await {
+                if self
+                    .blocks_significantly_different(&blocks[i], &blocks[j])
+                    .await
+                {
                     return true;
                 }
             }
@@ -465,16 +511,24 @@ impl ForkDetectionManager {
     }
 
     /// Check if two blocks are significantly different
-    async fn blocks_significantly_different(&self, block1: &MultiVMBlock, block2: &MultiVMBlock) -> bool {
+    async fn blocks_significantly_different(
+        &self,
+        block1: &MultiVMBlock,
+        block2: &MultiVMBlock,
+    ) -> bool {
         // Different proposers
         if block1.header.proposer != block2.header.proposer {
             return true;
         }
 
         // Different transaction counts
-        let tx_count1 = block1.svm_transactions.len() + block1.evm_transactions.len() + block1.multivm_transactions.len();
-        let tx_count2 = block2.svm_transactions.len() + block2.evm_transactions.len() + block2.multivm_transactions.len();
-        
+        let tx_count1 = block1.svm_transactions.len()
+            + block1.evm_transactions.len()
+            + block1.multivm_transactions.len();
+        let tx_count2 = block2.svm_transactions.len()
+            + block2.evm_transactions.len()
+            + block2.multivm_transactions.len();
+
         if tx_count1 != tx_count2 {
             return true;
         }
@@ -491,8 +545,11 @@ impl ForkDetectionManager {
     pub async fn attempt_resolution(&self, fork_id: &str) -> Result<(), ForkDetectionError> {
         let mut fork_info = {
             let forks = self.active_forks.read().await;
-            forks.get(fork_id)
-                .ok_or_else(|| ForkDetectionError::InvalidForkData(format!("Fork {} not found", fork_id)))?
+            forks
+                .get(fork_id)
+                .ok_or_else(|| {
+                    ForkDetectionError::InvalidForkData(format!("Fork {} not found", fork_id))
+                })?
                 .clone()
         };
 
@@ -508,11 +565,14 @@ impl ForkDetectionManager {
         }
 
         let start_time = Instant::now();
-        
+
         // Get resolution strategy
         let strategy = {
             let strategies = self.resolution_strategies.read().await;
-            strategies.get(&fork_info.reason).cloned().unwrap_or(ForkResolutionStrategy::MajorityVote)
+            strategies
+                .get(&fork_info.reason)
+                .cloned()
+                .unwrap_or(ForkResolutionStrategy::MajorityVote)
         };
 
         // Attempt resolution based on strategy
@@ -520,7 +580,9 @@ impl ForkDetectionManager {
             ForkResolutionStrategy::MajorityVote => self.resolve_by_majority_vote(&fork_info).await,
             ForkResolutionStrategy::LowestHash => self.resolve_by_lowest_hash(&fork_info).await,
             ForkResolutionStrategy::HighestStake => self.resolve_by_highest_stake(&fork_info).await,
-            ForkResolutionStrategy::Manual => Err(ForkDetectionError::ResolutionFailed("Manual resolution required".to_string())),
+            ForkResolutionStrategy::Manual => Err(ForkDetectionError::ResolutionFailed(
+                "Manual resolution required".to_string(),
+            )),
         };
 
         let resolution_time = start_time.elapsed();
@@ -529,15 +591,15 @@ impl ForkDetectionManager {
         match resolution_result {
             Ok(_) => {
                 fork_info.status = ForkStatus::Resolved;
-                
+
                 // Move to history
                 {
                     let mut forks = self.active_forks.write().await;
                     forks.remove(fork_id);
-                    
+
                     let mut history = self.fork_history.write().await;
                     history.push_back(fork_info);
-                    
+
                     // Prune old history
                     while history.len() > 100 {
                         history.pop_front();
@@ -548,17 +610,20 @@ impl ForkDetectionManager {
                 {
                     let mut metrics = self.metrics.write().await;
                     metrics.forks_resolved += 1;
-                    metrics.avg_resolution_time_ms = 
+                    metrics.avg_resolution_time_ms =
                         (metrics.avg_resolution_time_ms + resolution_time.as_millis() as u64) / 2;
                     metrics.active_forks = self.active_forks.read().await.len();
                 }
 
-                info!("Fork {} resolved successfully in {:?}", fork_id, resolution_time);
+                info!(
+                    "Fork {} resolved successfully in {:?}",
+                    fork_id, resolution_time
+                );
                 Ok(())
             }
             Err(e) => {
                 fork_info.status = ForkStatus::Failed;
-                
+
                 // Update fork status
                 {
                     let mut forks = self.active_forks.write().await;
@@ -578,31 +643,43 @@ impl ForkDetectionManager {
     }
 
     /// Resolve fork by majority vote
-    async fn resolve_by_majority_vote(&self, fork_info: &ForkInfo) -> Result<MultiVMBlock, ForkDetectionError> {
+    async fn resolve_by_majority_vote(
+        &self,
+        fork_info: &ForkInfo,
+    ) -> Result<MultiVMBlock, ForkDetectionError> {
         let total_validators = self.validators.read().await.len();
         if total_validators == 0 {
-            return Err(ForkDetectionError::ResolutionFailed("No validators available".to_string()));
+            return Err(ForkDetectionError::ResolutionFailed(
+                "No validators available".to_string(),
+            ));
         }
 
         let agreement_percentage = fork_info.get_validator_agreement_percentage(total_validators);
         if agreement_percentage < self.config.min_validator_agreement {
-            return Err(ForkDetectionError::ConsensusDisagreement(
-                format!("Insufficient validator agreement: {}% < {}%", 
-                    agreement_percentage, self.config.min_validator_agreement)
-            ));
+            return Err(ForkDetectionError::ConsensusDisagreement(format!(
+                "Insufficient validator agreement: {}% < {}%",
+                agreement_percentage, self.config.min_validator_agreement
+            )));
         }
 
         if let Some(preferred_block) = fork_info.get_preferred_block() {
             Ok(preferred_block.clone())
         } else {
-            Err(ForkDetectionError::ResolutionFailed("No preferred block found".to_string()))
+            Err(ForkDetectionError::ResolutionFailed(
+                "No preferred block found".to_string(),
+            ))
         }
     }
 
     /// Resolve fork by lowest hash (deterministic)
-    async fn resolve_by_lowest_hash(&self, fork_info: &ForkInfo) -> Result<MultiVMBlock, ForkDetectionError> {
+    async fn resolve_by_lowest_hash(
+        &self,
+        fork_info: &ForkInfo,
+    ) -> Result<MultiVMBlock, ForkDetectionError> {
         if fork_info.alternative_blocks.is_empty() {
-            return Err(ForkDetectionError::ResolutionFailed("No alternative blocks available".to_string()));
+            return Err(ForkDetectionError::ResolutionFailed(
+                "No alternative blocks available".to_string(),
+            ));
         }
 
         let mut lowest_hash = String::new();
@@ -619,12 +696,17 @@ impl ForkDetectionManager {
         if let Some(block) = chosen_block {
             Ok(block.clone())
         } else {
-            Err(ForkDetectionError::ResolutionFailed("Failed to select block by hash".to_string()))
+            Err(ForkDetectionError::ResolutionFailed(
+                "Failed to select block by hash".to_string(),
+            ))
         }
     }
 
     /// Resolve fork by highest stake (placeholder implementation)
-    async fn resolve_by_highest_stake(&self, fork_info: &ForkInfo) -> Result<MultiVMBlock, ForkDetectionError> {
+    async fn resolve_by_highest_stake(
+        &self,
+        fork_info: &ForkInfo,
+    ) -> Result<MultiVMBlock, ForkDetectionError> {
         // This would integrate with validator stake information
         // For now, fallback to majority vote
         self.resolve_by_majority_vote(fork_info).await
@@ -650,13 +732,16 @@ impl ForkDetectionManager {
     /// Check for network partitions
     pub async fn detect_network_partition(&self) -> Result<bool, ForkDetectionError> {
         let active_forks = self.active_forks.read().await;
-        
+
         // Simple heuristic: if we have multiple active forks, it might indicate network partition
         if active_forks.len() > self.config.max_tracked_forks / 2 {
             let mut metrics = self.metrics.write().await;
             metrics.network_partitions += 1;
-            
-            warn!("Potential network partition detected: {} active forks", active_forks.len());
+
+            warn!(
+                "Potential network partition detected: {} active forks",
+                active_forks.len()
+            );
             return Ok(true);
         }
 
@@ -665,15 +750,16 @@ impl ForkDetectionManager {
 
     /// Clean up old forks and resolved forks
     pub async fn cleanup(&self) {
-        let cutoff_time = SystemTime::now() - Duration::from_secs(self.config.detection_window_secs);
-        
+        let cutoff_time =
+            SystemTime::now() - Duration::from_secs(self.config.detection_window_secs);
+
         // Remove old resolved forks
         {
             let mut forks = self.active_forks.write().await;
             forks.retain(|_, fork| {
-                fork.status == ForkStatus::Detected || 
-                fork.status == ForkStatus::Resolving ||
-                fork.detected_at > cutoff_time
+                fork.status == ForkStatus::Detected
+                    || fork.status == ForkStatus::Resolving
+                    || fork.detected_at > cutoff_time
             });
         }
 
@@ -693,21 +779,29 @@ impl ForkDetectionManager {
 #[async_trait]
 pub trait ForkDetector: Send + Sync {
     /// Process a new block for fork detection
-    async fn process_block(&self, block: MultiVMBlock, validator: String) -> Result<Option<ForkInfo>, ForkDetectionError>;
-    
+    async fn process_block(
+        &self,
+        block: MultiVMBlock,
+        validator: String,
+    ) -> Result<Option<ForkInfo>, ForkDetectionError>;
+
     /// Check if a fork exists at the given height
     async fn has_fork_at_height(&self, height: u64) -> bool;
-    
+
     /// Get the preferred block for a given height (post-resolution)
     async fn get_preferred_block(&self, height: u64) -> Option<MultiVMBlock>;
-    
+
     /// Get fork detection metrics
     async fn get_metrics(&self) -> ForkDetectionMetrics;
 }
 
 #[async_trait]
 impl ForkDetector for ForkDetectionManager {
-    async fn process_block(&self, block: MultiVMBlock, validator: String) -> Result<Option<ForkInfo>, ForkDetectionError> {
+    async fn process_block(
+        &self,
+        block: MultiVMBlock,
+        validator: String,
+    ) -> Result<Option<ForkInfo>, ForkDetectionError> {
         self.process_block(block, validator).await
     }
 
@@ -739,7 +833,7 @@ mod tests {
     async fn test_fork_detection_manager_creation() {
         let config = ForkDetectionConfig::default();
         let manager = ForkDetectionManager::new(config).await.unwrap();
-        
+
         let metrics = manager.get_metrics().await;
         assert_eq!(metrics.forks_detected, 0);
         assert_eq!(metrics.active_forks, 0);
@@ -757,7 +851,7 @@ mod tests {
     async fn test_config_validation() {
         let mut config = ForkDetectionConfig::default();
         assert!(config.validate().is_ok());
-        
+
         config.max_tracked_forks = 0;
         assert!(config.validate().is_err());
     }
@@ -766,7 +860,7 @@ mod tests {
     async fn test_fork_resolution_strategy() {
         let config = ForkDetectionConfig::default();
         let manager = ForkDetectionManager::new(config).await.unwrap();
-        
+
         let strategies = manager.resolution_strategies.read().await;
         assert!(strategies.contains_key(&ForkReason::NetworkPartition));
         assert!(strategies.contains_key(&ForkReason::ValidatorDisagreement));

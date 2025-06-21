@@ -4,8 +4,8 @@
 //! and ensure the system works correctly as a whole.
 
 use multivm_consensus::{
-    BlockSyncConfig, BlockSyncManager, ConsensusEngine, CrossVMStateCoordinator, ForkDetectionConfig,
-    ForkDetectionManager, MalachiteConfig, MalachiteConsensus, MultiVMBlock,
+    BlockSyncConfig, BlockSyncManager, ConsensusEngine, CrossVMStateCoordinator,
+    ForkDetectionConfig, ForkDetectionManager, MalachiteConfig, MalachiteConsensus, MultiVMBlock,
     NetworkRecoveryConfig, NetworkRecoveryManager, StatePersistenceConfig,
 };
 use std::sync::Arc;
@@ -30,9 +30,10 @@ async fn test_consensus_with_fork_detection_integration() {
         validators: vec![],
     };
 
-    let (mut consensus, _block_sender, _commit_receiver) = MalachiteConsensus::new(malachite_config)
-        .await
-        .expect("Failed to create consensus");
+    let (mut consensus, _block_sender, _commit_receiver) =
+        MalachiteConsensus::new(malachite_config)
+            .await
+            .expect("Failed to create consensus");
 
     // Create fork detection manager
     let fork_config = ForkDetectionConfig::default();
@@ -130,7 +131,9 @@ async fn test_block_sync_with_consensus() {
     sync_manager
         .update_peer_height("peer1".to_string(), 100)
         .await;
-    sync_manager.update_peer_height("peer2".to_string(), 95).await;
+    sync_manager
+        .update_peer_height("peer2".to_string(), 95)
+        .await;
 
     // Check if sync is needed
     let needs_sync = sync_manager.needs_sync(90).await;
@@ -147,9 +150,7 @@ async fn test_block_sync_with_consensus() {
 
 #[tokio::test]
 async fn test_state_persistence_integration() {
-    use multivm_consensus::state::{
-        CrossVMStateManager, StateManagerConfig, StorageBackend,
-    };
+    use multivm_consensus::state::{CrossVMStateManager, StateManagerConfig, StorageBackend};
 
     // Create state manager with persistence
     let state_config = StateManagerConfig::default();
@@ -189,9 +190,10 @@ async fn test_full_consensus_flow() {
 
     // 1. Create consensus engine
     let malachite_config = MalachiteConfig::default();
-    let (mut consensus, block_sender, mut commit_receiver) = MalachiteConsensus::new(malachite_config)
-        .await
-        .expect("Failed to create consensus");
+    let (mut consensus, block_sender, mut commit_receiver) =
+        MalachiteConsensus::new(malachite_config)
+            .await
+            .expect("Failed to create consensus");
 
     // 2. Create fork detector
     let fork_detector = Arc::new(
@@ -318,7 +320,10 @@ async fn test_concurrent_operations() {
     let _ = fork_metrics.forks_detected;
 
     let sync_metrics = sync_manager.get_metrics().await;
-    assert_eq!(sync_metrics.current_status, multivm_consensus::BlockSyncStatus::Idle);
+    assert_eq!(
+        sync_metrics.current_status,
+        multivm_consensus::BlockSyncStatus::Idle
+    );
 }
 
 #[tokio::test]
@@ -375,9 +380,7 @@ async fn test_metrics_collection() {
 
     // Perform some operations
     let block = MultiVMBlock::new(1, "0".repeat(64), "test".to_string(), vec![]);
-    let _ = fork_detector
-        .process_block(block, "test".to_string())
-        .await;
+    let _ = fork_detector.process_block(block, "test".to_string()).await;
 
     // Collect metrics from all components
     let consensus_stats = consensus
