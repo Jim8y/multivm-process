@@ -1,13 +1,13 @@
 //! MultiVM Consensus Manager - unified interface for managing Malachite consensus
 
 use crate::malachite::{MalachiteConfig, MalachiteConsensus};
-use crate::messages::{ConsensusMessage, ConsensusMessagePayload, ProposalMessage};
+use crate::messages::{ConsensusMessage, ConsensusMessagePayload, ProposalMessage, MessageType};
 use crate::state::{CrossVMStateManager, StateManagerConfig};
-use crate::traits::{ConsensusEngine, CrossVMStateCoordinator};
+use crate::traits::{ConsensusEngine, CrossVMStateCoordinator, NodeId};
 use crate::*;
 use multivm_p2p::{
     ControlMessage, DiscoveryMessage, MessagePayload, MultiVmMessage, NetworkMessage,
-    P2PNetworkLayer, VmType,
+    P2PNetworkLayer, VmType, PeerInfo, NetworkEvent, MessageSource, MessageTarget,
 };
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -23,7 +23,7 @@ pub struct MultiVMConsensusManager {
     /// Cross-VM state coordinator
     state_coordinator: Arc<RwLock<CrossVMStateManager>>,
     /// P2P network layer for communication
-    p2p_network: Option<Arc<dyn P2PNetworkLayer>>,
+    p2p_network: Option<Arc<RwLock<dyn P2PNetworkLayer>>>,
     /// Configuration
     config: ConsensusManagerConfig,
     /// Running status
@@ -32,6 +32,12 @@ pub struct MultiVMConsensusManager {
     event_sender: Option<mpsc::UnboundedSender<ConsensusEvent>>,
     /// Statistics
     stats: ConsensusManagerStats,
+    /// Node identifier
+    node_id: NodeId,
+    /// Known validators in the network
+    known_validators: Arc<RwLock<std::collections::HashMap<NodeId, PeerInfo>>>,
+    /// P2P event receiver for network events
+    p2p_event_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<NetworkEvent>>>>,
 }
 
 impl std::fmt::Debug for MultiVMConsensusManager {
@@ -40,6 +46,7 @@ impl std::fmt::Debug for MultiVMConsensusManager {
             .field("config", &self.config)
             .field("running", &self.running)
             .field("stats", &self.stats)
+            .field("node_id", &self.node_id)
             .field(
                 "p2p_network",
                 &self
@@ -54,6 +61,8 @@ impl std::fmt::Debug for MultiVMConsensusManager {
 /// Configuration for the consensus manager
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusManagerConfig {
+    /// Node identifier (optional, will generate if None)
+    pub node_id: Option<NodeId>,
     /// Consensus algorithm type
     pub algorithm: ConsensusAlgorithmType,
     /// Algorithm-specific configuration
@@ -250,6 +259,11 @@ impl MultiVMConsensusManager {
             ..Default::default()
         };
 
+        // Generate node ID from config or create random one
+        let node_id = config.node_id.clone().unwrap_or_else(|| {
+            format!("node-{}", uuid::Uuid::new_v4().to_string()[..8].to_string())
+        });
+
         Ok(Self {
             consensus_engine,
             state_coordinator,
@@ -258,12 +272,201 @@ impl MultiVMConsensusManager {
             running: false,
             event_sender: None,
             stats,
+            node_id,
+            known_validators: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            p2p_event_receiver: None,
         })
     }
 
-    /// Set the P2P network layer
-    pub fn set_p2p_network(&mut self, network: Arc<dyn P2PNetworkLayer>) {
+    /// Set the P2P network layer and configure consensus networking
+    pub async fn set_p2p_network(&mut self, network: Arc<RwLock<dyn P2PNetworkLayer>>) -> ConsensusResult<()> {
+        // Subscribe to consensus-related topics
+        {
+            let mut net = network.write().await;
+            net.subscribe_to_topic("consensus.proposals").await
+                .map_err(|e| ConsensusError::NetworkError(format!("Failed to subscribe to proposals topic: {}", e)))?;
+            
+            net.subscribe_to_topic("consensus.votes").await
+                .map_err(|e| ConsensusError::NetworkError(format!("Failed to subscribe to votes topic: {}", e)))?;
+            
+            net.subscribe_to_topic("consensus.commits").await
+                .map_err(|e| ConsensusError::NetworkError(format!("Failed to subscribe to commits topic: {}", e)))?;
+
+            net.subscribe_to_topic("consensus.view_changes").await
+                .map_err(|e| ConsensusError::NetworkError(format!("Failed to subscribe to view_changes topic: {}", e)))?;
+        }
+
         self.p2p_network = Some(network);
+        
+        info!("P2P network configured for consensus with node ID: {}", self.node_id);
+        Ok(())
+    }
+
+    /// Broadcast a consensus message to all known validators
+    pub async fn broadcast_consensus_message(&self, message: ConsensusMessage) -> ConsensusResult<()> {
+        let network = self.p2p_network.as_ref()
+            .ok_or_else(|| ConsensusError::NetworkError("P2P network not configured".to_string()))?;
+
+        // Create network message for consensus
+        let consensus_data = serde_json::to_vec(&message)
+            .map_err(|e| ConsensusError::SerializationError(e.to_string()))?;
+        
+        let payload = MessagePayload::MultiVm(MultiVmMessage::Consensus {
+            consensus_data,
+            round: self.extract_round_from_message(&message),
+            view: self.extract_view_from_message(&message),
+        });
+        
+        let network_msg = NetworkMessage::new(
+            payload,
+            MessageSource::MultiVmLayer,
+            MessageTarget::Broadcast,
+        )
+        .with_metadata("consensus_type", message.message_type());
+
+        // Determine which topic to broadcast to
+        let topic = self.get_consensus_topic(&message.msg_type());
+
+        // Broadcast to appropriate topic
+        {
+            let mut net = network.write().await;
+            net.broadcast_message(network_msg, Some(topic)).await
+                .map_err(|e| ConsensusError::NetworkError(format!("Failed to broadcast message: {}", e)))?;
+        }
+
+        debug!("Broadcast consensus message of type {} to network", message.message_type());
+        Ok(())
+    }
+
+    /// Send a direct consensus message to a specific validator
+    pub async fn send_consensus_message_to_validator(
+        &self, 
+        message: ConsensusMessage,
+        target_validator: &NodeId
+    ) -> ConsensusResult<()> {
+        let network = self.p2p_network.as_ref()
+            .ok_or_else(|| ConsensusError::NetworkError("P2P network not configured".to_string()))?;
+
+        // Get target peer info
+        let validators = self.known_validators.read().await;
+        let target_peer = validators.get(target_validator)
+            .ok_or_else(|| ConsensusError::ValidatorNotFound(target_validator.clone()))?
+            .clone();
+
+        // Create network message
+        let consensus_data = serde_json::to_vec(&message)
+            .map_err(|e| ConsensusError::SerializationError(e.to_string()))?;
+        
+        let payload = MessagePayload::MultiVm(MultiVmMessage::Consensus {
+            consensus_data,
+            round: self.extract_round_from_message(&message),
+            view: self.extract_view_from_message(&message),
+        });
+        
+        let network_msg = NetworkMessage::new(
+            payload,
+            MessageSource::MultiVmLayer,
+            MessageTarget::Peer(target_peer.peer_id.clone()),
+        )
+        .with_metadata("priority", self.get_message_priority(&message.msg_type()))
+        .with_metadata("consensus_type", message.message_type());
+
+        // Send directly to target
+        {
+            let mut net = network.write().await;
+            net.send_message(target_peer.peer_id.clone(), network_msg).await
+                .map_err(|e| ConsensusError::NetworkError(format!("Failed to send message to validator {}: {}", target_validator, e)))?;
+        }
+
+        debug!("Sent consensus message of type {} to validator {}", message.message_type(), target_validator);
+        Ok(())
+    }
+
+    /// Add a known validator to the network
+    pub async fn add_validator(&mut self, validator_id: NodeId, peer_info: PeerInfo) -> ConsensusResult<()> {
+        let mut validators = self.known_validators.write().await;
+        validators.insert(validator_id.clone(), peer_info);
+        
+        // Update stats
+        self.stats.active_nodes = validators.len() as u32;
+        
+        info!("Added validator {} to known validators (total: {})", validator_id, validators.len());
+        
+        // Send event notification
+        if let Some(sender) = &self.event_sender {
+            let _ = sender.send(ConsensusEvent::NodeJoined { node_id: validator_id });
+        }
+        
+        Ok(())
+    }
+
+    /// Remove a validator from the network
+    pub async fn remove_validator(&mut self, validator_id: &NodeId) -> ConsensusResult<()> {
+        let mut validators = self.known_validators.write().await;
+        if validators.remove(validator_id).is_some() {
+            // Update stats
+            self.stats.active_nodes = validators.len() as u32;
+            
+            info!("Removed validator {} from known validators (total: {})", validator_id, validators.len());
+            
+            // Send event notification
+            if let Some(sender) = &self.event_sender {
+                let _ = sender.send(ConsensusEvent::NodeLeft { node_id: validator_id.clone() });
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Get list of known validators
+    pub async fn get_known_validators(&self) -> Vec<(NodeId, PeerInfo)> {
+        let validators = self.known_validators.read().await;
+        validators.iter().map(|(id, info)| (id.clone(), info.clone())).collect()
+    }
+
+    /// Check if we have sufficient validators for consensus (BFT requires 3f+1 nodes)
+    pub async fn has_sufficient_validators(&self) -> bool {
+        let validators = self.known_validators.read().await;
+        validators.len() >= 4 // Minimum for BFT: 3*1+1 = 4 (can tolerate 1 Byzantine node)
+    }
+
+    // Helper methods for P2P integration
+
+    fn extract_round_from_message(&self, message: &ConsensusMessage) -> u64 {
+        match &message.payload {
+            ConsensusMessagePayload::Proposal(proposal) => proposal.round as u64,
+            ConsensusMessagePayload::Vote(vote) => vote.round as u64,
+            ConsensusMessagePayload::ViewChange(vc) => vc.new_view as u64,
+            _ => 0,
+        }
+    }
+
+    fn extract_view_from_message(&self, message: &ConsensusMessage) -> u64 {
+        match &message.payload {
+            ConsensusMessagePayload::ViewChange(vc) => vc.new_view as u64,
+            ConsensusMessagePayload::Heartbeat(h) => h.view as u64,
+            _ => 0,
+        }
+    }
+
+    fn get_message_priority(&self, msg_type: &MessageType) -> &'static str {
+        match msg_type {
+            MessageType::ViewChange(_) => "critical",
+            MessageType::Proposal(_) => "high",
+            MessageType::Vote(_) => "high",
+            MessageType::Timeout(_) => "critical",
+            _ => "normal",
+        }
+    }
+
+    fn get_consensus_topic(&self, msg_type: &MessageType) -> String {
+        match msg_type {
+            MessageType::Proposal(_) => "consensus.proposals".to_string(),
+            MessageType::Vote(_) => "consensus.votes".to_string(),
+            MessageType::ViewChange(_) => "consensus.view_changes".to_string(),
+            MessageType::Timeout(_) => "consensus.timeouts".to_string(),
+            _ => "consensus.general".to_string(),
+        }
     }
 
     /// Start the consensus manager

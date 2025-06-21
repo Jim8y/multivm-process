@@ -59,6 +59,9 @@ pub use protocol::*;
 pub use routing::*;
 pub use transport::*;
 
+// Re-export commonly used types
+pub use messages::{Priority, ExecutionPriority};
+
 use multivm_common::MultivmResult;
 
 /// Main trait for the MultiVM P2P networking layer
@@ -74,11 +77,33 @@ pub trait P2PNetworkLayer: Send + Sync {
     async fn send_to_peer(&mut self, peer_id: String, message: NetworkMessage)
         -> MultivmResult<()>;
 
+    /// Send a message to a specific peer (consensus-compatible alias)
+    async fn send_message(&mut self, peer_id: String, message: NetworkMessage)
+        -> MultivmResult<()> {
+        self.send_to_peer(peer_id, message).await
+    }
+
     /// Broadcast a message to all connected peers
     async fn broadcast(&mut self, message: NetworkMessage) -> MultivmResult<()>;
 
+    /// Broadcast a message to all connected peers with optional topic (consensus-compatible)
+    async fn broadcast_message(&mut self, message: NetworkMessage, topic: Option<String>) 
+        -> MultivmResult<()> {
+        // Add topic to message metadata if provided
+        let mut msg = message;
+        if let Some(topic) = topic {
+            msg.metadata.insert("topic".to_string(), topic);
+        }
+        self.broadcast(msg).await
+    }
+
     /// Subscribe to messages of a specific topic
     async fn subscribe(&mut self, topic: &str) -> MultivmResult<()>;
+
+    /// Subscribe to messages of a specific topic (consensus-compatible alias)
+    async fn subscribe_to_topic(&mut self, topic: &str) -> MultivmResult<()> {
+        self.subscribe(topic).await
+    }
 
     /// Unsubscribe from messages of a specific topic
     async fn unsubscribe(&mut self, topic: &str) -> MultivmResult<()>;

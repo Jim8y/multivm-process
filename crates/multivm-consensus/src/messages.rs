@@ -23,6 +23,27 @@ pub struct ConsensusMessage {
     pub version: u32,
 }
 
+/// Message type enumeration for routing and priority determination
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MessageType {
+    /// Block proposal message
+    Proposal(ProposalMessage),
+    /// Vote message
+    Vote(VoteMessage),
+    /// View change message  
+    ViewChange(ViewChangeMessage),
+    /// Heartbeat message
+    Heartbeat(HeartbeatMessage),
+    /// State sync message
+    StateSync(StateSyncMessage),
+    /// Timeout message
+    Timeout(TimeoutMessage),
+    /// Query message
+    Query(QueryMessage),
+    /// Response message
+    Response(ResponseMessage),
+}
+
 /// Different types of consensus messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsensusMessagePayload {
@@ -263,6 +284,9 @@ pub enum ResponseStatus {
 /// Supporting data structures
 pub type MessageId = Uuid;
 
+/// Type alias for Vote to export VoteMessage as Vote for convenience
+pub type Vote = VoteMessage;
+
 /// Message signature for verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageSignature {
@@ -484,6 +508,20 @@ impl ConsensusMessage {
             ConsensusMessagePayload::Timeout(_) => "timeout",
             ConsensusMessagePayload::Query(_) => "query",
             ConsensusMessagePayload::Response(_) => "response",
+        }
+    }
+
+    /// Get the message type as MessageType enum
+    pub fn msg_type(&self) -> MessageType {
+        match &self.payload {
+            ConsensusMessagePayload::Proposal(msg) => MessageType::Proposal(msg.clone()),
+            ConsensusMessagePayload::Vote(msg) => MessageType::Vote(msg.clone()),
+            ConsensusMessagePayload::ViewChange(msg) => MessageType::ViewChange(msg.clone()),
+            ConsensusMessagePayload::Heartbeat(msg) => MessageType::Heartbeat(msg.clone()),
+            ConsensusMessagePayload::StateSync(msg) => MessageType::StateSync(msg.clone()),
+            ConsensusMessagePayload::Timeout(msg) => MessageType::Timeout(msg.clone()),
+            ConsensusMessagePayload::Query(msg) => MessageType::Query(msg.clone()),
+            ConsensusMessagePayload::Response(msg) => MessageType::Response(msg.clone()),
         }
     }
 

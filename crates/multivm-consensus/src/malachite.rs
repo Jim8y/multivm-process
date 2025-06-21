@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info};
 
@@ -97,6 +98,55 @@ impl BlockId {
     pub fn from_hash(hash: String) -> Self {
         Self(hash)
     }
+}
+
+/// Comprehensive metrics tracking for Malachite consensus
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ConsensusMetrics {
+    /// Block proposal metrics
+    pub blocks_proposed: u64,
+    pub blocks_committed: u64,
+    pub blocks_rejected: u64,
+
+    /// Round metrics
+    pub total_rounds: u64,
+    pub successful_rounds: u64,
+    pub failed_rounds: u64,
+    pub current_round: u32,
+
+    /// Vote metrics
+    pub prevotes_sent: u64,
+    pub precommits_sent: u64,
+    pub prevotes_received: u64,
+    pub precommits_received: u64,
+
+    /// Timing metrics
+    pub avg_block_time_ms: u64,
+    pub avg_round_time_ms: u64,
+    #[serde(skip)]
+    pub last_block_time: Option<Instant>,
+    #[serde(skip)]
+    pub consensus_start_time: Option<Instant>,
+
+    /// Network metrics
+    pub network_messages_sent: u64,
+    pub network_messages_received: u64,
+    pub network_errors: u64,
+
+    /// State metrics
+    pub current_height: u64,
+    pub validator_count: u32,
+    pub active_validators: u32,
+
+    /// Performance metrics
+    pub transactions_processed: u64,
+    pub state_updates: u64,
+    pub sync_operations: u64,
+
+    /// Error metrics
+    pub consensus_errors: u64,
+    pub validation_errors: u64,
+    pub timeout_errors: u64,
 }
 
 // Implement Value trait for MultiVMBlock with correct interface
@@ -804,6 +854,8 @@ pub struct MalachiteConsensus {
     vote_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<MultiVMVote>>>>,
     commit_sender_internal: Option<mpsc::UnboundedSender<ConsensusCommit>>,
     commit_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<ConsensusCommit>>>>,
+    /// Comprehensive metrics tracking
+    metrics: Arc<RwLock<ConsensusMetrics>>,
 }
 
 impl MalachiteConsensus {
@@ -831,6 +883,9 @@ impl MalachiteConsensus {
         // Initialize vote tracker for height 0
         let vote_tracker = VoteTracker::new(BlockHeight::ZERO, Round::new(0));
 
+        // Extract validator count before moving config
+        let validator_count = config.validators.len() as u32;
+
         let consensus = Self {
             config,
             context,
@@ -853,6 +908,12 @@ impl MalachiteConsensus {
             vote_receiver: None,
             commit_sender_internal: None,
             commit_receiver: None,
+            metrics: Arc::new(RwLock::new(ConsensusMetrics {
+                consensus_start_time: Some(Instant::now()),
+                validator_count,
+                active_validators: validator_count,
+                ..Default::default()
+            })),
         };
 
         Ok((consensus, block_sender, commit_receiver))
@@ -1575,6 +1636,9 @@ impl ConsensusEngine for MalachiteConsensus {
         // Update latest proposed block
         *self.latest_block_hash.write().await = block.calculate_hash();
 
+        // Record metrics
+        self.record_block_proposal().await;
+
         info!(
             "Proposed block at height {} with {} transactions",
             height,
@@ -1586,39 +1650,43 @@ impl ConsensusEngine for MalachiteConsensus {
     async fn validate_block(&self, block: &Self::Block) -> ConsensusResult<bool> {
         debug!("Validating block at height {}", block.header.height);
 
+        // Helper macro to record validation error and return
+        macro_rules! validation_error {
+            ($msg:expr) => {{
+                self.record_validation_error().await;
+                return Err(ConsensusError::InvalidBlock($msg.to_string()));
+            }};
+        }
+
         // 1. Basic structural validation
         if block.header.height == 0 {
-            return Err(ConsensusError::InvalidBlock(
-                "Genesis block not allowed in validation".to_string(),
-            ));
+            validation_error!("Genesis block not allowed in validation");
         }
 
         // 2. Height validation - must be sequential
         let current_height = *self.current_height.read().await;
         if block.header.height != current_height + 1 {
-            return Err(ConsensusError::InvalidBlock(format!(
+            validation_error!(format!(
                 "Invalid height: expected {}, got {}",
                 current_height + 1,
                 block.header.height
-            )));
+            ));
         }
 
         // 3. Parent hash validation
         let expected_parent = self.latest_block_hash.read().await.clone();
         if block.header.previous_hash != expected_parent {
-            return Err(ConsensusError::InvalidBlock(format!(
+            validation_error!(format!(
                 "Invalid parent hash: expected {}, got {}",
                 expected_parent, block.header.previous_hash
-            )));
+            ));
         }
 
         // 4. Timestamp validation
         let now = std::time::SystemTime::now();
         let block_time = block.header.timestamp;
         if block_time > now {
-            return Err(ConsensusError::InvalidBlock(
-                "Block timestamp is in the future".to_string(),
-            ));
+            validation_error!("Block timestamp is in the future");
         }
 
         // 5. Transaction validation
@@ -1626,31 +1694,21 @@ impl ConsensusEngine for MalachiteConsensus {
         {
             if transactions.len() > 10000 {
                 // Max transactions per block
-                return Err(ConsensusError::InvalidBlock(
-                    "Too many transactions in block".to_string(),
-                ));
+                validation_error!("Too many transactions in block");
             }
 
             // Validate individual transactions (placeholder)
             for (i, tx) in transactions.iter().enumerate() {
                 if tx.is_empty() {
-                    return Err(ConsensusError::InvalidBlock(format!(
-                        "Empty transaction at index {}",
-                        i
-                    )));
+                    validation_error!(format!("Empty transaction at index {}", i));
                 }
                 if tx.len() > 1024 * 1024 {
                     // Max 1MB per transaction
-                    return Err(ConsensusError::InvalidBlock(format!(
-                        "Transaction {} too large",
-                        i
-                    )));
+                    validation_error!(format!("Transaction {} too large", i));
                 }
             }
         } else {
-            return Err(ConsensusError::InvalidBlock(
-                "Invalid consensus data format".to_string(),
-            ));
+            validation_error!("Invalid consensus data format");
         }
 
         // 6. Block size validation
@@ -1751,6 +1809,9 @@ impl ConsensusEngine for MalachiteConsensus {
         // Send to commit channel for other components
         let _ = self.commit_sender.send(block).await;
 
+        // Record metrics
+        self.record_block_commit(transaction_count).await;
+
         info!(
             "Block committed at height {} with {} transactions (took {:?})",
             height, transaction_count, block_duration
@@ -1816,6 +1877,137 @@ impl ConsensusEngine for MalachiteConsensus {
             uptime,
             last_block_time,
         })
+    }
+}
+
+impl MalachiteConsensus {
+    /// Get comprehensive consensus metrics
+    pub async fn get_metrics(&self) -> ConsensusMetrics {
+        let mut metrics = self.metrics.read().await.clone();
+
+        // Update current state metrics
+        metrics.current_height = *self.current_height.read().await;
+        metrics.current_round = *self.current_round.read().await;
+        metrics.transactions_processed = *self.total_transactions.read().await;
+
+        // Update timing metrics
+        if let Some(start_time) = metrics.consensus_start_time {
+            let uptime = start_time.elapsed();
+            if let Some(last_block_time) = metrics.last_block_time {
+                let block_time = last_block_time.elapsed();
+                metrics.avg_block_time_ms = block_time.as_millis() as u64;
+            }
+        }
+
+        metrics
+    }
+
+    /// Update metrics when a block is proposed
+    pub async fn record_block_proposal(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.blocks_proposed += 1;
+        metrics.last_block_time = Some(Instant::now());
+    }
+
+    /// Update metrics when a block is committed
+    pub async fn record_block_commit(&self, transaction_count: u64) {
+        let mut metrics = self.metrics.write().await;
+        metrics.blocks_committed += 1;
+        metrics.successful_rounds += 1;
+        metrics.transactions_processed += transaction_count;
+        metrics.state_updates += 1;
+    }
+
+    /// Update metrics when a block is rejected
+    pub async fn record_block_rejection(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.blocks_rejected += 1;
+        metrics.failed_rounds += 1;
+    }
+
+    /// Update metrics when sending votes
+    pub async fn record_vote_sent(&self, vote_type: &VoteType) {
+        let mut metrics = self.metrics.write().await;
+        match vote_type {
+            VoteType::Prevote => metrics.prevotes_sent += 1,
+            VoteType::Precommit => metrics.precommits_sent += 1,
+        }
+        metrics.network_messages_sent += 1;
+    }
+
+    /// Update metrics when receiving votes  
+    pub async fn record_vote_received(&self, vote_type: &VoteType) {
+        let mut metrics = self.metrics.write().await;
+        match vote_type {
+            VoteType::Prevote => metrics.prevotes_received += 1,
+            VoteType::Precommit => metrics.precommits_received += 1,
+        }
+        metrics.network_messages_received += 1;
+    }
+
+    /// Update metrics when starting a new round
+    pub async fn record_round_start(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.total_rounds += 1;
+        metrics.current_round = *self.current_round.read().await;
+    }
+
+    /// Update metrics for network errors
+    pub async fn record_network_error(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.network_errors += 1;
+    }
+
+    /// Update metrics for consensus errors
+    pub async fn record_consensus_error(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.consensus_errors += 1;
+    }
+
+    /// Update metrics for validation errors
+    pub async fn record_validation_error(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.validation_errors += 1;
+    }
+
+    /// Update metrics for timeout errors
+    pub async fn record_timeout_error(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.timeout_errors += 1;
+    }
+
+    /// Update metrics for sync operations
+    pub async fn record_sync_operation(&self) {
+        let mut metrics = self.metrics.write().await;
+        metrics.sync_operations += 1;
+    }
+
+    /// Get performance metrics as a formatted string for logging
+    pub async fn get_performance_summary(&self) -> String {
+        let metrics = self.get_metrics().await;
+        format!(
+            "Consensus Performance: Height={}, Rounds={}, Blocks={}/{} ({}% success), \
+             Votes={}/{}, TPS={:.2}, Errors={}/{}/{}",
+            metrics.current_height,
+            metrics.total_rounds,
+            metrics.blocks_committed,
+            metrics.blocks_proposed,
+            if metrics.blocks_proposed > 0 {
+                (metrics.blocks_committed * 100) / metrics.blocks_proposed
+            } else {
+                0
+            },
+            metrics.prevotes_sent + metrics.precommits_sent,
+            metrics.prevotes_received + metrics.precommits_received,
+            if metrics.avg_block_time_ms > 0 {
+                (metrics.transactions_processed as f64 * 1000.0) / metrics.avg_block_time_ms as f64
+            } else {
+                0.0
+            },
+            metrics.consensus_errors,
+            metrics.validation_errors,
+            metrics.timeout_errors
+        )
     }
 }
 

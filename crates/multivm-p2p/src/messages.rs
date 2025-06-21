@@ -214,6 +214,9 @@ pub enum ExecutionPriority {
     Critical,
 }
 
+/// Message priority levels (alias for ExecutionPriority for consensus compatibility)
+pub type Priority = ExecutionPriority;
+
 /// Network control messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {

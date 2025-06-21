@@ -6,7 +6,6 @@
 #![allow(
     dead_code,
     unused_variables,
-    unused_imports,
     clippy::op_ref,
     clippy::unused_enumerate_index,
     clippy::useless_vec
@@ -14,10 +13,14 @@
 
 pub mod block;
 pub mod error;
+pub mod fork_detection;
 pub mod malachite;
 pub mod manager;
 pub mod messages;
+pub mod metrics;
+pub mod network_recovery;
 pub mod state;
+pub mod synchronization;
 pub mod traits;
 
 // Tests are included in individual modules
@@ -39,6 +42,33 @@ pub use traits::{
 
 // Re-export Malachite consensus implementation
 pub use malachite::{MalachiteConfig, MalachiteConsensus};
+
+// Re-export fork detection types
+pub use fork_detection::{
+    ForkDetectionConfig, ForkDetectionError, ForkDetectionManager, ForkDetectionMetrics,
+    ForkDetector, ForkInfo, ForkReason, ForkResolutionStrategy, ForkStatus,
+};
+
+// Re-export network recovery types
+pub use network_recovery::{
+    NetworkHealth, NetworkHealthStatus, NetworkRecovery, NetworkRecoveryConfig,
+    NetworkRecoveryError, NetworkRecoveryManager, NetworkRecoveryMetrics, PartitionIndicator,
+    RecoveryPhase, RecoveryStatus,
+};
+
+// Re-export synchronization types
+pub use synchronization::{
+    BlockSyncConfig, BlockSyncError, BlockSyncManager, BlockSyncMetrics, BlockSyncStatus,
+    BlockSynchronizer, SyncRequest, SyncResponse,
+};
+
+// Re-export metrics types
+pub use metrics::{
+    AggregatedMetrics, ComponentMetrics, ConsensusMetricsCollector, ConsensusPerformance,
+    ErrorSummary, JsonExporter, MetricsExporter, NetworkStatus, PrometheusExporter, SyncStatus,
+    SystemHealth,
+};
+
 
 // Common imports
 use multivm_account_mapping::SpecialTransaction;

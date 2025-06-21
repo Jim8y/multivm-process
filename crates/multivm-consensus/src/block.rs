@@ -100,7 +100,7 @@ pub struct EvmSignature {
 }
 
 /// State transition representation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateTransition {
     /// Type of transition
     pub transition_type: StateTransitionType,
@@ -117,7 +117,7 @@ pub struct StateTransition {
 }
 
 /// Types of state transitions
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum StateTransitionType {
     /// Account balance change
     BalanceChange,
@@ -134,7 +134,7 @@ pub enum StateTransitionType {
 }
 
 /// Individual state change within a transition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateChange {
     /// Field or storage slot that changed
     pub field: String,

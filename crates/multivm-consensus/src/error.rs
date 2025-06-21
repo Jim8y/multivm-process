@@ -99,6 +99,18 @@ pub enum ConsensusError {
     /// Already running error
     #[error("Consensus engine is already running")]
     AlreadyRunning,
+
+    /// Network error (alias for Network for backward compatibility)
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
+    /// Serialization error
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    /// Validator not found error
+    #[error("Validator not found: {0}")]
+    ValidatorNotFound(String),
 }
 
 impl ConsensusError {
@@ -127,6 +139,9 @@ impl ConsensusError {
             ConsensusError::Internal(_) => false,
             ConsensusError::AlreadyRunning => true,
             ConsensusError::InvalidMessage(_) => false,
+            ConsensusError::NetworkError(_) => true,
+            ConsensusError::SerializationError(_) => false,
+            ConsensusError::ValidatorNotFound(_) => true,
         }
     }
 
@@ -166,6 +181,9 @@ impl ConsensusError {
             ConsensusError::Internal(_) => "internal",
             ConsensusError::AlreadyRunning => "state",
             ConsensusError::InvalidMessage(_) => "validation",
+            ConsensusError::NetworkError(_) => "network",
+            ConsensusError::SerializationError(_) => "serialization",
+            ConsensusError::ValidatorNotFound(_) => "validation",
         }
     }
 }

@@ -35,6 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let consensus_config = ConsensusManagerConfig {
+        node_id: Some("demo_node".to_string()),
         algorithm: ConsensusAlgorithmType::Raft,
         algorithm_config: AlgorithmConfig::Raft(raft_config),
         state_manager_config: StateManagerConfig::default(),
