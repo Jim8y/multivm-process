@@ -64,7 +64,7 @@ impl SolanaRpcServer {
             io.add_method("getBalance", |params: Params| async {
                 // Get balance for a public key
                 match params.parse::<Vec<String>>() {
-                    Ok(parsed) if parsed.len() >= 1 => {
+                    Ok(parsed) if !parsed.is_empty() => {
                         // Return balance in lamports (1 SOL = 1e9 lamports)
                         Ok(serde_json::json!({
                             "context": {"slot": 100},
@@ -94,7 +94,7 @@ impl SolanaRpcServer {
             io.add_method("sendTransaction", |params: Params| async {
                 // Send transaction
                 match params.parse::<Vec<String>>() {
-                    Ok(parsed) if parsed.len() >= 1 => {
+                    Ok(parsed) if !parsed.is_empty() => {
                         // Return transaction signature (mock)
                         Ok(Value::String("5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW".to_string()))
                     }
@@ -105,7 +105,7 @@ impl SolanaRpcServer {
             io.add_method("getAccountInfo", |params: Params| async {
                 // Get account info for a public key
                 match params.parse::<Vec<String>>() {
-                    Ok(parsed) if parsed.len() >= 1 => Ok(serde_json::json!({
+                    Ok(parsed) if !parsed.is_empty() => Ok(serde_json::json!({
                         "context": {"slot": 100},
                         "value": {
                             "data": ["", "base58"],

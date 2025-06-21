@@ -132,13 +132,13 @@ impl ConsensusError {
 
     /// Check if the error is critical (requires immediate attention)
     pub fn is_critical(&self) -> bool {
-        match self {
-            ConsensusError::ForkDetected { .. } => true,
-            ConsensusError::Crypto(_) => true,
-            ConsensusError::ResourceExhausted(_) => true,
-            ConsensusError::Internal(_) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            ConsensusError::ForkDetected { .. }
+                | ConsensusError::Crypto(_)
+                | ConsensusError::ResourceExhausted(_)
+                | ConsensusError::Internal(_)
+        )
     }
 
     /// Get error category for metrics and logging

@@ -331,7 +331,7 @@ impl CrossVMStateManager {
 
                 // Update balance in state
                 let new_root = self.compute_new_state_root(&change)?;
-                state.svm_state_root = hex::encode(&new_root);
+                state.svm_state_root = hex::encode(new_root);
                 tracing::info!(
                     "Applied balance update for {} with new SVM root {}",
                     change.target,
@@ -343,7 +343,7 @@ impl CrossVMStateManager {
                 let mut state = self.state.write();
 
                 let new_root = self.compute_new_state_root(&change)?;
-                state.evm_state_root = hex::encode(&new_root);
+                state.evm_state_root = hex::encode(new_root);
                 tracing::info!(
                     "Applied binding creation for {} with new EVM root {}",
                     change.target,
@@ -355,7 +355,7 @@ impl CrossVMStateManager {
                 let mut state = self.state.write();
 
                 let new_root = self.compute_new_state_root(&change)?;
-                state.svm_state_root = hex::encode(&new_root);
+                state.svm_state_root = hex::encode(new_root);
                 tracing::info!(
                     "Applied binding update for {} with new SVM root {}",
                     change.target,
@@ -367,7 +367,7 @@ impl CrossVMStateManager {
                 let mut state = self.state.write();
 
                 let new_root = self.compute_new_state_root(&change)?;
-                state.evm_state_root = hex::encode(&new_root);
+                state.evm_state_root = hex::encode(new_root);
                 tracing::info!(
                     "Applied binding removal for {} with new EVM root {}",
                     change.target,
@@ -379,7 +379,7 @@ impl CrossVMStateManager {
                 let mut state = self.state.write();
 
                 let new_root = self.compute_new_state_root(&change)?;
-                state.evm_state_root = hex::encode(&new_root);
+                state.evm_state_root = hex::encode(new_root);
                 tracing::info!(
                     "Applied contract state change for {} with new EVM root {}",
                     change.target,
@@ -391,7 +391,7 @@ impl CrossVMStateManager {
                 let mut state = self.state.write();
 
                 let new_root = self.compute_new_state_root(&change)?;
-                state.svm_state_root = hex::encode(&new_root);
+                state.svm_state_root = hex::encode(new_root);
                 tracing::info!(
                     "Applied custom state change '{}' for {} with new SVM root {}",
                     custom_type,
@@ -410,7 +410,7 @@ impl CrossVMStateManager {
 
         // Create state hash incorporating the change
         let mut hasher = Sha256::new();
-        hasher.update(&change.target.as_bytes());
+        hasher.update(change.target.as_bytes());
         hasher.update(&serde_json::to_vec(&change.change_type).map_err(|e| {
             ConsensusError::StateError(format!("Failed to serialize change type: {}", e))
         })?);

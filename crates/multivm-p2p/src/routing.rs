@@ -575,7 +575,7 @@ impl MessageRouter {
         let table = self.routing_table.read().await;
         table
             .get(message_type)
-            .map_or(false, |routes| !routes.is_empty())
+            .is_some_and(|routes| !routes.is_empty())
     }
 
     // Static versions of methods for use in spawned tasks

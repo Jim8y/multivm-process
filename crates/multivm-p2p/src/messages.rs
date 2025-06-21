@@ -397,7 +397,7 @@ impl NetworkMessage {
             MessageTarget::Local(_) | MessageTarget::MultiVmLayer
         )
     }
-    
+
     /// Infer the message type from the payload
     pub fn infer_type(&self) -> MessageType {
         match &self.payload {

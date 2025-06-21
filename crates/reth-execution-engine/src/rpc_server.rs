@@ -47,7 +47,7 @@ impl RethRpcServer {
             io.add_method("eth_getBalance", |params: Params| async {
                 // Get balance for an address
                 match params.parse::<Vec<String>>() {
-                    Ok(parsed) if parsed.len() >= 1 => {
+                    Ok(parsed) if !parsed.is_empty() => {
                         // Return balance (hardcoded for demo)
                         Ok(Value::String("0x1bc16d674ec80000".to_string())) // 2 ETH
                     }
@@ -58,7 +58,7 @@ impl RethRpcServer {
             io.add_method("eth_getBlockByNumber", |params: Params| async {
                 // Get block by number
                 match params.parse::<Vec<Value>>() {
-                    Ok(parsed) if parsed.len() >= 1 => {
+                    Ok(parsed) if !parsed.is_empty() => {
                         Ok(serde_json::json!({
                             "number": "0x1",
                             "hash": "0xb495a1d7e6663152ae92708da4843337b958146015a2802f4193a410044698c9",
@@ -76,7 +76,7 @@ impl RethRpcServer {
             io.add_method("eth_sendRawTransaction", |params: Params| async {
                 // Send raw transaction
                 match params.parse::<Vec<String>>() {
-                    Ok(parsed) if parsed.len() >= 1 => {
+                    Ok(parsed) if !parsed.is_empty() => {
                         // Return transaction hash (mock)
                         Ok(Value::String(
                             "0x9fc76417374aa880d4449a1f7f31ec597f00b1f6f3dd2d66f4c9c6c445836d8b"

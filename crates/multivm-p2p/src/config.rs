@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 /// Main configuration for the P2P network layer
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct P2PConfig {
     /// Network configuration
     pub network: NetworkConfig,
@@ -246,7 +246,7 @@ pub enum AuthMethod {
 }
 
 /// Firewall configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FirewallConfig {
     /// Enable firewall
     pub enabled: bool,
@@ -294,19 +294,6 @@ pub enum LogFormat {
     Json,
     /// Custom format string
     Custom(String),
-}
-
-impl Default for P2PConfig {
-    fn default() -> Self {
-        Self {
-            network: NetworkConfig::default(),
-            transport: TransportConfig::default(),
-            discovery: DiscoveryConfig::default(),
-            protocol: ProtocolConfig::default(),
-            security: SecurityConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
 }
 
 impl Default for NetworkConfig {
@@ -470,18 +457,6 @@ impl Default for AuthConfig {
             method: AuthMethod::None,
             trusted_peers: vec![],
             timeout: Duration::from_secs(30),
-        }
-    }
-}
-
-impl Default for FirewallConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            allowlist: vec![],
-            blocklist: vec![],
-            allowed_ips: vec![],
-            blocked_ips: vec![],
         }
     }
 }

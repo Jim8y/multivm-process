@@ -17,6 +17,9 @@ use tracing::{debug, error, info, warn};
 use crate::error::P2PError;
 use crate::messages::NetworkMessage;
 
+/// Type alias for complex message receiver type
+type MessageReceiver = Arc<RwLock<Option<mpsc::Receiver<(PeerId, NetworkMessage)>>>>;
+
 /// Transport configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransportConfig {
@@ -86,7 +89,7 @@ pub enum TransportEvent {
     /// Message received
     MessageReceived {
         peer_id: PeerId,
-        message: NetworkMessage,
+        message: Box<NetworkMessage>,
     },
     /// Message sent successfully
     MessageSent { peer_id: PeerId, message_id: String },
@@ -110,7 +113,7 @@ pub struct TransportLayer {
     /// Event sender
     event_sender: mpsc::Sender<TransportEvent>,
     /// Message receiver for outgoing messages
-    message_receiver: Arc<RwLock<Option<mpsc::Receiver<(PeerId, NetworkMessage)>>>>,
+    message_receiver: MessageReceiver,
     /// Running state
     running: Arc<RwLock<bool>>,
 }

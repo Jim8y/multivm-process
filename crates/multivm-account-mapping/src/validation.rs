@@ -848,10 +848,10 @@ impl ProofGenerator {
     ) -> Vec<u8> {
         let mut hasher = Sha256::new();
         hasher.update(b"multivm-binding-");
-        hasher.update(&source_account.to_bytes());
-        hasher.update(&target_account.to_bytes());
+        hasher.update(source_account.to_bytes());
+        hasher.update(target_account.to_bytes());
         hasher.update(
-            &timestamp
+            timestamp
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()

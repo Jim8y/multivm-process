@@ -110,23 +110,13 @@ pub struct TransactionSignature {
 }
 
 /// Custom block body type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BlockBody {
     pub transactions: Vec<Transaction>,
     #[allow(dead_code)]
     pub ommers: Vec<BlockHeader>,
     #[allow(dead_code)]
     pub withdrawals: Option<Vec<serde_json::Value>>,
-}
-
-impl Default for BlockBody {
-    fn default() -> Self {
-        Self {
-            transactions: vec![],
-            ommers: vec![],
-            withdrawals: None,
-        }
-    }
 }
 
 /// Custom block type (equivalent to reth_primitives Block)
@@ -156,7 +146,7 @@ impl Block {
         hasher.update(self.header.parent_hash);
         hasher.update(self.header.number.to_be_bytes());
         hasher.update(self.header.timestamp.to_be_bytes());
-        hasher.update(&self.header.state_root);
+        hasher.update(self.header.state_root);
 
         let result = hasher.finalize();
         let mut hash = [0u8; 32];
@@ -166,7 +156,6 @@ impl Block {
 }
 use async_trait::async_trait;
 use multivm_common::*;
-use rand;
 use serde_json::json;
 use std::path::PathBuf;
 use std::process::Stdio;

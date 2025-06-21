@@ -39,15 +39,15 @@ pub mod metrics;
 
 // Test modules
 #[cfg(test)]
-mod network_tests;
-#[cfg(test)]
 mod discovery_tests;
 #[cfg(test)]
-mod transport_tests;
+mod network_tests;
+#[cfg(test)]
+mod protocol_tests;
 #[cfg(test)]
 mod routing_tests;
 #[cfg(test)]
-mod protocol_tests;
+mod transport_tests;
 
 // Re-exports for public API
 pub use config::P2PConfig as P2PNetworkConfig;
@@ -140,7 +140,7 @@ pub enum NetworkEvent {
     /// A message was received
     MessageReceived {
         peer_id: String,
-        message: NetworkMessage,
+        message: Box<NetworkMessage>,
     },
     /// A message was sent successfully
     MessageSent { peer_id: String, message_id: String },

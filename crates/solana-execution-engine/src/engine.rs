@@ -480,7 +480,7 @@ impl SolanaExecutionEngine {
         tx_index: usize,
     ) -> Result<String, MultivmError> {
         // Attempt to interpret raw transaction data as base64 or hex encoded transaction
-        let transaction_result = if tx_data.len() > 0 {
+        let transaction_result = if !tx_data.is_empty() {
             // Try to parse as base64 first
             use base64::Engine;
             if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(tx_data) {

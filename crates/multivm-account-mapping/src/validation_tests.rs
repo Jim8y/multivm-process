@@ -62,8 +62,10 @@ mod tests {
 
         let _validator = create_test_validator();
         // With validate_signatures disabled in default config, this should pass
-        let mut config = ValidationConfig::default();
-        config.validate_signatures = false;
+        let config = ValidationConfig {
+            validate_signatures: false,
+            ..Default::default()
+        };
         let validator = AccountBindingValidator::new(config);
 
         assert!(validator.validate_proof(&proof).is_ok());
@@ -86,8 +88,10 @@ mod tests {
 
         let _validator = create_test_validator();
         // With validate_signatures disabled in default config, this should pass
-        let mut config = ValidationConfig::default();
-        config.validate_signatures = false;
+        let config = ValidationConfig {
+            validate_signatures: false,
+            ..Default::default()
+        };
         let validator = AccountBindingValidator::new(config);
 
         assert!(validator.validate_proof(&proof).is_ok());
@@ -109,8 +113,10 @@ mod tests {
 
     #[test]
     fn test_cross_vm_binding_validation() {
-        let mut config = ValidationConfig::default();
-        config.validate_signatures = false; // Disable signature validation for test
+        let config = ValidationConfig {
+            validate_signatures: false, // Disable signature validation for test
+            ..Default::default()
+        };
         let validator = AccountBindingValidator::new(config);
 
         let sol_addr = generate_solana_keypair();
@@ -142,8 +148,10 @@ mod tests {
 
     #[test]
     fn test_expired_proof_validation() {
-        let mut config = ValidationConfig::default();
-        config.max_proof_age = std::time::Duration::from_secs(1);
+        let config = ValidationConfig {
+            max_proof_age: std::time::Duration::from_secs(1),
+            ..Default::default()
+        };
         let validator = AccountBindingValidator::new(config);
 
         let sol_addr = generate_solana_keypair();
@@ -167,8 +175,10 @@ mod tests {
     #[test]
     fn test_transaction_proof_validation() {
         // Create validator with signature validation disabled for test
-        let mut config = ValidationConfig::default();
-        config.validate_signatures = false;
+        let config = ValidationConfig {
+            validate_signatures: false,
+            ..Default::default()
+        };
         let validator = AccountBindingValidator::new(config);
         let sol_addr = generate_solana_keypair();
         let account_addr = AccountAddress::Solana(sol_addr);
@@ -214,8 +224,10 @@ mod tests {
 
     #[test]
     fn test_binding_request_validation() {
-        let mut config = ValidationConfig::default();
-        config.validate_signatures = false;
+        let config = ValidationConfig {
+            validate_signatures: false,
+            ..Default::default()
+        };
         let validator = AccountBindingValidator::new(config);
 
         let sol_addr = generate_solana_keypair();

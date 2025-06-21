@@ -147,26 +147,26 @@ impl P2PError {
 
     /// Check if this error is recoverable
     pub fn is_recoverable(&self) -> bool {
-        match self {
-            P2PError::ConnectionError { .. } => true,
-            P2PError::TimeoutError { .. } => true,
-            P2PError::InsufficientPeers { .. } => true,
-            P2PError::RateLimitExceeded { .. } => true,
-            P2PError::TransportError { .. } => true,
-            P2PError::DiscoveryError { .. } => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            P2PError::ConnectionError { .. }
+                | P2PError::TimeoutError { .. }
+                | P2PError::InsufficientPeers { .. }
+                | P2PError::RateLimitExceeded { .. }
+                | P2PError::TransportError { .. }
+                | P2PError::DiscoveryError { .. }
+        )
     }
 
     /// Check if this error is fatal
     pub fn is_fatal(&self) -> bool {
-        match self {
-            P2PError::ConfigurationError { .. } => true,
-            P2PError::UnsupportedProtocol { .. } => true,
-            P2PError::InvalidMessage { .. } => true,
-            P2PError::Serialization { .. } => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            P2PError::ConfigurationError { .. }
+                | P2PError::UnsupportedProtocol { .. }
+                | P2PError::InvalidMessage { .. }
+                | P2PError::Serialization { .. }
+        )
     }
 
     /// Get error category for logging and metrics

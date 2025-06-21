@@ -92,7 +92,7 @@ pub struct EvmTransaction {
 }
 
 /// EVM transaction signature
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EvmSignature {
     pub v: u8,
     pub r: String,
@@ -354,16 +354,6 @@ impl EvmTransaction {
     /// Check if this is a contract creation transaction
     pub fn is_contract_creation(&self) -> bool {
         self.to.is_none()
-    }
-}
-
-impl Default for EvmSignature {
-    fn default() -> Self {
-        Self {
-            v: 0,
-            r: String::new(),
-            s: String::new(),
-        }
     }
 }
 
