@@ -17,7 +17,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, RwLock};
-use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -469,7 +468,7 @@ async fn handle_websocket_connection(
 
     // Create message channels for the connection
     let (outbound_tx, mut outbound_rx) = mpsc::unbounded_channel::<Message>();
-    let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel::<Message>();
+    let (incoming_tx, incoming_rx) = mpsc::unbounded_channel::<Message>();
 
     // Use the WebSocket as a single stream (axum handles this differently)
     let mut socket = socket;

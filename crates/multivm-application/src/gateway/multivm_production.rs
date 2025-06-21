@@ -7,14 +7,14 @@ use crate::{
     cache::CacheLayer,
     error::{ApplicationError, ApplicationResult},
 };
-use multivm_account_mapping::{AccountAddress, MultivmAccountId, SpecialTransaction};
+use multivm_account_mapping::{AccountAddress, SpecialTransaction};
 use multivm_consensus::{BlockHeader, MultiVMBlock};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 
 /// Production MultiVM Gateway for consensus and cross-VM operations
 #[derive(Clone)]

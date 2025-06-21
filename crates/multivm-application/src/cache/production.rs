@@ -5,16 +5,16 @@ use crate::config::RedisConfig;
 use crate::error::{ApplicationError, ApplicationResult};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tracing::{debug, error, info, warn};
 
 #[cfg(feature = "cache")]
 use redis::{
     aio::{ConnectionManager, MultiplexedConnection},
-    AsyncCommands, Client, RedisError,
+    AsyncCommands, Client,
 };
 
 /// Production Redis cache with advanced features

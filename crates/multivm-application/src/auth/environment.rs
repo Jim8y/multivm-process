@@ -7,7 +7,7 @@ use super::api_key::{ApiKeyInfo, ApiKeyMetadata, UsageStats};
 use super::jwt::UserRole;
 use super::permissions::Permission;
 use crate::error::{ApplicationError, AuthResult};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;

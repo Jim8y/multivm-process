@@ -1,6 +1,6 @@
 //! Distributed tracing support
 
-use crate::error::{ApplicationError, ApplicationResult};
+use crate::error::ApplicationResult;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -35,8 +35,8 @@ impl TracingService {
         );
 
         // Set up OpenTelemetry tracing backend
-        use opentelemetry::global;
-        use opentelemetry_jaeger;
+        
+        
 
         if let Some(_endpoint) = &self.config.endpoint {
             // Note: OpenTelemetry Jaeger integration would be configured here
