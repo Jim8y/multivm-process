@@ -76,4 +76,7 @@ __pycache__/
 
 # Coverage reports
 *.lcov
-coverage/.cursor/
+coverage/
+
+# Cursor IDE files
+.cursor/
