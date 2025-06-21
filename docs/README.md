@@ -1,70 +1,53 @@
 # MultiVM Documentation
 
-Welcome to the MultiVM documentation. This directory contains comprehensive documentation for the MultiVM blockchain execution system that unifies Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM).
+Welcome to the MultiVM documentation. This directory contains comprehensive documentation for the MultiVM multi-blockchain execution system.
 
 ## 📚 Documentation Structure
 
-### Core Documentation
+### 🏗️ Architecture
+- [`ARCHITECTURE_OVERVIEW.md`](architecture/ARCHITECTURE_OVERVIEW.md) - High-level system architecture
+- [`MULTIVM_CORE_ARCHITECTURE.md`](architecture/MULTIVM_CORE_ARCHITECTURE.md) - Core architectural components
+- [`CONSENSUS_LAYER_DESIGN.md`](architecture/CONSENSUS_LAYER_DESIGN.md) - Malachite BFT consensus design
+- [`APPLICATION_LAYER_DESIGN.md`](architecture/APPLICATION_LAYER_DESIGN.md) - Application layer architecture
+- [`IPC_PROTOCOLS.md`](architecture/IPC_PROTOCOLS.md) - Inter-process communication protocols
 
-- **[DOCUMENTATION_INDEX.md](./DOCUMENTATION_INDEX.md)** - Complete documentation navigation and overview
-- **[ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)** - Comprehensive system architecture
-- **[API_REFERENCE.md](./API_REFERENCE.md)** - Complete API documentation including REST, GraphQL, and WebSocket
+### 📖 Guides
+- [`INSTALLATION.md`](guides/INSTALLATION.md) - Installation and setup guide
+- [`CONFIGURATION.md`](guides/CONFIGURATION.md) - Configuration reference
+- [`DEPLOYMENT.md`](guides/DEPLOYMENT.md) - Deployment strategies
+- [`TESTING_GUIDE.md`](guides/TESTING_GUIDE.md) - Testing procedures
+- [`TROUBLESHOOTING.md`](guides/TROUBLESHOOTING.md) - Common issues and solutions
+- [`LEARNING_GUIDE.md`](guides/LEARNING_GUIDE.md) - Learning path for developers
 
-### Integration Guides
+### 📑 References
+- [`API_REFERENCE.md`](references/API_REFERENCE.md) - Complete API documentation
+- [`SECURITY.md`](references/SECURITY.md) - Security model and best practices
+- [`RETH_NODE_INTEGRATION_TASKS.md`](references/RETH_NODE_INTEGRATION_TASKS.md) - Reth integration roadmap
+- [`SOLANA_NODE_INTEGRATION_TASKS.md`](references/SOLANA_NODE_INTEGRATION_TASKS.md) - Solana integration roadmap
 
-- **[RETH_NODE_INTEGRATION_TASKS.md](./RETH_NODE_INTEGRATION_TASKS.md)** - Production Reth node integration roadmap
-- **[SOLANA_NODE_INTEGRATION_TASKS.md](./SOLANA_NODE_INTEGRATION_TASKS.md)** - Production Solana validator integration roadmap
+### 📊 Reports Archive
+The [`reports/`](reports/) directory contains historical development reports and analysis documents.
 
-### Operational Documentation
+## 🚀 Quick Start
 
-- **[INSTALLATION.md](./INSTALLATION.md)** - Installation and setup guide
-- **[QUICK_START.md](./QUICK_START.md)** - Quick start tutorial
-- **[CONFIGURATION.md](./CONFIGURATION.md)** - Configuration reference
-- **[SECURITY.md](./SECURITY.md)** - Security model and best practices
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide
-- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions
-- **[TESTING_GUIDE.md](./TESTING_GUIDE.md)** - Testing framework and guidelines
+1. **New to MultiVM?** Start with the [Architecture Overview](architecture/ARCHITECTURE_OVERVIEW.md)
+2. **Ready to deploy?** Check the [Installation Guide](guides/INSTALLATION.md)
+3. **Developing applications?** See the [API Reference](references/API_REFERENCE.md)
+4. **Need help?** Visit the [Troubleshooting Guide](guides/TROUBLESHOOTING.md)
 
-### Technical Specifications
+## 🔗 Related Documentation
 
-- **[MULTIVM_CORE_ARCHITECTURE.md](./MULTIVM_CORE_ARCHITECTURE.md)** - Core architecture details
-- **[CONSENSUS_LAYER_DESIGN.md](./CONSENSUS_LAYER_DESIGN.md)** - Consensus layer specifications
-- **[APPLICATION_LAYER_DESIGN.md](./APPLICATION_LAYER_DESIGN.md)** - Application layer design
-- **[IPC_PROTOCOLS.md](./IPC_PROTOCOLS.md)** - Inter-process communication protocols
-
-### Status Documentation
-
-- **[DOCUMENTATION_STATUS.md](./DOCUMENTATION_STATUS.md)** - Documentation system status and updates
-
-## 🚀 Quick Links
-
-- **Project Status**: See [PROJECT_STATUS.md](../PROJECT_STATUS.md) in the root directory
-- **Main README**: See [README.md](../README.md) in the root directory
-- **Examples**: See the `examples/` directory for working demos
-
-## 📋 For New Users
-
-1. Start with [QUICK_START.md](./QUICK_START.md) for immediate setup
-2. Read [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md) for system understanding
-3. Refer to [API_REFERENCE.md](./API_REFERENCE.md) for development
-4. Use [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for issue resolution
-
-## 🔧 For Integration Teams
-
-1. **Reth Integration**: Follow [RETH_NODE_INTEGRATION_TASKS.md](./RETH_NODE_INTEGRATION_TASKS.md)
-2. **Solana Integration**: Follow [SOLANA_NODE_INTEGRATION_TASKS.md](./SOLANA_NODE_INTEGRATION_TASKS.md)
-
-## 📊 System Status Summary
-
-| Component | Status | Description |
-|-----------|--------|-------------|
-| **Core Architecture** | ✅ Complete | Production-ready design with modular components |
-| **Account Mapping** | ✅ Complete | Full cross-VM account binding and management |
-| **Special Transactions** | ✅ Complete | Cross-VM transfers, binding updates, unbinding |
-| **API Layer** | ✅ Complete | REST, GraphQL, and WebSocket APIs functional |
-| **Documentation** | ✅ Complete | Comprehensive system documentation |
-| **Examples** | ✅ Complete | Working demo programs for all features |
+- [Main README](../README.md) - Project overview
+- [Examples](../examples/) - Code examples and demos
+- [Deployment](../deploy/) - Deployment configurations
+- [Scripts](../scripts/) - Automation and utility scripts
 
 ---
 
-Last Updated: 2025-01-19
+**📝 Contributing to Documentation**
+
+When updating documentation:
+- Keep the structure organized by category
+- Use clear, descriptive filenames
+- Include cross-references where helpful
+- Update this index when adding new documents

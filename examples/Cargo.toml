@@ -32,11 +32,11 @@ tracing-subscriber = { workspace = true }
 chrono = { workspace = true }
 
 # Internal dependencies
-multivm-common = { path = "../multivm-common" }
-multivm-account-mapping = { path = "../multivm-account-mapping" }
-multivm-process-manager = { path = "../multivm-process-manager" }
-multivm-p2p = { path = "../multivm-p2p" }
-multivm-consensus = { path = "../multivm-consensus" }
+multivm-common = { path = "../crates/multivm-common" }
+multivm-account-mapping = { path = "../crates/multivm-account-mapping" }
+multivm-process-manager = { path = "../crates/multivm-process-manager" }
+multivm-p2p = { path = "../crates/multivm-p2p" }
+multivm-consensus = { path = "../crates/multivm-consensus" }
 
 # Additional dependencies for end-to-end demo
 blake3 = { workspace = true }

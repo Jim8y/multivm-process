@@ -2,9 +2,11 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-production--ready-green.svg)](PROJECT_STATUS.md)
+[![Build Status](https://github.com/vm-multiverse/multivm/actions/workflows/ci.yml/badge.svg)](https://github.com/vm-multiverse/multivm/actions)
+[![Test Status](https://github.com/vm-multiverse/multivm/actions/workflows/test.yml/badge.svg)](https://github.com/vm-multiverse/multivm/actions)
+[![Status](https://img.shields.io/badge/status-heavy%20development-yellow.svg)](#development-status)
 
-**MultiVM Process** is a production-ready blockchain execution system that unifies Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM) under a single consensus mechanism using [Malachite consensus](https://github.com/informalsystems/malachite).
+**MultiVM Process** is an innovative blockchain execution system in heavy development that unifies Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM) under a single consensus mechanism using [Malachite consensus](https://github.com/informalsystems/malachite).
 
 ## ✨ Features
 
@@ -285,8 +287,8 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ### Development Setup
 ```bash
 # Clone repository
-git clone https://github.com/your-org/multivm-process.git
-cd multivm-process
+git clone https://github.com/vm-multiverse/multivm.git
+cd multivm
 
 # Setup development environment
 make dev-setup
@@ -304,21 +306,27 @@ make dev-run
 - **Testing**: Maintain >90% test coverage
 - **Security**: All PRs undergo security review
 
-## 📋 Status
+## 📋 Development Status
 
-**Current Status: COMPLETE** ✅
+⚠️ **This project is in heavy development and not ready for production use.**
 
-### ✅ All Core Features Implemented
-- ✅ Malachite consensus integration
-- ✅ Complete block routing and decomposition
-- ✅ Cryptographic signature verification
-- ✅ Secure IPC with authentication
-- ✅ End-to-end system integration
-- ✅ Comprehensive test suite
-- ✅ Production-ready code quality
-- ✅ Professional documentation
+### Current Status
+- **Core Architecture**: ✅ Complete and functional
+- **Consensus Integration**: ✅ Malachite BFT implemented
+- **Account Mapping**: ✅ Cross-VM binding system working
+- **API Layer**: ✅ REST, GraphQL, WebSocket APIs functional
+- **Mock VMs**: ✅ Working with simulated Solana/Ethereum nodes
+- **Real Node Integration**: 🚧 **In Progress** - Primary development focus
+- **Production Hardening**: 🚧 **Planned** - Security audit and optimization
+- **Load Testing**: 🚧 **Planned** - Performance validation
 
-The project is **ready for production deployment**. See [Project Status](PROJECT_STATUS.md) for full details.
+### Roadmap to Production
+1. **Phase 1** (Current): Complete real Solana and Reth node integration
+2. **Phase 2**: Comprehensive security audit and hardening  
+3. **Phase 3**: Performance optimization and load testing
+4. **Phase 4**: Production deployment and monitoring
+
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed development status.
 
 ## 📄 License
 

@@ -1,14 +1,14 @@
 [workspace]
 members = [
-    "multivm-common",
-    "multivm-account-mapping",
-    "multivm-process-manager",
-    "multivm-p2p",
-    "multivm-consensus",
-    "solana-execution-engine",
-    "reth-execution-engine",
-    "multivm-application",
-    "multivm-cli",
+    "crates/multivm-common",
+    "crates/multivm-account-mapping",
+    "crates/multivm-process-manager",
+    "crates/multivm-p2p",
+    "crates/multivm-consensus",
+    "crates/solana-execution-engine",
+    "crates/reth-execution-engine",
+    "crates/multivm-application",
+    "crates/multivm-cli",
     "examples",
     "tests"
 ]
@@ -21,7 +21,7 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/user/multivm-process"
+repository = "https://github.com/vm-multiverse/multivm"
 
 [workspace.dependencies]
 # Common dependencies
