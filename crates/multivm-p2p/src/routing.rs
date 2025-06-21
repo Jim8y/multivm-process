@@ -48,6 +48,14 @@ pub struct RoutingStats {
     pub peer_count: usize,
 }
 
+/// Extended routing statistics with more details
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoutingStatsReport {
+    pub total_routed: u64,
+    pub total_failed: u64,
+    pub active_routes: Vec<(MessageType, usize)>,
+}
+
 /// Message router with libp2p integration
 pub struct MessageRouter {
     /// Routing table mapping message types to peers

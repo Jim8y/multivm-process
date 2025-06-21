@@ -34,6 +34,21 @@ pub mod protocol;
 pub mod routing;
 pub mod transport;
 
+#[cfg(feature = "metrics")]
+pub mod metrics;
+
+// Test modules
+#[cfg(test)]
+mod network_tests;
+#[cfg(test)]
+mod discovery_tests;
+#[cfg(test)]
+mod transport_tests;
+#[cfg(test)]
+mod routing_tests;
+#[cfg(test)]
+mod protocol_tests;
+
 // Re-exports for public API
 pub use config::P2PConfig as P2PNetworkConfig;
 pub use discovery::*;

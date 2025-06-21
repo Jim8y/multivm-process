@@ -131,6 +131,8 @@ impl ProtocolTranslator {
                     match &message.payload {
                         MessagePayload::Svm(_) => capabilities.contains(&"transaction".to_string()),
                         MessagePayload::Evm(_) => {
+                            // EVM messages can be translated, so check for basic transaction capability
+                            capabilities.contains(&"transaction".to_string()) ||
                             capabilities.contains(&"smart_contract".to_string())
                         }
                         MessagePayload::MultiVm(_) => true, // MultiVM messages are always supported

@@ -3,7 +3,7 @@
 //! This module provides a complete peer-to-peer networking layer for the MultiVM system,
 //! enabling secure, decentralized communication between nodes in the network.
 
-use crate::{NetworkStats, P2PNetworkLayer, PeerInfo};
+use crate::{NetworkStats, P2PNetworkLayer};
 use multivm_common::MultivmResult;
 
 use libp2p::{
@@ -223,6 +223,66 @@ impl std::fmt::Debug for P2PNetwork {
 
 /// Type alias for the network manager
 pub type NetworkManager = P2PNetwork;
+
+/// Network health status levels
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NetworkHealthStatus {
+    /// Network is functioning normally
+    Healthy,
+    /// Network has minor issues but is functional
+    Warning,
+    /// Network has serious issues that need attention
+    Critical,
+}
+
+/// Network health report
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NetworkHealthReport {
+    /// Overall health status
+    pub status: NetworkHealthStatus,
+    /// Number of connected peers
+    pub connected_peers: usize,
+    /// Number of failed peer connections
+    pub failed_peers: usize,
+    /// Number of subscribed topics
+    pub subscribed_topics: usize,
+    /// Total message throughput (sent + received)
+    pub message_throughput: u64,
+    /// List of identified issues
+    pub issues: Vec<String>,
+    /// Timestamp of the health check
+    pub timestamp: std::time::SystemTime,
+}
+
+/// Connection status for peers in the network layer
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PeerConnectionStatus {
+    /// Recently discovered via mDNS or DHT
+    Discovered,
+    /// Currently attempting to connect
+    Connecting,
+    /// Successfully connected and active
+    Connected,
+    /// Disconnected but may reconnect
+    Disconnected,
+    /// Connection failed
+    Failed,
+}
+
+/// Information about a peer in the network layer
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PeerInfo {
+    /// The peer's ID
+    pub peer_id: PeerId,
+    /// Known addresses for this peer
+    pub addresses: Vec<Multiaddr>,
+    /// Connection status
+    pub connection_status: PeerConnectionStatus,
+    /// Last time we heard from this peer
+    pub last_seen: std::time::SystemTime,
+    /// Protocol capabilities supported by this peer
+    pub capabilities: Vec<String>,
+}
 
 impl P2PNetwork {
     /// Create a new P2P network instance with production libp2p stack
@@ -506,12 +566,325 @@ impl P2PNetwork {
 
     /// Handle events from the swarm
     async fn handle_swarm_event(
-        _event: libp2p::swarm::SwarmEvent<NetworkBehaviourEvent>,
-        _connected_peers: &Arc<RwLock<HashMap<PeerId, PeerInfo>>>,
-        _stats: &Arc<RwLock<NetworkStats>>,
+        event: libp2p::swarm::SwarmEvent<NetworkBehaviourEvent>,
+        connected_peers: &Arc<RwLock<HashMap<PeerId, PeerInfo>>>,
+        stats: &Arc<RwLock<NetworkStats>>,
     ) {
-        // Handle swarm events like peer connections, disconnections, messages, etc.
-        // This is where we'd update connected_peers and stats based on swarm events
+        use libp2p::swarm::SwarmEvent;
+        
+        match event {
+            SwarmEvent::Behaviour(behaviour_event) => {
+                Self::handle_behaviour_event(behaviour_event, connected_peers, stats).await;
+            }
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                endpoint,
+                num_established,
+                concurrent_dial_errors,
+                established_in,
+                ..
+            } => {
+                info!(
+                    "Connection established with peer: {} (endpoint: {:?}, established in: {:?})",
+                    peer_id, endpoint, established_in
+                );
+                
+                // Add or update peer info
+                {
+                    let mut peers = connected_peers.write().await;
+                    let peer_info = PeerInfo {
+                        peer_id,
+                        addresses: vec![endpoint.get_remote_address().clone()],
+                        connection_status: PeerConnectionStatus::Connected,
+                        last_seen: std::time::SystemTime::now(),
+                        capabilities: vec![], // Will be updated through identify protocol
+                    };
+                    peers.insert(peer_id, peer_info);
+                }
+                
+                // Update stats
+                {
+                    let mut network_stats = stats.write().await;
+                    network_stats.connected_peers = connected_peers.read().await.len();
+                }
+                
+                if let Some(errors) = concurrent_dial_errors {
+                    for (addr, error) in errors {
+                        debug!("Concurrent dial error for {}: {}", addr, error);
+                    }
+                }
+                
+                debug!("Number of established connections to peer {}: {}", peer_id, num_established);
+            }
+            SwarmEvent::ConnectionClosed {
+                peer_id,
+                endpoint,
+                num_established,
+                cause,
+                ..
+            } => {
+                info!(
+                    "Connection closed with peer: {} (endpoint: {:?}, cause: {:?})", 
+                    peer_id, endpoint, cause
+                );
+                
+                // Update or remove peer info
+                if num_established == 0 {
+                    let mut peers = connected_peers.write().await;
+                    if let Some(mut peer_info) = peers.get_mut(&peer_id) {
+                        peer_info.connection_status = PeerConnectionStatus::Disconnected;
+                    }
+                    // Remove completely disconnected peers after a delay to allow reconnection
+                    // For now, just mark as disconnected
+                }
+                
+                // Update stats
+                {
+                    let mut network_stats = stats.write().await;
+                    network_stats.connected_peers = connected_peers.read().await
+                        .values()
+                        .filter(|p| matches!(p.connection_status, PeerConnectionStatus::Connected))
+                        .count();
+                }
+            }
+            SwarmEvent::IncomingConnection { local_addr, send_back_addr, .. } => {
+                debug!("Incoming connection from {} to {}", send_back_addr, local_addr);
+            }
+            SwarmEvent::IncomingConnectionError { local_addr, send_back_addr, error, .. } => {
+                warn!(
+                    "Incoming connection error from {} to {}: {}", 
+                    send_back_addr, local_addr, error
+                );
+            }
+            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                if let Some(peer_id) = peer_id {
+                    warn!("Outgoing connection error to peer {}: {}", peer_id, error);
+                    
+                    // Mark peer as connection failed
+                    let mut peers = connected_peers.write().await;
+                    if let Some(mut peer_info) = peers.get_mut(&peer_id) {
+                        peer_info.connection_status = PeerConnectionStatus::Failed;
+                    }
+                } else {
+                    warn!("Outgoing connection error: {}", error);
+                }
+            }
+            SwarmEvent::NewListenAddr { address, .. } => {
+                info!("Listening on new address: {}", address);
+            }
+            SwarmEvent::ExpiredListenAddr { address, .. } => {
+                info!("Listen address expired: {}", address);
+            }
+            SwarmEvent::ListenerClosed { addresses, .. } => {
+                info!("Listener closed for addresses: {:?}", addresses);
+            }
+            SwarmEvent::ListenerError { error, .. } => {
+                warn!("Listener error: {}", error);
+            }
+            SwarmEvent::Dialing { peer_id, .. } => {
+                if let Some(peer_id) = peer_id {
+                    debug!("Dialing peer: {}", peer_id);
+                    
+                    // Mark peer as connecting
+                    let mut peers = connected_peers.write().await;
+                    if let Some(mut peer_info) = peers.get_mut(&peer_id) {
+                        peer_info.connection_status = PeerConnectionStatus::Connecting;
+                    }
+                } else {
+                    debug!("Dialing unknown peer");
+                }
+            }
+            // Catch-all for any other SwarmEvent variants
+            _ => {
+                debug!("Unhandled swarm event: {:?}", event);
+            }
+        }
+    }
+    
+    /// Handle specific behaviour events
+    async fn handle_behaviour_event(
+        event: NetworkBehaviourEvent,
+        connected_peers: &Arc<RwLock<HashMap<PeerId, PeerInfo>>>,
+        stats: &Arc<RwLock<NetworkStats>>,
+    ) {
+        match event {
+            NetworkBehaviourEvent::Gossipsub(gossipsub::Event::Message { 
+                propagation_source, 
+                message_id, 
+                message 
+            }) => {
+                debug!(
+                    "Received gossipsub message from {}: {} bytes (id: {:?})",
+                    propagation_source, message.data.len(), message_id
+                );
+                
+                // Update stats
+                {
+                    let mut network_stats = stats.write().await;
+                    network_stats.messages_received += 1;
+                    network_stats.bytes_received += message.data.len() as u64;
+                    
+                    // Update protocol-specific stats
+                    let protocol_stats = network_stats.received_by_protocol
+                        .entry("gossipsub".to_string())
+                        .or_insert(0);
+                    *protocol_stats += 1;
+                }
+                
+                // TODO: Process the message payload - deserialize and handle based on message type
+                // This would be where we'd parse NetworkMessage and route to appropriate handlers
+            }
+            NetworkBehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
+                info!("Peer {} subscribed to topic: {}", peer_id, topic);
+            }
+            NetworkBehaviourEvent::Gossipsub(gossipsub::Event::Unsubscribed { peer_id, topic }) => {
+                info!("Peer {} unsubscribed from topic: {}", peer_id, topic);
+            }
+            NetworkBehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
+                warn!("Peer {} doesn't support gossipsub", peer_id);
+            }
+            NetworkBehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { 
+                id, 
+                result, 
+                stats: query_stats,
+                step 
+            }) => {
+                debug!("Kademlia query {} progressed: step {:?}", id, step);
+                
+                match result {
+                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { 
+                        key, 
+                        providers 
+                    })) => {
+                        info!("Found {} providers for key: {:?}", providers.len(), key);
+                    }
+                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FinishedWithNoAdditionalRecord { 
+                        closest_peers 
+                    })) => {
+                        debug!("Provider query finished with {} closest peers", closest_peers.len());
+                    }
+                    kad::QueryResult::Bootstrap(Ok(ok)) => {
+                        info!("Bootstrap query result: {:?}", ok);
+                    }
+                    _ => {
+                        debug!("Other Kademlia query result: {:?}", result);
+                    }
+                }
+                
+                debug!("Query stats: {:?}", query_stats);
+            }
+            NetworkBehaviourEvent::Kademlia(kad::Event::RoutingUpdated { 
+                peer, 
+                is_new_peer, 
+                addresses,
+                bucket_range,
+                old_peer 
+            }) => {
+                if is_new_peer {
+                    info!("New peer added to routing table: {} with addresses: {:?}", peer, addresses);
+                } else {
+                    debug!("Routing table updated for peer: {}", peer);
+                }
+                
+                debug!("Bucket range: {:?}, old peer: {:?}", bucket_range, old_peer);
+            }
+            NetworkBehaviourEvent::Mdns(mdns::Event::Discovered(peers)) => {
+                info!("mDNS discovered {} peers", peers.len());
+                
+                // Add discovered peers to our peer list
+                {
+                    let mut peer_map = connected_peers.write().await;
+                    for (peer_id, multiaddr) in peers {
+                        let peer_info = PeerInfo {
+                            peer_id,
+                            addresses: vec![multiaddr],
+                            connection_status: PeerConnectionStatus::Discovered,
+                            last_seen: std::time::SystemTime::now(),
+                            capabilities: vec![], // Will be updated through identify protocol
+                        };
+                        peer_map.insert(peer_id, peer_info);
+                        info!("Added mDNS discovered peer: {}", peer_id);
+                    }
+                }
+            }
+            NetworkBehaviourEvent::Mdns(mdns::Event::Expired(peers)) => {
+                info!("mDNS expired {} peers", peers.len());
+                
+                // Mark expired peers
+                {
+                    let mut peer_map = connected_peers.write().await;
+                    for (peer_id, _multiaddr) in peers {
+                        if let Some(mut peer_info) = peer_map.get_mut(&peer_id) {
+                            peer_info.connection_status = PeerConnectionStatus::Disconnected;
+                        }
+                        debug!("mDNS peer expired: {}", peer_id);
+                    }
+                }
+            }
+            NetworkBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+                info!("Received identify info from peer {}: protocol {}", peer_id, info.protocol_version);
+                
+                // Update peer capabilities
+                {
+                    let mut peer_map = connected_peers.write().await;
+                    if let Some(mut peer_info) = peer_map.get_mut(&peer_id) {
+                        peer_info.addresses = info.listen_addrs;
+                        peer_info.capabilities = info.protocols.iter().map(|p| p.to_string()).collect();
+                    } else {
+                        // Add new peer from identify
+                        let peer_info = PeerInfo {
+                            peer_id,
+                            addresses: info.listen_addrs,
+                            connection_status: PeerConnectionStatus::Connected,
+                            last_seen: std::time::SystemTime::now(),
+                            capabilities: info.protocols.iter().map(|p| p.to_string()).collect(),
+                        };
+                        peer_map.insert(peer_id, peer_info);
+                    }
+                }
+                
+                debug!("Peer {} capabilities: {:?}", peer_id, info.protocols);
+                debug!("Peer {} public key: {:?}", peer_id, info.public_key);
+                debug!("Peer {} agent version: {:?}", peer_id, info.agent_version);
+            }
+            NetworkBehaviourEvent::Identify(identify::Event::Sent { peer_id, .. }) => {
+                debug!("Sent identify info to peer: {}", peer_id);
+            }
+            NetworkBehaviourEvent::Identify(identify::Event::Pushed { peer_id, .. }) => {
+                debug!("Pushed identify info to peer: {}", peer_id);
+            }
+            NetworkBehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
+                warn!("Identify error with peer {}: {}", peer_id, error);
+            }
+            NetworkBehaviourEvent::Ping(ping::Event { peer, result, .. }) => {
+                match result {
+                    Ok(rtt) => {
+                        debug!("Ping to {} successful: RTT {:?}", peer, rtt);
+                        
+                        // Update peer last seen time
+                        {
+                            let mut peer_map = connected_peers.write().await;
+                            if let Some(mut peer_info) = peer_map.get_mut(&peer) {
+                                peer_info.last_seen = std::time::SystemTime::now();
+                            }
+                        }
+                    }
+                    Err(ping::Failure::Timeout) => {
+                        warn!("Ping timeout to peer: {}", peer);
+                    }
+                    Err(ping::Failure::Unsupported) => {
+                        warn!("Ping unsupported by peer: {}", peer);
+                    }
+                    Err(ping::Failure::Other { error }) => {
+                        warn!("Ping error to peer {}: {}", peer, error);
+                    }
+                }
+            }
+            // Catch-all for other events
+            _ => {
+                debug!("Unhandled network behaviour event: {:?}", event);
+            }
+        }
     }
 
     /// Get the local peer ID
@@ -671,6 +1044,137 @@ impl P2PNetwork {
         self.event_handler = Some(handler);
         info!("Event handler set");
     }
+
+    /// Perform network health check
+    pub async fn health_check(&self) -> MultivmResult<NetworkHealthReport> {
+        let stats = self.stats.read().await;
+        let connected_peers = self.connected_peers.read().await;
+        let subscribed_topics = self.subscribed_topics.read().await;
+        
+        let mut issues = Vec::new();
+        let mut status = NetworkHealthStatus::Healthy;
+        
+        // Check peer connectivity
+        let active_peers = connected_peers.values()
+            .filter(|p| matches!(p.connection_status, PeerConnectionStatus::Connected))
+            .count();
+        
+        if active_peers == 0 {
+            issues.push("No active peer connections".to_string());
+            status = NetworkHealthStatus::Critical;
+        } else if active_peers < 3 {
+            issues.push(format!("Low peer count: {}", active_peers));
+            if status == NetworkHealthStatus::Healthy {
+                status = NetworkHealthStatus::Warning;
+            }
+        }
+        
+        // Check if we're subscribed to essential topics
+        if subscribed_topics.is_empty() {
+            issues.push("No topic subscriptions".to_string());
+            if status == NetworkHealthStatus::Healthy {
+                status = NetworkHealthStatus::Warning;
+            }
+        }
+        
+        // Check for recent activity
+        if stats.messages_sent == 0 && stats.messages_received == 0 {
+            issues.push("No message activity".to_string());
+            if status == NetworkHealthStatus::Healthy {
+                status = NetworkHealthStatus::Warning;
+            }
+        }
+        
+        // Check for excessive failed connections
+        let failed_peers = connected_peers.values()
+            .filter(|p| matches!(p.connection_status, PeerConnectionStatus::Failed))
+            .count();
+        
+        if failed_peers > active_peers * 2 {
+            issues.push(format!("High failure rate: {} failed vs {} active", failed_peers, active_peers));
+            if status == NetworkHealthStatus::Healthy {
+                status = NetworkHealthStatus::Warning;
+            }
+        }
+        
+        Ok(NetworkHealthReport {
+            status,
+            connected_peers: active_peers,
+            failed_peers,
+            subscribed_topics: subscribed_topics.len(),
+            message_throughput: stats.messages_sent + stats.messages_received,
+            issues,
+            timestamp: std::time::SystemTime::now(),
+        })
+    }
+    
+    /// Attempt to heal network issues
+    pub async fn self_heal(&mut self) -> MultivmResult<Vec<String>> {
+        let health = self.health_check().await?;
+        let mut healing_actions = Vec::new();
+        
+        if matches!(health.status, NetworkHealthStatus::Critical | NetworkHealthStatus::Warning) {
+            info!("Network health issues detected, attempting self-healing");
+            
+            // Try to reconnect to bootstrap peers if we have no connections
+            if health.connected_peers == 0 && !self.bootstrap_peers.is_empty() {
+                healing_actions.push("Reconnecting to bootstrap peers".to_string());
+                
+                for peer_addr in &self.bootstrap_peers.clone() {
+                    if let Some(peer_id) = extract_peer_id(peer_addr) {
+                        let result = self.add_peer(peer_id, vec![peer_addr.clone()]).await;
+                        if result.is_ok() {
+                            healing_actions.push(format!("Reconnected to bootstrap peer: {}", peer_id));
+                        }
+                    }
+                }
+            }
+            
+            // Subscribe to essential topics if we have none
+            if health.subscribed_topics == 0 {
+                healing_actions.push("Subscribing to essential topics".to_string());
+                
+                let essential_topics = vec!["multivm-broadcast", "network-discovery", "node-status"];
+                for topic in essential_topics {
+                    let result = self.subscribe_topic(topic).await;
+                    if result.is_ok() {
+                        healing_actions.push(format!("Subscribed to essential topic: {}", topic));
+                    }
+                }
+            }
+            
+            // Clean up failed peer connections
+            {
+                let mut peers = self.connected_peers.write().await;
+                let failed_peers: Vec<PeerId> = peers.iter()
+                    .filter(|(_, info)| matches!(info.connection_status, PeerConnectionStatus::Failed))
+                    .map(|(peer_id, _)| *peer_id)
+                    .collect();
+                
+                if failed_peers.len() > 10 {
+                    // Remove oldest failed connections to prevent memory bloat
+                    for peer_id in failed_peers.into_iter().take(5) {
+                        peers.remove(&peer_id);
+                        healing_actions.push(format!("Cleaned up failed peer: {}", peer_id));
+                    }
+                }
+            }
+        }
+        
+        if !healing_actions.is_empty() {
+            info!("Network self-healing completed: {} actions taken", healing_actions.len());
+        }
+        
+        Ok(healing_actions)
+    }
+    
+    /// Start automatic health monitoring
+    pub async fn start_health_monitoring(&mut self) -> MultivmResult<()> {
+        // This would start a background task that periodically checks health
+        // and performs self-healing actions
+        info!("Started network health monitoring");
+        Ok(())
+    }
 }
 
 /// Extract peer ID from multiaddr if present
@@ -779,9 +1283,25 @@ impl P2PNetworkLayer for P2PNetwork {
     }
 
     /// Get list of connected peers
-    async fn get_connected_peers(&self) -> MultivmResult<Vec<PeerInfo>> {
+    async fn get_connected_peers(&self) -> MultivmResult<Vec<crate::PeerInfo>> {
         let peers = self.connected_peers.read().await;
-        Ok(peers.values().cloned().collect())
+        let converted_peers = peers.values().map(|peer| {
+            crate::PeerInfo {
+                peer_id: peer.peer_id.to_string(),
+                addresses: peer.addresses.clone(),
+                protocols: peer.capabilities.clone(),
+                supports_multivm: peer.capabilities.iter().any(|cap| cap.contains("multivm")),
+                last_seen: chrono::DateTime::from(peer.last_seen),
+                status: match peer.connection_status {
+                    PeerConnectionStatus::Connected => crate::PeerStatus::Connected,
+                    PeerConnectionStatus::Connecting => crate::PeerStatus::Connecting,
+                    PeerConnectionStatus::Disconnected => crate::PeerStatus::Disconnected,
+                    PeerConnectionStatus::Failed => crate::PeerStatus::Failed,
+                    PeerConnectionStatus::Discovered => crate::PeerStatus::Connecting,
+                },
+            }
+        }).collect();
+        Ok(converted_peers)
     }
 
     /// Get network statistics

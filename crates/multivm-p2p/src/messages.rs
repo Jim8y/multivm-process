@@ -397,6 +397,17 @@ impl NetworkMessage {
             MessageTarget::Local(_) | MessageTarget::MultiVmLayer
         )
     }
+    
+    /// Infer the message type from the payload
+    pub fn infer_type(&self) -> MessageType {
+        match &self.payload {
+            MessagePayload::Svm(_) => MessageType::Svm,
+            MessagePayload::Evm(_) => MessageType::Evm,
+            MessagePayload::MultiVm(_) => MessageType::MultiVm,
+            MessagePayload::Control(_) => MessageType::Control,
+            MessagePayload::Discovery(_) => MessageType::Discovery,
+        }
+    }
 }
 
 impl Default for ExecutionPriority {

@@ -63,6 +63,24 @@ uuid = { workspace = true }
 bytes = "1.0"
 hex = "0.4"
 
+# Metrics (optional)
+prometheus = { version = "0.13", optional = true }
+lazy_static = { version = "1.4", optional = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio-test = "0.4"
+tracing-subscriber = "0.3"
+env_logger = "0.10"
+
+[features]
+default = []
+metrics = ["prometheus", "lazy_static"]
+
+[[example]]
+name = "basic_p2p_usage"
+required-features = []
+
+[[example]]
+name = "advanced_routing"
+required-features = []
