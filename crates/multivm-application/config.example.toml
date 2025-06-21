@@ -1,0 +1,86 @@
+# MultiVM Application Layer Configuration Example
+# Copy this file to config.toml and modify values as needed
+
+[server]
+[server.rest]
+host = "0.0.0.0"
+port = 8080
+
+[server.graphql]
+host = "0.0.0.0"
+port = 8081
+enable_playground = true
+
+[server.websocket]
+host = "0.0.0.0"
+port = 8082
+
+[server.admin]
+host = "127.0.0.1"
+port = 8083
+enable_ui = true
+
+[database]
+host = "localhost"
+port = 5432
+name = "multivm"
+username = "postgres"
+password = "password"
+max_connections = 10
+connection_timeout = "30s"
+
+[cache]
+cache_type = "Redis"  # Options: "Memory", "Redis"
+default_ttl = "300s"
+max_entries = 10000
+
+[cache.redis]
+url = "redis://localhost:6379"
+db = 0
+connection_timeout = "5s"
+command_timeout = "10s"
+
+[vm_clients]
+[vm_clients.solana]
+rpc_url = "http://localhost:8899"
+timeout_seconds = 30
+max_retries = 3
+
+[vm_clients.reth]
+rpc_url = "http://localhost:8545"
+timeout_seconds = 30
+max_retries = 3
+
+[vm_clients.multivm]
+rpc_url = "http://localhost:9000"
+timeout_seconds = 30
+max_retries = 3
+
+[auth]
+jwt_secret = "your-jwt-secret-key-here"
+jwt_expiration = "24h"
+api_key_header = "X-API-Key"
+require_auth = false
+
+[monitoring]
+enable_metrics = true
+enable_tracing = true
+
+[monitoring.metrics]
+host = "0.0.0.0"
+port = 9090
+
+[monitoring.health_check]
+host = "0.0.0.0"
+port = 9091
+
+[monitoring.tracing]
+jaeger_endpoint = "http://localhost:14268/api/traces"
+service_name = "multivm-application"
+
+[logging]
+level = "info"
+format = "json"  # Options: "json", "pretty"
+file = "logs/multivm-application.log"
+max_size = "100MB"
+max_files = 10 
