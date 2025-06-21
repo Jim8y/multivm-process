@@ -7,27 +7,30 @@ use crate::{NetworkStats, P2PNetworkLayer, PeerInfo};
 use multivm_common::MultivmResult;
 
 use libp2p::{
-    gossipsub::{self, IdentTopic, MessageAuthenticity, ValidationMode, MessageId},
+    gossipsub::{self, IdentTopic, MessageAuthenticity, MessageId, ValidationMode},
     identify,
     kad::{self, store::MemoryStore, Behaviour as KademliaBehaviour},
     mdns,
     noise,
     ping,
-    // TODO: request_response::{self, ProtocolSupport, Behaviour as RequestResponseBehaviour, Config as RequestResponseConfig},
-    SwarmBuilder,
     tcp,
     yamux,
-    Multiaddr, PeerId, Swarm, Transport,
+    Multiaddr,
+    PeerId,
+    Swarm,
+    // TODO: request_response::{self, ProtocolSupport, Behaviour as RequestResponseBehaviour, Config as RequestResponseConfig},
+    SwarmBuilder,
+    Transport,
 };
 // TODO: Re-enable when request-response types are implemented
 // use serde::{Deserialize, Serialize};
+use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info, warn};
-use std::sync::Arc;
-use futures::StreamExt;
 
 /// Network behavior configuration
 #[derive(libp2p::swarm::NetworkBehaviour)]
@@ -121,11 +124,29 @@ impl From<ping::Event> for NetworkBehaviourEvent {
 /// Commands to send to the swarm task
 #[derive(Debug)]
 enum SwarmCommand {
-    Subscribe { topic: String, response: tokio::sync::oneshot::Sender<MultivmResult<()>> },
-    Unsubscribe { topic: String, response: tokio::sync::oneshot::Sender<MultivmResult<()>> },
-    Publish { topic: String, data: Vec<u8>, response: tokio::sync::oneshot::Sender<MultivmResult<()>> },
-    AddPeer { peer_id: PeerId, addresses: Vec<Multiaddr>, response: tokio::sync::oneshot::Sender<MultivmResult<()>> },
-    SendDirectMessage { peer_id: PeerId, data: Vec<u8>, response: tokio::sync::oneshot::Sender<MultivmResult<()>> },
+    Subscribe {
+        topic: String,
+        response: tokio::sync::oneshot::Sender<MultivmResult<()>>,
+    },
+    Unsubscribe {
+        topic: String,
+        response: tokio::sync::oneshot::Sender<MultivmResult<()>>,
+    },
+    Publish {
+        topic: String,
+        data: Vec<u8>,
+        response: tokio::sync::oneshot::Sender<MultivmResult<()>>,
+    },
+    AddPeer {
+        peer_id: PeerId,
+        addresses: Vec<Multiaddr>,
+        response: tokio::sync::oneshot::Sender<MultivmResult<()>>,
+    },
+    SendDirectMessage {
+        peer_id: PeerId,
+        data: Vec<u8>,
+        response: tokio::sync::oneshot::Sender<MultivmResult<()>>,
+    },
 }
 
 /// Production-grade P2P network implementation using libp2p
@@ -206,13 +227,13 @@ impl P2PNetwork {
     /// Create a new P2P network instance with production libp2p stack
     pub async fn new(config: NetworkConfig) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let (command_sender, command_receiver) = mpsc::unbounded_channel::<SwarmCommand>();
-        
+
         // Generate keypair
         let local_key = libp2p::identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
-        
+
         info!("Starting P2P network with peer ID: {}", local_peer_id);
-        
+
         // Create transport
         let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
             .upgrade(libp2p::core::upgrade::Version::V1)
@@ -220,14 +241,14 @@ impl P2PNetwork {
             .multiplex(yamux::Config::default())
             .timeout(config.connection_timeout)
             .boxed();
-        
+
         // Configure Kademlia DHT
         let store = MemoryStore::new(local_peer_id);
         let mut kademlia = KademliaBehaviour::new(local_peer_id, store);
-        
+
         // Set Kademlia mode to server to help with DHT
         kademlia.set_mode(Some(kad::Mode::Server));
-        
+
         // Configure Gossipsub
         let gossipsub_config = gossipsub::ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(10))
@@ -240,13 +261,13 @@ impl P2PNetwork {
             })
             .build()
             .map_err(|e| format!("Failed to build gossipsub config: {}", e))?;
-            
+
         let gossipsub = gossipsub::Behaviour::new(
             MessageAuthenticity::Signed(local_key.clone()),
             gossipsub_config,
         )
         .map_err(|e| format!("Failed to create gossipsub behaviour: {}", e))?;
-        
+
         // Configure mDNS if enabled
         let mdns = if config.enable_mdns {
             mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?
@@ -259,22 +280,19 @@ impl P2PNetwork {
                 local_peer_id,
             )?
         };
-        
+
         // Configure Identify
         let identify = identify::Behaviour::new(
-            identify::Config::new(
-                "multivm/1.0.0".to_string(),
-                local_key.public(),
-            )
-            .with_agent_version("multivm-p2p/1.0.0".to_string()),
+            identify::Config::new("multivm/1.0.0".to_string(), local_key.public())
+                .with_agent_version("multivm-p2p/1.0.0".to_string()),
         );
-        
+
         // Configure Ping
         let ping = ping::Behaviour::new(ping::Config::new());
-        
+
         // TODO: Configure Request-Response for direct messaging when API is stable
         // For now, use gossipsub for all peer communication which works reliably
-        
+
         // Create the network behaviour
         let behaviour = NetworkBehaviour {
             kademlia,
@@ -283,7 +301,7 @@ impl P2PNetwork {
             identify,
             ping,
         };
-        
+
         // Build the swarm using the new SwarmBuilder API
         let mut swarm = SwarmBuilder::with_existing_identity(local_key.clone())
             .with_tokio()
@@ -294,7 +312,7 @@ impl P2PNetwork {
             )?
             .with_behaviour(|_| behaviour)?
             .build();
-        
+
         // Start listening on configured addresses
         for addr in &config.listen_addresses {
             match swarm.listen_on(addr.clone()) {
@@ -302,15 +320,18 @@ impl P2PNetwork {
                 Err(e) => warn!("Failed to listen on {}: {}", addr, e),
             }
         }
-        
+
         // Add bootstrap peers to Kademlia
         for peer_addr in &config.bootstrap_peers {
             if let Some(peer_id) = extract_peer_id(peer_addr) {
-                swarm.behaviour_mut().kademlia.add_address(&peer_id, peer_addr.clone());
+                swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, peer_addr.clone());
                 info!("Added bootstrap peer: {} at {}", peer_id, peer_addr);
             }
         }
-        
+
         let stats = NetworkStats {
             connected_peers: 0,
             messages_sent: 0,
@@ -325,12 +346,12 @@ impl P2PNetwork {
             received_by_protocol: HashMap::new(),
             uptime: Duration::from_secs(0),
         };
-        
+
         // Spawn the swarm task
         let connected_peers_clone = Arc::new(RwLock::new(HashMap::new()));
         let stats_clone = Arc::new(RwLock::new(stats.clone()));
         let subscribed_topics_clone = Arc::new(RwLock::new(HashSet::new()));
-        
+
         tokio::spawn(Self::swarm_task(
             swarm,
             command_receiver,
@@ -338,7 +359,7 @@ impl P2PNetwork {
             stats_clone.clone(),
             subscribed_topics_clone.clone(),
         ));
-        
+
         Ok(Self {
             command_sender,
             local_peer_id,
@@ -353,7 +374,7 @@ impl P2PNetwork {
             config,
         })
     }
-    
+
     /// Swarm task that handles all libp2p operations
     async fn swarm_task(
         mut swarm: Swarm<NetworkBehaviour>,
@@ -368,7 +389,7 @@ impl P2PNetwork {
                 Some(command) = command_receiver.recv() => {
                     Self::handle_swarm_command(&mut swarm, command, &connected_peers, &stats, &subscribed_topics).await;
                 }
-                
+
                 // Handle swarm events
                 event = swarm.select_next_some() => {
                     Self::handle_swarm_event(event, &connected_peers, &stats).await;
@@ -376,7 +397,7 @@ impl P2PNetwork {
             }
         }
     }
-    
+
     /// Handle commands sent to the swarm task
     async fn handle_swarm_command(
         swarm: &mut Swarm<NetworkBehaviour>,
@@ -388,59 +409,100 @@ impl P2PNetwork {
         match command {
             SwarmCommand::Subscribe { topic, response } => {
                 let topic_ident = IdentTopic::new(&topic);
-                let result = swarm.behaviour_mut().gossipsub.subscribe(&topic_ident)
+                let result = swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .subscribe(&topic_ident)
                     .map(|_| ()) // Convert bool to ()
-                    .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to subscribe: {}", e)));
-                
+                    .map_err(|e| {
+                        multivm_common::MultivmError::Network(format!("Failed to subscribe: {}", e))
+                    });
+
                 if result.is_ok() {
                     subscribed_topics.write().await.insert(topic);
                 }
-                
+
                 let _ = response.send(result);
             }
             SwarmCommand::Unsubscribe { topic, response } => {
                 let topic_ident = IdentTopic::new(&topic);
-                let result = swarm.behaviour_mut().gossipsub.unsubscribe(&topic_ident)
+                let result = swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .unsubscribe(&topic_ident)
                     .map(|_| ()) // Convert bool to ()
-                    .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to unsubscribe: {}", e)));
-                
+                    .map_err(|e| {
+                        multivm_common::MultivmError::Network(format!(
+                            "Failed to unsubscribe: {}",
+                            e
+                        ))
+                    });
+
                 if result.is_ok() {
                     subscribed_topics.write().await.remove(&topic);
                 }
-                
+
                 let _ = response.send(result);
             }
-            SwarmCommand::Publish { topic, data, response } => {
+            SwarmCommand::Publish {
+                topic,
+                data,
+                response,
+            } => {
                 let topic_ident = IdentTopic::new(&topic);
-                let result = swarm.behaviour_mut().gossipsub.publish(topic_ident, data)
+                let result = swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .publish(topic_ident, data)
                     .map(|_| ()) // Convert MessageId to ()
-                    .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to publish: {}", e)));
-                
+                    .map_err(|e| {
+                        multivm_common::MultivmError::Network(format!("Failed to publish: {}", e))
+                    });
+
                 let _ = response.send(result);
             }
-            SwarmCommand::AddPeer { peer_id, addresses, response } => {
+            SwarmCommand::AddPeer {
+                peer_id,
+                addresses,
+                response,
+            } => {
                 for addr in addresses {
                     swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
                 }
                 let _ = response.send(Ok(()));
             }
-            SwarmCommand::SendDirectMessage { peer_id, data, response } => {
+            SwarmCommand::SendDirectMessage {
+                peer_id,
+                data,
+                response,
+            } => {
                 // Create request for direct messaging
                 // Direct message via gossipsub topic for the peer
-                
+
                 // Use gossipsub for direct messaging (reliable fallback)
                 let topic_name = format!("peer-{}", peer_id);
                 let topic_ident = IdentTopic::new(&topic_name);
-                let result = swarm.behaviour_mut().gossipsub.publish(topic_ident, data)
+                let result = swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .publish(topic_ident, data)
                     .map(|_| ())
-                    .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to publish to peer: {}", e)));
-                
-                debug!("Sent direct message to peer {} via gossipsub topic: {}", peer_id, topic_name);
+                    .map_err(|e| {
+                        multivm_common::MultivmError::Network(format!(
+                            "Failed to publish to peer: {}",
+                            e
+                        ))
+                    });
+
+                debug!(
+                    "Sent direct message to peer {} via gossipsub topic: {}",
+                    peer_id, topic_name
+                );
                 let _ = response.send(result);
             }
         }
     }
-    
+
     /// Handle events from the swarm
     async fn handle_swarm_event(
         _event: libp2p::swarm::SwarmEvent<NetworkBehaviourEvent>,
@@ -450,63 +512,96 @@ impl P2PNetwork {
         // Handle swarm events like peer connections, disconnections, messages, etc.
         // This is where we'd update connected_peers and stats based on swarm events
     }
-    
+
     /// Get the local peer ID
     pub fn local_peer_id(&self) -> PeerId {
         self.local_peer_id
     }
-    
+
     /// Subscribe to a gossipsub topic
     pub async fn subscribe_topic(&self, topic_name: &str) -> MultivmResult<()> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
-        self.command_sender.send(SwarmCommand::Subscribe {
-            topic: topic_name.to_string(),
-            response: tx,
-        }).map_err(|e| multivm_common::MultivmError::Network(format!("Failed to send subscribe command: {}", e)))?;
-        
-        let result = rx.await
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to receive subscribe response: {}", e)))?;
-        
+
+        self.command_sender
+            .send(SwarmCommand::Subscribe {
+                topic: topic_name.to_string(),
+                response: tx,
+            })
+            .map_err(|e| {
+                multivm_common::MultivmError::Network(format!(
+                    "Failed to send subscribe command: {}",
+                    e
+                ))
+            })?;
+
+        let result = rx.await.map_err(|e| {
+            multivm_common::MultivmError::Network(format!(
+                "Failed to receive subscribe response: {}",
+                e
+            ))
+        })?;
+
         if result.is_ok() {
             info!("Subscribed to topic: {}", topic_name);
         }
-        
+
         result
     }
-    
+
     /// Unsubscribe from a gossipsub topic
     pub async fn unsubscribe_topic(&self, topic_name: &str) -> MultivmResult<()> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
-        self.command_sender.send(SwarmCommand::Unsubscribe {
-            topic: topic_name.to_string(),
-            response: tx,
-        }).map_err(|e| multivm_common::MultivmError::Network(format!("Failed to send unsubscribe command: {}", e)))?;
-        
-        let result = rx.await
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to receive unsubscribe response: {}", e)))?;
-        
+
+        self.command_sender
+            .send(SwarmCommand::Unsubscribe {
+                topic: topic_name.to_string(),
+                response: tx,
+            })
+            .map_err(|e| {
+                multivm_common::MultivmError::Network(format!(
+                    "Failed to send unsubscribe command: {}",
+                    e
+                ))
+            })?;
+
+        let result = rx.await.map_err(|e| {
+            multivm_common::MultivmError::Network(format!(
+                "Failed to receive unsubscribe response: {}",
+                e
+            ))
+        })?;
+
         if result.is_ok() {
             info!("Unsubscribed from topic: {}", topic_name);
         }
-        
+
         result
     }
-    
+
     /// Publish a message to a gossipsub topic
     pub async fn publish_message(&self, topic_name: &str, data: Vec<u8>) -> MultivmResult<()> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
-        self.command_sender.send(SwarmCommand::Publish {
-            topic: topic_name.to_string(),
-            data: data.clone(),
-            response: tx,
-        }).map_err(|e| multivm_common::MultivmError::Network(format!("Failed to send publish command: {}", e)))?;
-        
-        let result = rx.await
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to receive publish response: {}", e)))?;
-        
+
+        self.command_sender
+            .send(SwarmCommand::Publish {
+                topic: topic_name.to_string(),
+                data: data.clone(),
+                response: tx,
+            })
+            .map_err(|e| {
+                multivm_common::MultivmError::Network(format!(
+                    "Failed to send publish command: {}",
+                    e
+                ))
+            })?;
+
+        let result = rx.await.map_err(|e| {
+            multivm_common::MultivmError::Network(format!(
+                "Failed to receive publish response: {}",
+                e
+            ))
+        })?;
+
         if result.is_ok() {
             // Update statistics
             {
@@ -514,46 +609,64 @@ impl P2PNetwork {
                 stats.messages_sent += 1;
                 stats.bytes_sent += data.len() as u64;
             }
-            debug!("Published message to topic: {} ({} bytes)", topic_name, data.len());
+            debug!(
+                "Published message to topic: {} ({} bytes)",
+                topic_name,
+                data.len()
+            );
         }
-        
+
         result
     }
-    
+
     /// Add a peer to the DHT
     pub async fn add_peer(&self, peer_id: PeerId, addresses: Vec<Multiaddr>) -> MultivmResult<()> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
-        self.command_sender.send(SwarmCommand::AddPeer {
-            peer_id,
-            addresses: addresses.clone(),
-            response: tx,
-        }).map_err(|e| multivm_common::MultivmError::Network(format!("Failed to send add peer command: {}", e)))?;
-        
-        let result = rx.await
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to receive add peer response: {}", e)))?;
-        
+
+        self.command_sender
+            .send(SwarmCommand::AddPeer {
+                peer_id,
+                addresses: addresses.clone(),
+                response: tx,
+            })
+            .map_err(|e| {
+                multivm_common::MultivmError::Network(format!(
+                    "Failed to send add peer command: {}",
+                    e
+                ))
+            })?;
+
+        let result = rx.await.map_err(|e| {
+            multivm_common::MultivmError::Network(format!(
+                "Failed to receive add peer response: {}",
+                e
+            ))
+        })?;
+
         if result.is_ok() {
             for addr in addresses {
                 info!("Added peer {} with address {}", peer_id, addr);
             }
         }
-        
+
         result
     }
-    
+
     /// Get connected peers
     pub async fn get_connected_peers(&self) -> HashMap<PeerId, PeerInfo> {
         self.connected_peers.read().await.clone()
     }
-    
+
     /// Get subscribed topics
     pub async fn get_subscribed_topics(&self) -> HashSet<String> {
         self.subscribed_topics.read().await.clone()
     }
-    
+
     /// Set the event handler
-    pub fn set_event_handler(&mut self, handler: Arc<dyn crate::NetworkEventHandler + Send + Sync>) {
+    pub fn set_event_handler(
+        &mut self,
+        handler: Arc<dyn crate::NetworkEventHandler + Send + Sync>,
+    ) {
         self.event_handler = Some(handler);
         info!("Event handler set");
     }
@@ -562,7 +675,7 @@ impl P2PNetwork {
 /// Extract peer ID from multiaddr if present
 fn extract_peer_id(addr: &Multiaddr) -> Option<PeerId> {
     use libp2p::multiaddr::Protocol;
-    
+
     for protocol in addr.iter() {
         if let Protocol::P2p(peer_id) = protocol {
             return peer_id.try_into().ok();
@@ -595,34 +708,47 @@ impl P2PNetworkLayer for P2PNetwork {
         message: crate::messages::NetworkMessage,
     ) -> MultivmResult<()> {
         // Serialize the message
-        let data = bincode::serialize(&message)
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Serialization failed: {}", e)))?;
-        
+        let data = bincode::serialize(&message).map_err(|e| {
+            multivm_common::MultivmError::Network(format!("Serialization failed: {}", e))
+        })?;
+
         // Parse peer ID from string
-        let peer_id = peer_id.parse::<PeerId>()
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Invalid peer ID: {}", e)))?;
-        
+        let peer_id = peer_id.parse::<PeerId>().map_err(|e| {
+            multivm_common::MultivmError::Network(format!("Invalid peer ID: {}", e))
+        })?;
+
         // Use command system to send direct message
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
-        self.command_sender.send(SwarmCommand::SendDirectMessage {
-            peer_id,
-            data: data.clone(),
-            response: tx,
-        }).map_err(|e| multivm_common::MultivmError::Network(format!("Failed to send direct message command: {}", e)))?;
-        
-        let result = rx.await
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Failed to receive direct message response: {}", e)))?;
-        
+
+        self.command_sender
+            .send(SwarmCommand::SendDirectMessage {
+                peer_id,
+                data: data.clone(),
+                response: tx,
+            })
+            .map_err(|e| {
+                multivm_common::MultivmError::Network(format!(
+                    "Failed to send direct message command: {}",
+                    e
+                ))
+            })?;
+
+        let result = rx.await.map_err(|e| {
+            multivm_common::MultivmError::Network(format!(
+                "Failed to receive direct message response: {}",
+                e
+            ))
+        })?;
+
         if result.is_ok() {
             // Update statistics
             let mut stats = self.stats.write().await;
             stats.messages_sent += 1;
             stats.bytes_sent += data.len() as u64;
         }
-        
+
         result?;
-        
+
         info!("Sent message to peer: {}", peer_id);
         Ok(())
     }
@@ -630,12 +756,13 @@ impl P2PNetworkLayer for P2PNetwork {
     /// Broadcast a message to all connected peers
     async fn broadcast(&mut self, message: crate::messages::NetworkMessage) -> MultivmResult<()> {
         // Serialize the message
-        let data = bincode::serialize(&message)
-            .map_err(|e| multivm_common::MultivmError::Network(format!("Serialization failed: {}", e)))?;
-        
+        let data = bincode::serialize(&message).map_err(|e| {
+            multivm_common::MultivmError::Network(format!("Serialization failed: {}", e))
+        })?;
+
         // Broadcast on the general topic
         self.publish_message("multivm-broadcast", data).await?;
-        
+
         info!("Broadcasted message to all peers");
         Ok(())
     }
@@ -667,8 +794,11 @@ impl P2PNetworkLayer for P2PNetwork {
         message: crate::messages::NetworkMessage,
         peer_id: String,
     ) -> MultivmResult<()> {
-        info!("Received message from peer {}: {:?}", peer_id, message.payload);
-        
+        info!(
+            "Received message from peer {}: {:?}",
+            peer_id, message.payload
+        );
+
         // Process the message based on its type
         match &message.payload {
             crate::messages::MessagePayload::Control(_) => {
@@ -692,13 +822,13 @@ impl P2PNetworkLayer for P2PNetwork {
                 // Forward to EVM layer
             }
         }
-        
+
         // Update statistics
         {
             let mut stats = self.stats.write().await;
             stats.messages_received += 1;
         }
-        
+
         Ok(())
     }
 }
@@ -706,9 +836,6 @@ impl P2PNetworkLayer for P2PNetwork {
 impl Default for P2PNetwork {
     fn default() -> Self {
         // This is a placeholder - in practice, use P2PNetwork::new()
-        futures::executor::block_on(async {
-            Self::new(NetworkConfig::default()).await.unwrap()
-        })
+        futures::executor::block_on(async { Self::new(NetworkConfig::default()).await.unwrap() })
     }
 }
-

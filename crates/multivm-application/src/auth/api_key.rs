@@ -236,8 +236,9 @@ impl ApiKeyManager {
         if let Some(env_manager) = &self.environment_manager {
             if let Ok(key_info) = env_manager.validate_api_key(api_key) {
                 // Implement rate limiting for environment keys
-                let (is_rate_limited, remaining_requests) = self.check_rate_limit(&key_info.key_id).await;
-                
+                let (is_rate_limited, remaining_requests) =
+                    self.check_rate_limit(&key_info.key_id).await;
+
                 return Ok(ValidatedApiKey {
                     key_info: key_info.clone(),
                     is_expired: false, // Environment keys don't expire
@@ -258,7 +259,8 @@ impl ApiKeyManager {
                     .unwrap_or(false);
 
                 // Check rate limiting for regular API keys too
-                let (is_rate_limited, remaining_requests) = self.check_rate_limit(&key_info.key_id).await;
+                let (is_rate_limited, remaining_requests) =
+                    self.check_rate_limit(&key_info.key_id).await;
 
                 return Ok(ValidatedApiKey {
                     key_info: key_info.clone(),
@@ -317,20 +319,23 @@ impl ApiKeyManager {
     async fn check_rate_limit(&self, key_id: &str) -> (bool, u64) {
         let window = RateLimitWindow {
             duration: Duration::from_secs(60), // 1 minute window
-            max_requests: 1000, // Default limit
+            max_requests: 1000,                // Default limit
         };
 
         let mut rate_limiter = self.rate_limiter.write().await;
         let now = Instant::now();
-        
+
         // Get or create usage window for this key
-        let usage_times = rate_limiter.usage_windows.entry(key_id.to_string()).or_insert_with(Vec::new);
-        
+        let usage_times = rate_limiter
+            .usage_windows
+            .entry(key_id.to_string())
+            .or_insert_with(Vec::new);
+
         // Remove old entries outside the window
         usage_times.retain(|&time| now.duration_since(time) <= window.duration);
-        
+
         let current_count = usage_times.len() as u32;
-        
+
         if current_count >= window.max_requests {
             // Rate limited
             (true, 0)
@@ -351,17 +356,23 @@ impl ApiKeyManager {
 
         let rate_limiter = self.rate_limiter.read().await;
         let now = Instant::now();
-        
+
         if let Some(usage_times) = rate_limiter.usage_windows.get(key_id) {
-            let current_count = usage_times.iter()
+            let current_count = usage_times
+                .iter()
                 .filter(|&&time| now.duration_since(time) <= window.duration)
                 .count() as u64;
-            
+
             let remaining = window.max_requests.saturating_sub(current_count as u32) as u64;
-            let reset_time = usage_times.first()
-                .map(|&first_time| window.duration.saturating_sub(now.duration_since(first_time)))
+            let reset_time = usage_times
+                .first()
+                .map(|&first_time| {
+                    window
+                        .duration
+                        .saturating_sub(now.duration_since(first_time))
+                })
                 .unwrap_or(Duration::from_secs(0));
-            
+
             (current_count, remaining, reset_time)
         } else {
             (0, window.max_requests as u64, Duration::from_secs(0))
@@ -379,7 +390,7 @@ impl ApiKeyManager {
         let mut rate_limiter = self.rate_limiter.write().await;
         let now = Instant::now();
         let cleanup_duration = Duration::from_secs(3600); // 1 hour
-        
+
         rate_limiter.usage_windows.retain(|_, usage_times| {
             usage_times.retain(|&time| now.duration_since(time) <= cleanup_duration);
             !usage_times.is_empty()

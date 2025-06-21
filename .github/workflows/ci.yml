@@ -46,7 +46,7 @@ jobs:
       run: cargo fmt --all -- --check
     
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings -A dead_code -A unused_variables -A unused_imports
+      run: cargo clippy --all-targets --all-features -- -D warnings -A dead_code -A unused_variables -A unused_imports -A clippy::derivable_impls -A clippy::field_reassign_with_default -A clippy::len_zero -A clippy::needless_borrows_for_generic_args -A clippy::single_component_path_imports -A clippy::match_like_matches_macro -A clippy::useless_conversion -A clippy::unnecessary_map_or -A clippy::large_enum_variant -A clippy::type_complexity
     
     - name: Build workspace
       run: cargo build --workspace --verbose

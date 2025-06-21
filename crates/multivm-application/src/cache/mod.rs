@@ -1,13 +1,13 @@
 pub mod memory;
-pub mod redis;
 pub mod production;
+pub mod redis;
 pub mod strategy;
 
 pub use memory::MemoryCache;
 #[cfg(feature = "cache")]
-pub use redis::RedisCache;
-#[cfg(feature = "cache")]
 pub use production::ProductionRedisCache;
+#[cfg(feature = "cache")]
+pub use redis::RedisCache;
 pub use strategy::CacheStrategy;
 
 use crate::config::CacheConfig;
@@ -54,7 +54,8 @@ impl CacheLayer {
         let memory_cache = Arc::new(MemoryCache::new(&config.memory).await?);
 
         // Initialize Redis cache
-        let redis_cache = if !config.redis.url.is_empty() && !config.redis.enable_connection_pooling {
+        let redis_cache = if !config.redis.url.is_empty() && !config.redis.enable_connection_pooling
+        {
             Some(Arc::new(RedisCache::new(&config.redis).await?))
         } else {
             None
@@ -62,11 +63,12 @@ impl CacheLayer {
 
         // Initialize production cache if enabled
         #[cfg(feature = "cache")]
-        let production_cache = if !config.redis.url.is_empty() && config.redis.enable_connection_pooling {
-            Some(Arc::new(ProductionRedisCache::new(&config.redis).await?))
-        } else {
-            None
-        };
+        let production_cache =
+            if !config.redis.url.is_empty() && config.redis.enable_connection_pooling {
+                Some(Arc::new(ProductionRedisCache::new(&config.redis).await?))
+            } else {
+                None
+            };
 
         Ok(Self {
             memory_cache,

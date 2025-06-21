@@ -1,8 +1,10 @@
-use multivm_common::*;
-use crate::ipc::connection_manager::{IpcConnectionManager, ConnectionPoolConfig, TcpConnectionFactory, UnixConnectionFactory};
-use multivm_common::ipc::secure_transport::{
-    SecureIpcTransport, AuthManager, RateLimiter, RateLimitConfig, EncryptionConfig
+use crate::ipc::connection_manager::{
+    ConnectionPoolConfig, IpcConnectionManager, TcpConnectionFactory, UnixConnectionFactory,
 };
+use multivm_common::ipc::secure_transport::{
+    AuthManager, EncryptionConfig, RateLimitConfig, RateLimiter, SecureIpcTransport,
+};
+use multivm_common::*;
 use sha2::Digest;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -78,7 +80,8 @@ impl IpcTransportImpl {
                 IpcConnectionManager::new(ConnectionPoolConfig::default(), factory)
             }
             IpcTransportConfig::UnixSocket { path } => {
-                let socket_dir = path.parent()
+                let socket_dir = path
+                    .parent()
                     .ok_or_else(|| MultivmError::Configuration("Invalid socket path".to_string()))?
                     .to_string_lossy()
                     .to_string();
@@ -122,7 +125,9 @@ impl IpcTransportImpl {
             let message = IpcMessage::new(ProcessId::Main, process_id, command);
             connection_manager.send_message(process_id, message).await
         } else {
-            Err(MultivmError::Ipc("Connection manager not initialized".to_string()))
+            Err(MultivmError::Ipc(
+                "Connection manager not initialized".to_string(),
+            ))
         }
     }
 
@@ -154,7 +159,9 @@ impl IpcTransportImpl {
     }
 
     /// Get connection statistics
-    pub async fn get_connection_stats(&self) -> Option<HashMap<ProcessId, crate::ipc::ConnectionStats>> {
+    pub async fn get_connection_stats(
+        &self,
+    ) -> Option<HashMap<ProcessId, crate::ipc::ConnectionStats>> {
         if let Some(ref connection_manager) = self.connection_manager {
             Some(connection_manager.get_stats().await)
         } else {
@@ -190,7 +197,9 @@ async fn run_secure_ipc_server(
                                 stream,
                                 auth_manager_clone,
                                 rate_limiter_clone,
-                            ).await {
+                            )
+                            .await
+                            {
                                 error!("Secure TCP connection error: {}", e);
                             }
                         });
@@ -225,7 +234,9 @@ async fn run_secure_ipc_server(
                                     stream,
                                     auth_manager_clone,
                                     rate_limiter_clone,
-                                ).await {
+                                )
+                                .await
+                                {
                                     error!("Secure Unix socket connection error: {}", e);
                                 }
                             });
@@ -292,7 +303,7 @@ async fn handle_secure_tcp_connection(
                 // Create IPC response message for sending back
                 let response_message = IpcMessage::new(
                     ProcessId::Main,
-                    ProcessId::Main, // Will be overridden by secure transport
+                    ProcessId::Main,  // Will be overridden by secure transport
                     IpcCommand::Ping, // Placeholder, response goes in secure envelope
                 );
 
@@ -360,7 +371,7 @@ async fn handle_secure_unix_connection(
                 // Create IPC response message for sending back
                 let response_message = IpcMessage::new(
                     ProcessId::Main,
-                    ProcessId::Main, // Will be overridden by secure transport
+                    ProcessId::Main,  // Will be overridden by secure transport
                     IpcCommand::Ping, // Placeholder, response goes in secure envelope
                 );
 
@@ -531,7 +542,10 @@ async fn process_solana_block_secure(block_data_bytes: &[u8]) -> MultivmResult<V
 
 /// Process Ethereum block with secure validation
 async fn process_ethereum_block_secure(block_data_bytes: &[u8]) -> MultivmResult<Vec<u8>> {
-    debug!("Processing Ethereum block ({} bytes)", block_data_bytes.len());
+    debug!(
+        "Processing Ethereum block ({} bytes)",
+        block_data_bytes.len()
+    );
 
     // Simulate block processing with proper validation
     let block_hash = format!(

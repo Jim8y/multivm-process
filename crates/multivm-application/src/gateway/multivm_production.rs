@@ -3,32 +3,35 @@
 //! This module provides a production-ready gateway for interacting with
 //! the MultiVM consensus layer and coordinating cross-VM operations.
 
-use crate::{cache::CacheLayer, error::{ApplicationError, ApplicationResult}};
-use multivm_account_mapping::{AccountAddress, SpecialTransaction, MultivmAccountId};
-use multivm_consensus::{MultiVMBlock, BlockHeader};
+use crate::{
+    cache::CacheLayer,
+    error::{ApplicationError, ApplicationResult},
+};
+use multivm_account_mapping::{AccountAddress, MultivmAccountId, SpecialTransaction};
+use multivm_consensus::{BlockHeader, MultiVMBlock};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
-use sha2::Digest;
 
 /// Production MultiVM Gateway for consensus and cross-VM operations
 #[derive(Clone)]
 pub struct ProductionMultivmGateway {
     /// Cache layer for performance
     cache: Arc<CacheLayer>,
-    
+
     /// Mock consensus client for now
     // In production, this would be a real consensus client
     _consensus_endpoint: String,
-    
+
     /// Account mapping service client
     account_mapping_client: Arc<AccountMappingClient>,
-    
+
     /// Configuration
     config: MultivmGatewayConfig,
-    
+
     /// Health status
     health_status: Arc<RwLock<GatewayHealthStatus>>,
 }
@@ -38,19 +41,19 @@ pub struct ProductionMultivmGateway {
 pub struct MultivmGatewayConfig {
     /// Consensus RPC endpoint
     pub consensus_endpoint: String,
-    
+
     /// Account mapping service endpoint
     pub account_mapping_endpoint: String,
-    
+
     /// Request timeout
     pub request_timeout: Duration,
-    
+
     /// Maximum request retries
     pub max_retries: u32,
-    
+
     /// Cache TTL for blocks
     pub block_cache_ttl: Duration,
-    
+
     /// Cache TTL for account bindings
     pub binding_cache_ttl: Duration,
 }
@@ -82,9 +85,8 @@ impl ProductionMultivmGateway {
         let _consensus_endpoint = config.consensus_endpoint.clone();
 
         // Create account mapping client
-        let account_mapping_client = Arc::new(
-            AccountMappingClient::new(&config.account_mapping_endpoint)?
-        );
+        let account_mapping_client =
+            Arc::new(AccountMappingClient::new(&config.account_mapping_endpoint)?);
 
         let gateway = Self {
             cache,
@@ -121,7 +123,7 @@ impl ProductionMultivmGateway {
                 self.cache
                     .set(&cache_key, &block, self.config.block_cache_ttl)
                     .await?;
-                
+
                 Ok(Some(block))
             }
             Ok(None) => Ok(None),
@@ -146,11 +148,11 @@ impl ProductionMultivmGateway {
         }
 
         // Query consensus layer
-        let block = self.get_latest_block_from_consensus()
-            .await
-            .map_err(|e| ApplicationError::ConsensusError {
+        let block = self.get_latest_block_from_consensus().await.map_err(|e| {
+            ApplicationError::ConsensusError {
                 message: format!("Failed to get latest block: {}", e),
-            })?;
+            }
+        })?;
 
         // Update health status
         let mut health = self.health_status.write().await;
@@ -179,7 +181,8 @@ impl ProductionMultivmGateway {
         self.validate_special_transaction(&tx)?;
 
         // Submit to account mapping service
-        let tx_hash = self.account_mapping_client
+        let tx_hash = self
+            .account_mapping_client
             .submit_transaction(tx.clone())
             .await?;
 
@@ -200,16 +203,14 @@ impl ProductionMultivmGateway {
         tx_hash: &str,
     ) -> ApplicationResult<Option<SpecialTransaction>> {
         let cache_key = format!("multivm:special_tx:{}", tx_hash);
-        
+
         // Check cache first
         if let Some(tx) = self.cache.get(&cache_key).await? {
             return Ok(Some(tx));
         }
 
         // Query account mapping service
-        self.account_mapping_client
-            .get_transaction(tx_hash)
-            .await
+        self.account_mapping_client.get_transaction(tx_hash).await
     }
 
     /// Get account binding information
@@ -262,11 +263,7 @@ impl ProductionMultivmGateway {
 
         // Cache with short TTL
         self.cache
-            .set(
-                "multivm:consensus_status",
-                &status,
-                Duration::from_secs(5),
-            )
+            .set("multivm:consensus_status", &status, Duration::from_secs(5))
             .await?;
 
         Ok(status)
@@ -285,9 +282,14 @@ impl ProductionMultivmGateway {
 
         // Submit to consensus
         // In production, this would submit through proper consensus channels
-        let tx_hash = format!("0x{}", hex::encode(sha2::Sha256::digest(
-            serde_json::to_string(&cross_vm_tx).unwrap_or_default().as_bytes()
-        )));
+        let tx_hash = format!(
+            "0x{}",
+            hex::encode(sha2::Sha256::digest(
+                serde_json::to_string(&cross_vm_tx)
+                    .unwrap_or_default()
+                    .as_bytes()
+            ))
+        );
 
         info!("Submitted cross-VM transaction: {}", tx_hash);
 
@@ -338,7 +340,7 @@ impl ProductionMultivmGateway {
             TxStatusType::Completed | TxStatusType::Failed => Duration::from_secs(3600),
             _ => Duration::from_secs(30),
         };
-        
+
         self.cache.set(&cache_key, &status, ttl).await?;
 
         Ok(status)
@@ -349,13 +351,15 @@ impl ProductionMultivmGateway {
         // Check all components
         let consensus_healthy = self.check_consensus_health().await;
         let account_mapping_healthy = self.account_mapping_client.is_healthy().await;
-        
+
         // Get execution engine health from cache or endpoints
         let svm_healthy = self.check_svm_health().await;
         let evm_healthy = self.check_evm_health().await;
 
-        let all_healthy = consensus_healthy && account_mapping_healthy && svm_healthy && evm_healthy;
-        let any_unhealthy = !consensus_healthy || !account_mapping_healthy || !svm_healthy || !evm_healthy;
+        let all_healthy =
+            consensus_healthy && account_mapping_healthy && svm_healthy && evm_healthy;
+        let any_unhealthy =
+            !consensus_healthy || !account_mapping_healthy || !svm_healthy || !evm_healthy;
 
         let overall_status = if all_healthy {
             HealthStatus::Healthy
@@ -385,7 +389,7 @@ impl ProductionMultivmGateway {
                 let age = std::time::SystemTime::now()
                     .duration_since(proof.timestamp)
                     .unwrap_or(Duration::from_secs(0));
-                
+
                 if age > Duration::from_secs(300) {
                     return Err(ApplicationError::InvalidRequest {
                         message: "Binding proof is too old (max 5 minutes)".to_string(),
@@ -397,7 +401,7 @@ impl ProductionMultivmGateway {
                 let age = std::time::SystemTime::now()
                     .duration_since(auth_proof.timestamp)
                     .unwrap_or(Duration::from_secs(0));
-                
+
                 if age > Duration::from_secs(300) {
                     return Err(ApplicationError::InvalidRequest {
                         message: "Auth proof is too old (max 5 minutes)".to_string(),
@@ -406,12 +410,15 @@ impl ProductionMultivmGateway {
             }
             _ => {}
         }
-        
+
         Ok(())
     }
 
     /// Validate cross-VM request
-    fn validate_cross_vm_request(&self, request: &CrossVmTransactionRequest) -> ApplicationResult<()> {
+    fn validate_cross_vm_request(
+        &self,
+        request: &CrossVmTransactionRequest,
+    ) -> ApplicationResult<()> {
         // Validate addresses
         if request.svm_instructions.is_empty() && request.evm_calls.is_empty() {
             return Err(ApplicationError::InvalidRequest {
@@ -435,7 +442,8 @@ impl ProductionMultivmGateway {
         request: CrossVmTransactionRequest,
     ) -> ApplicationResult<CrossVmTransaction> {
         // Build SVM transactions
-        let svm_txs = request.svm_instructions
+        let svm_txs = request
+            .svm_instructions
             .into_iter()
             .map(|inst| SvmTransactionData {
                 signatures: vec![],
@@ -444,7 +452,8 @@ impl ProductionMultivmGateway {
             .collect();
 
         // Build EVM transactions
-        let evm_txs = request.evm_calls
+        let evm_txs = request
+            .evm_calls
             .into_iter()
             .map(|call| EvmTransactionData {
                 hash: String::new(),
@@ -496,7 +505,10 @@ impl ProductionMultivmGateway {
                 health.last_block_height = Some(block.header.height);
                 health.last_error = None;
                 health.last_check = std::time::Instant::now();
-                info!("MultiVM gateway health check passed, block height: {}", block.header.height);
+                info!(
+                    "MultiVM gateway health check passed, block height: {}",
+                    block.header.height
+                );
             }
             Err(e) => {
                 let mut health = self.health_status.write().await;
@@ -511,25 +523,28 @@ impl ProductionMultivmGateway {
     /// Get gateway health status
     pub async fn is_healthy(&self) -> bool {
         let health = self.health_status.read().await;
-        
+
         // Consider unhealthy if last check was more than 60 seconds ago
         if health.last_check.elapsed() > Duration::from_secs(60) {
             return false;
         }
-        
+
         health.is_healthy
     }
-    
+
     // Helper methods for consensus operations
-    
+
     /// Get block from consensus layer
-    async fn get_block_from_consensus(&self, height: u64) -> Result<Option<MultiVMBlock>, multivm_consensus::ConsensusError> {
+    async fn get_block_from_consensus(
+        &self,
+        height: u64,
+    ) -> Result<Option<MultiVMBlock>, multivm_consensus::ConsensusError> {
         // In production, this would query the consensus RPC endpoint
         // For now, return None for blocks beyond a certain height
         if height > 1000 {
             return Ok(None);
         }
-        
+
         // Create a mock block
         let block = MultiVMBlock {
             header: BlockHeader {
@@ -552,15 +567,17 @@ impl ProductionMultivmGateway {
             multivm_transactions: vec![],
             state_transitions: vec![],
         };
-        
+
         Ok(Some(block))
     }
-    
+
     /// Get latest block from consensus layer
-    async fn get_latest_block_from_consensus(&self) -> Result<MultiVMBlock, multivm_consensus::ConsensusError> {
+    async fn get_latest_block_from_consensus(
+        &self,
+    ) -> Result<MultiVMBlock, multivm_consensus::ConsensusError> {
         // In production, this would query the consensus RPC endpoint
         let current_height = (chrono::Utc::now().timestamp() / 10) as u64 % 1000;
-        
+
         let block = MultiVMBlock {
             header: BlockHeader {
                 height: current_height,
@@ -582,10 +599,10 @@ impl ProductionMultivmGateway {
             multivm_transactions: vec![],
             state_transitions: vec![],
         };
-        
+
         Ok(block)
     }
-    
+
     /// Check consensus health
     async fn check_consensus_health(&self) -> bool {
         // In production, check real consensus health
@@ -612,7 +629,8 @@ impl AccountMappingClient {
     }
 
     async fn submit_transaction(&self, tx: SpecialTransaction) -> ApplicationResult<String> {
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/transactions", self.endpoint))
             .json(&tx)
             .send()
@@ -625,18 +643,26 @@ impl AccountMappingClient {
         if !response.status().is_success() {
             return Err(ApplicationError::ExternalServiceError {
                 service: "account_mapping".to_string(),
-                message: format!("HTTP {}: {}", response.status(), response.text().await.unwrap_or_default()),
+                message: format!(
+                    "HTTP {}: {}",
+                    response.status(),
+                    response.text().await.unwrap_or_default()
+                ),
             });
         }
 
-        let result: serde_json::Value = response.json().await
-            .map_err(|e| ApplicationError::ParseError {
-                field: "response".to_string(),
-                value: String::new(),
-                message: e.to_string(),
-            })?;
+        let result: serde_json::Value =
+            response
+                .json()
+                .await
+                .map_err(|e| ApplicationError::ParseError {
+                    field: "response".to_string(),
+                    value: String::new(),
+                    message: e.to_string(),
+                })?;
 
-        result["tx_hash"].as_str()
+        result["tx_hash"]
+            .as_str()
             .ok_or_else(|| ApplicationError::ParseError {
                 field: "tx_hash".to_string(),
                 value: result.to_string(),
@@ -645,8 +671,12 @@ impl AccountMappingClient {
             .map(|s| s.to_string())
     }
 
-    async fn get_transaction(&self, tx_hash: &str) -> ApplicationResult<Option<SpecialTransaction>> {
-        let response = self.client
+    async fn get_transaction(
+        &self,
+        tx_hash: &str,
+    ) -> ApplicationResult<Option<SpecialTransaction>> {
+        let response = self
+            .client
             .get(&format!("{}/transactions/{}", self.endpoint, tx_hash))
             .send()
             .await
@@ -666,7 +696,9 @@ impl AccountMappingClient {
             });
         }
 
-        let tx = response.json().await
+        let tx = response
+            .json()
+            .await
             .map_err(|e| ApplicationError::ParseError {
                 field: "transaction".to_string(),
                 value: String::new(),
@@ -676,8 +708,12 @@ impl AccountMappingClient {
         Ok(Some(tx))
     }
 
-    async fn get_binding(&self, address: &AccountAddress) -> ApplicationResult<Option<AccountBindingInfo>> {
-        let response = self.client
+    async fn get_binding(
+        &self,
+        address: &AccountAddress,
+    ) -> ApplicationResult<Option<AccountBindingInfo>> {
+        let response = self
+            .client
             .get(&format!("{}/bindings/{:?}", self.endpoint, address))
             .send()
             .await
@@ -697,7 +733,9 @@ impl AccountMappingClient {
             });
         }
 
-        let binding = response.json().await
+        let binding = response
+            .json()
+            .await
             .map_err(|e| ApplicationError::ParseError {
                 field: "binding".to_string(),
                 value: String::new(),
@@ -708,7 +746,8 @@ impl AccountMappingClient {
     }
 
     async fn is_healthy(&self) -> bool {
-        match self.client
+        match self
+            .client
             .get(&format!("{}/health", self.endpoint))
             .send()
             .await
@@ -721,12 +760,7 @@ impl AccountMappingClient {
 
 // Re-export types from multivm module
 pub use super::multivm::{
-    AccountBindingInfo,
-    CrossVmTxStatus,
-    TxStatusType,
-    ConsensusStatus,
-    SystemHealth,
-    HealthStatus,
+    AccountBindingInfo, ConsensusStatus, CrossVmTxStatus, HealthStatus, SystemHealth, TxStatusType,
 };
 
 /// Cross-VM transaction request
@@ -734,10 +768,10 @@ pub use super::multivm::{
 pub struct CrossVmTransactionRequest {
     /// SVM instructions to execute
     pub svm_instructions: Vec<SvmInstruction>,
-    
+
     /// EVM calls to execute
     pub evm_calls: Vec<EvmCall>,
-    
+
     /// Coordination proof for atomic execution
     pub coordination_proof: Vec<u8>,
 }
@@ -809,7 +843,10 @@ impl std::fmt::Debug for ProductionMultivmGateway {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProductionMultivmGateway")
             .field("consensus_endpoint", &self.config.consensus_endpoint)
-            .field("account_mapping_endpoint", &self.config.account_mapping_endpoint)
+            .field(
+                "account_mapping_endpoint",
+                &self.config.account_mapping_endpoint,
+            )
             .finish()
     }
 }

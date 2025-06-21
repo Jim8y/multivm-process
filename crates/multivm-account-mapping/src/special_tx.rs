@@ -1015,7 +1015,7 @@ impl SpecialTransactionProcessor {
                 });
 
                 steps.push(TransferStep::UnlockNative {
-                    vm_type: origin_vm.clone(),
+                    vm_type: *origin_vm,
                     address: target_addr,
                     amount,
                     unlock_reference: format!("unlock_{:x}", rand::random::<u64>()),
@@ -1374,7 +1374,7 @@ impl SpecialTransactionProcessor {
         );
 
         // Cost varies based on what's being updated
-        if new_config.allow_transfers != true {
+        if !new_config.allow_transfers {
             // Assuming default was true
             update_cost += 50; // Disabling transfers requires more validation
         }

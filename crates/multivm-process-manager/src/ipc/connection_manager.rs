@@ -4,7 +4,6 @@
 //! including connection pooling, health monitoring, and automatic recovery.
 
 use multivm_common::*;
-use uuid;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -13,6 +12,7 @@ use tokio::net::{TcpStream, UnixStream};
 use tokio::sync::{mpsc, RwLock, Semaphore};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
+use uuid;
 
 /// Protocol version for handshake negotiation
 const PROTOCOL_VERSION: u32 = 1;
@@ -36,9 +36,7 @@ enum HandshakeMessage {
         encryption_key: Vec<u8>,
     },
     /// Server rejects the handshake
-    Reject {
-        reason: String,
-    },
+    Reject { reason: String },
 }
 
 /// Connection pool configuration
@@ -228,9 +226,12 @@ impl ManagedConnection {
     }
 
     /// Receive a response from this connection
-    pub async fn receive_response(&mut self, timeout_duration: Duration) -> MultivmResult<IpcResponse> {
+    pub async fn receive_response(
+        &mut self,
+        timeout_duration: Duration,
+    ) -> MultivmResult<IpcResponse> {
         let mut receiver = self.response_receiver.write().await;
-        
+
         match timeout(timeout_duration, receiver.recv()).await {
             Ok(Some(response)) => {
                 self.stats.messages_received.fetch_add(1, Ordering::Relaxed);
@@ -258,7 +259,7 @@ impl ManagedConnection {
                         return false;
                     }
                 }
-                
+
                 // Check if we've had recent successful operations
                 if let Some(last_success) = self.stats.last_success {
                     last_success.elapsed() < Duration::from_secs(300) // 5 minutes
@@ -273,38 +274,34 @@ impl ManagedConnection {
 
     /// Check if connection is idle
     pub fn is_idle(&self, idle_timeout: Duration) -> bool {
-        self.state == ConnectionState::Idle || 
-        (self.state == ConnectionState::Connected && self.stats.last_used.elapsed() > idle_timeout)
+        self.state == ConnectionState::Idle
+            || (self.state == ConnectionState::Connected
+                && self.stats.last_used.elapsed() > idle_timeout)
     }
 
     /// Perform health check
     pub async fn health_check(&mut self) -> bool {
         self.last_health_check = Instant::now();
-        
+
         // Create a ping message
-        let ping_message = IpcMessage::new(
-            ProcessId::Main,
-            self.process_id,
-            IpcCommand::HealthCheck,
-        );
+        let ping_message =
+            IpcMessage::new(ProcessId::Main, self.process_id, IpcCommand::HealthCheck);
 
         // Try to send ping and receive pong
         match self.send_message(ping_message).await {
             Ok(_) => {
                 // Wait for response with short timeout
                 match self.receive_response(Duration::from_secs(5)).await {
-                    Ok(response) => {
-                        match response {
-                            IpcResponse::HealthCheck => {
-                                self.state = ConnectionState::Connected;
-                                true
-                            }
-                            _ => {
-                                warn!("Unexpected health check response from {}", self.process_id);
-                                false
-                            }
+                    Ok(response) => match response {
+                        IpcResponse::HealthCheck => {
+                            self.state = ConnectionState::Connected;
+                            true
                         }
-                    }
+                        _ => {
+                            warn!("Unexpected health check response from {}", self.process_id);
+                            false
+                        }
+                    },
                     Err(_) => {
                         self.state = ConnectionState::Unhealthy;
                         false
@@ -402,8 +399,10 @@ impl IpcConnectionManager {
 
                 // Update global stats
                 let mut global_stats = self.global_stats.write().await;
-                let process_stats = global_stats.entry(process_id).or_insert_with(ConnectionStats::default);
-                
+                let process_stats = global_stats
+                    .entry(process_id)
+                    .or_insert_with(ConnectionStats::default);
+
                 process_stats.messages_sent.fetch_add(
                     connection.stats.messages_sent.load(Ordering::Relaxed),
                     Ordering::Relaxed,
@@ -438,7 +437,8 @@ impl IpcConnectionManager {
                     if attempts < self.config.max_retry_attempts {
                         tokio::time::sleep(backoff).await;
                         backoff = Duration::from_millis(
-                            (backoff.as_millis() as f64 * self.config.retry_backoff_multiplier) as u64
+                            (backoff.as_millis() as f64 * self.config.retry_backoff_multiplier)
+                                as u64,
                         );
                     }
                 }
@@ -458,7 +458,7 @@ impl IpcConnectionManager {
         message: IpcMessage,
     ) -> MultivmResult<IpcResponse> {
         let connection_index = self.get_available_connection(process_id).await?;
-        
+
         // Send message and get response using the connection at the index
         let response = {
             let mut pools = self.pools.write().await;
@@ -466,9 +466,11 @@ impl IpcConnectionManager {
                 if let Some(connection) = pool.get_mut(connection_index) {
                     // Send message
                     connection.send_message(message).await?;
-                    
+
                     // Wait for response
-                    connection.receive_response(self.config.connection_timeout).await?
+                    connection
+                        .receive_response(self.config.connection_timeout)
+                        .await?
                 } else {
                     return Err(MultivmError::Ipc("Connection index invalid".to_string()));
                 }
@@ -476,19 +478,23 @@ impl IpcConnectionManager {
                 return Err(MultivmError::Ipc("Process pool not found".to_string()));
             }
         };
-        
+
         // Return connection to pool
-        self.return_connection_by_index(process_id, connection_index).await;
-        
+        self.return_connection_by_index(process_id, connection_index)
+            .await;
+
         Ok(response)
     }
 
     /// Create a new connection
     async fn create_connection(&self, process_id: ProcessId) -> MultivmResult<ManagedConnection> {
         let connection_id = format!("{}-{}", process_id, uuid::Uuid::new_v4());
-        
-        debug!("Creating new connection {} for process {}", connection_id, process_id);
-        
+
+        debug!(
+            "Creating new connection {} for process {}",
+            connection_id, process_id
+        );
+
         let (message_sender, response_receiver) = self
             .connection_factory
             .create_connection(process_id)
@@ -509,17 +515,20 @@ impl IpcConnectionManager {
         let pool = pools.entry(process_id).or_insert_with(Vec::new);
 
         let healthy_count = pool.iter().filter(|c| c.is_healthy()).count();
-        
+
         if healthy_count < self.config.min_connections_per_process {
             let needed = self.config.min_connections_per_process - healthy_count;
-            
+
             for _ in 0..needed {
                 match self.create_connection(process_id).await {
                     Ok(connection) => {
                         pool.push(connection);
                     }
                     Err(e) => {
-                        error!("Failed to create minimum connection for {}: {}", process_id, e);
+                        error!(
+                            "Failed to create minimum connection for {}: {}",
+                            process_id, e
+                        );
                     }
                 }
             }
@@ -535,17 +544,16 @@ impl IpcConnectionManager {
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(config.health_check_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let mut pools_guard = pools.write().await;
-                
+
                 for (process_id, pool) in pools_guard.iter_mut() {
                     // Remove failed connections
                     pool.retain(|conn| {
-                        conn.state != ConnectionState::Failed && 
-                        !conn.is_idle(config.idle_timeout)
+                        conn.state != ConnectionState::Failed && !conn.is_idle(config.idle_timeout)
                     });
 
                     // Health check remaining connections
@@ -596,7 +604,10 @@ pub trait ConnectionFactory: Send + Sync {
     async fn create_connection(
         &self,
         process_id: ProcessId,
-    ) -> MultivmResult<(mpsc::UnboundedSender<IpcMessage>, mpsc::UnboundedReceiver<IpcResponse>)>;
+    ) -> MultivmResult<(
+        mpsc::UnboundedSender<IpcMessage>,
+        mpsc::UnboundedReceiver<IpcResponse>,
+    )>;
 }
 
 /// TCP connection factory
@@ -612,7 +623,10 @@ impl ConnectionFactory for TcpConnectionFactory {
     async fn create_connection(
         &self,
         process_id: ProcessId,
-    ) -> MultivmResult<(mpsc::UnboundedSender<IpcMessage>, mpsc::UnboundedReceiver<IpcResponse>)> {
+    ) -> MultivmResult<(
+        mpsc::UnboundedSender<IpcMessage>,
+        mpsc::UnboundedReceiver<IpcResponse>,
+    )> {
         let port = self.port_mapping.get(&process_id).ok_or_else(|| {
             MultivmError::Ipc(format!("No port mapping for process {}", process_id))
         })?;
@@ -625,7 +639,7 @@ impl ConnectionFactory for TcpConnectionFactory {
 
         // Perform secure handshake protocol
         let connection = self.perform_tcp_handshake(stream, process_id).await?;
-        
+
         Ok(connection)
     }
 }
@@ -641,17 +655,22 @@ impl ConnectionFactory for UnixConnectionFactory {
     async fn create_connection(
         &self,
         process_id: ProcessId,
-    ) -> MultivmResult<(mpsc::UnboundedSender<IpcMessage>, mpsc::UnboundedReceiver<IpcResponse>)> {
+    ) -> MultivmResult<(
+        mpsc::UnboundedSender<IpcMessage>,
+        mpsc::UnboundedReceiver<IpcResponse>,
+    )> {
         let socket_path = format!("{}/multivm-{}.sock", self.socket_dir, process_id);
-        
+
         let stream = timeout(Duration::from_secs(5), UnixStream::connect(&socket_path))
             .await
             .map_err(|_| MultivmError::Ipc("Connection timeout".to_string()))?
-            .map_err(|e| MultivmError::Ipc(format!("Failed to connect to {}: {}", socket_path, e)))?;
+            .map_err(|e| {
+                MultivmError::Ipc(format!("Failed to connect to {}: {}", socket_path, e))
+            })?;
 
         // Perform secure handshake protocol
         let connection = self.perform_unix_handshake(stream, process_id).await?;
-        
+
         Ok(connection)
     }
 }
@@ -663,9 +682,12 @@ impl TcpConnectionFactory {
         &self,
         mut stream: TcpStream,
         process_id: ProcessId,
-    ) -> MultivmResult<(mpsc::UnboundedSender<IpcMessage>, mpsc::UnboundedReceiver<IpcResponse>)> {
+    ) -> MultivmResult<(
+        mpsc::UnboundedSender<IpcMessage>,
+        mpsc::UnboundedReceiver<IpcResponse>,
+    )> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        
+
         // Step 1: Send handshake initiation
         let handshake_init = HandshakeMessage::Init {
             version: PROTOCOL_VERSION,
@@ -673,78 +695,98 @@ impl TcpConnectionFactory {
             capabilities: vec!["multivm-1.0".to_string()],
             auth_token: self.generate_auth_token(&process_id).await?,
         };
-        
+
         let init_data = serde_json::to_vec(&handshake_init)
             .map_err(|e| MultivmError::Ipc(format!("Failed to serialize handshake init: {}", e)))?;
-        
+
         // Send length-prefixed message
         let len = init_data.len() as u32;
-        stream.write_all(&len.to_be_bytes()).await
+        stream
+            .write_all(&len.to_be_bytes())
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to send handshake length: {}", e)))?;
-        stream.write_all(&init_data).await
+        stream
+            .write_all(&init_data)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to send handshake init: {}", e)))?;
-        
+
         // Step 2: Receive handshake response
         let mut len_buf = [0u8; 4];
-        stream.read_exact(&mut len_buf).await
+        stream
+            .read_exact(&mut len_buf)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to read response length: {}", e)))?;
         let response_len = u32::from_be_bytes(len_buf) as usize;
-        
+
         if response_len > MAX_MESSAGE_SIZE {
-            return Err(MultivmError::Ipc("Handshake response too large".to_string()));
+            return Err(MultivmError::Ipc(
+                "Handshake response too large".to_string(),
+            ));
         }
-        
+
         let mut response_buf = vec![0u8; response_len];
-        stream.read_exact(&mut response_buf).await
+        stream
+            .read_exact(&mut response_buf)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to read handshake response: {}", e)))?;
-        
+
         let handshake_response: HandshakeMessage = serde_json::from_slice(&response_buf)
             .map_err(|e| MultivmError::Ipc(format!("Failed to parse handshake response: {}", e)))?;
-        
+
         // Step 3: Validate handshake response
         match handshake_response {
-            HandshakeMessage::Accept { session_id, encryption_key } => {
-                info!("Handshake accepted for process {}, session: {}", process_id, session_id);
-                
+            HandshakeMessage::Accept {
+                session_id,
+                encryption_key,
+            } => {
+                info!(
+                    "Handshake accepted for process {}, session: {}",
+                    process_id, session_id
+                );
+
                 // Step 4: Set up encrypted communication channels
                 let (msg_sender, msg_receiver) = mpsc::unbounded_channel();
                 let (resp_sender, resp_receiver) = mpsc::unbounded_channel();
-                
+
                 // Start message processing task with encryption
                 let stream_handle = Arc::new(tokio::sync::Mutex::new(stream));
-                self.start_message_handler(stream_handle, msg_receiver, resp_sender, encryption_key).await;
-                
+                self.start_message_handler(
+                    stream_handle,
+                    msg_receiver,
+                    resp_sender,
+                    encryption_key,
+                )
+                .await;
+
                 Ok((msg_sender, resp_receiver))
             }
             HandshakeMessage::Reject { reason } => {
                 Err(MultivmError::Ipc(format!("Handshake rejected: {}", reason)))
             }
-            _ => {
-                Err(MultivmError::Ipc("Invalid handshake response".to_string()))
-            }
+            _ => Err(MultivmError::Ipc("Invalid handshake response".to_string())),
         }
     }
-    
+
     /// Generate authentication token for process
     async fn generate_auth_token(&self, process_id: &ProcessId) -> MultivmResult<String> {
         use sha2::{Digest, Sha256};
-        
+
         // In production: use proper JWT with secret key
         // For now: generate deterministic token based on process ID and timestamp
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         let mut hasher = Sha256::new();
         hasher.update(process_id.to_string().as_bytes());
         hasher.update(timestamp.to_be_bytes());
         hasher.update(b"multivm-auth-secret"); // In production: use proper secret
-        
+
         let token = format!("multivm.{}.{}", process_id, hex::encode(hasher.finalize()));
         Ok(token)
     }
-    
+
     /// Start message handler with encryption
     async fn start_message_handler(
         &self,
@@ -755,11 +797,11 @@ impl TcpConnectionFactory {
     ) {
         tokio::spawn(async move {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
-            
+
             // Handle outgoing messages
             while let Some(message) = msg_receiver.recv().await {
                 let mut stream_guard = stream.lock().await;
-                
+
                 // Serialize message
                 let message_data = match serde_json::to_vec(&message) {
                     Ok(data) => data,
@@ -768,42 +810,42 @@ impl TcpConnectionFactory {
                         continue;
                     }
                 };
-                
+
                 // In production: encrypt message_data with encryption_key
-                
+
                 // Send length-prefixed message
                 let len = message_data.len() as u32;
                 if let Err(e) = stream_guard.write_all(&len.to_be_bytes()).await {
                     error!("Failed to send message length: {}", e);
                     break;
                 }
-                
+
                 if let Err(e) = stream_guard.write_all(&message_data).await {
                     error!("Failed to send message: {}", e);
                     break;
                 }
-                
+
                 // Read response
                 let mut len_buf = [0u8; 4];
                 if let Err(e) = stream_guard.read_exact(&mut len_buf).await {
                     error!("Failed to read response length: {}", e);
                     break;
                 }
-                
+
                 let response_len = u32::from_be_bytes(len_buf) as usize;
                 if response_len > MAX_MESSAGE_SIZE {
                     error!("Response too large: {} bytes", response_len);
                     break;
                 }
-                
+
                 let mut response_buf = vec![0u8; response_len];
                 if let Err(e) = stream_guard.read_exact(&mut response_buf).await {
                     error!("Failed to read response: {}", e);
                     break;
                 }
-                
+
                 // In production: decrypt response_buf with encryption_key
-                
+
                 // Parse and send response
                 match serde_json::from_slice::<IpcResponse>(&response_buf) {
                     Ok(response) => {
@@ -817,7 +859,7 @@ impl TcpConnectionFactory {
                     }
                 }
             }
-            
+
             debug!("Message handler task completed");
         });
     }
@@ -829,21 +871,28 @@ impl UnixConnectionFactory {
         &self,
         stream: UnixStream,
         process_id: ProcessId,
-    ) -> MultivmResult<(mpsc::UnboundedSender<IpcMessage>, mpsc::UnboundedReceiver<IpcResponse>)> {
+    ) -> MultivmResult<(
+        mpsc::UnboundedSender<IpcMessage>,
+        mpsc::UnboundedReceiver<IpcResponse>,
+    )> {
         // Unix sockets have built-in authentication via filesystem permissions
         // Perform simplified handshake for capability negotiation
-        
+
         let (msg_sender, msg_receiver) = mpsc::unbounded_channel();
         let (resp_sender, resp_receiver) = mpsc::unbounded_channel();
-        
+
         // Start message processing without encryption (Unix socket is local)
         let stream_handle = Arc::new(tokio::sync::Mutex::new(stream));
-        self.start_unix_message_handler(stream_handle, msg_receiver, resp_sender).await;
-        
-        info!("Unix socket connection established for process {}", process_id);
+        self.start_unix_message_handler(stream_handle, msg_receiver, resp_sender)
+            .await;
+
+        info!(
+            "Unix socket connection established for process {}",
+            process_id
+        );
         Ok((msg_sender, resp_receiver))
     }
-    
+
     /// Start Unix socket message handler
     async fn start_unix_message_handler(
         &self,
@@ -853,10 +902,10 @@ impl UnixConnectionFactory {
     ) {
         tokio::spawn(async move {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
-            
+
             while let Some(message) = msg_receiver.recv().await {
                 let mut stream_guard = stream.lock().await;
-                
+
                 // Serialize message
                 let message_data = match serde_json::to_vec(&message) {
                     Ok(data) => data,
@@ -865,38 +914,38 @@ impl UnixConnectionFactory {
                         continue;
                     }
                 };
-                
+
                 // Send length-prefixed message
                 let len = message_data.len() as u32;
                 if let Err(e) = stream_guard.write_all(&len.to_be_bytes()).await {
                     error!("Failed to send message length: {}", e);
                     break;
                 }
-                
+
                 if let Err(e) = stream_guard.write_all(&message_data).await {
                     error!("Failed to send message: {}", e);
                     break;
                 }
-                
+
                 // Read response
                 let mut len_buf = [0u8; 4];
                 if let Err(e) = stream_guard.read_exact(&mut len_buf).await {
                     error!("Failed to read response length: {}", e);
                     break;
                 }
-                
+
                 let response_len = u32::from_be_bytes(len_buf) as usize;
                 if response_len > MAX_MESSAGE_SIZE {
                     error!("Response too large: {} bytes", response_len);
                     break;
                 }
-                
+
                 let mut response_buf = vec![0u8; response_len];
                 if let Err(e) = stream_guard.read_exact(&mut response_buf).await {
                     error!("Failed to read response: {}", e);
                     break;
                 }
-                
+
                 // Parse and send response
                 match serde_json::from_slice::<IpcResponse>(&response_buf) {
                     Ok(response) => {
@@ -910,7 +959,7 @@ impl UnixConnectionFactory {
                     }
                 }
             }
-            
+
             debug!("Unix message handler task completed");
         });
     }

@@ -455,6 +455,12 @@ pub struct AccountMapper {
     reverse_lookup: HashMap<AccountAddress, MultivmAccountId>,
 }
 
+impl Default for AccountMapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AccountMapper {
     /// Create a new account mapper
     pub fn new() -> Self {

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 // Production implementation
-use super::svm_production::{ProductionSvmGateway, SvmGatewayConfig, CommitmentLevel};
+use super::svm_production::{CommitmentLevel, ProductionSvmGateway, SvmGatewayConfig};
 
 /// SVM API Gateway
 #[derive(Debug)]
@@ -92,28 +92,33 @@ impl SvmApiGateway {
             })?;
 
         // Check if we should use production gateway
-        let production_gateway = if std::env::var("MULTIVM_PRODUCTION_SVM").unwrap_or_default() == "true" {
-            let svm_config = SvmGatewayConfig {
-                rpc_url: config.rpc_url.clone(),
-                ws_url: Some(config.ws_url.clone()),
-                request_timeout: config.timeout,
-                max_retries: config.retry.max_retries,
-                commitment: match std::env::var("MULTIVM_SVM_COMMITMENT").as_deref() {
-                    Ok("processed") => CommitmentLevel::Processed,
-                    Ok("finalized") => CommitmentLevel::Finalized,
-                    _ => CommitmentLevel::Confirmed,
-                },
-                preflight_checks: std::env::var("MULTIVM_SVM_PREFLIGHT").unwrap_or_default() != "false",
+        let production_gateway =
+            if std::env::var("MULTIVM_PRODUCTION_SVM").unwrap_or_default() == "true" {
+                let svm_config = SvmGatewayConfig {
+                    rpc_url: config.rpc_url.clone(),
+                    ws_url: Some(config.ws_url.clone()),
+                    request_timeout: config.timeout,
+                    max_retries: config.retry.max_retries,
+                    commitment: match std::env::var("MULTIVM_SVM_COMMITMENT").as_deref() {
+                        Ok("processed") => CommitmentLevel::Processed,
+                        Ok("finalized") => CommitmentLevel::Finalized,
+                        _ => CommitmentLevel::Confirmed,
+                    },
+                    preflight_checks: std::env::var("MULTIVM_SVM_PREFLIGHT").unwrap_or_default()
+                        != "false",
+                };
+
+                Some(
+                    ProductionSvmGateway::new(svm_config, cache.clone())
+                        .await
+                        .map_err(|e| ApplicationError::ConfigurationError {
+                            component: "svm_production_gateway".to_string(),
+                            message: e.to_string(),
+                        })?,
+                )
+            } else {
+                None
             };
-            
-            Some(ProductionSvmGateway::new(svm_config, cache.clone()).await
-                .map_err(|e| ApplicationError::ConfigurationError {
-                    component: "svm_production_gateway".to_string(),
-                    message: e.to_string(),
-                })?)
-        } else {
-            None
-        };
 
         Ok(Self {
             client,

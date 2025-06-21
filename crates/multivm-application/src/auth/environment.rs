@@ -66,7 +66,7 @@ impl EnvironmentApiKeyManager {
         for (key, value) in env::vars() {
             if key.starts_with("MULTIVM_API_KEY_") && key != "MULTIVM_ADMIN_API_KEY" {
                 let key_name = key.strip_prefix("MULTIVM_API_KEY_").unwrap_or("unknown");
-                
+
                 match self.parse_api_key_definition(&value, key_name) {
                     Ok(api_key_info) => {
                         let key_hash = self.hash_api_key(&api_key_info.key);
@@ -117,9 +117,13 @@ impl EnvironmentApiKeyManager {
 
     /// Parse API key definition from environment variable value
     /// Format: key:user_id:role:permissions:rate_limit:email:ip_whitelist
-    fn parse_api_key_definition(&self, definition: &str, name: &str) -> AuthResult<EnvironmentApiKey> {
+    fn parse_api_key_definition(
+        &self,
+        definition: &str,
+        name: &str,
+    ) -> AuthResult<EnvironmentApiKey> {
         let parts: Vec<&str> = definition.split(':').collect();
-        
+
         if parts.len() < 4 {
             return Err(ApplicationError::ConfigurationError {
                 component: "environment".to_string(),
@@ -135,8 +139,14 @@ impl EnvironmentApiKeyManager {
         let role = self.parse_role(parts[2])?;
         let permissions = self.parse_permissions(parts[3])?;
         let rate_limit = parts.get(4).and_then(|s| s.parse().ok());
-        let contact_email = parts.get(5).filter(|s| !s.is_empty()).map(|s| s.to_string());
-        let ip_whitelist = parts.get(6).filter(|s| !s.is_empty()).map(|s| s.to_string());
+        let contact_email = parts
+            .get(5)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        let ip_whitelist = parts
+            .get(6)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
 
         Ok(EnvironmentApiKey {
             key,
@@ -160,7 +170,10 @@ impl EnvironmentApiKeyManager {
             "guest" => Ok(UserRole::Guest),
             _ => Err(ApplicationError::ConfigurationError {
                 component: "environment".to_string(),
-                message: format!("Invalid role: {}. Valid roles: superadmin, admin, poweruser, user, guest", role_str),
+                message: format!(
+                    "Invalid role: {}. Valid roles: superadmin, admin, poweruser, user, guest",
+                    role_str
+                ),
             }),
         }
     }
@@ -238,10 +251,12 @@ impl EnvironmentApiKeyManager {
     /// Validate an API key
     pub fn validate_api_key(&self, api_key: &str) -> AuthResult<&ApiKeyInfo> {
         let key_hash = self.hash_api_key(api_key);
-        
-        self.keys.get(&key_hash).ok_or_else(|| ApplicationError::AuthenticationFailed {
-            reason: "Invalid API key".to_string(),
-        })
+
+        self.keys
+            .get(&key_hash)
+            .ok_or_else(|| ApplicationError::AuthenticationFailed {
+                reason: "Invalid API key".to_string(),
+            })
     }
 
     /// Hash API key for secure storage
@@ -283,7 +298,10 @@ mod tests {
 
         assert_eq!(manager.parse_role("admin").unwrap(), UserRole::Admin);
         assert_eq!(manager.parse_role("ADMIN").unwrap(), UserRole::Admin);
-        assert_eq!(manager.parse_role("superadmin").unwrap(), UserRole::SuperAdmin);
+        assert_eq!(
+            manager.parse_role("superadmin").unwrap(),
+            UserRole::SuperAdmin
+        );
         assert_eq!(manager.parse_role("user").unwrap(), UserRole::User);
     }
 
@@ -293,7 +311,9 @@ mod tests {
             keys: HashMap::new(),
         };
 
-        let perms = manager.parse_permissions("read_system_status,read_network_info").unwrap();
+        let perms = manager
+            .parse_permissions("read_system_status,read_network_info")
+            .unwrap();
         assert_eq!(perms.len(), 2);
         assert!(perms.contains(&Permission::ReadSystemStatus));
         assert!(perms.contains(&Permission::ReadNetworkInfo));
@@ -309,7 +329,9 @@ mod tests {
         };
 
         let definition = "test_key_123:user1:admin:read_system_status,admin_operations:5000:admin@example.com:192.168.1.1,10.0.0.1";
-        let parsed = manager.parse_api_key_definition(definition, "test_key").unwrap();
+        let parsed = manager
+            .parse_api_key_definition(definition, "test_key")
+            .unwrap();
 
         assert_eq!(parsed.key, "test_key_123");
         assert_eq!(parsed.user_id, "user1");
@@ -317,17 +339,23 @@ mod tests {
         assert_eq!(parsed.permissions.len(), 2);
         assert_eq!(parsed.rate_limit, Some(5000));
         assert_eq!(parsed.contact_email, Some("admin@example.com".to_string()));
-        assert_eq!(parsed.ip_whitelist, Some("192.168.1.1,10.0.0.1".to_string()));
+        assert_eq!(
+            parsed.ip_whitelist,
+            Some("192.168.1.1,10.0.0.1".to_string())
+        );
     }
 
     #[tokio::test]
     async fn test_environment_key_loading() {
         // Set up test environment variables
         env::set_var("MULTIVM_ADMIN_API_KEY", "admin_key_123");
-        env::set_var("MULTIVM_API_KEY_TEST", "test_key:testuser:user:read_system_status:1000");
+        env::set_var(
+            "MULTIVM_API_KEY_TEST",
+            "test_key:testuser:user:read_system_status:1000",
+        );
 
         let manager = EnvironmentApiKeyManager::new().unwrap();
-        
+
         assert!(manager.has_keys());
         assert_eq!(manager.get_loaded_keys().len(), 2);
 

@@ -66,8 +66,10 @@ mod tests {
 
     #[test]
     fn test_system_config_validation() {
-        let mut config = SystemConfig::default();
-        config.max_processes = 0;
+        let config = SystemConfig {
+            max_processes: 0,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
     }
 }

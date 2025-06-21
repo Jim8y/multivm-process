@@ -20,7 +20,11 @@ pub enum ApplicationError {
     ValidationError { field: String, message: String },
 
     #[error("Parse error: {field}: {value} - {message}")]
-    ParseError { field: String, value: String, message: String },
+    ParseError {
+        field: String,
+        value: String,
+        message: String,
+    },
 
     /// VM-specific errors
     #[error("SVM error: {message}")]
@@ -149,9 +153,9 @@ impl ApplicationError {
     /// Get error category for metrics and monitoring
     pub fn category(&self) -> ErrorCategory {
         match self {
-            ApplicationError::InvalidRequest { .. } | ApplicationError::ValidationError { .. } | ApplicationError::ParseError { .. } => {
-                ErrorCategory::Client
-            }
+            ApplicationError::InvalidRequest { .. }
+            | ApplicationError::ValidationError { .. }
+            | ApplicationError::ParseError { .. } => ErrorCategory::Client,
 
             ApplicationError::AuthenticationFailed { .. }
             | ApplicationError::AuthorizationDenied { .. } => ErrorCategory::Authentication,
@@ -174,9 +178,9 @@ impl ApplicationError {
                 ErrorCategory::Network
             }
 
-            ApplicationError::CacheError { .. } | ApplicationError::DatabaseError { .. } | ApplicationError::ExternalServiceError { .. } => {
-                ErrorCategory::Storage
-            }
+            ApplicationError::CacheError { .. }
+            | ApplicationError::DatabaseError { .. }
+            | ApplicationError::ExternalServiceError { .. } => ErrorCategory::Storage,
 
             ApplicationError::WebSocketError { .. }
             | ApplicationError::SubscriptionError { .. } => ErrorCategory::WebSocket,
@@ -197,9 +201,9 @@ impl ApplicationError {
     /// Get HTTP status code for REST API responses
     pub fn http_status(&self) -> u16 {
         match self {
-            ApplicationError::InvalidRequest { .. } | ApplicationError::ValidationError { .. } | ApplicationError::ParseError { .. } => {
-                400
-            } // Bad Request
+            ApplicationError::InvalidRequest { .. }
+            | ApplicationError::ValidationError { .. }
+            | ApplicationError::ParseError { .. } => 400, // Bad Request
 
             ApplicationError::AuthenticationFailed { .. } => 401, // Unauthorized
 

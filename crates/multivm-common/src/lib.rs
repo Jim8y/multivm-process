@@ -33,7 +33,8 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::len_zero)]
     fn test_version_info() {
-        assert!(!VERSION.is_empty());
+        assert!(VERSION.len() > 0);
     }
 }

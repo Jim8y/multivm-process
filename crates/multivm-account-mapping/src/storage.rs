@@ -102,6 +102,12 @@ pub struct MemoryStorage {
     reverse_lookup: Arc<RwLock<HashMap<AccountAddress, MultivmAccountId>>>,
 }
 
+impl Default for MemoryStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryStorage {
     /// Create a new in-memory storage
     pub fn new() -> Self {
@@ -222,7 +228,7 @@ impl AccountMappingStorage for MemoryStorage {
 #[async_trait::async_trait]
 impl AccountMappingLayer for MemoryStorage {
     async fn process_special_transaction(
-        &mut self,
+        &self,
         tx: SpecialTransaction,
     ) -> MultivmResult<SpecialTransactionResult> {
         match tx {
@@ -675,7 +681,7 @@ impl AccountMappingStorage for FileStorage {
 #[async_trait::async_trait]
 impl AccountMappingLayer for FileStorage {
     async fn process_special_transaction(
-        &mut self,
+        &self,
         tx: SpecialTransaction,
     ) -> MultivmResult<SpecialTransactionResult> {
         match tx {

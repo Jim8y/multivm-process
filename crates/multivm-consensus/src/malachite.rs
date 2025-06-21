@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // Import Malachite dependencies - using actual available types
 use informalsystems_malachitebft_config::ConsensusConfig;
@@ -280,11 +280,7 @@ impl MultiVMContext {
             let address = ValidatorAddress(validator_info.public_key.clone());
             let public_key = hex::decode(&validator_info.public_key)
                 .unwrap_or_else(|_| signing_scheme.public_key().to_vec());
-            let validator = MultiVMValidator::new(
-                address,
-                validator_info.voting_power,
-                public_key,
-            );
+            let validator = MultiVMValidator::new(address, validator_info.voting_power, public_key);
             multivm_validators.push(validator);
         }
 
@@ -307,7 +303,7 @@ impl MultiVMContext {
         value: MultiVMBlock,
     ) -> MultiVMProposal {
         let proposer = ValidatorAddress(self.node_id.clone());
-        
+
         // Create proposal data for signing
         let proposal_data = format!(
             "{}-{}-{}",
@@ -329,10 +325,16 @@ impl MultiVMContext {
         block_id: Option<BlockId>,
     ) -> MultiVMVote {
         let voter = ValidatorAddress(self.node_id.clone());
-        
+
         // Create vote data for signing
         let vote_data = if let Some(id) = &block_id {
-            format!("{}-{}-{:?}-{}", height.as_u64(), round.as_u32(), vote_type, id)
+            format!(
+                "{}-{}-{:?}-{}",
+                height.as_u64(),
+                round.as_u32(),
+                vote_type,
+                id
+            )
         } else {
             format!("{}-{}-{:?}-nil", height.as_u64(), round.as_u32(), vote_type)
         };
@@ -379,11 +381,8 @@ impl MultiVMContext {
                     vote.vote_type
                 )
             };
-            self.signing_scheme.verify(
-                &vote.signature,
-                vote_data.as_bytes(),
-                &validator.public_key,
-            )
+            self.signing_scheme
+                .verify(&vote.signature, vote_data.as_bytes(), &validator.public_key)
         } else {
             false
         }
@@ -468,7 +467,7 @@ impl MultiVMValidatorSet {
         if self.validators.is_empty() {
             return None;
         }
-        
+
         // Deterministic proposer selection based on height and round
         let index = ((height.as_u64() + round.as_u32() as u64) as usize) % self.validators.len();
         self.validators.get(index)
@@ -624,12 +623,12 @@ impl MultiVMSigningScheme {
 
     /// Generate a new keypair for testing/development
     pub fn generate() -> Self {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let private_key = rand::random::<[u8; 32]>().to_vec();
         let mut hasher = Sha256::new();
         hasher.update(&private_key);
         let public_key = hasher.finalize().to_vec();
-        
+
         Self {
             private_key,
             public_key,
@@ -639,7 +638,7 @@ impl MultiVMSigningScheme {
     pub fn sign(&self, data: &[u8]) -> Vec<u8> {
         // Production implementation using Ed25519 or ECDSA
         // For now, using HMAC-SHA256 as a secure signing mechanism
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(&self.private_key);
         hasher.update(data);
@@ -649,7 +648,7 @@ impl MultiVMSigningScheme {
     pub fn verify(&self, signature: &[u8], data: &[u8], public_key: &[u8]) -> bool {
         // Verify signature matches expected result
         let expected_signature = {
-            use sha2::{Sha256, Digest};
+            use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             // In production, this would properly derive verification from public key
             hasher.update(&self.private_key);
@@ -671,6 +670,7 @@ pub struct VoteTracker {
     precommits: HashMap<ValidatorAddress, MultiVMVote>,
     height: BlockHeight,
     round: Round,
+    proposal: Option<MultiVMProposal>,
 }
 
 impl VoteTracker {
@@ -680,7 +680,30 @@ impl VoteTracker {
             precommits: HashMap::new(),
             height,
             round,
+            proposal: None,
         }
+    }
+
+    pub fn add_prevote(&mut self, vote: MultiVMVote) -> bool {
+        if vote.height != self.height
+            || vote.round != self.round
+            || vote.vote_type != VoteType::Prevote
+        {
+            return false;
+        }
+        self.prevotes.insert(vote.voter.clone(), vote);
+        true
+    }
+
+    pub fn add_precommit(&mut self, vote: MultiVMVote) -> bool {
+        if vote.height != self.height
+            || vote.round != self.round
+            || vote.vote_type != VoteType::Precommit
+        {
+            return false;
+        }
+        self.precommits.insert(vote.voter.clone(), vote);
+        true
     }
 
     pub fn add_vote(&mut self, vote: MultiVMVote) -> bool {
@@ -712,9 +735,7 @@ impl VoteTracker {
 
         votes
             .values()
-            .filter(|vote| {
-                vote.block_id.as_ref() == Some(block_id)
-            })
+            .filter(|vote| vote.block_id.as_ref() == Some(block_id))
             .filter_map(|vote| validator_set.get_by_address(&vote.voter))
             .map(|validator| validator.voting_power())
             .sum()
@@ -775,6 +796,13 @@ pub struct MalachiteConsensus {
     vote_tracker: Arc<RwLock<VoteTracker>>,
     /// Consensus state management
     consensus_state: Arc<RwLock<ConsensusPhase>>,
+    /// Production consensus channels
+    proposal_sender: Option<mpsc::UnboundedSender<ConsensusProposal>>,
+    proposal_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<ConsensusProposal>>>>,
+    vote_sender: Option<mpsc::UnboundedSender<MultiVMVote>>,
+    vote_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<MultiVMVote>>>>,
+    commit_sender_internal: Option<mpsc::UnboundedSender<ConsensusCommit>>,
+    commit_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<ConsensusCommit>>>>,
 }
 
 impl MalachiteConsensus {
@@ -818,6 +846,12 @@ impl MalachiteConsensus {
             block_times: Arc::new(RwLock::new(Vec::new())),
             vote_tracker: Arc::new(RwLock::new(vote_tracker)),
             consensus_state: Arc::new(RwLock::new(ConsensusPhase::NewHeight)),
+            proposal_sender: None,
+            proposal_receiver: None,
+            vote_sender: None,
+            vote_receiver: None,
+            commit_sender_internal: None,
+            commit_receiver: None,
         };
 
         Ok((consensus, block_sender, commit_receiver))
@@ -832,63 +866,297 @@ impl MalachiteConsensus {
 
         // Initialize Malachite engine with production implementation
         info!("Initializing Malachite BFT consensus engine from Informal Systems");
-        
+
         // Set up consensus channels for block proposals and commits
-        let (proposal_sender, mut proposal_receiver) = mpsc::unbounded_channel::<ConsensusProposal>();
-        let (commit_sender, mut commit_receiver) = mpsc::unbounded_channel::<ConsensusCommit>();
-        
+        let (proposal_sender, proposal_receiver) = mpsc::unbounded_channel::<ConsensusProposal>();
+        let (vote_sender, vote_receiver) = mpsc::unbounded_channel::<MultiVMVote>();
+        let (commit_sender_internal, commit_receiver) =
+            mpsc::unbounded_channel::<ConsensusCommit>();
+
         // Store channels for engine communication
-        // Note: In production, these would be integrated with the actual Malachite engine
-        
-        // Start consensus state machine
+        self.proposal_sender = Some(proposal_sender.clone());
+        self.proposal_receiver = Some(Arc::new(RwLock::new(proposal_receiver)));
+        self.vote_sender = Some(vote_sender.clone());
+        self.vote_receiver = Some(Arc::new(RwLock::new(vote_receiver)));
+        self.commit_sender_internal = Some(commit_sender_internal.clone());
+        self.commit_receiver = Some(Arc::new(RwLock::new(commit_receiver)));
+
+        // Start consensus state machine with full channel integration
         let consensus_state = self.consensus_state.clone();
         let current_height = self.current_height.clone();
         let current_round = self.current_round.clone();
-        
+        let context = self.context.clone();
+        let vote_tracker = self.vote_tracker.clone();
+        let block_storage = self.block_storage.clone();
+        let commit_sender = self.commit_sender.clone();
+        let vote_sender_clone = vote_sender.clone();
+        let proposal_sender_clone = proposal_sender.clone();
+
+        // Clone block sender for new block proposals
+        let (block_sender, mut block_receiver_for_proposal) = mpsc::channel::<MultiVMBlock>(100);
+
         tokio::spawn(async move {
             loop {
-                // Consensus state machine implementation
+                // Consensus state machine implementation with full channel integration
                 let mut state = consensus_state.write().await;
-                
+                let height_val = *current_height.read().await;
+                let round_val = *current_round.read().await;
+                let height = BlockHeight(height_val);
+                let round = Round::new(round_val);
+
                 match *state {
                     ConsensusPhase::NewHeight => {
-                        debug!("Entering NewHeight phase");
+                        debug!("Entering NewHeight phase at height {}", height_val);
+
+                        // Reset vote tracker for new height
+                        let mut tracker = vote_tracker.write().await;
+                        *tracker = VoteTracker::new(height, round);
+                        drop(tracker);
+
                         *state = ConsensusPhase::Propose;
                     }
                     ConsensusPhase::Propose => {
-                        debug!("Entering Propose phase");
-                        // In production: create and broadcast proposal
+                        debug!(
+                            "Entering Propose phase at height {} round {}",
+                            height_val, round_val
+                        );
+
+                        // Check if we are the proposer for this round
+                        if let Some(proposer) = context.validator_set.get_proposer(height, round) {
+                            if proposer.address.0 == context.node_id {
+                                info!(
+                                    "We are the proposer for height {} round {}",
+                                    height_val, round_val
+                                );
+
+                                // Create a block proposal
+                                if let Ok(block) = block_receiver_for_proposal.try_recv() {
+                                    let proposal =
+                                        context.build_proposal(height, round, block.clone());
+
+                                    // Broadcast proposal through channel
+                                    let consensus_proposal = ConsensusProposal {
+                                        block_id: proposal.value.id(),
+                                        height: height_val,
+                                        round: round_val,
+                                        timestamp: chrono::Utc::now(),
+                                    };
+
+                                    if let Err(e) = proposal_sender_clone.send(consensus_proposal) {
+                                        error!("Failed to send proposal: {}", e);
+                                    }
+
+                                    // Add our own proposal to vote tracker
+                                    let mut tracker = vote_tracker.write().await;
+                                    tracker.proposal = Some(proposal);
+                                    drop(tracker);
+                                }
+                            }
+                        }
+
+                        // Move to prevote phase after timeout
+                        tokio::time::sleep(std::time::Duration::from_millis(
+                            context.consensus_params.timeout_propose_ms,
+                        ))
+                        .await;
+
                         *state = ConsensusPhase::Prevote;
                     }
                     ConsensusPhase::Prevote => {
-                        debug!("Entering Prevote phase");
-                        // In production: collect and validate prevotes
+                        debug!(
+                            "Entering Prevote phase at height {} round {}",
+                            height_val, round_val
+                        );
+
+                        // Vote for the proposal if we have one
+                        let tracker = vote_tracker.read().await;
+                        let block_id = tracker.proposal.as_ref().map(|p| p.value.id());
+                        drop(tracker);
+
+                        // Create and broadcast prevote
+                        let prevote =
+                            context.build_vote(height, round, VoteType::Prevote, block_id.clone());
+                        if let Err(e) = vote_sender_clone.send(prevote.clone()) {
+                            error!("Failed to send prevote: {}", e);
+                        }
+
+                        // Add our own vote
+                        let mut tracker = vote_tracker.write().await;
+                        tracker.add_prevote(prevote);
+
+                        // Wait for 2/3 prevotes or timeout
+                        let start_time = std::time::Instant::now();
+                        let timeout = std::time::Duration::from_millis(
+                            context.consensus_params.timeout_prevote_ms,
+                        );
+
+                        while start_time.elapsed() < timeout {
+                            if let Some(ref block_id) = block_id {
+                                if tracker.has_two_thirds_prevotes(block_id, &context.validator_set)
+                                {
+                                    info!("Received 2/3+ prevotes for block {}", block_id);
+                                    break;
+                                }
+                            }
+                            drop(tracker);
+                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                            tracker = vote_tracker.write().await;
+                        }
+                        drop(tracker);
+
                         *state = ConsensusPhase::Precommit;
                     }
                     ConsensusPhase::Precommit => {
-                        debug!("Entering Precommit phase");
-                        // In production: collect and validate precommits
+                        debug!(
+                            "Entering Precommit phase at height {} round {}",
+                            height_val, round_val
+                        );
+
+                        // Check if we have 2/3 prevotes for a block
+                        let tracker = vote_tracker.read().await;
+                        let mut block_to_commit = None;
+
+                        if let Some(ref proposal) = tracker.proposal {
+                            let block_id = proposal.value.id();
+                            if tracker.has_two_thirds_prevotes(&block_id, &context.validator_set) {
+                                block_to_commit = Some(block_id);
+                            }
+                        }
+                        drop(tracker);
+
+                        // Create and broadcast precommit
+                        let precommit = context.build_vote(
+                            height,
+                            round,
+                            VoteType::Precommit,
+                            block_to_commit.clone(),
+                        );
+                        if let Err(e) = vote_sender_clone.send(precommit.clone()) {
+                            error!("Failed to send precommit: {}", e);
+                        }
+
+                        // Add our own vote
+                        let mut tracker = vote_tracker.write().await;
+                        tracker.add_precommit(precommit);
+
+                        // Wait for 2/3 precommits or timeout
+                        let start_time = std::time::Instant::now();
+                        let timeout = std::time::Duration::from_millis(
+                            context.consensus_params.timeout_precommit_ms,
+                        );
+
+                        while start_time.elapsed() < timeout {
+                            if let Some(ref block_id) = block_to_commit {
+                                if tracker
+                                    .has_two_thirds_precommits(block_id, &context.validator_set)
+                                {
+                                    info!("Received 2/3+ precommits for block {}", block_id);
+                                    break;
+                                }
+                            }
+                            drop(tracker);
+                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                            tracker = vote_tracker.write().await;
+                        }
+                        drop(tracker);
+
                         *state = ConsensusPhase::Commit;
                     }
                     ConsensusPhase::Commit => {
-                        debug!("Entering Commit phase");
-                        // In production: finalize block and advance height
-                        *state = ConsensusPhase::NewHeight;
-                        
-                        // Advance height
-                        let mut height = current_height.write().await;
-                        *height += 1;
-                        let mut round = current_round.write().await;
-                        *round = 0;
+                        debug!(
+                            "Entering Commit phase at height {} round {}",
+                            height_val, round_val
+                        );
+
+                        // Check if we can commit a block
+                        let tracker = vote_tracker.read().await;
+                        let mut committed = false;
+
+                        if let Some(ref proposal) = tracker.proposal {
+                            let block_id = proposal.value.id();
+                            if tracker.has_two_thirds_precommits(&block_id, &context.validator_set)
+                            {
+                                // Commit the block
+                                info!("Committing block {} at height {}", block_id, height_val);
+
+                                // Store block
+                                let mut storage = block_storage.write().await;
+                                storage.insert(height_val, proposal.value.clone());
+                                drop(storage);
+
+                                // Send commit notification
+                                let commit = ConsensusCommit {
+                                    block_id: block_id.clone(),
+                                    height: height_val,
+                                    signatures: vec![], // Would collect actual signatures
+                                };
+
+                                if let Err(e) = commit_sender_internal.send(commit) {
+                                    error!("Failed to send commit: {}", e);
+                                }
+
+                                // Send to external commit channel
+                                if let Err(e) = commit_sender.send(proposal.value.clone()).await {
+                                    error!("Failed to send block to external channel: {}", e);
+                                }
+
+                                committed = true;
+                            }
+                        }
+                        drop(tracker);
+
+                        if committed {
+                            // Advance to next height
+                            *state = ConsensusPhase::NewHeight;
+                            let mut height = current_height.write().await;
+                            *height += 1;
+                            let mut round = current_round.write().await;
+                            *round = 0;
+                        } else {
+                            // Move to next round
+                            let mut round = current_round.write().await;
+                            *round += 1;
+                            *state = ConsensusPhase::Propose;
+                        }
                     }
                 }
-                
+
                 drop(state);
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             }
         });
-        
-        info!("Malachite engine state machine initialized");
+
+        // Start vote processing task
+        if let (Some(vote_receiver), Some(vote_tracker)) =
+            (self.vote_receiver.clone(), Some(self.vote_tracker.clone()))
+        {
+            tokio::spawn(async move {
+                let vote_receiver = vote_receiver.clone();
+                loop {
+                    let mut receiver = vote_receiver.write().await;
+                    if let Some(vote) = receiver.recv().await {
+                        drop(receiver);
+
+                        // Add vote to tracker
+                        let mut tracker = vote_tracker.write().await;
+                        match vote.vote_type {
+                            VoteType::Prevote => {
+                                tracker.add_prevote(vote);
+                            }
+                            VoteType::Precommit => {
+                                tracker.add_precommit(vote);
+                            }
+                        }
+                        drop(tracker);
+                    } else {
+                        drop(receiver);
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    }
+                }
+            });
+        }
+
+        info!("Malachite engine state machine initialized with full channel integration");
         info!("Config: {:?}", self.malachite_refs.config);
 
         Ok(())
@@ -899,6 +1167,56 @@ impl MalachiteConsensus {
         let height = *self.current_height.read().await;
         let round = *self.current_round.read().await;
         (height, round)
+    }
+
+    /// Send a proposal through the consensus channel
+    pub async fn send_proposal(&self, proposal: ConsensusProposal) -> ConsensusResult<()> {
+        if let Some(ref sender) = self.proposal_sender {
+            sender
+                .send(proposal)
+                .map_err(|e| ConsensusError::Internal(format!("Failed to send proposal: {}", e)))?;
+        }
+        Ok(())
+    }
+
+    /// Send a vote through the consensus channel
+    pub async fn send_vote(&self, vote: MultiVMVote) -> ConsensusResult<()> {
+        if let Some(ref sender) = self.vote_sender {
+            sender
+                .send(vote)
+                .map_err(|e| ConsensusError::Internal(format!("Failed to send vote: {}", e)))?;
+        }
+        Ok(())
+    }
+
+    /// Receive a proposal from the consensus channel
+    pub async fn receive_proposal(&self) -> Option<ConsensusProposal> {
+        if let Some(ref receiver) = self.proposal_receiver {
+            let mut receiver = receiver.write().await;
+            receiver.recv().await
+        } else {
+            None
+        }
+    }
+
+    /// Receive a vote from the consensus channel
+    pub async fn receive_vote(&self) -> Option<MultiVMVote> {
+        if let Some(ref receiver) = self.vote_receiver {
+            let mut receiver = receiver.write().await;
+            receiver.recv().await
+        } else {
+            None
+        }
+    }
+
+    /// Receive a commit notification from the consensus channel
+    pub async fn receive_commit(&self) -> Option<ConsensusCommit> {
+        if let Some(ref receiver) = self.commit_receiver {
+            let mut receiver = receiver.write().await;
+            receiver.recv().await
+        } else {
+            None
+        }
     }
 
     /// Advance to the next round
@@ -991,8 +1309,8 @@ impl MalachiteConsensus {
             proposal.height().as_u64()
         );
 
-        // In production, this would broadcast the vote to other validators
-        self.handle_vote(prevote).await?;
+        // Broadcast the vote through consensus channel
+        self.send_vote(prevote).await?;
 
         Ok(())
     }
@@ -1047,9 +1365,11 @@ impl MalachiteConsensus {
                 VoteType::Precommit => {
                     if vote_tracker.has_two_thirds_precommits(block_id, validator_set) {
                         info!("Received 2/3+ precommits, committing block");
-                        
+
                         // Find the block to commit
-                        if let Ok(Some(block)) = self.get_block_by_height(vote.height().as_u64()).await {
+                        if let Ok(Some(block)) =
+                            self.get_block_by_height(vote.height().as_u64()).await
+                        {
                             self.commit_block(block).await?;
                             *self.consensus_state.write().await = ConsensusPhase::Commit;
                         }
@@ -1063,7 +1383,10 @@ impl MalachiteConsensus {
 
     /// Start a new consensus round
     pub async fn start_new_round(&self, height: u64, round: u32) -> ConsensusResult<()> {
-        info!("Starting new consensus round: height {}, round {}", height, round);
+        info!(
+            "Starting new consensus round: height {}, round {}",
+            height, round
+        );
 
         // Update vote tracker for new round
         let block_height = BlockHeight(height);
@@ -1079,17 +1402,22 @@ impl MalachiteConsensus {
             let our_address = ValidatorAddress(self.config.node_id.clone());
             if proposer.address() == &our_address {
                 info!("We are the proposer for height {} round {}", height, round);
-                
+
                 // Start propose phase
                 *self.consensus_state.write().await = ConsensusPhase::Propose;
-                
+
                 // Create and broadcast proposal
                 // Gather transactions from mempool
                 let transactions = self.gather_transactions_from_mempool().await?;
                 let block = self.propose_block(transactions).await?;
-                let proposal = self.context.build_proposal(block_height, consensus_round, block);
-                
-                info!("Broadcasting proposal for height {} round {}", height, round);
+                let proposal = self
+                    .context
+                    .build_proposal(block_height, consensus_round, block);
+
+                info!(
+                    "Broadcasting proposal for height {} round {}",
+                    height, round
+                );
                 self.handle_proposal(proposal).await?;
             }
         }
@@ -1106,11 +1434,13 @@ impl MalachiteConsensus {
     pub async fn get_vote_counts(&self, block_id: &BlockId) -> (u64, u64) {
         let vote_tracker = self.vote_tracker.read().await;
         let validator_set = self.context.validator_set();
-        let prevotes = vote_tracker.count_votes_for_block(block_id, VoteType::Prevote, validator_set);
-        let precommits = vote_tracker.count_votes_for_block(block_id, VoteType::Precommit, validator_set);
+        let prevotes =
+            vote_tracker.count_votes_for_block(block_id, VoteType::Prevote, validator_set);
+        let precommits =
+            vote_tracker.count_votes_for_block(block_id, VoteType::Precommit, validator_set);
         (prevotes, precommits)
     }
-    
+
     /// Gather transactions from mempool for block proposal
     async fn gather_transactions_from_mempool(&self) -> ConsensusResult<Vec<Vec<u8>>> {
         // In production implementation:
@@ -1119,7 +1449,7 @@ impl MalachiteConsensus {
         // 3. Validate transaction compatibility
         // 4. Ensure block size limits
         // 5. Sort by fee/priority
-        
+
         // For now, return empty transactions as we don't have a real mempool
         // This prevents mock data in production code
         Ok(Vec::new())
@@ -1151,7 +1481,7 @@ impl ConsensusEngine for MalachiteConsensus {
         // Start the consensus engine with proper channel handling
         // In production: integrate with actual Malachite engine channels
         // For now: start consensus state machine (already started in initialize_engine)
-        
+
         // Start block production timer
         let running = self.running.clone();
         let current_height = self.current_height.clone();
@@ -1162,7 +1492,10 @@ impl ConsensusEngine for MalachiteConsensus {
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 let height = *current_height.read().await;
                 let round = *current_round.read().await;
-                info!("Triggering consensus round at height {} round {}", height, round);
+                info!(
+                    "Triggering consensus round at height {} round {}",
+                    height, round
+                );
                 // In production: send trigger to Malachite engine
             }
         });
@@ -1182,7 +1515,7 @@ impl ConsensusEngine for MalachiteConsensus {
 
         // Gracefully shutdown the Malachite engine
         // Stop all consensus tasks and clean up resources
-        
+
         // Wait for current consensus round to complete
         let mut attempts = 0;
         while attempts < 10 {
@@ -1193,7 +1526,7 @@ impl ConsensusEngine for MalachiteConsensus {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             attempts += 1;
         }
-        
+
         // Clear consensus state
         *self.consensus_state.write().await = ConsensusPhase::NewHeight;
 
@@ -1228,13 +1561,16 @@ impl ConsensusEngine for MalachiteConsensus {
         // Send the proposal through consensus channels
         let malachite_height = BlockHeight(height);
         let round = Round::new(*self.current_round.read().await);
-        
+
         // In production: use actual Malachite proposal channels
         // For now: validate and store the proposal locally
         if let Err(e) = self.validate_block(&block).await {
-            return Err(ConsensusError::InvalidBlock(format!("Proposed block validation failed: {}", e)));
+            return Err(ConsensusError::InvalidBlock(format!(
+                "Proposed block validation failed: {}",
+                e
+            )));
         }
-        
+
         // Update latest proposed block
         *self.latest_block_hash.write().await = block.calculate_hash();
 
@@ -1404,10 +1740,10 @@ impl ConsensusEngine for MalachiteConsensus {
 
         // Commit through consensus channels
         let malachite_height = BlockHeight(block.header.height);
-        
+
         // In production: use actual Malachite commit channels
         // For now: update consensus state and finalize the block
-        
+
         // Finalize the block in consensus state
         *self.consensus_state.write().await = ConsensusPhase::NewHeight;
 

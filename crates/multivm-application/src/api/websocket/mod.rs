@@ -18,13 +18,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
-use uuid::Uuid;
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 /// Global connections registry for WebSocket management
-fn get_global_connections() -> &'static Arc<tokio::sync::RwLock<HashMap<String, WebSocketConnection>>> {
+fn get_global_connections(
+) -> &'static Arc<tokio::sync::RwLock<HashMap<String, WebSocketConnection>>> {
     use std::sync::OnceLock;
-    static CONNECTIONS: OnceLock<Arc<tokio::sync::RwLock<HashMap<String, WebSocketConnection>>>> = OnceLock::new();
+    static CONNECTIONS: OnceLock<Arc<tokio::sync::RwLock<HashMap<String, WebSocketConnection>>>> =
+        OnceLock::new();
     CONNECTIONS.get_or_init(|| Arc::new(tokio::sync::RwLock::new(HashMap::new())))
 }
 
@@ -324,7 +326,10 @@ impl WebSocketServer {
                 // Serialize the event
                 if let Ok(serialized_event) = serde_json::to_string(&event) {
                     // Send the event to the connection
-                    if let Err(_) = connection.sender.send(Message::Text(serialized_event.into())) {
+                    if let Err(_) = connection
+                        .sender
+                        .send(Message::Text(serialized_event.into()))
+                    {
                         // Connection is closed or sender failed
                         failed_connections.push(connection_id.clone());
                         warn!("Failed to send event to connection {}", connection_id);
@@ -347,12 +352,19 @@ impl WebSocketServer {
     }
 
     /// Send event to specific connection
-    pub async fn send_to_connection(&self, connection_id: &str, event: WebSocketEvent) -> ApplicationResult<()> {
+    pub async fn send_to_connection(
+        &self,
+        connection_id: &str,
+        event: WebSocketEvent,
+    ) -> ApplicationResult<()> {
         let connections = self.connections.read().await;
-        
+
         if let Some(connection) = connections.get(connection_id) {
             if let Ok(serialized_event) = serde_json::to_string(&event) {
-                if let Err(_) = connection.sender.send(Message::Text(serialized_event.into())) {
+                if let Err(_) = connection
+                    .sender
+                    .send(Message::Text(serialized_event.into()))
+                {
                     warn!("Failed to send event to connection {}", connection_id);
                     return Err(crate::error::ApplicationError::WebSocketError {
                         reason: "Connection closed or sender failed".to_string(),
@@ -382,16 +394,16 @@ impl WebSocketServer {
     /// Start connection health monitoring
     pub async fn start_health_monitoring(&self) {
         let connections = self.connections.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let mut stale_connections = Vec::new();
                 let now = Instant::now();
-                
+
                 {
                     let connections_guard = connections.read().await;
                     for (id, connection) in connections_guard.iter() {
@@ -401,7 +413,7 @@ impl WebSocketServer {
                         }
                     }
                 }
-                
+
                 // Remove stale connections
                 if !stale_connections.is_empty() {
                     let mut connections_guard = connections.write().await;
@@ -450,7 +462,10 @@ async fn handle_websocket_connection(
     addr: SocketAddr,
 ) {
     let connection_id = Uuid::new_v4().to_string();
-    info!("WebSocket connection established: {} from {}", connection_id, addr);
+    info!(
+        "WebSocket connection established: {} from {}",
+        connection_id, addr
+    );
 
     // Create message channels for the connection
     let (outbound_tx, mut outbound_rx) = mpsc::unbounded_channel::<Message>();
@@ -539,12 +554,17 @@ async fn handle_connection_messages(
 
         match message {
             Message::Text(text) => {
-                if let Err(e) = handle_text_message(&state, &connection_id, text.to_string()).await {
+                if let Err(e) = handle_text_message(&state, &connection_id, text.to_string()).await
+                {
                     error!("Failed to handle text message for {}: {}", connection_id, e);
                 }
             }
             Message::Binary(data) => {
-                debug!("Received binary message from {}: {} bytes", connection_id, data.len());
+                debug!(
+                    "Received binary message from {}: {} bytes",
+                    connection_id,
+                    data.len()
+                );
                 // Handle binary messages if needed
             }
             Message::Ping(data) => {
@@ -556,14 +576,13 @@ async fn handle_connection_messages(
                 }
             }
             Message::Pong(_) => {
-                // Update connection stats  
+                // Update connection stats
                 if let Ok(mut connections) = get_global_connections().try_write() {
                     if let Some(connection) = connections.get_mut(&connection_id) {
                         connection.stats.last_pong = Some(Instant::now());
                         if let Some(last_ping) = connection.stats.last_ping {
-                            connection.stats.latency_ms = Some(
-                                Instant::now().duration_since(last_ping).as_millis() as u64
-                            );
+                            connection.stats.latency_ms =
+                                Some(Instant::now().duration_since(last_ping).as_millis() as u64);
                         }
                     }
                 }
@@ -592,11 +611,12 @@ async fn handle_text_message(
     debug!("Received text message from {}: {}", connection_id, text);
 
     // Parse the incoming message
-    let message: WebSocketMessage = serde_json::from_str(&text)
-        .map_err(|e| crate::error::ApplicationError::ValidationError {
+    let message: WebSocketMessage = serde_json::from_str(&text).map_err(|e| {
+        crate::error::ApplicationError::ValidationError {
             field: "websocket_message".to_string(),
             message: format!("Invalid JSON: {}", e),
-        })?;
+        }
+    })?;
 
     // Handle the message based on its type
     let response = match message {
@@ -618,9 +638,7 @@ async fn handle_text_message(
             }
             WebSocketResponse::Pong
         }
-        WebSocketMessage::GetStats => {
-            get_connection_stats(state, connection_id).await?
-        }
+        WebSocketMessage::GetStats => get_connection_stats(state, connection_id).await?,
     };
 
     // Send response back to client
@@ -637,10 +655,10 @@ async fn handle_subscription(
     subscribe: bool,
 ) -> ApplicationResult<WebSocketResponse> {
     let connections = get_global_connections().read().await;
-    
+
     if let Some(connection) = connections.get(connection_id) {
         let mut subscriptions = connection.subscriptions.write().await;
-        
+
         if subscribe {
             // Add new subscriptions
             for event_type in &events {
@@ -653,7 +671,10 @@ async fn handle_subscription(
         } else {
             // Remove subscriptions
             subscriptions.retain(|e| !events.contains(e));
-            info!("Connection {} unsubscribed from {:?}", connection_id, events);
+            info!(
+                "Connection {} unsubscribed from {:?}",
+                connection_id, events
+            );
             Ok(WebSocketResponse::Unsubscribed { events })
         }
     } else {
@@ -673,7 +694,7 @@ async fn handle_authentication(
     // Validate the authentication token
     // In production: use proper JWT validation or API key validation
     let is_valid = !token.is_empty() && token.len() > 10;
-    
+
     if is_valid {
         // Update connection authentication status
         let mut connections = get_global_connections().write().await;
@@ -700,7 +721,7 @@ async fn get_connection_stats(
     connection_id: &str,
 ) -> ApplicationResult<WebSocketResponse> {
     let connections = get_global_connections().read().await;
-    
+
     if let Some(connection) = connections.get(connection_id) {
         Ok(WebSocketResponse::Stats {
             connection_id: connection_id.to_string(),
@@ -724,19 +745,22 @@ async fn send_response_to_connection(
     response: WebSocketResponse,
 ) -> ApplicationResult<()> {
     let connections = get_global_connections().read().await;
-    
+
     if let Some(connection) = connections.get(connection_id) {
-        let serialized = serde_json::to_string(&response)
-            .map_err(|e| crate::error::ApplicationError::InternalError {
+        let serialized = serde_json::to_string(&response).map_err(|e| {
+            crate::error::ApplicationError::InternalError {
                 component: "websocket".to_string(),
                 message: format!("Failed to serialize response: {}", e),
-            })?;
-        
-        connection.sender.send(Message::Text(serialized.into()))
+            }
+        })?;
+
+        connection
+            .sender
+            .send(Message::Text(serialized.into()))
             .map_err(|_| crate::error::ApplicationError::WebSocketError {
                 reason: "Connection closed".to_string(),
             })?;
-        
+
         // Update stats
         // Note: In a real implementation, we'd update stats atomically
         debug!("Sent response to connection {}", connection_id);
@@ -750,10 +774,7 @@ async fn send_response_to_connection(
 }
 
 /// Check if an event should be sent to a specific connection
-fn should_send_event_to_connection(
-    event: &WebSocketEvent,
-    subscriptions: &Vec<EventType>,
-) -> bool {
+fn should_send_event_to_connection(event: &WebSocketEvent, subscriptions: &Vec<EventType>) -> bool {
     let event_type = match event {
         WebSocketEvent::NewBlock { .. } => EventType::NewBlock,
         WebSocketEvent::NewTransaction { .. } => EventType::NewTransaction,

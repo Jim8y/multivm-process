@@ -3,7 +3,10 @@
 //! This module provides a production-ready gateway for interacting with
 //! Ethereum/EVM-compatible blockchains through JSON-RPC and Engine API.
 
-use crate::{cache::CacheLayer, error::{ApplicationError, ApplicationResult}};
+use crate::{
+    cache::CacheLayer,
+    error::{ApplicationError, ApplicationResult},
+};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HttpClient, HttpClientBuilder},
@@ -21,16 +24,16 @@ use tracing::{debug, error, info, warn};
 pub struct ProductionEvmGateway {
     /// Cache layer for performance
     cache: Arc<CacheLayer>,
-    
+
     /// JSON-RPC client for standard Ethereum RPC
     rpc_client: Arc<HttpClient>,
-    
+
     /// Engine API client for consensus layer integration
     engine_client: Option<Arc<HttpClient>>,
-    
+
     /// Configuration
     config: EvmGatewayConfig,
-    
+
     /// Health status
     health_status: Arc<RwLock<HealthStatus>>,
 }
@@ -40,19 +43,19 @@ pub struct ProductionEvmGateway {
 pub struct EvmGatewayConfig {
     /// Standard JSON-RPC endpoint
     pub rpc_url: String,
-    
+
     /// Engine API endpoint (for consensus integration)
     pub engine_url: Option<String>,
-    
+
     /// JWT secret for Engine API authentication
     pub jwt_secret: Option<String>,
-    
+
     /// Request timeout
     pub request_timeout: Duration,
-    
+
     /// Maximum request retries
     pub max_retries: u32,
-    
+
     /// Chain ID for transaction signing
     pub chain_id: u64,
 }
@@ -162,10 +165,7 @@ pub struct FeeHistory {
 
 impl ProductionEvmGateway {
     /// Create a new production EVM gateway
-    pub async fn new(
-        config: EvmGatewayConfig,
-        cache: Arc<CacheLayer>,
-    ) -> ApplicationResult<Self> {
+    pub async fn new(config: EvmGatewayConfig, cache: Arc<CacheLayer>) -> ApplicationResult<Self> {
         info!("Initializing production EVM gateway: {}", config.rpc_url);
 
         // Create JSON-RPC client
@@ -180,7 +180,7 @@ impl ProductionEvmGateway {
         // Create Engine API client if configured
         let engine_client = if let Some(ref engine_url) = config.engine_url {
             let mut headers = jsonrpsee::http_client::HeaderMap::new();
-            
+
             // Add JWT authentication header if configured
             if let Some(ref jwt_secret) = config.jwt_secret {
                 let token = Self::generate_jwt_token(jwt_secret)?;
@@ -236,7 +236,9 @@ impl ProductionEvmGateway {
         }
 
         // Make RPC call
-        let block_json: Value = self.rpc_call("eth_getBlockByNumber", rpc_params!["latest", true]).await?;
+        let block_json: Value = self
+            .rpc_call("eth_getBlockByNumber", rpc_params!["latest", true])
+            .await?;
         let block = self.parse_block(block_json)?;
 
         // Cache the result with short TTL for latest block
@@ -264,17 +266,19 @@ impl ProductionEvmGateway {
 
         // Make RPC call
         let block_hex = format!("0x{:x}", block_number);
-        let block_json: Option<Value> = self.rpc_call("eth_getBlockByNumber", rpc_params![block_hex, true]).await?;
+        let block_json: Option<Value> = self
+            .rpc_call("eth_getBlockByNumber", rpc_params![block_hex, true])
+            .await?;
 
         match block_json {
             Some(json) => {
                 let block = self.parse_block(json)?;
-                
+
                 // Cache immutable block data with long TTL
                 self.cache
                     .set(&cache_key, &block, Duration::from_secs(86400)) // 24 hours
                     .await?;
-                
+
                 Ok(Some(block))
             }
             None => Ok(None),
@@ -291,17 +295,19 @@ impl ProductionEvmGateway {
         }
 
         // Make RPC call
-        let block_json: Option<Value> = self.rpc_call("eth_getBlockByHash", rpc_params![block_hash, true]).await?;
+        let block_json: Option<Value> = self
+            .rpc_call("eth_getBlockByHash", rpc_params![block_hash, true])
+            .await?;
 
         match block_json {
             Some(json) => {
                 let block = self.parse_block(json)?;
-                
+
                 // Cache immutable block data with long TTL
                 self.cache
                     .set(&cache_key, &block, Duration::from_secs(86400)) // 24 hours
                     .await?;
-                
+
                 Ok(Some(block))
             }
             None => Ok(None),
@@ -309,7 +315,10 @@ impl ProductionEvmGateway {
     }
 
     /// Get transaction by hash
-    pub async fn get_transaction(&self, tx_hash: &str) -> ApplicationResult<Option<EvmTransaction>> {
+    pub async fn get_transaction(
+        &self,
+        tx_hash: &str,
+    ) -> ApplicationResult<Option<EvmTransaction>> {
         let cache_key = format!("evm:tx:{}", tx_hash);
 
         // Check cache
@@ -318,17 +327,19 @@ impl ProductionEvmGateway {
         }
 
         // Make RPC call
-        let tx_json: Option<Value> = self.rpc_call("eth_getTransactionByHash", rpc_params![tx_hash]).await?;
+        let tx_json: Option<Value> = self
+            .rpc_call("eth_getTransactionByHash", rpc_params![tx_hash])
+            .await?;
 
         match tx_json {
             Some(json) => {
                 let tx = self.parse_transaction(json)?;
-                
+
                 // Cache immutable transaction data with long TTL
                 self.cache
                     .set(&cache_key, &tx, Duration::from_secs(86400)) // 24 hours
                     .await?;
-                
+
                 Ok(Some(tx))
             }
             None => Ok(None),
@@ -336,7 +347,10 @@ impl ProductionEvmGateway {
     }
 
     /// Get transaction receipt
-    pub async fn get_transaction_receipt(&self, tx_hash: &str) -> ApplicationResult<Option<EvmReceipt>> {
+    pub async fn get_transaction_receipt(
+        &self,
+        tx_hash: &str,
+    ) -> ApplicationResult<Option<EvmReceipt>> {
         let cache_key = format!("evm:receipt:{}", tx_hash);
 
         // Check cache
@@ -345,17 +359,19 @@ impl ProductionEvmGateway {
         }
 
         // Make RPC call
-        let receipt_json: Option<Value> = self.rpc_call("eth_getTransactionReceipt", rpc_params![tx_hash]).await?;
+        let receipt_json: Option<Value> = self
+            .rpc_call("eth_getTransactionReceipt", rpc_params![tx_hash])
+            .await?;
 
         match receipt_json {
             Some(json) => {
                 let receipt = self.parse_receipt(json)?;
-                
+
                 // Cache immutable receipt data with long TTL
                 self.cache
                     .set(&cache_key, &receipt, Duration::from_secs(86400)) // 24 hours
                     .await?;
-                
+
                 Ok(Some(receipt))
             }
             None => Ok(None),
@@ -372,14 +388,20 @@ impl ProductionEvmGateway {
         }
 
         // Send transaction
-        let tx_hash: String = self.rpc_call("eth_sendRawTransaction", rpc_params![raw_tx]).await?;
+        let tx_hash: String = self
+            .rpc_call("eth_sendRawTransaction", rpc_params![raw_tx])
+            .await?;
 
         info!("Transaction sent: {}", tx_hash);
         Ok(tx_hash)
     }
 
     /// Get account balance
-    pub async fn get_balance(&self, address: &str, block: Option<&str>) -> ApplicationResult<String> {
+    pub async fn get_balance(
+        &self,
+        address: &str,
+        block: Option<&str>,
+    ) -> ApplicationResult<String> {
         let block_param = block.unwrap_or("latest");
         let cache_key = format!("evm:balance:{}:{}", address, block_param);
 
@@ -391,7 +413,9 @@ impl ProductionEvmGateway {
         }
 
         // Make RPC call
-        let balance: String = self.rpc_call("eth_getBalance", rpc_params![address, block_param]).await?;
+        let balance: String = self
+            .rpc_call("eth_getBalance", rpc_params![address, block_param])
+            .await?;
 
         // Cache with appropriate TTL
         let ttl = if block_param == "latest" || block_param == "pending" {
@@ -408,17 +432,23 @@ impl ProductionEvmGateway {
     /// Get account nonce
     pub async fn get_nonce(&self, address: &str, block: Option<&str>) -> ApplicationResult<String> {
         let block_param = block.unwrap_or("latest");
-        
+
         // Make RPC call
-        let nonce: String = self.rpc_call("eth_getTransactionCount", rpc_params![address, block_param]).await?;
-        
+        let nonce: String = self
+            .rpc_call("eth_getTransactionCount", rpc_params![address, block_param])
+            .await?;
+
         Ok(nonce)
     }
 
     /// Call contract method (read-only)
-    pub async fn call(&self, call_data: EvmCallData, block: Option<&str>) -> ApplicationResult<String> {
+    pub async fn call(
+        &self,
+        call_data: EvmCallData,
+        block: Option<&str>,
+    ) -> ApplicationResult<String> {
         let block_param = block.unwrap_or("latest");
-        
+
         // Convert call data to JSON
         let call_object = json!({
             "from": call_data.from,
@@ -430,8 +460,10 @@ impl ProductionEvmGateway {
         });
 
         // Make RPC call
-        let result: String = self.rpc_call("eth_call", rpc_params![call_object, block_param]).await?;
-        
+        let result: String = self
+            .rpc_call("eth_call", rpc_params![call_object, block_param])
+            .await?;
+
         Ok(result)
     }
 
@@ -448,8 +480,10 @@ impl ProductionEvmGateway {
         });
 
         // Make RPC call
-        let gas_estimate: String = self.rpc_call("eth_estimateGas", rpc_params![tx_object]).await?;
-        
+        let gas_estimate: String = self
+            .rpc_call("eth_estimateGas", rpc_params![tx_object])
+            .await?;
+
         Ok(gas_estimate)
     }
 
@@ -479,10 +513,12 @@ impl ProductionEvmGateway {
         percentiles: Vec<f64>,
     ) -> ApplicationResult<FeeHistory> {
         // Make RPC call
-        let fee_history: FeeHistory = self.rpc_call(
-            "eth_feeHistory",
-            rpc_params![format!("0x{:x}", block_count), newest_block, percentiles]
-        ).await?;
+        let fee_history: FeeHistory = self
+            .rpc_call(
+                "eth_feeHistory",
+                rpc_params![format!("0x{:x}", block_count), newest_block, percentiles],
+            )
+            .await?;
 
         Ok(fee_history)
     }
@@ -499,8 +535,10 @@ impl ProductionEvmGateway {
         });
 
         // Make RPC call
-        let logs: Vec<EvmLog> = self.rpc_call("eth_getLogs", rpc_params![filter_object]).await?;
-        
+        let logs: Vec<EvmLog> = self
+            .rpc_call("eth_getLogs", rpc_params![filter_object])
+            .await?;
+
         Ok(logs)
     }
 
@@ -526,7 +564,7 @@ impl ProductionEvmGateway {
     pub async fn get_block_number(&self) -> ApplicationResult<u64> {
         // Make RPC call
         let block_number_hex: String = self.rpc_call("eth_blockNumber", rpc_params![]).await?;
-        
+
         // Parse hex to u64
         let block_number = u64::from_str_radix(&block_number_hex.trim_start_matches("0x"), 16)
             .map_err(|e| ApplicationError::ParseError {
@@ -550,11 +588,13 @@ impl ProductionEvmGateway {
 
     /// Get payload (Engine API)
     pub async fn engine_get_payload(&self, payload_id: &str) -> ApplicationResult<Value> {
-        let engine_client = self.engine_client.as_ref()
-            .ok_or_else(|| ApplicationError::ConfigurationError {
-                component: "evm_gateway".to_string(),
-                message: "Engine API not configured".to_string(),
-            })?;
+        let engine_client =
+            self.engine_client
+                .as_ref()
+                .ok_or_else(|| ApplicationError::ConfigurationError {
+                    component: "evm_gateway".to_string(),
+                    message: "Engine API not configured".to_string(),
+                })?;
 
         let payload: Value = engine_client
             .request("engine_getPayloadV2", rpc_params![payload_id])
@@ -569,11 +609,13 @@ impl ProductionEvmGateway {
 
     /// New payload (Engine API)
     pub async fn engine_new_payload(&self, payload: Value) -> ApplicationResult<Value> {
-        let engine_client = self.engine_client.as_ref()
-            .ok_or_else(|| ApplicationError::ConfigurationError {
-                component: "evm_gateway".to_string(),
-                message: "Engine API not configured".to_string(),
-            })?;
+        let engine_client =
+            self.engine_client
+                .as_ref()
+                .ok_or_else(|| ApplicationError::ConfigurationError {
+                    component: "evm_gateway".to_string(),
+                    message: "Engine API not configured".to_string(),
+                })?;
 
         let result: Value = engine_client
             .request("engine_newPayloadV2", rpc_params![payload])
@@ -592,14 +634,19 @@ impl ProductionEvmGateway {
         forkchoice_state: Value,
         payload_attributes: Option<Value>,
     ) -> ApplicationResult<Value> {
-        let engine_client = self.engine_client.as_ref()
-            .ok_or_else(|| ApplicationError::ConfigurationError {
-                component: "evm_gateway".to_string(),
-                message: "Engine API not configured".to_string(),
-            })?;
+        let engine_client =
+            self.engine_client
+                .as_ref()
+                .ok_or_else(|| ApplicationError::ConfigurationError {
+                    component: "evm_gateway".to_string(),
+                    message: "Engine API not configured".to_string(),
+                })?;
 
         let result: Value = engine_client
-            .request("engine_forkchoiceUpdatedV2", rpc_params![forkchoice_state, payload_attributes])
+            .request(
+                "engine_forkchoiceUpdatedV2",
+                rpc_params![forkchoice_state, payload_attributes],
+            )
             .await
             .map_err(|e| ApplicationError::RpcError {
                 endpoint: "engine_forkchoiceUpdatedV2".to_string(),
@@ -618,7 +665,7 @@ impl ProductionEvmGateway {
         params: jsonrpsee::core::params::ArrayParams,
     ) -> ApplicationResult<T> {
         let mut last_error = None;
-        
+
         for attempt in 0..=self.config.max_retries {
             if attempt > 0 {
                 let delay = Duration::from_millis(100 * 2u64.pow(attempt - 1));
@@ -638,7 +685,10 @@ impl ProductionEvmGateway {
         // Update health status on failure
         let mut health = self.health_status.write().await;
         health.is_healthy = false;
-        health.last_error = Some(format!("RPC call {} failed after {} retries", method, self.config.max_retries));
+        health.last_error = Some(format!(
+            "RPC call {} failed after {} retries",
+            method, self.config.max_retries
+        ));
         health.last_check = std::time::Instant::now();
 
         Err(ApplicationError::RpcError {
@@ -651,15 +701,17 @@ impl ProductionEvmGateway {
     fn parse_block(&self, json: Value) -> ApplicationResult<EvmBlock> {
         // Parse block number
         let number = u64::from_str_radix(
-            json["number"].as_str()
+            json["number"]
+                .as_str()
                 .ok_or_else(|| ApplicationError::ParseError {
                     field: "number".to_string(),
                     value: json["number"].to_string(),
                     message: "Missing block number".to_string(),
                 })?
                 .trim_start_matches("0x"),
-            16
-        ).map_err(|e| ApplicationError::ParseError {
+            16,
+        )
+        .map_err(|e| ApplicationError::ParseError {
             field: "number".to_string(),
             value: json["number"].to_string(),
             message: e.to_string(),
@@ -667,22 +719,25 @@ impl ProductionEvmGateway {
 
         // Parse timestamp
         let timestamp = u64::from_str_radix(
-            json["timestamp"].as_str()
+            json["timestamp"]
+                .as_str()
                 .ok_or_else(|| ApplicationError::ParseError {
                     field: "timestamp".to_string(),
                     value: json["timestamp"].to_string(),
                     message: "Missing timestamp".to_string(),
                 })?
                 .trim_start_matches("0x"),
-            16
-        ).map_err(|e| ApplicationError::ParseError {
+            16,
+        )
+        .map_err(|e| ApplicationError::ParseError {
             field: "timestamp".to_string(),
             value: json["timestamp"].to_string(),
             message: e.to_string(),
         })?;
 
         // Parse transactions
-        let transactions = json["transactions"].as_array()
+        let transactions = json["transactions"]
+            .as_array()
             .map(|txs| {
                 txs.iter()
                     .filter_map(|tx| {
@@ -706,7 +761,10 @@ impl ProductionEvmGateway {
             base_fee_per_gas: json["baseFeePerGas"].as_str().map(|s| s.to_string()),
             transactions,
             state_root: json["stateRoot"].as_str().unwrap_or_default().to_string(),
-            receipts_root: json["receiptsRoot"].as_str().unwrap_or_default().to_string(),
+            receipts_root: json["receiptsRoot"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
             logs_bloom: json["logsBloom"].as_str().unwrap_or_default().to_string(),
             difficulty: json["difficulty"].as_str().unwrap_or("0x0").to_string(),
             total_difficulty: json["totalDifficulty"].as_str().map(|s| s.to_string()),
@@ -714,8 +772,13 @@ impl ProductionEvmGateway {
             extra_data: json["extraData"].as_str().unwrap_or_default().to_string(),
             miner: json["miner"].as_str().unwrap_or_default().to_string(),
             nonce: json["nonce"].as_str().unwrap_or_default().to_string(),
-            uncles: json["uncles"].as_array()
-                .map(|u| u.iter().filter_map(|h| h.as_str().map(|s| s.to_string())).collect())
+            uncles: json["uncles"]
+                .as_array()
+                .map(|u| {
+                    u.iter()
+                        .filter_map(|h| h.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default(),
         })
     }
@@ -733,10 +796,12 @@ impl ProductionEvmGateway {
             max_priority_fee_per_gas: json["maxPriorityFeePerGas"].as_str().map(|s| s.to_string()),
             nonce: json["nonce"].as_str().unwrap_or("0x0").to_string(),
             input: json["input"].as_str().unwrap_or("0x").to_string(),
-            block_number: json["blockNumber"].as_str()
+            block_number: json["blockNumber"]
+                .as_str()
                 .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok()),
             block_hash: json["blockHash"].as_str().map(|s| s.to_string()),
-            transaction_index: json["transactionIndex"].as_str()
+            transaction_index: json["transactionIndex"]
+                .as_str()
                 .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok()),
             v: json["v"].as_str().unwrap_or("0x0").to_string(),
             r: json["r"].as_str().unwrap_or("0x0").to_string(),
@@ -750,19 +815,19 @@ impl ProductionEvmGateway {
     fn parse_access_list(&self, json: &Value) -> ApplicationResult<Option<Vec<AccessListItem>>> {
         // Access lists are only present in transaction types 1 (EIP-2930) and 2 (EIP-1559)
         let transaction_type = json["type"].as_str().unwrap_or("0x0");
-        
+
         // Only parse access list for transaction types that support it
         match transaction_type {
             "0x1" | "0x2" => {
                 // Transaction type 1 (EIP-2930) or type 2 (EIP-1559) - may have access list
                 if let Some(access_list_json) = json["accessList"].as_array() {
                     let mut access_list = Vec::new();
-                    
+
                     for item in access_list_json {
                         let access_item = self.parse_access_list_item(item)?;
                         access_list.push(access_item);
                     }
-                    
+
                     Ok(Some(access_list))
                 } else {
                     // Transaction type supports access list but none provided
@@ -778,12 +843,12 @@ impl ProductionEvmGateway {
 
     /// Parse individual access list item
     fn parse_access_list_item(&self, item: &Value) -> ApplicationResult<AccessListItem> {
-        let address = item["address"]
-            .as_str()
-            .ok_or_else(|| crate::error::ApplicationError::RpcValidationError {
+        let address = item["address"].as_str().ok_or_else(|| {
+            crate::error::ApplicationError::RpcValidationError {
                 field: "access_list.address".to_string(),
                 reason: "Missing address in access list item".to_string(),
-            })?;
+            }
+        })?;
 
         // Validate address format (should be 42 characters with 0x prefix)
         if !address.starts_with("0x") || address.len() != 42 {
@@ -796,12 +861,12 @@ impl ProductionEvmGateway {
         let storage_keys = if let Some(keys_array) = item["storageKeys"].as_array() {
             let mut keys = Vec::new();
             for key in keys_array {
-                let key_str = key
-                    .as_str()
-                    .ok_or_else(|| crate::error::ApplicationError::RpcValidationError {
+                let key_str = key.as_str().ok_or_else(|| {
+                    crate::error::ApplicationError::RpcValidationError {
                         field: "access_list.storageKeys".to_string(),
                         reason: "Invalid storage key format".to_string(),
-                    })?;
+                    }
+                })?;
 
                 // Validate storage key format (should be 66 characters with 0x prefix)
                 if !key_str.starts_with("0x") || key_str.len() != 66 {
@@ -828,34 +893,53 @@ impl ProductionEvmGateway {
     /// Parse receipt JSON response
     fn parse_receipt(&self, json: Value) -> ApplicationResult<EvmReceipt> {
         // Parse logs
-        let logs = json["logs"].as_array()
+        let logs = json["logs"]
+            .as_array()
             .map(|logs_array| {
-                logs_array.iter()
+                logs_array
+                    .iter()
                     .filter_map(|log| self.parse_log(log.clone()).ok())
                     .collect()
             })
             .unwrap_or_default();
 
         Ok(EvmReceipt {
-            transaction_hash: json["transactionHash"].as_str().unwrap_or_default().to_string(),
+            transaction_hash: json["transactionHash"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
             transaction_index: u64::from_str_radix(
-                json["transactionIndex"].as_str().unwrap_or("0x0").trim_start_matches("0x"),
-                16
-            ).unwrap_or(0),
+                json["transactionIndex"]
+                    .as_str()
+                    .unwrap_or("0x0")
+                    .trim_start_matches("0x"),
+                16,
+            )
+            .unwrap_or(0),
             block_hash: json["blockHash"].as_str().unwrap_or_default().to_string(),
             block_number: u64::from_str_radix(
-                json["blockNumber"].as_str().unwrap_or("0x0").trim_start_matches("0x"),
-                16
-            ).unwrap_or(0),
+                json["blockNumber"]
+                    .as_str()
+                    .unwrap_or("0x0")
+                    .trim_start_matches("0x"),
+                16,
+            )
+            .unwrap_or(0),
             from: json["from"].as_str().unwrap_or_default().to_string(),
             to: json["to"].as_str().map(|s| s.to_string()),
-            cumulative_gas_used: json["cumulativeGasUsed"].as_str().unwrap_or("0x0").to_string(),
+            cumulative_gas_used: json["cumulativeGasUsed"]
+                .as_str()
+                .unwrap_or("0x0")
+                .to_string(),
             gas_used: json["gasUsed"].as_str().unwrap_or("0x0").to_string(),
             contract_address: json["contractAddress"].as_str().map(|s| s.to_string()),
             logs,
             logs_bloom: json["logsBloom"].as_str().unwrap_or_default().to_string(),
             status: json["status"].as_str().unwrap_or("0x0").to_string(),
-            effective_gas_price: json["effectiveGasPrice"].as_str().unwrap_or("0x0").to_string(),
+            effective_gas_price: json["effectiveGasPrice"]
+                .as_str()
+                .unwrap_or("0x0")
+                .to_string(),
         })
     }
 
@@ -863,24 +947,44 @@ impl ProductionEvmGateway {
     fn parse_log(&self, json: Value) -> ApplicationResult<EvmLog> {
         Ok(EvmLog {
             address: json["address"].as_str().unwrap_or_default().to_string(),
-            topics: json["topics"].as_array()
-                .map(|t| t.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            topics: json["topics"]
+                .as_array()
+                .map(|t| {
+                    t.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default(),
             data: json["data"].as_str().unwrap_or("0x").to_string(),
             block_number: u64::from_str_radix(
-                json["blockNumber"].as_str().unwrap_or("0x0").trim_start_matches("0x"),
-                16
-            ).unwrap_or(0),
-            transaction_hash: json["transactionHash"].as_str().unwrap_or_default().to_string(),
+                json["blockNumber"]
+                    .as_str()
+                    .unwrap_or("0x0")
+                    .trim_start_matches("0x"),
+                16,
+            )
+            .unwrap_or(0),
+            transaction_hash: json["transactionHash"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
             transaction_index: u64::from_str_radix(
-                json["transactionIndex"].as_str().unwrap_or("0x0").trim_start_matches("0x"),
-                16
-            ).unwrap_or(0),
+                json["transactionIndex"]
+                    .as_str()
+                    .unwrap_or("0x0")
+                    .trim_start_matches("0x"),
+                16,
+            )
+            .unwrap_or(0),
             block_hash: json["blockHash"].as_str().unwrap_or_default().to_string(),
             log_index: u64::from_str_radix(
-                json["logIndex"].as_str().unwrap_or("0x0").trim_start_matches("0x"),
-                16
-            ).unwrap_or(0),
+                json["logIndex"]
+                    .as_str()
+                    .unwrap_or("0x0")
+                    .trim_start_matches("0x"),
+                16,
+            )
+            .unwrap_or(0),
             removed: json["removed"].as_bool().unwrap_or(false),
         })
     }
@@ -901,7 +1005,9 @@ impl ProductionEvmGateway {
             &claims,
             &EncodingKey::from_secret(secret.as_bytes()),
         )
-        .map_err(|e| ApplicationError::AuthenticationFailed { reason: format!("Failed to generate JWT: {}", e) })
+        .map_err(|e| ApplicationError::AuthenticationFailed {
+            reason: format!("Failed to generate JWT: {}", e),
+        })
     }
 
     /// Check gateway health
@@ -913,7 +1019,10 @@ impl ProductionEvmGateway {
                 health.last_block_number = Some(block_number);
                 health.last_error = None;
                 health.last_check = std::time::Instant::now();
-                info!("EVM gateway health check passed, block height: {}", block_number);
+                info!(
+                    "EVM gateway health check passed, block height: {}",
+                    block_number
+                );
             }
             Err(e) => {
                 let mut health = self.health_status.write().await;
@@ -928,12 +1037,12 @@ impl ProductionEvmGateway {
     /// Get gateway health status
     pub async fn is_healthy(&self) -> bool {
         let health = self.health_status.read().await;
-        
+
         // Consider unhealthy if last check was more than 60 seconds ago
         if health.last_check.elapsed() > Duration::from_secs(60) {
             return false;
         }
-        
+
         health.is_healthy
     }
 }
@@ -999,7 +1108,10 @@ impl ProductionEvmGateway {
             }
         }
 
-        info!("Access list validation passed for {} items", access_list.len());
+        info!(
+            "Access list validation passed for {} items",
+            access_list.len()
+        );
         Ok(())
     }
 
@@ -1010,21 +1122,21 @@ impl ProductionEvmGateway {
         for item in access_list {
             // EIP-2930: Adding an address to access list costs 2400 gas
             // but saves gas on subsequent SSTORE and SLOAD operations
-            
+
             // Address access: 2400 gas cost upfront
             let address_cost = 2400u64;
-            
+
             // Storage key access: 1900 gas cost upfront per key
             let storage_cost = item.storage_keys.len() as u64 * 1900;
-            
+
             // Potential savings depend on actual usage during execution
             // Conservative estimate: assume 1-2 warm accesses per item
             let estimated_warm_accesses = 2u64;
             let cold_access_cost = 2600u64; // COLD_ACCOUNT_ACCESS_COST
-            let warm_access_cost = 100u64;  // WARM_STORAGE_READ_COST
-            
+            let warm_access_cost = 100u64; // WARM_STORAGE_READ_COST
+
             let potential_savings = estimated_warm_accesses * (cold_access_cost - warm_access_cost);
-            
+
             // Net savings = potential savings - upfront costs
             if potential_savings > (address_cost + storage_cost) {
                 total_savings += potential_savings - (address_cost + storage_cost);
@@ -1041,13 +1153,13 @@ impl ProductionEvmGateway {
     ) -> ApplicationResult<Vec<AccessListItem>> {
         // In a production implementation, this would call eth_createAccessList RPC
         // to automatically generate an optimal access list for the transaction
-        
+
         debug!("Creating access list for transaction: {}", transaction.hash);
-        
+
         // For now, return empty access list as this requires actual RPC integration
         // In production: make RPC call to eth_createAccessList with transaction parameters
         warn!("Access list creation requires live RPC integration - returning empty list");
-        
+
         Ok(Vec::new())
     }
 
@@ -1070,7 +1182,7 @@ impl ProductionEvmGateway {
     pub fn supports_access_list(&self, transaction_type: Option<&str>) -> bool {
         match transaction_type {
             Some("0x1") | Some("0x2") => true, // EIP-2930 and EIP-1559
-            _ => false, // Legacy transactions (type 0x0) or unknown types
+            _ => false,                        // Legacy transactions (type 0x0) or unknown types
         }
     }
 }

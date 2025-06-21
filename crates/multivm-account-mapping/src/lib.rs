@@ -41,7 +41,7 @@ use multivm_common::MultivmResult;
 pub trait AccountMappingLayer: Send + Sync {
     /// Process a special transaction (binding, cross-VM transfer, etc.)
     async fn process_special_transaction(
-        &mut self,
+        &self,
         tx: SpecialTransaction,
     ) -> MultivmResult<SpecialTransactionResult>;
 

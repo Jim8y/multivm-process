@@ -46,7 +46,7 @@ pub enum Permission {
     BatchOperations,
     AdvancedQueries,
     DebugAccess,
-    
+
     // Additional system permissions
     ReadBlockchainData,
     WriteTransactions,

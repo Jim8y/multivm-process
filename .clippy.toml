@@ -1,0 +1,3 @@
+# Clippy configuration for MultiVM project
+# Allow comparison to zero - common in blockchain code
+allow-comparison-to-zero = true

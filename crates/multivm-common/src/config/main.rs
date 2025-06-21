@@ -2,7 +2,7 @@ use crate::{EthereumConfig, IpcConfig, LoggingConfig, MultivmError, SolanaConfig
 use serde::{Deserialize, Serialize};
 
 /// Main configuration for the multi-VM system
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MultivmConfig {
     pub system: SystemConfig,
     pub solana: SolanaConfig,
@@ -46,18 +46,6 @@ impl MultivmConfig {
         self.ipc.validate()?;
         self.logging.validate()?;
         Ok(())
-    }
-}
-
-impl Default for MultivmConfig {
-    fn default() -> Self {
-        Self {
-            system: SystemConfig::default(),
-            solana: SolanaConfig::default(),
-            ethereum: EthereumConfig::default(),
-            ipc: IpcConfig::default(),
-            logging: LoggingConfig::default(),
-        }
     }
 }
 

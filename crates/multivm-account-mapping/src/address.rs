@@ -43,7 +43,7 @@ impl AccountAddress {
     }
 
     /// Get string representation
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         match self {
             AccountAddress::Solana(addr) => hex::encode(addr.0),
             AccountAddress::Ethereum(addr) => format!("0x{}", hex::encode(addr.0)),
@@ -134,7 +134,10 @@ pub enum VmType {
 // Display implementations
 impl fmt::Display for AccountAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        match self {
+            AccountAddress::Solana(addr) => write!(f, "{}", hex::encode(addr.0)),
+            AccountAddress::Ethereum(addr) => write!(f, "0x{}", hex::encode(addr.0)),
+        }
     }
 }
 

@@ -26,21 +26,21 @@ pub struct ProductionRedisCache {
     connection_manager: Arc<Mutex<Option<ConnectionManager>>>,
     #[cfg(feature = "cache")]
     pubsub_conn: Arc<Mutex<Option<MultiplexedConnection>>>,
-    
+
     // Circuit breaker state
     circuit_state: Arc<RwLock<CircuitState>>,
-    
+
     // Connection pool management
     connection_semaphore: Arc<Semaphore>,
     reconnect_mutex: Arc<Mutex<()>>,
-    
+
     // Statistics
     stats: Arc<CacheStatistics>,
-    
+
     // Local cache for frequently accessed items
     hot_cache: Arc<DashMap<String, CachedValue>>,
     hot_cache_size: Arc<AtomicU64>,
-    
+
     // Background tasks handle
     background_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
@@ -92,8 +92,8 @@ impl ProductionRedisCache {
         #[cfg(feature = "cache")]
         {
             // Create Redis client with custom configuration
-            let client = Client::open(config.url.as_str())
-                .map_err(|e| ApplicationError::CacheError {
+            let client =
+                Client::open(config.url.as_str()).map_err(|e| ApplicationError::CacheError {
                     operation: "init".to_string(),
                     message: format!("Failed to create Redis client: {}", e),
                 })?;
@@ -156,21 +156,21 @@ impl ProductionRedisCache {
     /// Start background maintenance tasks
     async fn start_background_tasks(&self) {
         let cache_weak = Arc::downgrade(&(Arc::new(self.clone())));
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Some(cache) = cache_weak.upgrade() {
                     // Hot cache cleanup
                     cache.cleanup_hot_cache().await;
-                    
+
                     // Connection health check
                     #[cfg(feature = "cache")]
                     cache.check_connection_health().await;
-                    
+
                     // Stats reporting
                     cache.report_stats();
                 } else {
@@ -193,7 +193,7 @@ impl ProductionRedisCache {
         // Check hot cache first
         if let Some(cached) = self.get_from_hot_cache(&full_key) {
             self.stats.hot_cache_hits.fetch_add(1, Ordering::Relaxed);
-            
+
             if let Ok(value) = serde_json::from_slice(&cached) {
                 self.record_latency(start.elapsed());
                 return Ok(Some(value));
@@ -208,20 +208,22 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             match self.get_with_retry(&full_key).await {
                 Ok(Some(data)) => {
                     self.stats.hits.fetch_add(1, Ordering::Relaxed);
                     self.record_success().await;
-                    
+
                     // Store in hot cache if frequently accessed
-                    self.maybe_store_in_hot_cache(&full_key, data.as_bytes()).await;
-                    
+                    self.maybe_store_in_hot_cache(&full_key, data.as_bytes())
+                        .await;
+
                     match serde_json::from_str::<T>(&data) {
                         Ok(value) => {
                             self.record_latency(start.elapsed());
@@ -266,25 +268,26 @@ impl ProductionRedisCache {
             return Ok(());
         }
 
-        let serialized = serde_json::to_string(value)
-            .map_err(|e| ApplicationError::CacheError {
+        let serialized =
+            serde_json::to_string(value).map_err(|e| ApplicationError::CacheError {
                 operation: "serialize".to_string(),
                 message: format!("Serialization error: {}", e),
             })?;
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             match self.set_with_retry(&full_key, &serialized, ttl).await {
                 Ok(_) => {
                     self.record_success().await;
                     self.record_latency(start.elapsed());
-                    
+
                     // Update hot cache if present
                     if self.hot_cache.contains_key(&full_key) {
                         let expires_at = ttl.map(|d| Instant::now() + d);
@@ -296,7 +299,7 @@ impl ProductionRedisCache {
                         };
                         self.hot_cache.insert(full_key, cached_value);
                     }
-                    
+
                     Ok(())
                 }
                 Err(e) => {
@@ -326,11 +329,12 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             self.delete_with_retry(&full_key).await
         }
@@ -356,7 +360,7 @@ impl ProductionRedisCache {
         // Check hot cache first
         let mut results = Vec::with_capacity(keys.len());
         let mut cache_misses = Vec::new();
-        
+
         for (idx, key) in full_keys.iter().enumerate() {
             if let Some(cached) = self.get_from_hot_cache(key) {
                 if let Ok(value) = serde_json::from_slice(&cached) {
@@ -381,15 +385,14 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
-            let miss_keys: Vec<&String> = cache_misses.iter()
-                .map(|&idx| &full_keys[idx])
-                .collect();
+            let miss_keys: Vec<&String> = cache_misses.iter().map(|&idx| &full_keys[idx]).collect();
 
             match self.mget_with_retry(&miss_keys).await {
                 Ok(values) => {
@@ -398,9 +401,10 @@ impl ProductionRedisCache {
                             if let Ok(parsed) = serde_json::from_str(&data) {
                                 let idx = cache_misses[i];
                                 results[idx] = Some(parsed);
-                                
+
                                 // Store in hot cache
-                                self.maybe_store_in_hot_cache(&full_keys[idx], data.as_bytes()).await;
+                                self.maybe_store_in_hot_cache(&full_keys[idx], data.as_bytes())
+                                    .await;
                             }
                         }
                     }
@@ -436,18 +440,19 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             let mut pipe = redis::pipe();
-            
+
             for (key, value) in items {
                 let full_key = format!("{}{}", self.config.key_prefix, key);
-                let serialized = serde_json::to_string(value)
-                    .map_err(|e| ApplicationError::CacheError {
+                let serialized =
+                    serde_json::to_string(value).map_err(|e| ApplicationError::CacheError {
                         operation: "serialize".to_string(),
                         message: format!("Serialization error: {}", e),
                     })?;
@@ -476,11 +481,12 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             self.incr_with_retry(&full_key, delta).await
         }
@@ -508,15 +514,18 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             // Try to acquire lease
-            let lease_acquired = self.set_nx_with_retry(&lease_key, &lease_id, lease_duration).await?;
-            
+            let lease_acquired = self
+                .set_nx_with_retry(&lease_key, &lease_id, lease_duration)
+                .await?;
+
             if !lease_acquired {
                 return Ok(None);
             }
@@ -547,11 +556,12 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             // Check if we own the lease
             match self.get::<String>(&lease_key).await? {
@@ -572,16 +582,19 @@ impl ProductionRedisCache {
     #[cfg(feature = "cache")]
     async fn get_connection(&self) -> ApplicationResult<ConnectionManager> {
         let mut conn_guard = self.connection_manager.lock().await;
-        
+
         if let Some(conn) = conn_guard.as_ref() {
             return Ok(conn.clone());
         }
 
         // Reconnect
         let _lock = self.reconnect_mutex.lock().await;
-        self.stats.reconnect_attempts.fetch_add(1, Ordering::Relaxed);
+        self.stats
+            .reconnect_attempts
+            .fetch_add(1, Ordering::Relaxed);
 
-        let conn = self.client
+        let conn = self
+            .client
             .get_tokio_connection_manager()
             .await
             .map_err(|e| ApplicationError::CacheError {
@@ -600,24 +613,22 @@ impl ProductionRedisCache {
 
         loop {
             attempts += 1;
-            
+
             match self.get_connection().await {
-                Ok(mut conn) => {
-                    match conn.get::<_, Option<String>>(key).await {
-                        Ok(value) => return Ok(value),
-                        Err(e) if attempts < max_attempts => {
-                            warn!("Redis GET retry {}/{}: {}", attempts, max_attempts, e);
-                            tokio::time::sleep(Duration::from_millis(100 * attempts as u64)).await;
-                            continue;
-                        }
-                        Err(e) => {
-                            return Err(ApplicationError::CacheError {
-                                operation: "get".to_string(),
-                                message: format!("Redis GET failed: {}", e),
-                            });
-                        }
+                Ok(mut conn) => match conn.get::<_, Option<String>>(key).await {
+                    Ok(value) => return Ok(value),
+                    Err(e) if attempts < max_attempts => {
+                        warn!("Redis GET retry {}/{}: {}", attempts, max_attempts, e);
+                        tokio::time::sleep(Duration::from_millis(100 * attempts as u64)).await;
+                        continue;
                     }
-                }
+                    Err(e) => {
+                        return Err(ApplicationError::CacheError {
+                            operation: "get".to_string(),
+                            message: format!("Redis GET failed: {}", e),
+                        });
+                    }
+                },
                 Err(e) if attempts < max_attempts => {
                     tokio::time::sleep(Duration::from_millis(100 * attempts as u64)).await;
                     continue;
@@ -639,7 +650,7 @@ impl ProductionRedisCache {
 
         loop {
             attempts += 1;
-            
+
             match self.get_connection().await {
                 Ok(mut conn) => {
                     let result = if let Some(ttl) = ttl {
@@ -675,8 +686,9 @@ impl ProductionRedisCache {
     #[cfg(feature = "cache")]
     async fn delete_with_retry(&self, key: &str) -> ApplicationResult<()> {
         let mut conn = self.get_connection().await?;
-        
-        conn.del::<_, ()>(key).await
+
+        conn.del::<_, ()>(key)
+            .await
             .map_err(|e| ApplicationError::CacheError {
                 operation: "delete".to_string(),
                 message: format!("Redis DELETE failed: {}", e),
@@ -686,8 +698,9 @@ impl ProductionRedisCache {
     #[cfg(feature = "cache")]
     async fn mget_with_retry(&self, keys: &[&String]) -> ApplicationResult<Vec<Option<String>>> {
         let mut conn = self.get_connection().await?;
-        
-        conn.get::<_, Vec<Option<String>>>(keys).await
+
+        conn.get::<_, Vec<Option<String>>>(keys)
+            .await
             .map_err(|e| ApplicationError::CacheError {
                 operation: "mget".to_string(),
                 message: format!("Redis MGET failed: {}", e),
@@ -697,8 +710,9 @@ impl ProductionRedisCache {
     #[cfg(feature = "cache")]
     async fn execute_pipeline(&self, pipe: redis::Pipeline) -> ApplicationResult<()> {
         let mut conn = self.get_connection().await?;
-        
-        pipe.query_async(&mut conn).await
+
+        pipe.query_async(&mut conn)
+            .await
             .map_err(|e| ApplicationError::CacheError {
                 operation: "pipeline".to_string(),
                 message: format!("Redis pipeline failed: {}", e),
@@ -708,8 +722,9 @@ impl ProductionRedisCache {
     #[cfg(feature = "cache")]
     async fn incr_with_retry(&self, key: &str, delta: i64) -> ApplicationResult<i64> {
         let mut conn = self.get_connection().await?;
-        
-        conn.incr(key, delta).await
+
+        conn.incr(key, delta)
+            .await
             .map_err(|e| ApplicationError::CacheError {
                 operation: "incr".to_string(),
                 message: format!("Redis INCR failed: {}", e),
@@ -724,7 +739,7 @@ impl ProductionRedisCache {
         ttl: Duration,
     ) -> ApplicationResult<bool> {
         let mut conn = self.get_connection().await?;
-        
+
         let result: Option<String> = redis::cmd("SET")
             .arg(key)
             .arg(value)
@@ -760,14 +775,17 @@ impl ProductionRedisCache {
 
     async fn is_circuit_closed(&self) -> bool {
         let state = self.circuit_state.read().await;
-        matches!(state.state, CircuitBreakerState::Closed | CircuitBreakerState::HalfOpen)
+        matches!(
+            state.state,
+            CircuitBreakerState::Closed | CircuitBreakerState::HalfOpen
+        )
     }
 
     async fn record_success(&self) {
         let mut state = self.circuit_state.write().await;
         state.failure_count = 0;
         state.last_success = Some(Instant::now());
-        
+
         if state.state == CircuitBreakerState::HalfOpen {
             state.state = CircuitBreakerState::Closed;
             info!("Circuit breaker closed after successful operation");
@@ -778,12 +796,17 @@ impl ProductionRedisCache {
         let mut state = self.circuit_state.write().await;
         state.failure_count += 1;
         state.last_failure = Some(Instant::now());
-        
+
         if state.failure_count >= self.config.circuit_breaker_threshold {
             if state.state != CircuitBreakerState::Open {
                 state.state = CircuitBreakerState::Open;
-                self.stats.circuit_breaker_trips.fetch_add(1, Ordering::Relaxed);
-                error!("Circuit breaker opened after {} failures", state.failure_count);
+                self.stats
+                    .circuit_breaker_trips
+                    .fetch_add(1, Ordering::Relaxed);
+                error!(
+                    "Circuit breaker opened after {} failures",
+                    state.failure_count
+                );
             }
         }
 
@@ -824,7 +847,7 @@ impl ProductionRedisCache {
 
     async fn maybe_store_in_hot_cache(&self, key: &str, data: &[u8]) {
         let current_size = self.hot_cache_size.load(Ordering::Relaxed);
-        
+
         // Check if we have space
         if current_size >= self.config.hot_cache_max_size {
             return;
@@ -839,7 +862,8 @@ impl ProductionRedisCache {
         };
 
         self.hot_cache.insert(key.to_string(), entry);
-        self.hot_cache_size.fetch_add(data.len() as u64, Ordering::Relaxed);
+        self.hot_cache_size
+            .fetch_add(data.len() as u64, Ordering::Relaxed);
     }
 
     async fn cleanup_hot_cache(&self) {
@@ -852,7 +876,9 @@ impl ProductionRedisCache {
             if let Some(expires_at) = entry.expires_at {
                 if now > expires_at {
                     removed_size += entry.data.len() as u64;
-                    self.stats.hot_cache_evictions.fetch_add(1, Ordering::Relaxed);
+                    self.stats
+                        .hot_cache_evictions
+                        .fetch_add(1, Ordering::Relaxed);
                     return false;
                 }
             }
@@ -861,7 +887,9 @@ impl ProductionRedisCache {
             if let Ok(last_accessed) = entry.last_accessed.try_lock() {
                 if now.duration_since(*last_accessed) > eviction_threshold {
                     removed_size += entry.data.len() as u64;
-                    self.stats.hot_cache_evictions.fetch_add(1, Ordering::Relaxed);
+                    self.stats
+                        .hot_cache_evictions
+                        .fetch_add(1, Ordering::Relaxed);
                     return false;
                 }
             }
@@ -869,16 +897,19 @@ impl ProductionRedisCache {
             true
         });
 
-        self.hot_cache_size.fetch_sub(removed_size, Ordering::Relaxed);
+        self.hot_cache_size
+            .fetch_sub(removed_size, Ordering::Relaxed);
     }
 
     fn record_latency(&self, duration: Duration) {
         let ms = duration.as_millis() as u64;
-        
+
         // Update average (simplified - in production use proper moving average)
         let current_avg = self.stats.average_latency_ms.load(Ordering::Relaxed);
         let new_avg = (current_avg * 9 + ms) / 10;
-        self.stats.average_latency_ms.store(new_avg, Ordering::Relaxed);
+        self.stats
+            .average_latency_ms
+            .store(new_avg, Ordering::Relaxed);
 
         // Update P99 (simplified - in production use proper percentile tracking)
         let current_p99 = self.stats.p99_latency_ms.load(Ordering::Relaxed);
@@ -892,7 +923,7 @@ impl ProductionRedisCache {
         let misses = self.stats.misses.load(Ordering::Relaxed);
         let errors = self.stats.errors.load(Ordering::Relaxed);
         let hot_cache_hits = self.stats.hot_cache_hits.load(Ordering::Relaxed);
-        
+
         let total = hits + misses;
         let hit_rate = if total > 0 {
             (hits as f64 / total as f64) * 100.0
@@ -988,12 +1019,13 @@ impl ProductionRedisCache {
         {
             let channel = format!("{}:invalidation", self.config.key_prefix);
             let mut conn = self.get_connection().await?;
-            
-            conn.publish::<_, _, ()>(&channel, key).await
-                .map_err(|e| ApplicationError::CacheError {
+
+            conn.publish::<_, _, ()>(&channel, key).await.map_err(|e| {
+                ApplicationError::CacheError {
                     operation: "publish".to_string(),
                     message: format!("Failed to publish invalidation: {}", e),
-                })?;
+                }
+            })?;
         }
 
         Ok(())
@@ -1010,7 +1042,7 @@ impl ProductionRedisCache {
     /// Check if key exists
     pub async fn exists(&self, key: &str) -> ApplicationResult<bool> {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        
+
         // Check hot cache first
         if self.hot_cache.contains_key(&full_key) {
             return Ok(true);
@@ -1022,18 +1054,21 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             let mut conn = self.get_connection().await?;
-            let exists: bool = conn.exists(&full_key).await
-                .map_err(|e| ApplicationError::CacheError {
-                    operation: "exists".to_string(),
-                    message: format!("Redis EXISTS failed: {}", e),
-                })?;
+            let exists: bool =
+                conn.exists(&full_key)
+                    .await
+                    .map_err(|e| ApplicationError::CacheError {
+                        operation: "exists".to_string(),
+                        message: format!("Redis EXISTS failed: {}", e),
+                    })?;
             Ok(exists)
         }
 
@@ -1053,15 +1088,16 @@ impl ProductionRedisCache {
 
         #[cfg(feature = "cache")]
         {
-            let _permit = self.connection_semaphore.acquire().await
-                .map_err(|_| ApplicationError::CacheError {
+            let _permit = self.connection_semaphore.acquire().await.map_err(|_| {
+                ApplicationError::CacheError {
                     operation: "semaphore".to_string(),
                     message: "Failed to acquire connection permit".to_string(),
-                })?;
+                }
+            })?;
 
             let mut conn = self.get_connection().await?;
             let pattern = format!("{}*", self.config.key_prefix);
-            
+
             // Use SCAN to avoid blocking on large keyspaces
             let mut cursor = 0u64;
             loop {
@@ -1079,11 +1115,13 @@ impl ProductionRedisCache {
                     })?;
 
                 if !keys.is_empty() {
-                    let _: () = conn.del(&keys).await
-                        .map_err(|e| ApplicationError::CacheError {
-                            operation: "del".to_string(),
-                            message: format!("Redis DEL failed: {}", e),
-                        })?;
+                    let _: () =
+                        conn.del(&keys)
+                            .await
+                            .map_err(|e| ApplicationError::CacheError {
+                                operation: "del".to_string(),
+                                message: format!("Redis DEL failed: {}", e),
+                            })?;
                 }
 
                 cursor = new_cursor;
@@ -1103,7 +1141,10 @@ impl std::fmt::Debug for ProductionRedisCache {
             .field("config", &self.config)
             .field("circuit_state", &"<circuit_state>")
             .field("stats", &"<stats>")
-            .field("hot_cache_size", &self.hot_cache_size.load(Ordering::Relaxed))
+            .field(
+                "hot_cache_size",
+                &self.hot_cache_size.load(Ordering::Relaxed),
+            )
             .finish()
     }
 }

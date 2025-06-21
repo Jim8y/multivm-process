@@ -3,7 +3,10 @@
 //! This module provides a production-ready gateway for interacting with
 //! Solana blockchain through JSON-RPC.
 
-use crate::{cache::CacheLayer, error::{ApplicationError, ApplicationResult}};
+use crate::{
+    cache::CacheLayer,
+    error::{ApplicationError, ApplicationResult},
+};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HttpClient, HttpClientBuilder},
@@ -21,13 +24,13 @@ use tracing::{debug, error, info, warn};
 pub struct ProductionSvmGateway {
     /// Cache layer for performance
     cache: Arc<CacheLayer>,
-    
+
     /// JSON-RPC client for Solana RPC
     rpc_client: Arc<HttpClient>,
-    
+
     /// Configuration
     config: SvmGatewayConfig,
-    
+
     /// Health status
     health_status: Arc<RwLock<HealthStatus>>,
 }
@@ -37,19 +40,19 @@ pub struct ProductionSvmGateway {
 pub struct SvmGatewayConfig {
     /// JSON-RPC endpoint
     pub rpc_url: String,
-    
+
     /// WebSocket endpoint for subscriptions
     pub ws_url: Option<String>,
-    
+
     /// Request timeout
     pub request_timeout: Duration,
-    
+
     /// Maximum request retries
     pub max_retries: u32,
-    
+
     /// Commitment level for transactions
     pub commitment: CommitmentLevel,
-    
+
     /// Enable preflight checks
     pub preflight_checks: bool,
 }
@@ -236,10 +239,7 @@ pub struct EpochInfo {
 
 impl ProductionSvmGateway {
     /// Create a new production SVM gateway
-    pub async fn new(
-        config: SvmGatewayConfig,
-        cache: Arc<CacheLayer>,
-    ) -> ApplicationResult<Self> {
+    pub async fn new(config: SvmGatewayConfig, cache: Arc<CacheLayer>) -> ApplicationResult<Self> {
         info!("Initializing production SVM gateway: {}", config.rpc_url);
 
         // Create JSON-RPC client
@@ -277,7 +277,9 @@ impl ProductionSvmGateway {
         }
 
         // Make RPC call
-        let slot: u64 = self.rpc_call("getSlot", rpc_params![self.get_commitment_config()]).await?;
+        let slot: u64 = self
+            .rpc_call("getSlot", rpc_params![self.get_commitment_config()])
+            .await?;
 
         // Cache the result with short TTL
         self.cache
@@ -310,15 +312,18 @@ impl ProductionSvmGateway {
             "maxSupportedTransactionVersion": 0
         });
 
-        match self.rpc_call::<Option<Value>>("getBlock", rpc_params![slot, encoding]).await {
+        match self
+            .rpc_call::<Option<Value>>("getBlock", rpc_params![slot, encoding])
+            .await
+        {
             Ok(Some(block_json)) => {
                 let block = self.parse_block(slot, block_json)?;
-                
+
                 // Cache immutable block data with long TTL
                 self.cache
                     .set(&cache_key, &block, Duration::from_secs(86400)) // 24 hours
                     .await?;
-                
+
                 Ok(Some(block))
             }
             Ok(None) => Ok(None),
@@ -329,13 +334,22 @@ impl ProductionSvmGateway {
     /// Get latest blockhash
     pub async fn get_latest_blockhash(&self) -> ApplicationResult<(String, u64)> {
         // Check cache first
-        if let Some(result) = self.cache.get::<(String, u64)>("svm:latest_blockhash").await? {
+        if let Some(result) = self
+            .cache
+            .get::<(String, u64)>("svm:latest_blockhash")
+            .await?
+        {
             return Ok(result);
         }
 
         // Make RPC call
-        let response: Value = self.rpc_call("getLatestBlockhash", rpc_params![self.get_commitment_config()]).await?;
-        
+        let response: Value = self
+            .rpc_call(
+                "getLatestBlockhash",
+                rpc_params![self.get_commitment_config()],
+            )
+            .await?;
+
         let blockhash = response["blockhash"]
             .as_str()
             .ok_or_else(|| ApplicationError::ParseError {
@@ -344,13 +358,14 @@ impl ProductionSvmGateway {
                 message: "Missing blockhash".to_string(),
             })?
             .to_string();
-        
-        let last_valid_block_height = response["lastValidBlockHeight"]
-            .as_u64()
-            .ok_or_else(|| ApplicationError::ParseError {
-                field: "lastValidBlockHeight".to_string(),
-                value: response.to_string(),
-                message: "Missing lastValidBlockHeight".to_string(),
+
+        let last_valid_block_height =
+            response["lastValidBlockHeight"].as_u64().ok_or_else(|| {
+                ApplicationError::ParseError {
+                    field: "lastValidBlockHeight".to_string(),
+                    value: response.to_string(),
+                    message: "Missing lastValidBlockHeight".to_string(),
+                }
             })?;
 
         let result = (blockhash, last_valid_block_height);
@@ -380,14 +395,19 @@ impl ProductionSvmGateway {
         });
 
         // Send transaction
-        let signature: String = self.rpc_call("sendTransaction", rpc_params![transaction, encoding]).await?;
+        let signature: String = self
+            .rpc_call("sendTransaction", rpc_params![transaction, encoding])
+            .await?;
 
         info!("Transaction sent: {}", signature);
         Ok(signature)
     }
 
     /// Get transaction by signature
-    pub async fn get_transaction(&self, signature: &str) -> ApplicationResult<Option<SvmTransactionWithMeta>> {
+    pub async fn get_transaction(
+        &self,
+        signature: &str,
+    ) -> ApplicationResult<Option<SvmTransactionWithMeta>> {
         let cache_key = format!("svm:tx:{}", signature);
 
         // Check cache
@@ -402,15 +422,18 @@ impl ProductionSvmGateway {
         });
 
         // Make RPC call
-        match self.rpc_call::<Option<Value>>("getTransaction", rpc_params![signature, encoding]).await {
+        match self
+            .rpc_call::<Option<Value>>("getTransaction", rpc_params![signature, encoding])
+            .await
+        {
             Ok(Some(tx_json)) => {
                 let tx = self.parse_transaction(tx_json)?;
-                
+
                 // Cache immutable transaction data with long TTL
                 self.cache
                     .set(&cache_key, &tx, Duration::from_secs(86400)) // 24 hours
                     .await?;
-                
+
                 Ok(Some(tx))
             }
             Ok(None) => Ok(None),
@@ -419,20 +442,27 @@ impl ProductionSvmGateway {
     }
 
     /// Get signature status
-    pub async fn get_signature_status(&self, signature: &str) -> ApplicationResult<Option<SignatureStatus>> {
-        let response: Value = self.rpc_call(
-            "getSignatureStatuses",
-            rpc_params![[signature], json!({"searchTransactionHistory": true})]
-        ).await?;
+    pub async fn get_signature_status(
+        &self,
+        signature: &str,
+    ) -> ApplicationResult<Option<SignatureStatus>> {
+        let response: Value = self
+            .rpc_call(
+                "getSignatureStatuses",
+                rpc_params![[signature], json!({"searchTransactionHistory": true})],
+            )
+            .await?;
 
         if let Some(statuses) = response.as_array() {
             if let Some(status) = statuses.get(0) {
                 if !status.is_null() {
-                    let status: SignatureStatus = serde_json::from_value(status.clone())
-                        .map_err(|e| ApplicationError::ParseError {
-                            field: "signature_status".to_string(),
-                            value: status.to_string(),
-                            message: e.to_string(),
+                    let status: SignatureStatus =
+                        serde_json::from_value(status.clone()).map_err(|e| {
+                            ApplicationError::ParseError {
+                                field: "signature_status".to_string(),
+                                value: status.to_string(),
+                                message: e.to_string(),
+                            }
                         })?;
                     return Ok(Some(status));
                 }
@@ -457,15 +487,18 @@ impl ProductionSvmGateway {
         });
 
         // Make RPC call
-        match self.rpc_call::<Option<Value>>("getAccountInfo", rpc_params![pubkey, encoding]).await {
+        match self
+            .rpc_call::<Option<Value>>("getAccountInfo", rpc_params![pubkey, encoding])
+            .await
+        {
             Ok(Some(account_json)) => {
                 let account = self.parse_account(account_json)?;
-                
+
                 // Cache with medium TTL
                 self.cache
                     .set(&cache_key, &account, Duration::from_secs(60))
                     .await?;
-                
+
                 Ok(Some(account))
             }
             Ok(None) => Ok(None),
@@ -483,7 +516,12 @@ impl ProductionSvmGateway {
         }
 
         // Make RPC call
-        let balance: u64 = self.rpc_call("getBalance", rpc_params![pubkey, self.get_commitment_config()]).await?;
+        let balance: u64 = self
+            .rpc_call(
+                "getBalance",
+                rpc_params![pubkey, self.get_commitment_config()],
+            )
+            .await?;
 
         // Cache with short TTL
         self.cache
@@ -506,7 +544,9 @@ impl ProductionSvmGateway {
         });
 
         // Make RPC call
-        let accounts: Vec<Value> = self.rpc_call("getProgramAccounts", rpc_params![program_id, config]).await?;
+        let accounts: Vec<Value> = self
+            .rpc_call("getProgramAccounts", rpc_params![program_id, config])
+            .await?;
 
         // Parse accounts
         let mut result = Vec::new();
@@ -530,7 +570,9 @@ impl ProductionSvmGateway {
     /// Request airdrop (devnet/testnet only)
     pub async fn request_airdrop(&self, pubkey: &str, lamports: u64) -> ApplicationResult<String> {
         // Make RPC call
-        let signature: String = self.rpc_call("requestAirdrop", rpc_params![pubkey, lamports]).await?;
+        let signature: String = self
+            .rpc_call("requestAirdrop", rpc_params![pubkey, lamports])
+            .await?;
 
         info!("Airdrop requested: {} lamports to {}", lamports, pubkey);
         Ok(signature)
@@ -544,15 +586,21 @@ impl ProductionSvmGateway {
         }
 
         // Make RPC call
-        let response: Value = self.rpc_call("getSupply", rpc_params![self.get_commitment_config()]).await?;
-        
+        let response: Value = self
+            .rpc_call("getSupply", rpc_params![self.get_commitment_config()])
+            .await?;
+
         let supply = Supply {
             total: response["total"].as_u64().unwrap_or(0),
             circulating: response["circulating"].as_u64().unwrap_or(0),
             non_circulating: response["nonCirculating"].as_u64().unwrap_or(0),
             non_circulating_accounts: response["nonCirculatingAccounts"]
                 .as_array()
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default(),
         };
 
@@ -572,7 +620,9 @@ impl ProductionSvmGateway {
         }
 
         // Make RPC call
-        let response: EpochInfo = self.rpc_call("getEpochInfo", rpc_params![self.get_commitment_config()]).await?;
+        let response: EpochInfo = self
+            .rpc_call("getEpochInfo", rpc_params![self.get_commitment_config()])
+            .await?;
 
         // Cache with short TTL
         self.cache
@@ -583,7 +633,10 @@ impl ProductionSvmGateway {
     }
 
     /// Get minimum balance for rent exemption
-    pub async fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> ApplicationResult<u64> {
+    pub async fn get_minimum_balance_for_rent_exemption(
+        &self,
+        data_len: usize,
+    ) -> ApplicationResult<u64> {
         let cache_key = format!("svm:rent_exemption:{}", data_len);
 
         // Check cache
@@ -592,7 +645,9 @@ impl ProductionSvmGateway {
         }
 
         // Make RPC call
-        let lamports: u64 = self.rpc_call("getMinimumBalanceForRentExemption", rpc_params![data_len]).await?;
+        let lamports: u64 = self
+            .rpc_call("getMinimumBalanceForRentExemption", rpc_params![data_len])
+            .await?;
 
         // Cache with long TTL (rent exemption doesn't change often)
         self.cache
@@ -615,7 +670,9 @@ impl ProductionSvmGateway {
         });
 
         // Make RPC call
-        let result: Value = self.rpc_call("simulateTransaction", rpc_params![transaction, config]).await?;
+        let result: Value = self
+            .rpc_call("simulateTransaction", rpc_params![transaction, config])
+            .await?;
 
         Ok(result)
     }
@@ -623,7 +680,12 @@ impl ProductionSvmGateway {
     /// Get fee for message
     pub async fn get_fee_for_message(&self, message: &str) -> ApplicationResult<u64> {
         // Make RPC call
-        let fee: Option<u64> = self.rpc_call("getFeeForMessage", rpc_params![message, self.get_commitment_config()]).await?;
+        let fee: Option<u64> = self
+            .rpc_call(
+                "getFeeForMessage",
+                rpc_params![message, self.get_commitment_config()],
+            )
+            .await?;
 
         fee.ok_or_else(|| ApplicationError::InvalidRequest {
             message: "Unable to calculate fee for message".to_string(),
@@ -631,9 +693,14 @@ impl ProductionSvmGateway {
     }
 
     /// Get recent prioritization fees
-    pub async fn get_recent_prioritization_fees(&self, accounts: Vec<String>) -> ApplicationResult<Vec<Value>> {
+    pub async fn get_recent_prioritization_fees(
+        &self,
+        accounts: Vec<String>,
+    ) -> ApplicationResult<Vec<Value>> {
         // Make RPC call
-        let fees: Vec<Value> = self.rpc_call("getRecentPrioritizationFees", rpc_params![accounts]).await?;
+        let fees: Vec<Value> = self
+            .rpc_call("getRecentPrioritizationFees", rpc_params![accounts])
+            .await?;
 
         Ok(fees)
     }
@@ -647,7 +714,7 @@ impl ProductionSvmGateway {
         params: jsonrpsee::core::params::ArrayParams,
     ) -> ApplicationResult<T> {
         let mut last_error = None;
-        
+
         for attempt in 0..=self.config.max_retries {
             if attempt > 0 {
                 let delay = Duration::from_millis(100 * 2u64.pow(attempt - 1));
@@ -667,7 +734,10 @@ impl ProductionSvmGateway {
         // Update health status on failure
         let mut health = self.health_status.write().await;
         health.is_healthy = false;
-        health.last_error = Some(format!("RPC call {} failed after {} retries", method, self.config.max_retries));
+        health.last_error = Some(format!(
+            "RPC call {} failed after {} retries",
+            method, self.config.max_retries
+        ));
         health.last_check = std::time::Instant::now();
 
         Err(ApplicationError::RpcError {
@@ -692,7 +762,8 @@ impl ProductionSvmGateway {
         let rewards = json["rewards"]
             .as_array()
             .map(|rewards| {
-                rewards.iter()
+                rewards
+                    .iter()
                     .filter_map(|r| serde_json::from_value(r.clone()).ok())
                     .collect()
             })
@@ -711,20 +782,19 @@ impl ProductionSvmGateway {
 
     /// Parse transaction JSON response
     fn parse_transaction(&self, json: Value) -> ApplicationResult<SvmTransactionWithMeta> {
-        let transaction = serde_json::from_value(json["transaction"].clone())
-            .map_err(|e| ApplicationError::ParseError {
+        let transaction = serde_json::from_value(json["transaction"].clone()).map_err(|e| {
+            ApplicationError::ParseError {
                 field: "transaction".to_string(),
                 value: json["transaction"].to_string(),
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
-        let meta = json.get("meta")
+        let meta = json
+            .get("meta")
             .and_then(|m| serde_json::from_value(m.clone()).ok());
 
-        Ok(SvmTransactionWithMeta {
-            transaction,
-            meta,
-        })
+        Ok(SvmTransactionWithMeta { transaction, meta })
     }
 
     /// Parse account JSON response
@@ -778,12 +848,12 @@ impl ProductionSvmGateway {
     /// Get gateway health status
     pub async fn is_healthy(&self) -> bool {
         let health = self.health_status.read().await;
-        
+
         // Consider unhealthy if last check was more than 60 seconds ago
         if health.last_check.elapsed() > Duration::from_secs(60) {
             return false;
         }
-        
+
         health.is_healthy
     }
 }

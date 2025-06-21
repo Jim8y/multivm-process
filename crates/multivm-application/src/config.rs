@@ -645,7 +645,8 @@ impl AuthConfig {
             if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
                 return Err(ApplicationError::ConfigurationError {
                     component: "auth".to_string(),
-                    message: "MULTIVM_JWT_SECRET environment variable must be set in production".to_string(),
+                    message: "MULTIVM_JWT_SECRET environment variable must be set in production"
+                        .to_string(),
                 });
             }
         }
@@ -857,10 +858,10 @@ impl ApplicationConfig {
             .map_err(ApplicationError::from)?;
 
         let mut config: Self = settings.try_deserialize().map_err(ApplicationError::from)?;
-        
+
         // Override with secure authentication configuration
         config.auth = AuthConfig::load_secure()?;
-        
+
         Ok(config)
     }
 
