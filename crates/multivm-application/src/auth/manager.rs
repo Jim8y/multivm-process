@@ -387,8 +387,7 @@ mod tests {
         let auth_manager = AuthManager::new(&config).await.unwrap();
 
         // Test API key extraction
-        let auth_request = auth_manager
-            .extract_auth_from_headers(None, Some("test-api-key"));
+        let auth_request = auth_manager.extract_auth_from_headers(None, Some("test-api-key"));
 
         match auth_request {
             AuthRequest::ApiKey(key) => assert_eq!(key, "test-api-key"),
@@ -396,8 +395,8 @@ mod tests {
         }
 
         // Test JWT extraction
-        let auth_request = auth_manager
-            .extract_auth_from_headers(Some("Bearer test-jwt-token"), None);
+        let auth_request =
+            auth_manager.extract_auth_from_headers(Some("Bearer test-jwt-token"), None);
 
         match auth_request {
             AuthRequest::JwtToken(token) => assert_eq!(token, "test-jwt-token"),
@@ -405,8 +404,7 @@ mod tests {
         }
 
         // Test anonymous
-        let auth_request = auth_manager
-            .extract_auth_from_headers(None, None);
+        let auth_request = auth_manager.extract_auth_from_headers(None, None);
         assert_eq!(auth_request, AuthRequest::Anonymous);
     }
 }

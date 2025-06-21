@@ -281,7 +281,11 @@ impl SvmApiGateway {
 
         // Check cache first
         let cache_key = format!("svm:account_txs:{}", pubkey);
-        if let Some(cached_txs) = self.cache.get::<Vec<SvmTransactionInfo>>(&cache_key).await? {
+        if let Some(cached_txs) = self
+            .cache
+            .get::<Vec<SvmTransactionInfo>>(&cache_key)
+            .await?
+        {
             self.record_cache_hit().await;
             return Ok(GatewayResponse::new(
                 cached_txs,
@@ -335,7 +339,11 @@ impl SvmApiGateway {
 
         // Check cache first
         let cache_key = format!("svm:tx:{}", signature);
-        if let Some(cached_tx) = self.cache.get::<Option<SvmTransactionInfo>>(&cache_key).await? {
+        if let Some(cached_tx) = self
+            .cache
+            .get::<Option<SvmTransactionInfo>>(&cache_key)
+            .await?
+        {
             self.record_cache_hit().await;
             return Ok(GatewayResponse::new(
                 cached_tx,
@@ -503,7 +511,11 @@ impl SvmApiGateway {
 
         // Check cache first
         let cache_key = format!("svm:block_txs:{}", slot);
-        if let Some(cached_txs) = self.cache.get::<Vec<SvmTransactionInfo>>(&cache_key).await? {
+        if let Some(cached_txs) = self
+            .cache
+            .get::<Vec<SvmTransactionInfo>>(&cache_key)
+            .await?
+        {
             self.record_cache_hit().await;
             return Ok(GatewayResponse::new(
                 cached_txs,

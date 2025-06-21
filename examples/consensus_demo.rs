@@ -11,7 +11,7 @@ use multivm_account_mapping::{
     SolanaAddress, SpecialTransaction,
 };
 use multivm_consensus::*;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 use tokio;
 
 #[tokio::main]
@@ -154,7 +154,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(event) = event_receiver.recv().await {
             events_received += 1;
             match event {
-                ConsensusEvent::BlockProposed { block, proposer, height: _ } => {
+                ConsensusEvent::BlockProposed {
+                    block,
+                    proposer,
+                    height: _,
+                } => {
                     println!(
                         "   📦 Block proposed by {}: height {}, {} transactions",
                         proposer,
@@ -162,7 +166,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         block.transaction_count()
                     );
                 }
-                ConsensusEvent::BlockCommitted { block, height, block_hash } => {
+                ConsensusEvent::BlockCommitted {
+                    block,
+                    height,
+                    block_hash,
+                } => {
                     println!(
                         "   ✅ Block committed at height {} (hash: {}): {} transactions",
                         height,
@@ -176,7 +184,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         height, state_hash
                     );
                 }
-                ConsensusEvent::Error { error, context, message } => {
+                ConsensusEvent::Error {
+                    error,
+                    context,
+                    message,
+                } => {
                     println!("   ❌ Error in {}: {} ({})", context, error, message);
                 }
                 ConsensusEvent::ViewChanged {
@@ -274,9 +286,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🔄 Step 9: Testing state synchronization");
 
     let target_height = final_stats.current_height + 10;
-    consensus_manager
-        .sync_to_height(target_height)
-        .await?;
+    consensus_manager.sync_to_height(target_height).await?;
 
     let synced_state = consensus_manager.get_cross_vm_state().await?;
     println!("   ✅ State synchronized to height {}", synced_state.height);

@@ -1,6 +1,6 @@
 //! Metrics collection and export
 
-use crate::error::{ApplicationResult, ApplicationError};
+use crate::error::{ApplicationError, ApplicationResult};
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -27,7 +27,7 @@ impl MetricsService {
 
         // Start HTTP server for metrics endpoint
         use warp::Filter;
-        
+
         let metrics_route = warp::path("metrics")
             .and(warp::get())
             .map(|| {
@@ -42,14 +42,18 @@ impl MetricsService {
                     "text/plain; version=0.0.4"
                 )
             });
-        
-        let socket_addr: std::net::SocketAddr = addr.parse()
-            .map_err(|e| ApplicationError::ConfigurationError { component: "metrics".to_string(), message: format!("Invalid bind address: {}", e) })?;
-        
+
+        let socket_addr: std::net::SocketAddr =
+            addr.parse()
+                .map_err(|e| ApplicationError::ConfigurationError {
+                    component: "metrics".to_string(),
+                    message: format!("Invalid bind address: {}", e),
+                })?;
+
         tokio::spawn(async move {
             warp::serve(metrics_route).run(socket_addr).await;
         });
-        
+
         tracing::info!("Metrics server started on {}", addr);
         Ok(())
     }

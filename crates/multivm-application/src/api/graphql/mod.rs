@@ -148,7 +148,11 @@ impl QueryRoot {
         // Parse the address and look up actual bindings from the MultiVM gateway
         match multivm_account_mapping::AccountAddress::from_string(&address) {
             Ok(account_address) => {
-                match state.multivm_gateway.get_account_binding(&account_address).await {
+                match state
+                    .multivm_gateway
+                    .get_account_binding(&account_address)
+                    .await
+                {
                     Ok(Some(binding_info)) => Ok(Some(AccountBindings {
                         multivm_account: binding_info.multivm_id,
                         svm_account: binding_info.svm_address,
@@ -161,7 +165,10 @@ impl QueryRoot {
             }
             Err(_) => {
                 // Invalid address format
-                tracing::warn!("Invalid address format for multivm_bindings query: {}", address);
+                tracing::warn!(
+                    "Invalid address format for multivm_bindings query: {}",
+                    address
+                );
                 Ok(None)
             }
         }

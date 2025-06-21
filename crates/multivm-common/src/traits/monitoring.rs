@@ -87,23 +87,23 @@ pub trait HealthChecker: Send + Sync {
 pub struct NetworkStats {
     // Connection metrics
     pub connected_peers: usize,
-    
+
     // Message metrics
     pub messages_sent: u64,
     pub messages_received: u64,
     pub packets_sent: u64,
     pub packets_received: u64,
-    
+
     // Protocol-specific metrics
     pub sent_by_protocol: std::collections::HashMap<String, u64>,
     pub received_by_protocol: std::collections::HashMap<String, u64>,
-    
+
     // Bandwidth metrics
     pub bytes_sent: u64,
     pub bytes_received: u64,
-    pub upload_rate: f64,  // bytes/second
+    pub upload_rate: f64,   // bytes/second
     pub download_rate: f64, // bytes/second
-    
+
     // Uptime
     pub uptime: std::time::Duration,
 }

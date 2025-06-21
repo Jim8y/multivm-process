@@ -292,7 +292,11 @@ async fn demo_admin_interface() -> Result<(), Box<dyn std::error::Error>> {
         info!("🔍 Testing admin endpoint: {}", endpoint);
         match client.get(endpoint).send().await {
             Ok(response) => {
-                info!("✅ Admin endpoint {} returned status: {}", endpoint, response.status());
+                info!(
+                    "✅ Admin endpoint {} returned status: {}",
+                    endpoint,
+                    response.status()
+                );
                 if response.status().is_success() {
                     // Try to parse JSON response
                     match response.text().await {

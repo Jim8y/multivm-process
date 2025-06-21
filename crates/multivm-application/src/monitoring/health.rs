@@ -1,6 +1,6 @@
 //! Health check service
 
-use crate::error::{ApplicationResult, ApplicationError};
+use crate::error::{ApplicationError, ApplicationResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -28,43 +28,32 @@ impl HealthCheckService {
 
         // Start HTTP server with health check endpoints
         use warp::Filter;
-        
+
         let health_route = warp::path("health")
             .and(warp::get())
-            .map(|| {
-                warp::reply::with_status(
-                    "OK",
-                    warp::http::StatusCode::OK
-                )
-            });
-        
+            .map(|| warp::reply::with_status("OK", warp::http::StatusCode::OK));
+
         let ready_route = warp::path("ready")
             .and(warp::get())
-            .map(|| {
-                warp::reply::with_status(
-                    "Ready",
-                    warp::http::StatusCode::OK
-                )
-            });
-        
+            .map(|| warp::reply::with_status("Ready", warp::http::StatusCode::OK));
+
         let live_route = warp::path("live")
             .and(warp::get())
-            .map(|| {
-                warp::reply::with_status(
-                    "Alive",
-                    warp::http::StatusCode::OK
-                )
-            });
-        
+            .map(|| warp::reply::with_status("Alive", warp::http::StatusCode::OK));
+
         let routes = health_route.or(ready_route).or(live_route);
-        
-        let socket_addr: std::net::SocketAddr = addr.parse()
-            .map_err(|e| ApplicationError::ConfigurationError { component: "health".to_string(), message: format!("Invalid bind address: {}", e) })?;
-        
+
+        let socket_addr: std::net::SocketAddr =
+            addr.parse()
+                .map_err(|e| ApplicationError::ConfigurationError {
+                    component: "health".to_string(),
+                    message: format!("Invalid bind address: {}", e),
+                })?;
+
         tokio::spawn(async move {
             warp::serve(routes).run(socket_addr).await;
         });
-        
+
         tracing::info!("Health check server started on {}", addr);
         Ok(())
     }

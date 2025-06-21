@@ -156,10 +156,13 @@ impl EvmApiGateway {
     }
 
     /// Simulate transaction execution
-    pub async fn simulate_transaction(&self, transaction_data: &str) -> ApplicationResult<EvmSimulationResult> {
+    pub async fn simulate_transaction(
+        &self,
+        transaction_data: &str,
+    ) -> ApplicationResult<EvmSimulationResult> {
         // Validate transaction data
-        let is_valid_tx = !transaction_data.trim().is_empty() 
-            && transaction_data.starts_with("0x") 
+        let is_valid_tx = !transaction_data.trim().is_empty()
+            && transaction_data.starts_with("0x")
             && transaction_data.len() > 10;
 
         if is_valid_tx {
@@ -168,16 +171,19 @@ impl EvmApiGateway {
                 success: true,
                 gas_used: 21000,
                 gas_limit: 100000,
-                return_data: Some("0x0000000000000000000000000000000000000000000000000000000000000001".to_string()),
-                logs: vec![
-                    EvmLog {
-                        address: "0x1234567890123456789012345678901234567890".to_string(),
-                        topics: vec![
-                            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef".to_string()
-                        ],
-                        data: "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000".to_string(),
-                    }
-                ],
+                return_data: Some(
+                    "0x0000000000000000000000000000000000000000000000000000000000000001"
+                        .to_string(),
+                ),
+                logs: vec![EvmLog {
+                    address: "0x1234567890123456789012345678901234567890".to_string(),
+                    topics: vec![
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                            .to_string(),
+                    ],
+                    data: "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+                        .to_string(),
+                }],
                 error: None,
                 revert_reason: None,
             })
@@ -190,7 +196,9 @@ impl EvmApiGateway {
                 return_data: None,
                 logs: vec![],
                 error: Some("Invalid transaction data format".to_string()),
-                revert_reason: Some("Transaction data must be a valid hex string starting with 0x".to_string()),
+                revert_reason: Some(
+                    "Transaction data must be a valid hex string starting with 0x".to_string(),
+                ),
             })
         }
     }

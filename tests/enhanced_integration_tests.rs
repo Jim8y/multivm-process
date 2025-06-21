@@ -5,7 +5,7 @@ use multivm_account_mapping::{
 };
 use multivm_common::{BlockchainType, MultivmConfig, MultivmError, MultivmResult, SystemConfig};
 use multivm_consensus::{
-    EvmTransaction, MalachiteConfig, MultiVMBlock, SvmTransaction, EvmSignature,
+    EvmSignature, EvmTransaction, MalachiteConfig, MultiVMBlock, SvmTransaction,
 };
 use multivm_p2p::{P2PNetworkConfig, P2PNetworkLayer};
 use multivm_process_manager::{BlockRouter, CoordinatorConfig, MultivmCoordinator};
@@ -99,7 +99,7 @@ async fn test_account_mapping_integration() {
             vec![],
         );
         block.add_multivm_transaction(mapping.clone());
-        
+
         coordinator.submit_block(block).await.unwrap();
     }
 
@@ -140,7 +140,7 @@ async fn test_consensus_fault_tolerance() {
 
     // System should still reach consensus with 3/4 validators
     tokio::time::sleep(Duration::from_secs(2)).await;
-    
+
     // Check that block was processed
     let state = coordinators[0].get_state().await;
     assert!(state.blocks_processed > 0);
@@ -163,12 +163,7 @@ async fn test_transaction_routing_accuracy() {
     let evm_txs = 15;
     let special_txs = 5;
 
-    let mut block = MultiVMBlock::new(
-        1,
-        "0".repeat(64),
-        "test-validator".to_string(),
-        vec![],
-    );
+    let mut block = MultiVMBlock::new(1, "0".repeat(64), "test-validator".to_string(), vec![]);
 
     // Add SVM transactions
     for i in 0..svm_txs {
@@ -217,7 +212,10 @@ async fn test_transaction_routing_accuracy() {
 
     // Verify routing statistics
     let state = coordinator.get_state().await;
-    assert_eq!(state.system_metrics.total_transactions_processed as usize, svm_txs + evm_txs + special_txs);
+    assert_eq!(
+        state.system_metrics.total_transactions_processed as usize,
+        svm_txs + evm_txs + special_txs
+    );
     assert_eq!(state.system_metrics.error_count, 0);
 
     coordinator.stop().await.unwrap();
@@ -243,7 +241,7 @@ async fn test_concurrent_block_submission() {
                 "test-validator".to_string(),
                 vec![],
             );
-            
+
             block.add_svm_transaction(SvmTransaction {
                 id: uuid::Uuid::new_v4(),
                 signatures: vec![format!("sig_{}", i)],
@@ -433,11 +431,15 @@ fn create_test_multivm_block() -> MultiVMBlock {
 fn create_test_multivm_block_with_height(height: u64) -> MultiVMBlock {
     let mut block = MultiVMBlock::new(
         height,
-        if height == 1 { "0".repeat(64) } else { format!("{:064x}", height - 1) },
+        if height == 1 {
+            "0".repeat(64)
+        } else {
+            format!("{:064x}", height - 1)
+        },
         "test-validator".to_string(),
         vec![],
     );
-    
+
     block.add_svm_transaction(SvmTransaction {
         id: uuid::Uuid::new_v4(),
         signatures: vec!["test_sig".to_string()],
@@ -447,7 +449,7 @@ fn create_test_multivm_block_with_height(height: u64) -> MultiVMBlock {
         fee: 5000,
         metadata: serde_json::Value::Null,
     });
-    
+
     block.add_evm_transaction(EvmTransaction {
         id: uuid::Uuid::new_v4(),
         hash: format!("0x{:064x}", height),
@@ -465,31 +467,32 @@ fn create_test_multivm_block_with_height(height: u64) -> MultiVMBlock {
         },
         metadata: serde_json::Value::Null,
     });
-    
+
     block
 }
 
 fn create_complex_multivm_block() -> MultiVMBlock {
-    let mut block = MultiVMBlock::new(
-        1,
-        "0".repeat(64),
-        "test-validator".to_string(),
-        vec![],
-    );
-    
+    let mut block = MultiVMBlock::new(1, "0".repeat(64), "test-validator".to_string(), vec![]);
+
     // Add multiple SVM transactions
     for i in 0..2 {
         block.add_svm_transaction(SvmTransaction {
             id: uuid::Uuid::new_v4(),
             signatures: vec![format!("sig_{}", i), format!("sig2_{}", i)],
-            data: vec![(i * 5 + 1) as u8, (i * 5 + 2) as u8, (i * 5 + 3) as u8, (i * 5 + 4) as u8, (i * 5 + 5) as u8],
+            data: vec![
+                (i * 5 + 1) as u8,
+                (i * 5 + 2) as u8,
+                (i * 5 + 3) as u8,
+                (i * 5 + 4) as u8,
+                (i * 5 + 5) as u8,
+            ],
             accounts: vec![format!("account_{}", i)],
             recent_blockhash: "blockhash".to_string(),
             fee: 5000,
             metadata: serde_json::Value::Null,
         });
     }
-    
+
     // Add multiple EVM transactions
     for i in 0..2 {
         block.add_evm_transaction(EvmTransaction {
@@ -500,7 +503,13 @@ fn create_complex_multivm_block() -> MultiVMBlock {
             value: 1000000,
             gas_limit: 21000,
             gas_price: 1000000000,
-            data: vec![(i * 5 + 11) as u8, (i * 5 + 12) as u8, (i * 5 + 13) as u8, (i * 5 + 14) as u8, (i * 5 + 15) as u8],
+            data: vec![
+                (i * 5 + 11) as u8,
+                (i * 5 + 12) as u8,
+                (i * 5 + 13) as u8,
+                (i * 5 + 14) as u8,
+                (i * 5 + 15) as u8,
+            ],
             nonce: i as u64,
             signature: EvmSignature {
                 v: 27,
@@ -510,19 +519,19 @@ fn create_complex_multivm_block() -> MultiVMBlock {
             metadata: serde_json::Value::Null,
         });
     }
-    
+
     // Add special transaction
     block.add_multivm_transaction(create_full_account_mapping());
-    
+
     block
 }
 
 fn create_solana_only_mapping() -> SpecialTransaction {
     use multivm_account_mapping::{AccountAddress, BindingProof, ProofType};
     use std::time::SystemTime;
-    
+
     let solana_addr = AccountAddress::Solana(SolanaAddress([2; 32]));
-    
+
     SpecialTransaction::AccountBinding {
         source_account: solana_addr.clone(),
         target_account: solana_addr,
@@ -542,9 +551,9 @@ fn create_solana_only_mapping() -> SpecialTransaction {
 fn create_ethereum_only_mapping() -> SpecialTransaction {
     use multivm_account_mapping::{AccountAddress, BindingProof, ProofType};
     use std::time::SystemTime;
-    
+
     let eth_addr = AccountAddress::Ethereum(EthereumAddress([4; 20]));
-    
+
     SpecialTransaction::AccountBinding {
         source_account: eth_addr.clone(),
         target_account: eth_addr,
@@ -564,10 +573,10 @@ fn create_ethereum_only_mapping() -> SpecialTransaction {
 fn create_full_account_mapping() -> SpecialTransaction {
     use multivm_account_mapping::{AccountAddress, BindingProof, ProofType};
     use std::time::SystemTime;
-    
+
     let solana_addr = AccountAddress::Solana(SolanaAddress([6; 32]));
     let eth_addr = AccountAddress::Ethereum(EthereumAddress([7; 20]));
-    
+
     SpecialTransaction::AccountBinding {
         source_account: solana_addr,
         target_account: eth_addr,
@@ -587,13 +596,13 @@ fn create_full_account_mapping() -> SpecialTransaction {
 fn create_test_special_transaction(index: usize) -> SpecialTransaction {
     use multivm_account_mapping::{AccountAddress, BindingProof, ProofType};
     use std::time::SystemTime;
-    
+
     let account = if index % 2 == 0 {
         AccountAddress::Solana(SolanaAddress([(index * 2) as u8; 32]))
     } else {
         AccountAddress::Ethereum(EthereumAddress([(index * 3) as u8; 20]))
     };
-    
+
     SpecialTransaction::AccountBinding {
         source_account: account.clone(),
         target_account: account.clone(),

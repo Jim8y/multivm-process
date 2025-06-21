@@ -1,6 +1,8 @@
 //! Secure IPC transport with authentication, encryption, and rate limiting
 
 use crate::{IpcMessage, MultivmError, MultivmResult};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,8 +11,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UnixStream};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, info, warn};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::RngCore;
 
 /// Authentication token for IPC communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,11 +186,13 @@ impl AuthManager {
         let claims = Claims {
             process_id: token.process_id.clone(),
             permissions: token.permissions.clone(),
-            iat: token.issued_at
+            iat: token
+                .issued_at
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            exp: token.expires_at
+            exp: token
+                .expires_at
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
@@ -199,10 +201,11 @@ impl AuthManager {
 
         let header = Header::new(Algorithm::HS256);
         let encoding_key = EncodingKey::from_secret(&self.signing_key);
-        
-        let jwt_token = encode(&header, &claims, &encoding_key)
-            .map_err(|e| MultivmError::AuthenticationFailed(format!("JWT encoding failed: {}", e)))?;
-        
+
+        let jwt_token = encode(&header, &claims, &encoding_key).map_err(|e| {
+            MultivmError::AuthenticationFailed(format!("JWT encoding failed: {}", e))
+        })?;
+
         token.signature = jwt_token.into_bytes();
         Ok(token)
     }
@@ -218,31 +221,33 @@ impl AuthManager {
             iss: String,
         }
 
-        let jwt_token = String::from_utf8(token.signature.clone())
-            .map_err(|e| MultivmError::AuthenticationFailed(format!("Invalid JWT format: {}", e)))?;
-        
+        let jwt_token = String::from_utf8(token.signature.clone()).map_err(|e| {
+            MultivmError::AuthenticationFailed(format!("Invalid JWT format: {}", e))
+        })?;
+
         let decoding_key = DecodingKey::from_secret(&self.signing_key);
         let mut validation = Validation::new(Algorithm::HS256);
         validation.set_issuer(&["multivm-ipc"]);
-        
+
         match decode::<Claims>(&jwt_token, &decoding_key, &validation) {
             Ok(token_data) => {
                 let claims = token_data.claims;
-                
+
                 // Verify claims match token fields
                 if claims.process_id != token.process_id {
                     return Ok(false);
                 }
-                
-                let token_iat = token.issued_at
+
+                let token_iat = token
+                    .issued_at
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
                     .as_secs();
-                
+
                 if claims.iat != token_iat {
                     return Ok(false);
                 }
-                
+
                 Ok(true)
             }
             Err(e) => {
@@ -465,8 +470,8 @@ impl SecureIpcTransport {
     pub async fn receive_secure(&mut self) -> MultivmResult<IpcMessage> {
         // Read message
         let data = self.receive_bytes().await?;
-        let secure_message: SecureMessage = bincode::deserialize(&data)
-            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+        let secure_message: SecureMessage =
+            bincode::deserialize(&data).map_err(|e| MultivmError::Serialization(e.to_string()))?;
 
         // Validate authentication
         if !self
@@ -554,8 +559,8 @@ impl SecureIpcTransport {
             .as_ref()
             .ok_or_else(|| MultivmError::AuthenticationFailed("No process ID".to_string()))?;
 
-        let serialized_message = bincode::serialize(&message)
-            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+        let serialized_message =
+            bincode::serialize(&message).map_err(|e| MultivmError::Serialization(e.to_string()))?;
 
         // Create a new signed token for this message
         let mut token = AuthToken {
@@ -565,7 +570,7 @@ impl SecureIpcTransport {
             permissions: vec!["ipc".to_string()],
             signature: Vec::new(),
         };
-        
+
         // Get the stored token from auth manager and use its signature
         // This ensures we're using the proper authenticated token
         let auth_manager = self.auth_manager.clone();
@@ -593,28 +598,30 @@ impl SecureIpcTransport {
         // Verify MAC before deserializing
         let computed_mac = self.compute_message_mac(&secure_message.encrypted_payload)?;
         if computed_mac != secure_message.mac {
-            return Err(MultivmError::AuthenticationFailed("Message MAC verification failed".to_string()));
+            return Err(MultivmError::AuthenticationFailed(
+                "Message MAC verification failed".to_string(),
+            ));
         }
-        
+
         let message: IpcMessage = bincode::deserialize(&secure_message.encrypted_payload)
             .map_err(|e| MultivmError::Serialization(e.to_string()))?;
         Ok(message)
     }
-    
+
     /// Compute message authentication code
     fn compute_message_mac(&self, message: &[u8]) -> MultivmResult<Vec<u8>> {
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
-        
+
         type HmacSha256 = Hmac<Sha256>;
-        
+
         let mut mac = HmacSha256::new_from_slice(&self.auth_manager.signing_key)
             .map_err(|e| MultivmError::AuthenticationFailed(format!("MAC key error: {}", e)))?;
-        
+
         mac.update(message);
         Ok(mac.finalize().into_bytes().to_vec())
     }
-    
+
     /// Generate cryptographic nonce
     fn generate_nonce(&self) -> Vec<u8> {
         let mut nonce = vec![0u8; 12]; // 96-bit nonce for AES-GCM

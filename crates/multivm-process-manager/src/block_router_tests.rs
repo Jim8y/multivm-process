@@ -4,7 +4,7 @@
 mod tests {
     use super::super::block_router::*;
     use multivm_account_mapping::{
-        AccountAddress, BindingProof, EthereumAddress, MemoryStorage, ProofType, SolanaAddress, 
+        AccountAddress, BindingProof, EthereumAddress, MemoryStorage, ProofType, SolanaAddress,
         SpecialTransaction,
     };
     // MultivmResult not needed for current tests
@@ -18,7 +18,7 @@ mod tests {
         max_parallel_blocks: usize,
         routing_timeout: std::time::Duration,
     }
-    
+
     fn create_mock_account_mapping() -> Arc<MemoryStorage> {
         Arc::new(MemoryStorage::new())
     }
@@ -26,7 +26,7 @@ mod tests {
     fn create_test_block() -> MultiVMBlock {
         use multivm_consensus::block::BlockHeader;
         use std::time::SystemTime;
-        
+
         let mut block = MultiVMBlock {
             header: BlockHeader {
                 height: 100,
@@ -39,55 +39,49 @@ mod tests {
                 version: 1,
                 extra_data: vec![],
             },
-            svm_transactions: vec![
-                SvmTransaction {
-                    id: Uuid::new_v4(),
-                    signatures: vec!["sig1".to_string()],
-                    data: vec![1, 2, 3, 4],
-                    accounts: vec!["account1".to_string()],
-                    recent_blockhash: "blockhash".to_string(),
-                    fee: 5000,
-                    metadata: serde_json::Value::Null,
-                }
-            ],
-            evm_transactions: vec![
-                EvmTransaction {
-                    id: Uuid::new_v4(),
-                    hash: "0xhash".to_string(),
-                    from: "0xfrom".to_string(),
-                    to: Some("0xto".to_string()),
-                    value: 1000,
-                    gas_limit: 21000,
-                    gas_price: 20000000000,
-                    data: vec![5, 6, 7, 8],
-                    nonce: 1,
-                    signature: multivm_consensus::EvmSignature {
-                        v: 27,
-                        r: "0xr".to_string(),
-                        s: "0xs".to_string(),
+            svm_transactions: vec![SvmTransaction {
+                id: Uuid::new_v4(),
+                signatures: vec!["sig1".to_string()],
+                data: vec![1, 2, 3, 4],
+                accounts: vec!["account1".to_string()],
+                recent_blockhash: "blockhash".to_string(),
+                fee: 5000,
+                metadata: serde_json::Value::Null,
+            }],
+            evm_transactions: vec![EvmTransaction {
+                id: Uuid::new_v4(),
+                hash: "0xhash".to_string(),
+                from: "0xfrom".to_string(),
+                to: Some("0xto".to_string()),
+                value: 1000,
+                gas_limit: 21000,
+                gas_price: 20000000000,
+                data: vec![5, 6, 7, 8],
+                nonce: 1,
+                signature: multivm_consensus::EvmSignature {
+                    v: 27,
+                    r: "0xr".to_string(),
+                    s: "0xs".to_string(),
+                },
+                metadata: serde_json::Value::Null,
+            }],
+            multivm_transactions: vec![SpecialTransaction::AccountBinding {
+                source_account: AccountAddress::Solana(SolanaAddress([10; 32])),
+                target_account: AccountAddress::Ethereum(EthereumAddress([11; 20])),
+                proof: BindingProof {
+                    account: AccountAddress::Solana(SolanaAddress([10; 32])),
+                    proof_type: ProofType::Signature {
+                        message: b"binding_message".to_vec(),
+                        signature: b"binding_signature".to_vec(),
                     },
-                    metadata: serde_json::Value::Null,
-                }
-            ],
-            multivm_transactions: vec![
-                SpecialTransaction::AccountBinding {
-                    source_account: AccountAddress::Solana(SolanaAddress([10; 32])),
-                    target_account: AccountAddress::Ethereum(EthereumAddress([11; 20])),
-                    proof: BindingProof {
-                        account: AccountAddress::Solana(SolanaAddress([10; 32])),
-                        proof_type: ProofType::Signature {
-                            message: b"binding_message".to_vec(),
-                            signature: b"binding_signature".to_vec(),
-                        },
-                        proof_data: vec![12; 64],
-                        timestamp: SystemTime::now(),
-                    },
-                    metadata: None,
-                }
-            ],
+                    proof_data: vec![12; 64],
+                    timestamp: SystemTime::now(),
+                },
+                metadata: None,
+            }],
             state_transitions: vec![],
         };
-        
+
         block.finalize();
         block
     }
@@ -129,7 +123,7 @@ mod tests {
         assert!(decompose_result.is_ok());
 
         let routing_result = decompose_result.unwrap();
-        
+
         // Test basic decomposition worked
         assert!(!routing_result.svm_transactions.is_empty());
         assert!(!routing_result.evm_transactions.is_empty());
@@ -143,7 +137,7 @@ mod tests {
 
         let block = create_test_block();
         let result = router.decompose_block(block).await.unwrap();
-        
+
         // Test metadata is populated correctly
         let metadata = &result.routing_metadata;
         assert_eq!(metadata.svm_count, 1);
@@ -197,7 +191,7 @@ mod tests {
 
         // Verify all blocks were processed
         assert_eq!(results.len(), 3);
-        
+
         // Verify each result has the expected transaction counts
         for result in results {
             assert_eq!(result.routing_metadata.total_transactions, 3);
@@ -230,7 +224,7 @@ mod tests {
 
         let result = router.decompose_block(empty_block).await;
         assert!(result.is_ok()); // Empty blocks should be valid
-        
+
         let routing_result = result.unwrap();
         assert_eq!(routing_result.routing_metadata.total_transactions, 0);
     }

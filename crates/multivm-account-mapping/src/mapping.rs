@@ -310,7 +310,7 @@ impl AccountBinding {
 
         // For Ethereum, we need to recover the public key from the signature
         // and verify it matches the address
-        
+
         if signature.len() != 65 {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: "Invalid Ethereum signature length (expected 65 bytes)".to_string(),
@@ -339,16 +339,16 @@ impl AccountBinding {
         let message_hash = Keccak256::digest(message);
 
         // Recover the public key
-        let recovered_key = VerifyingKey::recover_from_prehash(&message_hash, &signature, recovery_id)
-            .map_err(|_| {
-                AccountMappingError::InvalidBindingProof {
+        let recovered_key =
+            VerifyingKey::recover_from_prehash(&message_hash, &signature, recovery_id).map_err(
+                |_| AccountMappingError::InvalidBindingProof {
                     reason: "Failed to recover public key from signature".to_string(),
-                }
-            })?;
+                },
+            )?;
 
         // Convert public key to Ethereum address format
         let public_key_bytes = recovered_key.to_sec1_bytes();
-        
+
         // Create Ethereum address from public key (last 20 bytes of keccak256 hash)
         let addr_hash = Keccak256::digest(&public_key_bytes[1..]); // Skip 0x04 prefix
         let recovered_addr: [u8; 20] = addr_hash[12..32].try_into().unwrap();
@@ -440,9 +440,9 @@ impl Default for BindingConfiguration {
 impl Default for GasLimits {
     fn default() -> Self {
         Self {
-            max_solana_fee: Some(10_000), // 0.00001 SOL
+            max_solana_fee: Some(10_000),                 // 0.00001 SOL
             max_ethereum_gas_price: Some(50_000_000_000), // 50 gwei
-            max_ethereum_gas_limit: Some(21_000), // Standard transfer
+            max_ethereum_gas_limit: Some(21_000),         // Standard transfer
         }
     }
 }

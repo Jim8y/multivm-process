@@ -65,10 +65,10 @@ pub enum P2PError {
 
     #[error("libp2p error: {message}")]
     Libp2p { message: String },
-    
+
     #[error("Internal error: {0}")]
     Internal(String),
-    
+
     #[error("Transport error: {0}")]
     Transport(String),
 }

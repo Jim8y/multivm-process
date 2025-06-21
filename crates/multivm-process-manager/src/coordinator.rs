@@ -8,7 +8,10 @@
 
 use crate::{BlockRouter, HealthMonitor, MultivmProcessManager, ProcessHandle};
 use multivm_account_mapping::{AccountMappingLayer, MemoryStorage};
-use multivm_common::{*, config::{IpcTransportConfig, SolanaConfig, EthereumConfig}};
+use multivm_common::{
+    config::{EthereumConfig, IpcTransportConfig, SolanaConfig},
+    *,
+};
 use multivm_consensus::{MalachiteConfig, MalachiteConsensus, MultiVMBlock};
 use std::sync::Arc;
 use std::time::Duration;
@@ -260,9 +263,8 @@ impl MultivmCoordinator {
         };
 
         // Determine consensus health based on state
-        let consensus_healthy = consensus_state.is_running && 
-            consensus_state.current_view > 0 || 
-            consensus_state.last_committed_sequence == 0; // Allow for genesis state
+        let consensus_healthy = consensus_state.is_running && consensus_state.current_view > 0
+            || consensus_state.last_committed_sequence == 0; // Allow for genesis state
 
         Ok(SystemHealthStatus {
             is_healthy: state.is_running && process_health.overall_healthy && consensus_healthy,
@@ -380,28 +382,52 @@ impl MultivmCoordinator {
         // Step 2: Process special transactions first
         for special_tx in &routing_result.special_transactions {
             debug!("Processing special transaction: {:?}", special_tx);
-            
+
             // Process different types of special transactions
             match special_tx {
-                multivm_account_mapping::SpecialTransaction::AccountBinding { source_account, target_account, proof: _, metadata: _ } => {
-                    info!("Processing account binding: {} <-> {}", source_account, target_account);
-                    // In a real implementation, would validate proof and create the binding
-                },
-                multivm_account_mapping::SpecialTransaction::CrossVmTransfer { from, to, amount, asset_type, memo } => {
+                multivm_account_mapping::SpecialTransaction::AccountBinding {
+                    source_account,
+                    target_account,
+                    proof: _,
+                    metadata: _,
+                } => {
                     info!(
-                        "Processing cross-VM transfer: {} from {} to {} (asset: {:?}, memo: {:?})", 
+                        "Processing account binding: {} <-> {}",
+                        source_account, target_account
+                    );
+                    // In a real implementation, would validate proof and create the binding
+                }
+                multivm_account_mapping::SpecialTransaction::CrossVmTransfer {
+                    from,
+                    to,
+                    amount,
+                    asset_type,
+                    memo,
+                } => {
+                    info!(
+                        "Processing cross-VM transfer: {} from {} to {} (asset: {:?}, memo: {:?})",
                         amount, from, to, asset_type, memo
                     );
                     // In a real implementation, would validate balances and execute transfer
-                },
-                multivm_account_mapping::SpecialTransaction::UpdateBinding { multivm_account, config: _ } => {
+                }
+                multivm_account_mapping::SpecialTransaction::UpdateBinding {
+                    multivm_account,
+                    config: _,
+                } => {
                     info!("Processing binding update for account: {}", multivm_account);
                     // In a real implementation, would update the binding configuration
-                },
-                multivm_account_mapping::SpecialTransaction::UnbindAccount { multivm_account, account, auth_proof: _ } => {
-                    info!("Processing account unbinding: {} from {}", account, multivm_account);
+                }
+                multivm_account_mapping::SpecialTransaction::UnbindAccount {
+                    multivm_account,
+                    account,
+                    auth_proof: _,
+                } => {
+                    info!(
+                        "Processing account unbinding: {} from {}",
+                        account, multivm_account
+                    );
                     // In a real implementation, would validate auth and unbind the account
-                },
+                }
             }
         }
 
@@ -446,16 +472,19 @@ impl MultivmCoordinator {
         // Check individual processes and perform recovery if needed
         for (process_id, health_status) in &process_health.process_health {
             debug!("Process {} health: {:?}", process_id, health_status);
-            
+
             // Implement recovery logic for unhealthy processes
             if !health_status.is_healthy {
-                warn!("Process {} is unhealthy: {:?}", process_id, health_status.last_error);
-                
+                warn!(
+                    "Process {} is unhealthy: {:?}",
+                    process_id, health_status.last_error
+                );
+
                 // Attempt recovery based on the type of issue
                 if let Some(ref error_msg) = health_status.last_error {
                     if error_msg.contains("timeout") || error_msg.contains("unresponsive") {
                         info!("Attempting to restart unresponsive process: {}", process_id);
-                        
+
                         if let Err(e) = process_manager.restart_process(*process_id).await {
                             error!("Failed to restart process {}: {}", process_id, e);
                             // Update recovery count
@@ -470,7 +499,10 @@ impl MultivmCoordinator {
                         warn!("Process {} has resource issues - monitoring", process_id);
                         // Could implement resource cleanup or scaling here
                     } else {
-                        info!("Process {} has unknown health issue - investigating", process_id);
+                        info!(
+                            "Process {} has unknown health issue - investigating",
+                            process_id
+                        );
                     }
                 }
             }

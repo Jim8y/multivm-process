@@ -209,7 +209,7 @@ impl MultiVMBlock {
             &self.evm_transactions,
             &self.multivm_transactions,
         );
-        
+
         if let Ok(serialized) = bincode::serialize(&tx_data) {
             hasher.update(&serialized);
         }
@@ -370,7 +370,6 @@ impl Default for EvmSignature {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_multivm_block_creation() {

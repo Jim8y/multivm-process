@@ -298,7 +298,7 @@ impl WebSocketServer {
                                 connection_id,
                                 serialized_event
                             );
-                            
+
                             // Here you would use the connection's WebSocket sender:
                             // if let Some(sender) = connection_senders.get(connection_id) {
                             //     let _ = sender.send(Message::Text(serialized_event)).await;

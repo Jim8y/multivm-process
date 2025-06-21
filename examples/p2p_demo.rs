@@ -8,7 +8,8 @@
 
 use async_trait;
 use multivm_account_mapping::{
-    AccountAddress, BindingProof, EthereumAddress, ProofType, SolanaAddress, SpecialTransaction, SimpleBindingMetadata,
+    AccountAddress, BindingProof, EthereumAddress, ProofType, SimpleBindingMetadata, SolanaAddress,
+    SpecialTransaction,
 };
 use multivm_p2p::{
     config::P2PConfig, ControlMessage, DiscoveryMessage, ExecutionContext, ExecutionPriority,
@@ -75,12 +76,15 @@ impl NetworkEventHandler for DemoEventHandler {
         }
         Ok(())
     }
-    
-    async fn on_peer_connected(&self, peer_info: &multivm_p2p::PeerInfo) -> multivm_common::MultivmResult<()> {
+
+    async fn on_peer_connected(
+        &self,
+        peer_info: &multivm_p2p::PeerInfo,
+    ) -> multivm_common::MultivmResult<()> {
         println!("🔗 Peer connected callback: {}", peer_info.peer_id);
         Ok(())
     }
-    
+
     async fn on_peer_disconnected(&self, peer_id: &str) -> multivm_common::MultivmResult<()> {
         println!("💔 Peer disconnected callback: {}", peer_id);
         Ok(())

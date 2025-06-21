@@ -55,7 +55,8 @@ impl RedisCache {
                 });
             } else {
                 Client::open(config.url.as_str())
-            }.map_err(|e| crate::error::ApplicationError::CacheError {
+            }
+            .map_err(|e| crate::error::ApplicationError::CacheError {
                 operation: "redis".to_string(),
                 message: format!("Failed to create Redis client: {}", e),
             })?;
@@ -77,7 +78,7 @@ impl RedisCache {
                 connection: Arc::new(Mutex::new(Some(conn))),
             })
         }
-        
+
         #[cfg(not(feature = "cache"))]
         {
             tracing::warn!("Redis cache feature not enabled, using mock implementation");
@@ -99,23 +100,26 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             match conn.get::<_, String>(&full_key) {
-                Ok(value) => {
-                    match serde_json::from_str::<T>(&value) {
-                        Ok(deserialized) => Ok(Some(deserialized)),
-                        Err(e) => {
-                            tracing::warn!("Failed to deserialize cached value for key {}: {}", full_key, e);
-                            Ok(None)
-                        }
+                Ok(value) => match serde_json::from_str::<T>(&value) {
+                    Ok(deserialized) => Ok(Some(deserialized)),
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to deserialize cached value for key {}: {}",
+                            full_key,
+                            e
+                        );
+                        Ok(None)
                     }
-                }
+                },
                 Err(e) if e.kind() == redis::ErrorKind::TypeError => {
                     // Key doesn't exist
                     Ok(None)
@@ -154,18 +158,20 @@ impl RedisCache {
             })?;
 
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             if let Some(_ttl) = ttl {
                 conn.set_ex::<_, _, ()>(&full_key, &serialized, ttl_secs)
             } else {
                 conn.set::<_, _, ()>(&full_key, &serialized)
-            }.map_err(|e| crate::error::ApplicationError::CacheError {
+            }
+            .map_err(|e| crate::error::ApplicationError::CacheError {
                 operation: "redis".to_string(),
                 message: format!("Redis SET error for key {}: {}", full_key, e),
             })?;
@@ -188,16 +194,19 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
+
+            conn.del::<_, ()>(&full_key).map_err(|e| {
                 crate::error::ApplicationError::CacheError {
                     operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
+                    message: format!("Redis DEL error for key {}: {}", full_key, e),
                 }
-            })?;
-
-            conn.del::<_, ()>(&full_key).map_err(|e| crate::error::ApplicationError::CacheError {
-                operation: "redis".to_string(),
-                message: format!("Redis DEL error for key {}: {}", full_key, e),
             })?;
         }
 
@@ -216,25 +225,28 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             let pattern = format!("{}*", self.config.key_prefix);
-            let keys: Vec<String> = conn.keys(&pattern).map_err(|e| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "keys".to_string(),
-                    message: format!("Redis KEYS error for pattern {}: {}", pattern, e),
-                }
-            })?;
+            let keys: Vec<String> =
+                conn.keys(&pattern)
+                    .map_err(|e| crate::error::ApplicationError::CacheError {
+                        operation: "keys".to_string(),
+                        message: format!("Redis KEYS error for pattern {}: {}", pattern, e),
+                    })?;
 
             if !keys.is_empty() {
-                conn.del::<_, ()>(&keys).map_err(|e| crate::error::ApplicationError::CacheError {
-                    operation: "del".to_string(),
-                    message: format!("Redis DEL error for keys {:?}: {}", keys, e),
+                conn.del::<_, ()>(&keys).map_err(|e| {
+                    crate::error::ApplicationError::CacheError {
+                        operation: "del".to_string(),
+                        message: format!("Redis DEL error for keys {:?}: {}", keys, e),
+                    }
                 })?;
             }
         }
@@ -255,19 +267,20 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
-            let exists: bool = conn.exists(&full_key).map_err(|e| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "exists".to_string(),
-                    message: format!("Redis EXISTS error for key {}: {}", full_key, e),
-                }
-            })?;
+            let exists: bool =
+                conn.exists(&full_key)
+                    .map_err(|e| crate::error::ApplicationError::CacheError {
+                        operation: "exists".to_string(),
+                        message: format!("Redis EXISTS error for key {}: {}", full_key, e),
+                    })?;
 
             Ok(exists)
         }
@@ -284,12 +297,13 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             // Get Redis INFO stats
             let info: String = redis::cmd("INFO").arg("stats").query(conn).map_err(|e| {
@@ -339,25 +353,24 @@ impl RedisCache {
                 .collect();
 
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
-            let values: Vec<Option<String>> = conn.get(&full_keys).map_err(|e| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "mget".to_string(),
-                    message: format!("Redis MGET error: {}", e),
-                }
-            })?;
+            let values: Vec<Option<String>> =
+                conn.get(&full_keys)
+                    .map_err(|e| crate::error::ApplicationError::CacheError {
+                        operation: "mget".to_string(),
+                        message: format!("Redis MGET error: {}", e),
+                    })?;
 
             let result = values
                 .into_iter()
-                .map(|opt_val| {
-                    opt_val.and_then(|val| serde_json::from_str::<T>(&val).ok())
-                })
+                .map(|opt_val| opt_val.and_then(|val| serde_json::from_str::<T>(&val).ok()))
                 .collect();
 
             Ok(result)
@@ -388,19 +401,20 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             for (key, value) in items {
                 let full_key = format!("{}{}", self.config.key_prefix, key);
                 let serialized = serde_json::to_string(value).map_err(|e| {
                     crate::error::ApplicationError::CacheError {
                         operation: "serialize".to_string(),
-                    message: format!("Failed to serialize value for key {}: {}", full_key, e),
+                        message: format!("Failed to serialize value for key {}: {}", full_key, e),
                     }
                 })?;
 
@@ -408,7 +422,8 @@ impl RedisCache {
                     conn.set_ex::<_, _, ()>(&full_key, &serialized, ttl.as_secs())
                 } else {
                     conn.set::<_, _, ()>(&full_key, &serialized)
-                }.map_err(|e| crate::error::ApplicationError::CacheError {
+                }
+                .map_err(|e| crate::error::ApplicationError::CacheError {
                     operation: "set".to_string(),
                     message: format!("Redis SET error for key {}: {}", full_key, e),
                 })?;
@@ -432,12 +447,13 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             let result: i64 = conn.incr(&full_key, delta).map_err(|e| {
                 crate::error::ApplicationError::CacheError {
@@ -474,12 +490,13 @@ impl RedisCache {
             })?;
 
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             // Use SET with NX and EX options
             let result: Option<String> = redis::cmd("SET")
@@ -513,19 +530,20 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
-            let ttl_secs: i64 = conn.ttl(&full_key).map_err(|e| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "ttl".to_string(),
-                    message: format!("Redis TTL error for key {}: {}", full_key, e),
-                }
-            })?;
+            let ttl_secs: i64 =
+                conn.ttl(&full_key)
+                    .map_err(|e| crate::error::ApplicationError::CacheError {
+                        operation: "ttl".to_string(),
+                        message: format!("Redis TTL error for key {}: {}", full_key, e),
+                    })?;
 
             match ttl_secs {
                 -2 => Ok(None), // Key doesn't exist
@@ -550,12 +568,13 @@ impl RedisCache {
         #[cfg(feature = "cache")]
         {
             let mut conn_guard = self.connection.lock().await;
-            let conn = conn_guard.as_mut().ok_or_else(|| {
-                crate::error::ApplicationError::CacheError {
-                    operation: "redis".to_string(),
-                    message: "Redis connection not available".to_string(),
-                }
-            })?;
+            let conn =
+                conn_guard
+                    .as_mut()
+                    .ok_or_else(|| crate::error::ApplicationError::CacheError {
+                        operation: "redis".to_string(),
+                        message: "Redis connection not available".to_string(),
+                    })?;
 
             let result: bool = conn.expire(&full_key, ttl.as_secs() as i64).map_err(|e| {
                 crate::error::ApplicationError::CacheError {

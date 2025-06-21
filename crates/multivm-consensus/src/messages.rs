@@ -523,7 +523,6 @@ impl Default for NodeMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_consensus_message_creation() {

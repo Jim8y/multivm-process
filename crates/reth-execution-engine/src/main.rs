@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📁 Data directory: {}", data_dir_path.display());
     println!("🌐 RPC port: {}", rpc_port);
     println!("🔗 Chain ID: {}", chain_id);
-    
+
     #[cfg(feature = "mock")]
     println!("🎭 Running in MOCK mode (no real Reth node process)");
     #[cfg(not(feature = "mock"))]

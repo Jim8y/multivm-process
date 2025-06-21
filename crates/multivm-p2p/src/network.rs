@@ -77,42 +77,47 @@ impl P2PNetwork {
         self.event_handler = Some(handler);
         info!("Network event handler registered");
     }
-    
+
     /// Process network events
     async fn process_network_events(&mut self) -> MultivmResult<()> {
         // Create event receiver channel
         let (sender, mut receiver) = mpsc::unbounded_channel::<NetworkMessage>();
         self.event_sender = Some(sender);
-        
+
         // Process incoming events
         tokio::spawn(async move {
             while let Some(message) = receiver.recv().await {
                 debug!("Processing network message: {:?}", message);
-                
+
                 // Handle different message types based on protocol
                 match &message.payload {
-                    crate::MessagePayload::Svm(svm_msg) => {
-                        match svm_msg {
-                            crate::SvmMessage::Block { block_hash, height, .. } => {
-                                info!("Received SVM block: hash={}, height={}", block_hash, height);
-                            }
-                            crate::SvmMessage::Transaction { signature, .. } => {
-                                info!("Received SVM transaction: signature={}", signature);
-                            }
-                            _ => debug!("Received other SVM message"),
+                    crate::MessagePayload::Svm(svm_msg) => match svm_msg {
+                        crate::SvmMessage::Block {
+                            block_hash, height, ..
+                        } => {
+                            info!("Received SVM block: hash={}, height={}", block_hash, height);
                         }
-                    }
-                    crate::MessagePayload::Evm(evm_msg) => {
-                        match evm_msg {
-                            crate::EvmMessage::Block { block_hash, block_number, .. } => {
-                                info!("Received EVM block: hash={}, number={}", block_hash, block_number);
-                            }
-                            crate::EvmMessage::Transaction { tx_hash, .. } => {
-                                info!("Received EVM transaction: hash={}", tx_hash);
-                            }
-                            _ => debug!("Received other EVM message"),
+                        crate::SvmMessage::Transaction { signature, .. } => {
+                            info!("Received SVM transaction: signature={}", signature);
                         }
-                    }
+                        _ => debug!("Received other SVM message"),
+                    },
+                    crate::MessagePayload::Evm(evm_msg) => match evm_msg {
+                        crate::EvmMessage::Block {
+                            block_hash,
+                            block_number,
+                            ..
+                        } => {
+                            info!(
+                                "Received EVM block: hash={}, number={}",
+                                block_hash, block_number
+                            );
+                        }
+                        crate::EvmMessage::Transaction { tx_hash, .. } => {
+                            info!("Received EVM transaction: hash={}", tx_hash);
+                        }
+                        _ => debug!("Received other EVM message"),
+                    },
                     crate::MessagePayload::MultiVm(multivm_msg) => {
                         info!("Received MultiVM message: {:?}", multivm_msg);
                     }
@@ -125,48 +130,52 @@ impl P2PNetwork {
                 }
             }
         });
-        
+
         Ok(())
     }
-    
+
     /// Simulate peer discovery and connection
     async fn simulate_peer_discovery(&mut self) -> MultivmResult<()> {
         info!("Starting peer discovery simulation");
-        
+
         // Simulate connecting to peers
-        let peer_addresses = vec![
-            "127.0.0.1:8001",
-            "127.0.0.1:8002", 
-            "127.0.0.1:8003",
-        ];
-        
+        let peer_addresses = vec!["127.0.0.1:8001", "127.0.0.1:8002", "127.0.0.1:8003"];
+
         for addr in peer_addresses {
             // Simulate peer connection
             tokio::time::sleep(Duration::from_millis(100)).await;
             self.stats.connected_peers += 1;
             info!("Connected to peer: {}", addr);
-            
+
             // Notify event handler if available
             if let Some(ref handler) = self.event_handler {
                 let peer_info = PeerInfo {
                     peer_id: format!("peer_{}", self.stats.connected_peers),
-                    addresses: vec![addr.parse().unwrap_or_else(|_| "/ip4/127.0.0.1/tcp/8000".parse().unwrap())],
+                    addresses: vec![addr
+                        .parse()
+                        .unwrap_or_else(|_| "/ip4/127.0.0.1/tcp/8000".parse().unwrap())],
                     protocols: vec!["multivm/1.0".to_string(), "gossipsub/1.0".to_string()],
                     supports_multivm: true,
                     last_seen: chrono::Utc::now(),
                     status: crate::PeerStatus::Connected,
                 };
-                
+
                 // Notify event handler about peer connection
                 if let Err(e) = handler.on_peer_connected(&peer_info).await {
                     tracing::warn!("Event handler failed to process peer connection: {}", e);
                 } else {
-                    debug!("Successfully notified event handler about new peer: {:?}", peer_info);
+                    debug!(
+                        "Successfully notified event handler about new peer: {:?}",
+                        peer_info
+                    );
                 }
             }
         }
-        
-        info!("Peer discovery simulation completed. Connected peers: {}", self.stats.connected_peers);
+
+        info!(
+            "Peer discovery simulation completed. Connected peers: {}",
+            self.stats.connected_peers
+        );
         Ok(())
     }
 
@@ -180,38 +189,41 @@ impl P2PNetwork {
 impl P2PNetworkLayer for P2PNetwork {
     async fn start(&mut self) -> MultivmResult<()> {
         info!("Starting P2P network with enhanced implementation");
-        
+
         // Initialize network event processing
         self.process_network_events().await?;
-        
+
         // Start peer discovery
         self.simulate_peer_discovery().await?;
-        
+
         self.running = true;
         self.start_time = Some(Instant::now());
-        
-        info!("P2P network started successfully with {} connected peers", self.stats.connected_peers);
+
+        info!(
+            "P2P network started successfully with {} connected peers",
+            self.stats.connected_peers
+        );
         Ok(())
     }
 
     async fn stop(&mut self) -> MultivmResult<()> {
         info!("Stopping P2P network");
-        
+
         // Disconnect from all peers
         let connected_peers = self.stats.connected_peers;
         for i in 1..=connected_peers {
             debug!("Disconnecting from peer_{}", i);
         }
-        
+
         // Reset stats
         self.stats.connected_peers = 0;
         self.running = false;
         self.start_time = None;
-        
+
         // Close event sender channel
         self.event_sender = None;
         self.event_handler = None;
-        
+
         info!("P2P network stopped successfully");
         Ok(())
     }
@@ -222,37 +234,37 @@ impl P2PNetworkLayer for P2PNetwork {
         message: NetworkMessage,
     ) -> MultivmResult<()> {
         debug!("Sending message to peer {}: {:?}", peer_id, message);
-        
+
         // Check if network is running
         if !self.running {
             return Err(multivm_common::MultivmError::Network(
-                "Network is not running".to_string()
+                "Network is not running".to_string(),
             ));
         }
-        
+
         // Update statistics
         self.stats.messages_sent += 1;
-        
+
         // Simulate message size and update bandwidth stats
         let message_size = match &message.payload {
             crate::MessagePayload::Svm(svm_msg) => match svm_msg {
-                crate::SvmMessage::Block { .. } => 8192, // Block ~8KB
+                crate::SvmMessage::Block { .. } => 8192,      // Block ~8KB
                 crate::SvmMessage::Transaction { .. } => 512, // Transaction ~512 bytes
-                crate::SvmMessage::Gossip { .. } => 256, // Gossip ~256 bytes
+                crate::SvmMessage::Gossip { .. } => 256,      // Gossip ~256 bytes
             },
             crate::MessagePayload::Evm(evm_msg) => match evm_msg {
-                crate::EvmMessage::Block { .. } => 4096, // Block ~4KB
+                crate::EvmMessage::Block { .. } => 4096,      // Block ~4KB
                 crate::EvmMessage::Transaction { .. } => 256, // Transaction ~256 bytes
-                crate::EvmMessage::Engine { .. } => 512, // Engine messages ~512 bytes
+                crate::EvmMessage::Engine { .. } => 512,      // Engine messages ~512 bytes
             },
             crate::MessagePayload::MultiVm(_) => 1024, // MultiVM messages ~1KB
-            crate::MessagePayload::Control(_) => 128, // Control messages ~128 bytes
+            crate::MessagePayload::Control(_) => 128,  // Control messages ~128 bytes
             crate::MessagePayload::Discovery(_) => 256, // Discovery messages ~256 bytes
         };
-        
+
         self.stats.bytes_sent += message_size;
         self.stats.packets_sent += 1;
-        
+
         // Update protocol-specific stats
         let protocol = match &message.payload {
             crate::MessagePayload::Svm(_) => "svm",
@@ -261,12 +273,16 @@ impl P2PNetworkLayer for P2PNetwork {
             crate::MessagePayload::Control(_) => "control",
             crate::MessagePayload::Discovery(_) => "discovery",
         };
-        
-        *self.stats.sent_by_protocol.entry(protocol.to_string()).or_insert(0) += 1;
-        
+
+        *self
+            .stats
+            .sent_by_protocol
+            .entry(protocol.to_string())
+            .or_insert(0) += 1;
+
         // Simulate network transmission delay
         tokio::time::sleep(Duration::from_millis(5)).await;
-        
+
         debug!("Message sent to peer {} successfully", peer_id);
         Ok(())
     }
@@ -277,10 +293,10 @@ impl P2PNetworkLayer for P2PNetwork {
         // Broadcast message to all connected peers using gossipsub protocol
         if self.stats.connected_peers == 0 {
             return Err(multivm_common::MultivmError::Network(
-                "No peers connected for broadcast".to_string()
+                "No peers connected for broadcast".to_string(),
             ));
         }
-        
+
         // Simulate broadcasting to all connected peers
         for peer_id in 1..=self.stats.connected_peers {
             let peer_id_str = format!("peer_{}", peer_id);
@@ -288,8 +304,11 @@ impl P2PNetworkLayer for P2PNetwork {
                 tracing::warn!("Failed to broadcast to peer_{}: {}", peer_id, e);
             }
         }
-        
-        debug!("Broadcast completed to {} peers", self.stats.connected_peers);
+
+        debug!(
+            "Broadcast completed to {} peers",
+            self.stats.connected_peers
+        );
         Ok(())
     }
 
@@ -298,12 +317,12 @@ impl P2PNetworkLayer for P2PNetwork {
         // Subscribe to gossipsub topic for message filtering
         if !self.running {
             return Err(multivm_common::MultivmError::Network(
-                "Network must be running to subscribe to topics".to_string()
+                "Network must be running to subscribe to topics".to_string(),
             ));
         }
-        
+
         info!("Successfully subscribed to topic: {}", topic);
-        
+
         // In a full implementation, this would:
         // 1. Add topic to local subscription list
         // 2. Send subscription message to connected peers
@@ -316,14 +335,14 @@ impl P2PNetworkLayer for P2PNetwork {
         // Unsubscribe from gossipsub topic
         if !self.running {
             return Err(multivm_common::MultivmError::Network(
-                "Network must be running to unsubscribe from topics".to_string()
+                "Network must be running to unsubscribe from topics".to_string(),
             ));
         }
-        
+
         info!("Successfully unsubscribed from topic: {}", topic);
-        
+
         // In a full implementation, this would:
-        // 1. Remove topic from local subscription list  
+        // 1. Remove topic from local subscription list
         // 2. Send unsubscription message to connected peers
         // 3. Stop filtering messages for this topic
         Ok(())

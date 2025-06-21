@@ -271,7 +271,7 @@ pub struct RethExecutionEngine {
     is_running: Arc<RwLock<bool>>,
     rpc_client: Arc<RwLock<Option<reqwest::Client>>>,
     chain_id: u64,
-    
+
     /// Mock mode configuration
     mock_mode: bool,
 }
@@ -284,7 +284,7 @@ impl RethExecutionEngine {
     ) -> Result<Self, RethEngineError> {
         Self::new_with_mode(data_dir, rpc_port, chain_id, cfg!(feature = "mock")).await
     }
-    
+
     pub async fn new_with_mode(
         data_dir: PathBuf,
         rpc_port: u16,
@@ -854,16 +854,16 @@ impl ExecutionEngine for RethExecutionEngine {
             let start_time = Instant::now();
             let block_number = block.number;
             let block_hash = block.hash_slow();
-            
+
             tracing::info!(
                 "Processing Reth block {} in MOCK mode with hash {:?}",
                 block_number,
                 block_hash
             );
-            
+
             // Simulate processing time in mock mode
             tokio::time::sleep(Duration::from_millis(10)).await;
-            
+
             // Update metrics in mock mode
             let mut current_block = self.current_block.write().await;
             *current_block = block_number;
@@ -970,15 +970,15 @@ impl ExecutionEngine for RethExecutionEngine {
     async fn initialize(&mut self) -> Result<(), Self::Error> {
         if self.mock_mode {
             tracing::info!("Initializing Reth execution engine in MOCK mode");
-            
+
             // Create data directory for mock mode too
             std::fs::create_dir_all(&self.data_dir).map_err(|e| {
                 RethEngineError::Configuration(format!("Failed to create data directory: {}", e))
             })?;
-            
+
             // Mock initialization - no real Reth process
             *self.is_running.write().await = true;
-            
+
             tracing::info!("Reth execution engine initialized successfully in MOCK mode");
         } else {
             tracing::info!("Initializing Reth execution engine");
@@ -991,16 +991,16 @@ impl ExecutionEngine for RethExecutionEngine {
 
             tracing::info!("Reth execution engine initialized successfully");
         }
-        
+
         Ok(())
     }
 
     async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), Self::Error> {
         if self.mock_mode {
             tracing::info!("Shutting down Reth execution engine (MOCK mode)");
-            
+
             *self.is_running.write().await = false;
-            
+
             tracing::info!("Reth execution engine shutdown complete (MOCK mode)");
         } else {
             tracing::info!("Shutting down Reth execution engine");
@@ -1033,7 +1033,7 @@ impl ExecutionEngine for RethExecutionEngine {
 
             tracing::info!("Reth execution engine shutdown complete");
         }
-        
+
         Ok(())
     }
 
@@ -1087,7 +1087,12 @@ fn get_memory_usage_standard() -> u64 {
 
     // Fallback: estimate based on Rust program typical usage
     let base_memory = 80 * 1024 * 1024; // 80MB base (slightly higher than Solana)
-    let thread_memory = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4) * 10 * 1024 * 1024; // 10MB per thread
+    let thread_memory = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        * 10
+        * 1024
+        * 1024; // 10MB per thread
     (base_memory + thread_memory) as u64
 }
 
@@ -1095,10 +1100,10 @@ fn get_cpu_usage_standard() -> f64 {
     // Get actual CPU usage using cross-platform approach
     static mut LAST_CPU_TIME: Option<std::time::Instant> = None;
     static mut LAST_PROCESS_TIME: Option<u64> = None;
-    
+
     unsafe {
         let current_time = std::time::Instant::now();
-        
+
         #[cfg(target_os = "linux")]
         {
             if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
@@ -1107,11 +1112,13 @@ fn get_cpu_usage_standard() -> f64 {
                     let utime: u64 = fields[13].parse().unwrap_or(0);
                     let stime: u64 = fields[14].parse().unwrap_or(0);
                     let total_process_time = utime + stime;
-                    
-                    if let (Some(last_time), Some(last_process)) = (LAST_CPU_TIME, LAST_PROCESS_TIME) {
+
+                    if let (Some(last_time), Some(last_process)) =
+                        (LAST_CPU_TIME, LAST_PROCESS_TIME)
+                    {
                         let time_diff = current_time.duration_since(last_time).as_millis() as u64;
                         let process_diff = total_process_time - last_process;
-                        
+
                         if time_diff > 0 {
                             let cpu_percent = (process_diff as f64 * 10.0) / time_diff as f64;
                             LAST_CPU_TIME = Some(current_time);
@@ -1119,13 +1126,13 @@ fn get_cpu_usage_standard() -> f64 {
                             return cpu_percent.min(100.0);
                         }
                     }
-                    
+
                     LAST_CPU_TIME = Some(current_time);
                     LAST_PROCESS_TIME = Some(total_process_time);
                 }
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             use std::process::Command;
@@ -1141,7 +1148,7 @@ fn get_cpu_usage_standard() -> f64 {
                 }
             }
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             if let Some(last_time) = LAST_CPU_TIME {
@@ -1154,7 +1161,7 @@ fn get_cpu_usage_standard() -> f64 {
             }
             LAST_CPU_TIME = Some(current_time);
         }
-        
+
         // Fallback: return low but non-zero value to indicate activity
         3.2 // Slightly higher than Solana engine
     }
@@ -1169,9 +1176,9 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
             nonce: i as u64,
             gas_price: Some(20_000_000_000), // 20 gwei
             gas_limit: 21_000,
-            to: Some([1u8; 20]), // Mock recipient
+            to: Some([1u8; 20]),                       // Mock recipient
             value: U256::from(1000000000000000000u64), // 1 ETH in wei
-            data: vec![0u8; 32], // Mock transaction data
+            data: vec![0u8; 32],                       // Mock transaction data
             signature: TransactionSignature {
                 v: 27,
                 r: U256::from(1),
@@ -1179,7 +1186,7 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
             },
         });
     }
-    
+
     let header = BlockHeader {
         parent_hash: [block_number.saturating_sub(1) as u8; 32],
         ommers_hash: [0u8; 32],
@@ -1205,7 +1212,7 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
         excess_blob_gas: None,
         parent_beacon_block_root: None,
     };
-    
+
     Block {
         header,
         body: BlockBody {

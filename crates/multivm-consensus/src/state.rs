@@ -1,10 +1,10 @@
 //! Cross-VM state management for the MultiVM consensus layer
 
+use crate::messages::VmType;
 use crate::traits::{
     CrossVMState, CrossVMStateCoordinator, StateChange, StateCheckpoint, ValidationResult,
 };
 use crate::{ConsensusError, ConsensusResult};
-use crate::messages::VmType;
 use async_trait::async_trait;
 use multivm_account_mapping::{AccountBinding, MultivmAccountId, SpecialTransaction};
 use parking_lot::RwLock;
@@ -437,9 +437,14 @@ impl CrossVMStateManager {
     }
 
     /// Update VM state for a specific VM type
-    pub async fn update_vm_state(&self, vm_type: VmType, height: u64, state_root: String) -> ConsensusResult<()> {
+    pub async fn update_vm_state(
+        &self,
+        vm_type: VmType,
+        height: u64,
+        state_root: String,
+    ) -> ConsensusResult<()> {
         let mut state = self.state.write();
-        
+
         match vm_type {
             VmType::SVM => {
                 state.svm_state_root = state_root;
@@ -456,7 +461,7 @@ impl CrossVMStateManager {
                 state.height = height;
             }
         }
-        
+
         Ok(())
     }
 
@@ -726,7 +731,6 @@ pub struct StateStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[tokio::test]
     async fn test_state_manager_creation() {

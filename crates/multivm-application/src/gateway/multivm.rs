@@ -195,25 +195,23 @@ impl MultivmApiGateway {
                 let svm_addr = binding_info.svm_address.clone().unwrap_or_default();
                 let evm_addr = binding_info.evm_address.clone().unwrap_or_default();
                 let multivm_id = binding_info.multivm_id.clone();
-                
+
                 // Remove from cache
                 self.cache.delete(&cache_key).await?;
-                
+
                 // Store the unbinding transaction in the blockchain
-                let unbind_tx = format!(
-                    "unbind_{}_{}", 
-                    svm_addr,
-                    evm_addr
-                );
-                
+                let unbind_tx = format!("unbind_{}_{}", svm_addr, evm_addr);
+
                 // Create a mock account address for the unbinding operation
                 let mock_account = multivm_account_mapping::AccountAddress::Solana(
-                    multivm_account_mapping::SolanaAddress([0u8; 32])
+                    multivm_account_mapping::SolanaAddress([0u8; 32]),
                 );
-                
-                // Create special transaction for unbinding  
+
+                // Create special transaction for unbinding
                 let special_tx = multivm_account_mapping::SpecialTransaction::UnbindAccount {
-                    multivm_account: multivm_account_mapping::MultivmAccountId::from_seed(multivm_id.as_bytes()),
+                    multivm_account: multivm_account_mapping::MultivmAccountId::from_seed(
+                        multivm_id.as_bytes(),
+                    ),
                     account: mock_account.clone(),
                     auth_proof: multivm_account_mapping::BindingProof {
                         account: mock_account,
@@ -225,11 +223,14 @@ impl MultivmApiGateway {
                         timestamp: std::time::SystemTime::now(),
                     },
                 };
-                
+
                 // Submit to account mapping layer for permanent storage
                 let _tx_hash = self.submit_special_transaction(special_tx).await?;
-                
-                tracing::info!("Successfully unbound accounts for binding ID: {}", binding_id);
+
+                tracing::info!(
+                    "Successfully unbound accounts for binding ID: {}",
+                    binding_id
+                );
                 Ok(true)
             }
             None => {
@@ -304,7 +305,7 @@ impl MultivmApiGateway {
         // 1. Create a proper message to sign
         // 2. Use the user's private key to sign it
         // 3. Return the actual signature
-        
+
         // For now, create a deterministic "signature" based on binding ID
         let mut hasher = sha2::Sha256::new();
         hasher.update(b"unbind_signature:");
@@ -319,7 +320,7 @@ impl MultivmApiGateway {
         // 1. Merkle proofs of account ownership
         // 2. Cryptographic attestations
         // 3. Timestamp validation data
-        
+
         // For now, create a simple proof structure
         let proof_data = serde_json::json!({
             "binding_id": binding_info.multivm_id,
@@ -329,7 +330,7 @@ impl MultivmApiGateway {
             "proof_type": "unbind_authorization",
             "version": "1.0"
         });
-        
+
         proof_data.to_string().into_bytes()
     }
 

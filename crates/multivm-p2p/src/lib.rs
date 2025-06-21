@@ -140,10 +140,10 @@ pub enum NetworkEvent {
 pub trait NetworkEventHandler: Send + Sync {
     /// Handle a network event
     async fn handle_event(&mut self, event: NetworkEvent) -> MultivmResult<()>;
-    
+
     /// Handle peer connection event
     async fn on_peer_connected(&self, peer_info: &PeerInfo) -> MultivmResult<()>;
-    
+
     /// Handle peer disconnection event  
     async fn on_peer_disconnected(&self, peer_id: &str) -> MultivmResult<()>;
 }

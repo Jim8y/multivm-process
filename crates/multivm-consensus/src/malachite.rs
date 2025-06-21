@@ -5,14 +5,14 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
 
 // Import Malachite dependencies - using actual available types
-use informalsystems_malachitebft_core_types::{Height, Value, Address};
 use informalsystems_malachitebft_config::ConsensusConfig;
+use informalsystems_malachitebft_core_types::{Address, Height, Value};
 use std::fmt::Display;
 
 use crate::{
@@ -174,7 +174,7 @@ pub struct ValidatorInfo {
 }
 
 /// MultiVM Context implementation for Malachite (Stub Implementation)
-/// 
+///
 /// NOTE: This is a simplified stub implementation that demonstrates integration
 /// with the official Malachite BFT consensus engine. A full production implementation
 /// would require implementing all associated types (Validator, ValidatorSet, Proposal,
@@ -194,7 +194,7 @@ impl MultiVMContext {
             current_height: 0,
         }
     }
-    
+
     /// Reference to actual Malachite types for future implementation
     pub fn get_malachite_references(&self) -> MalachiteReferences {
         MalachiteReferences {
@@ -219,7 +219,7 @@ pub struct MalachiteReferences {
 /*
 impl Context for MultiVMContext {
     type Address = ValidatorAddress;
-    type Height = BlockHeight; 
+    type Height = BlockHeight;
     type ProposalPart = MultiVMProposalPart;
     type Proposal = MultiVMProposal;
     type Validator = MultiVMValidator;
@@ -243,7 +243,7 @@ impl Context for MultiVMContext {
 */
 
 /// Malachite consensus engine wrapper
-/// 
+///
 /// This structure integrates with the official Malachite BFT consensus engine
 /// from Informal Systems (https://github.com/informalsystems/malachite).
 #[derive(Debug)]
@@ -287,10 +287,10 @@ impl MalachiteConsensus {
     )> {
         let (block_sender, block_receiver) = mpsc::channel(100);
         let (commit_sender, commit_receiver) = mpsc::channel(100);
-        
+
         // Create MultiVM context
         let context = MultiVMContext::new(config.node_id.clone());
-        
+
         // Get Malachite references
         let malachite_refs = context.get_malachite_references();
 
@@ -325,11 +325,11 @@ impl MalachiteConsensus {
         // 2. Use start_engine() from informalsystems_malachitebft_app_channel
         // 3. Set up consensus channels for communication
         // 4. Configure timeouts and parameters
-        
+
         info!("Malachite engine references initialized (stub implementation)");
         info!("Using Malachite BFT consensus engine from Informal Systems");
         info!("Config: {:?}", self.malachite_refs.config);
-        
+
         Ok(())
     }
 
@@ -408,18 +408,21 @@ impl ConsensusEngine for MalachiteConsensus {
             "Starting Malachite consensus for node: {}",
             self.config.node_id
         );
-        
+
         // Initialize engine
         self.initialize_engine().await?;
-        
+
         *self.running.write().await = true;
 
         // In a full implementation, this would start the actual Malachite engine:
         // let channels = start_engine(self.context.clone(), config).await?;
         // Then handle messages from channels in a separate task
-        
+
         let initial_height = *self.current_height.read().await;
-        info!("Malachite consensus engine started at height {}", initial_height);
+        info!(
+            "Malachite consensus engine started at height {}",
+            initial_height
+        );
 
         Ok(())
     }
@@ -430,7 +433,7 @@ impl ConsensusEngine for MalachiteConsensus {
 
         // In a full implementation, this would gracefully shutdown the Malachite engine
         // by stopping message processing and cleaning up channels
-        
+
         info!("Malachite consensus engine stopped");
 
         Ok(())
@@ -477,86 +480,113 @@ impl ConsensusEngine for MalachiteConsensus {
 
         // 1. Basic structural validation
         if block.header.height == 0 {
-            return Err(ConsensusError::InvalidBlock("Genesis block not allowed in validation".to_string()));
+            return Err(ConsensusError::InvalidBlock(
+                "Genesis block not allowed in validation".to_string(),
+            ));
         }
 
         // 2. Height validation - must be sequential
         let current_height = *self.current_height.read().await;
         if block.header.height != current_height + 1 {
-            return Err(ConsensusError::InvalidBlock(
-                format!("Invalid height: expected {}, got {}", current_height + 1, block.header.height)
-            ));
+            return Err(ConsensusError::InvalidBlock(format!(
+                "Invalid height: expected {}, got {}",
+                current_height + 1,
+                block.header.height
+            )));
         }
 
         // 3. Parent hash validation
         let expected_parent = self.latest_block_hash.read().await.clone();
         if block.header.previous_hash != expected_parent {
-            return Err(ConsensusError::InvalidBlock(
-                format!("Invalid parent hash: expected {}, got {}", expected_parent, block.header.previous_hash)
-            ));
+            return Err(ConsensusError::InvalidBlock(format!(
+                "Invalid parent hash: expected {}, got {}",
+                expected_parent, block.header.previous_hash
+            )));
         }
 
         // 4. Timestamp validation
         let now = std::time::SystemTime::now();
         let block_time = block.header.timestamp;
         if block_time > now {
-            return Err(ConsensusError::InvalidBlock("Block timestamp is in the future".to_string()));
+            return Err(ConsensusError::InvalidBlock(
+                "Block timestamp is in the future".to_string(),
+            ));
         }
 
         // 5. Transaction validation
-        if let Ok(transactions) = bincode::deserialize::<Vec<Vec<u8>>>(&block.header.consensus_data) {
-            if transactions.len() > 10000 { // Max transactions per block
-                return Err(ConsensusError::InvalidBlock("Too many transactions in block".to_string()));
+        if let Ok(transactions) = bincode::deserialize::<Vec<Vec<u8>>>(&block.header.consensus_data)
+        {
+            if transactions.len() > 10000 {
+                // Max transactions per block
+                return Err(ConsensusError::InvalidBlock(
+                    "Too many transactions in block".to_string(),
+                ));
             }
-            
+
             // Validate individual transactions (placeholder)
             for (i, tx) in transactions.iter().enumerate() {
                 if tx.is_empty() {
-                    return Err(ConsensusError::InvalidBlock(
-                        format!("Empty transaction at index {}", i)
-                    ));
+                    return Err(ConsensusError::InvalidBlock(format!(
+                        "Empty transaction at index {}",
+                        i
+                    )));
                 }
-                if tx.len() > 1024 * 1024 { // Max 1MB per transaction
-                    return Err(ConsensusError::InvalidBlock(
-                        format!("Transaction {} too large", i)
-                    ));
+                if tx.len() > 1024 * 1024 {
+                    // Max 1MB per transaction
+                    return Err(ConsensusError::InvalidBlock(format!(
+                        "Transaction {} too large",
+                        i
+                    )));
                 }
             }
         } else {
-            return Err(ConsensusError::InvalidBlock("Invalid consensus data format".to_string()));
+            return Err(ConsensusError::InvalidBlock(
+                "Invalid consensus data format".to_string(),
+            ));
         }
 
         // 6. Block size validation
         let block_size = bincode::serialize(block)
-            .map_err(|e| ConsensusError::Internal(format!("Failed to serialize block for size check: {}", e)))?
+            .map_err(|e| {
+                ConsensusError::Internal(format!("Failed to serialize block for size check: {}", e))
+            })?
             .len();
-        
+
         if block_size > self.config.consensus_params.max_block_size {
-            return Err(ConsensusError::InvalidBlock(
-                format!("Block too large: {} bytes, max allowed: {}", 
-                       block_size, self.config.consensus_params.max_block_size)
-            ));
+            return Err(ConsensusError::InvalidBlock(format!(
+                "Block too large: {} bytes, max allowed: {}",
+                block_size, self.config.consensus_params.max_block_size
+            )));
         }
 
         // 7. Hash validation
         let calculated_hash = block.calculate_hash();
         if calculated_hash.is_empty() || calculated_hash.len() < 32 {
-            return Err(ConsensusError::InvalidBlock("Invalid block hash".to_string()));
+            return Err(ConsensusError::InvalidBlock(
+                "Invalid block hash".to_string(),
+            ));
         }
 
         // 8. Proposer validation (if we have validator info)
         if !self.config.validators.is_empty() {
-            let is_valid_proposer = self.config.validators.iter()
+            let is_valid_proposer = self
+                .config
+                .validators
+                .iter()
                 .any(|validator| validator.public_key == block.header.proposer);
-            
+
             if !is_valid_proposer {
-                return Err(ConsensusError::InvalidBlock(
-                    format!("Invalid proposer: {}", block.header.proposer)
-                ));
+                return Err(ConsensusError::InvalidBlock(format!(
+                    "Invalid proposer: {}",
+                    block.header.proposer
+                )));
             }
         }
 
-        info!("Block validation successful for height {}", block.header.height);
+        info!(
+            "Block validation successful for height {}",
+            block.header.height
+        );
         Ok(true)
     }
 
@@ -565,7 +595,9 @@ impl ConsensusEngine for MalachiteConsensus {
         info!("Committing block at height {}", block.header.height);
 
         // Extract and count transactions
-        let transaction_count = if let Ok(transactions) = bincode::deserialize::<Vec<Vec<u8>>>(&block.header.consensus_data) {
+        let transaction_count = if let Ok(transactions) =
+            bincode::deserialize::<Vec<Vec<u8>>>(&block.header.consensus_data)
+        {
             transactions.len() as u64
         } else {
             0
@@ -577,7 +609,10 @@ impl ConsensusEngine for MalachiteConsensus {
 
         // Store the block
         let height = block.header.height;
-        self.block_storage.write().await.insert(height, block.clone());
+        self.block_storage
+            .write()
+            .await
+            .insert(height, block.clone());
 
         // Update current height and reset round
         *self.current_height.write().await = height;
@@ -590,7 +625,7 @@ impl ConsensusEngine for MalachiteConsensus {
         let block_duration = start_time.elapsed();
         let mut block_times = self.block_times.write().await;
         block_times.push(block_duration);
-        
+
         // Keep only last 100 block times for average calculation
         if block_times.len() > 100 {
             block_times.remove(0);
@@ -620,7 +655,7 @@ impl ConsensusEngine for MalachiteConsensus {
         if current_height == 0 {
             return Ok(None);
         }
-        
+
         let storage = self.block_storage.read().await;
         Ok(storage.get(&current_height).cloned())
     }
@@ -634,21 +669,22 @@ impl ConsensusEngine for MalachiteConsensus {
         let height = *self.current_height.read().await;
         let round = *self.current_round.read().await;
         let total_transactions = *self.total_transactions.read().await;
-        
+
         // Calculate average block time from recorded times
         let block_times = self.block_times.read().await;
         let avg_block_time_ms = if block_times.is_empty() {
             self.config.consensus_params.block_time_ms
         } else {
-            let total_ms: u64 = block_times.iter()
+            let total_ms: u64 = block_times
+                .iter()
                 .map(|duration| duration.as_millis() as u64)
                 .sum();
             total_ms / block_times.len() as u64
         };
-        
+
         // Calculate uptime
         let uptime = self.start_time.elapsed().as_secs();
-        
+
         // Get last block time
         let last_block_time = if let Ok(Some(latest_block)) = self.get_latest_block().await {
             latest_block.header.timestamp
@@ -672,7 +708,7 @@ impl ConsensusEngine for MalachiteConsensus {
 
 /// Malachite BFT Integration Status
 ///
-/// This implementation integrates with the official Malachite BFT consensus engine 
+/// This implementation integrates with the official Malachite BFT consensus engine
 /// from Informal Systems (https://github.com/informalsystems/malachite).
 ///
 /// **Current Integration Level:**

@@ -59,8 +59,8 @@ impl<T: IpcTransport> IpcClient<T> {
         B: serde::Serialize,
     {
         // Serialize the block to bytes
-        let block_data_bytes = bincode::serialize(block)
-            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+        let block_data_bytes =
+            bincode::serialize(block).map_err(|e| MultivmError::Serialization(e.to_string()))?;
 
         let command = IpcCommand::ProcessBlock {
             block_data_bytes,
@@ -69,7 +69,11 @@ impl<T: IpcTransport> IpcClient<T> {
         };
 
         match self
-            .send_command(destination, command, timeout.or(Some(Duration::from_secs(30))))
+            .send_command(
+                destination,
+                command,
+                timeout.or(Some(Duration::from_secs(30))),
+            )
             .await?
         {
             IpcResponse::BlockProcessed {
@@ -101,8 +105,8 @@ impl<T: IpcTransport> IpcClient<T> {
         B: serde::Serialize,
     {
         // Serialize the block to bytes
-        let block_data_bytes = bincode::serialize(block)
-            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+        let block_data_bytes =
+            bincode::serialize(block).map_err(|e| MultivmError::Serialization(e.to_string()))?;
 
         let command = IpcCommand::ProcessBlock {
             block_data_bytes,

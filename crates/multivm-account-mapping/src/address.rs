@@ -55,8 +55,7 @@ impl AccountAddress {
         if let Some(hex_part) = s.strip_prefix("0x") {
             // Ethereum address format
             if hex_part.len() == 40 {
-                let bytes = hex::decode(hex_part)
-                    .map_err(|_| "Invalid hex in Ethereum address")?;
+                let bytes = hex::decode(hex_part).map_err(|_| "Invalid hex in Ethereum address")?;
                 if bytes.len() != 20 {
                     return Err("Ethereum address must be 20 bytes".to_string());
                 }
@@ -69,8 +68,7 @@ impl AccountAddress {
         } else {
             // Assume Solana address format (64 hex characters)
             if s.len() == 64 {
-                let bytes = hex::decode(s)
-                    .map_err(|_| "Invalid hex in Solana address")?;
+                let bytes = hex::decode(s).map_err(|_| "Invalid hex in Solana address")?;
                 if bytes.len() != 32 {
                     return Err("Solana address must be 32 bytes".to_string());
                 }

@@ -216,7 +216,8 @@ impl ProcessHandle {
 
         // Send command with timeout
         let timeout = Duration::from_secs(30);
-        let response = tokio::time::timeout(timeout, ipc_client.send_command(command)).await
+        let response = tokio::time::timeout(timeout, ipc_client.send_command(command))
+            .await
             .map_err(|_| MultivmError::Process("IPC command timed out".to_string()))?;
 
         match response {
@@ -510,7 +511,7 @@ fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
 
     // Try to find the workspace root and search from there
     let mut current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    
+
     // Walk up the directory tree to find the correct workspace root with target directory
     while current_dir.parent().is_some() {
         let cargo_toml = current_dir.join("Cargo.toml");
@@ -520,12 +521,12 @@ fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
             if debug_binary.exists() {
                 return Ok(debug_binary.canonicalize().unwrap_or(debug_binary));
             }
-            
+
             let release_binary = current_dir.join("target").join("release").join(binary_name);
             if release_binary.exists() {
                 return Ok(release_binary.canonicalize().unwrap_or(release_binary));
             }
-            
+
             // If this Cargo.toml doesn't have our binaries, continue searching up
         }
         current_dir = current_dir.parent().unwrap().to_path_buf();

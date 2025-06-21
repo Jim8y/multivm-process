@@ -1,7 +1,7 @@
 use clap::{Arg, Command};
 use multivm_common::config::MultivmConfig;
 use multivm_consensus::MalachiteConfig;
-use multivm_process_manager::{MultivmCoordinator, CoordinatorConfig};
+use multivm_process_manager::{CoordinatorConfig, MultivmCoordinator};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio;

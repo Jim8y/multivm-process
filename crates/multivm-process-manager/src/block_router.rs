@@ -118,11 +118,9 @@ impl BlockRouter {
         }
 
         // Analyze and resolve dependencies with proper implementation
-        let dependencies = self.analyze_transaction_dependencies(
-            &svm_tx_results,
-            &evm_tx_results, 
-            &special_tx_results
-        ).await?;
+        let dependencies = self
+            .analyze_transaction_dependencies(&svm_tx_results, &evm_tx_results, &special_tx_results)
+            .await?;
 
         let routing_time = start_time.elapsed().as_millis() as u64;
 
@@ -210,11 +208,12 @@ impl BlockRouter {
                     SpecialTransaction::AccountBinding {
                         source_account: {
                             // Parse source account from transaction data
-                            use multivm_account_mapping::{SolanaAddress, EthereumAddress};
-                            let addr_str = mapping_data["source_account"].as_str().ok_or_else(|| {
-                                MultivmError::InvalidState("Missing source_account".to_string())
-                            })?;
-                            
+                            use multivm_account_mapping::{EthereumAddress, SolanaAddress};
+                            let addr_str =
+                                mapping_data["source_account"].as_str().ok_or_else(|| {
+                                    MultivmError::InvalidState("Missing source_account".to_string())
+                                })?;
+
                             // Parse address based on format
                             AccountAddress::from_string(addr_str).map_err(|e| {
                                 MultivmError::InvalidState(format!("Invalid source account: {}", e))
@@ -222,10 +221,11 @@ impl BlockRouter {
                         },
                         target_account: {
                             // Parse target account from transaction data
-                            let addr_str = mapping_data["target_account"].as_str().ok_or_else(|| {
-                                MultivmError::InvalidState("Missing target_account".to_string())
-                            })?;
-                            
+                            let addr_str =
+                                mapping_data["target_account"].as_str().ok_or_else(|| {
+                                    MultivmError::InvalidState("Missing target_account".to_string())
+                                })?;
+
                             // Parse address based on format
                             AccountAddress::from_string(addr_str).map_err(|e| {
                                 MultivmError::InvalidState(format!("Invalid target account: {}", e))
@@ -234,26 +234,38 @@ impl BlockRouter {
                         proof: {
                             // Parse binding proof from transaction data
                             use multivm_account_mapping::{BindingProof, ProofType};
-                            
+
                             let proof_data = &mapping_data["proof"];
-                            let proof_account_str = proof_data["account"].as_str().ok_or_else(|| {
-                                MultivmError::InvalidState("Missing proof account".to_string())
-                            })?;
-                            let proof_message = proof_data["message"].as_str().ok_or_else(|| {
-                                MultivmError::InvalidState("Missing proof message".to_string())
-                            })?;
-                            let proof_signature = proof_data["signature"].as_str().ok_or_else(|| {
-                                MultivmError::InvalidState("Missing proof signature".to_string())
-                            })?;
-                            
+                            let proof_account_str =
+                                proof_data["account"].as_str().ok_or_else(|| {
+                                    MultivmError::InvalidState("Missing proof account".to_string())
+                                })?;
+                            let proof_message =
+                                proof_data["message"].as_str().ok_or_else(|| {
+                                    MultivmError::InvalidState("Missing proof message".to_string())
+                                })?;
+                            let proof_signature =
+                                proof_data["signature"].as_str().ok_or_else(|| {
+                                    MultivmError::InvalidState(
+                                        "Missing proof signature".to_string(),
+                                    )
+                                })?;
+
                             let proof_account = AccountAddress::from_string(proof_account_str)
-                                .map_err(|e| MultivmError::InvalidState(format!("Invalid proof account: {}", e)))?;
-                            
+                                .map_err(|e| {
+                                    MultivmError::InvalidState(format!(
+                                        "Invalid proof account: {}",
+                                        e
+                                    ))
+                                })?;
+
                             BindingProof {
                                 account: proof_account,
                                 proof_type: ProofType::Signature {
-                                    message: hex::decode(proof_message).unwrap_or_else(|_| proof_message.as_bytes().to_vec()),
-                                    signature: hex::decode(proof_signature).unwrap_or_else(|_| proof_signature.as_bytes().to_vec()),
+                                    message: hex::decode(proof_message)
+                                        .unwrap_or_else(|_| proof_message.as_bytes().to_vec()),
+                                    signature: hex::decode(proof_signature)
+                                        .unwrap_or_else(|_| proof_signature.as_bytes().to_vec()),
                                 },
                                 proof_data: serde_json::to_vec(proof_data).unwrap_or_default(),
                                 timestamp: std::time::SystemTime::now(),
@@ -769,54 +781,67 @@ impl BlockRouter {
         special_transactions: &[SpecialTransaction],
     ) -> MultivmResult<Vec<TransactionDependency>> {
         let mut dependencies = Vec::new();
-        let mut account_operations: std::collections::HashMap<String, Vec<(usize, String)>> = std::collections::HashMap::new();
+        let mut account_operations: std::collections::HashMap<String, Vec<(usize, String)>> =
+            std::collections::HashMap::new();
         let mut cross_vm_transfers: Vec<(usize, String, String)> = Vec::new();
 
-        debug!("Analyzing dependencies for {} SVM, {} EVM, {} special transactions",
-            svm_transactions.len(), evm_transactions.len(), special_transactions.len());
+        debug!(
+            "Analyzing dependencies for {} SVM, {} EVM, {} special transactions",
+            svm_transactions.len(),
+            evm_transactions.len(),
+            special_transactions.len()
+        );
 
         // Step 1: Analyze special transactions for account binding dependencies
         for (idx, special_tx) in special_transactions.iter().enumerate() {
             let tx_hash = format!("special_{}", idx);
-            
+
             match special_tx {
-                SpecialTransaction::AccountBinding { source_account, target_account, .. } => {
+                SpecialTransaction::AccountBinding {
+                    source_account,
+                    target_account,
+                    ..
+                } => {
                     // Account binding operations have high priority
                     dependencies.push(TransactionDependency {
                         tx_hash: tx_hash.as_bytes().to_vec(),
                         depends_on: Vec::new(), // Account bindings are typically independent
                         dependency_type: DependencyType::AccountMapping,
                     });
-                    
+
                     // Track accounts involved in binding
-                    account_operations.entry(source_account.to_string())
+                    account_operations
+                        .entry(source_account.to_string())
                         .or_insert_with(Vec::new)
                         .push((idx, "account_binding".to_string()));
-                    account_operations.entry(target_account.to_string())
+                    account_operations
+                        .entry(target_account.to_string())
                         .or_insert_with(Vec::new)
                         .push((idx, "account_binding".to_string()));
                 }
                 SpecialTransaction::CrossVmTransfer { from, to, .. } => {
                     // Cross-VM transfers depend on account bindings
                     let mut depends_on = Vec::new();
-                    
+
                     // Find any account binding operations that might affect these accounts
-                    if let Ok(from_addresses) = self.account_mapping.get_bound_addresses(from).await {
+                    if let Ok(from_addresses) = self.account_mapping.get_bound_addresses(from).await
+                    {
                         for addr in from_addresses {
                             if let Some(operations) = account_operations.get(&addr.to_string()) {
                                 for (dep_idx, _) in operations {
-                                    depends_on.push(format!("special_{}", dep_idx).as_bytes().to_vec());
+                                    depends_on
+                                        .push(format!("special_{}", dep_idx).as_bytes().to_vec());
                                 }
                             }
                         }
                     }
-                    
+
                     dependencies.push(TransactionDependency {
                         tx_hash: tx_hash.as_bytes().to_vec(),
                         depends_on,
                         dependency_type: DependencyType::CrossVm,
                     });
-                    
+
                     cross_vm_transfers.push((idx, from.to_string(), to.to_string()));
                 }
                 _ => {
@@ -834,7 +859,7 @@ impl BlockRouter {
         for (idx, svm_tx) in svm_transactions.iter().enumerate() {
             let tx_hash = format!("svm_{}", idx);
             let mut depends_on = Vec::new();
-            
+
             // Check if any accounts are involved in special transactions
             for account in &svm_tx.accounts {
                 if let Some(operations) = account_operations.get(account) {
@@ -844,13 +869,14 @@ impl BlockRouter {
                         }
                     }
                 }
-                
+
                 // Track this account operation for future dependencies
-                account_operations.entry(account.clone())
+                account_operations
+                    .entry(account.clone())
                     .or_insert_with(Vec::new)
                     .push((idx, "svm_transaction".to_string()));
             }
-            
+
             // Check for dependencies with previous SVM transactions affecting same accounts
             for prev_idx in 0..idx {
                 let prev_tx = &svm_transactions[prev_idx];
@@ -859,13 +885,13 @@ impl BlockRouter {
                     break; // Only depend on the most recent conflicting transaction
                 }
             }
-            
+
             let dependency_type = if depends_on.is_empty() {
                 DependencyType::Sequential
             } else {
                 DependencyType::StateDependent
             };
-            
+
             dependencies.push(TransactionDependency {
                 tx_hash: tx_hash.as_bytes().to_vec(),
                 depends_on,
@@ -877,13 +903,13 @@ impl BlockRouter {
         for (idx, evm_tx) in evm_transactions.iter().enumerate() {
             let tx_hash = format!("evm_{}", idx);
             let mut depends_on = Vec::new();
-            
+
             // Collect involved accounts
             let mut involved_accounts = vec![evm_tx.from.clone()];
             if let Some(ref to) = evm_tx.to {
                 involved_accounts.push(to.clone());
             }
-            
+
             // Check if any accounts are involved in special transactions
             for account in &involved_accounts {
                 if let Some(operations) = account_operations.get(account) {
@@ -893,13 +919,14 @@ impl BlockRouter {
                         }
                     }
                 }
-                
+
                 // Track this account operation
-                account_operations.entry(account.clone())
+                account_operations
+                    .entry(account.clone())
                     .or_insert_with(Vec::new)
                     .push((idx, "evm_transaction".to_string()));
             }
-            
+
             // Check for dependencies with previous EVM transactions affecting same accounts
             for prev_idx in 0..idx {
                 let prev_tx = &evm_transactions[prev_idx];
@@ -907,19 +934,19 @@ impl BlockRouter {
                 if let Some(ref to) = prev_tx.to {
                     prev_accounts.push(to.clone());
                 }
-                
+
                 if Self::has_account_overlap(&involved_accounts, &prev_accounts) {
                     depends_on.push(format!("evm_{}", prev_idx).as_bytes().to_vec());
                     break; // Only depend on the most recent conflicting transaction
                 }
             }
-            
+
             let dependency_type = if depends_on.is_empty() {
                 DependencyType::Sequential
             } else {
                 DependencyType::StateDependent
             };
-            
+
             dependencies.push(TransactionDependency {
                 tx_hash: tx_hash.as_bytes().to_vec(),
                 depends_on,
@@ -934,7 +961,10 @@ impl BlockRouter {
             ));
         }
 
-        info!("Dependency analysis complete: {} dependencies identified", dependencies.len());
+        info!(
+            "Dependency analysis complete: {} dependencies identified",
+            dependencies.len()
+        );
         Ok(dependencies)
     }
 
@@ -954,13 +984,14 @@ impl BlockRouter {
     fn has_dependency_cycles(dependencies: &[TransactionDependency]) -> bool {
         let mut visited = std::collections::HashSet::new();
         let mut recursion_stack = std::collections::HashSet::new();
-        
+
         // Create a map from transaction hash to its dependencies
-        let mut dep_map: std::collections::HashMap<Vec<u8>, Vec<Vec<u8>>> = std::collections::HashMap::new();
+        let mut dep_map: std::collections::HashMap<Vec<u8>, Vec<Vec<u8>>> =
+            std::collections::HashMap::new();
         for dep in dependencies {
             dep_map.insert(dep.tx_hash.clone(), dep.depends_on.clone());
         }
-        
+
         fn dfs_check_cycle(
             current: &Vec<u8>,
             dep_map: &std::collections::HashMap<Vec<u8>, Vec<Vec<u8>>>,
@@ -969,7 +1000,7 @@ impl BlockRouter {
         ) -> bool {
             visited.insert(current.clone());
             recursion_stack.insert(current.clone());
-            
+
             if let Some(dependencies) = dep_map.get(current) {
                 for dep in dependencies {
                     if !visited.contains(dep) {
@@ -981,11 +1012,11 @@ impl BlockRouter {
                     }
                 }
             }
-            
+
             recursion_stack.remove(current);
             false
         }
-        
+
         // Check each transaction as a potential cycle start
         for dep in dependencies {
             if !visited.contains(&dep.tx_hash) {
@@ -994,7 +1025,7 @@ impl BlockRouter {
                 }
             }
         }
-        
+
         false
     }
 
@@ -1004,38 +1035,47 @@ impl BlockRouter {
         routing_result: &mut BlockRoutingResult,
     ) -> MultivmResult<()> {
         debug!("Sorting transactions by dependency order");
-        
+
         // Create a topological sort of the dependencies
         let sorted_order = self.topological_sort(&routing_result.routing_metadata.dependencies)?;
-        
+
         // Apply the sorted order to reorder transactions
         // Note: This is a simplified implementation - in practice, you might need more sophisticated
         // sorting that preserves relative order within each transaction type
-        
-        info!("Transactions sorted by dependency order: {} operations", sorted_order.len());
+
+        info!(
+            "Transactions sorted by dependency order: {} operations",
+            sorted_order.len()
+        );
         Ok(())
     }
 
     /// Perform topological sort on dependencies
-    fn topological_sort(&self, dependencies: &[TransactionDependency]) -> MultivmResult<Vec<Vec<u8>>> {
-        let mut in_degree: std::collections::HashMap<Vec<u8>, usize> = std::collections::HashMap::new();
-        let mut adj_list: std::collections::HashMap<Vec<u8>, Vec<Vec<u8>>> = std::collections::HashMap::new();
+    fn topological_sort(
+        &self,
+        dependencies: &[TransactionDependency],
+    ) -> MultivmResult<Vec<Vec<u8>>> {
+        let mut in_degree: std::collections::HashMap<Vec<u8>, usize> =
+            std::collections::HashMap::new();
+        let mut adj_list: std::collections::HashMap<Vec<u8>, Vec<Vec<u8>>> =
+            std::collections::HashMap::new();
         let mut all_nodes = std::collections::HashSet::new();
-        
+
         // Build the graph
         for dep in dependencies {
             all_nodes.insert(dep.tx_hash.clone());
             in_degree.entry(dep.tx_hash.clone()).or_insert(0);
-            
+
             for dependency in &dep.depends_on {
                 all_nodes.insert(dependency.clone());
-                adj_list.entry(dependency.clone())
+                adj_list
+                    .entry(dependency.clone())
                     .or_insert_with(Vec::new)
                     .push(dep.tx_hash.clone());
                 *in_degree.entry(dep.tx_hash.clone()).or_insert(0) += 1;
             }
         }
-        
+
         // Find nodes with no incoming edges
         let mut queue: std::collections::VecDeque<Vec<u8>> = std::collections::VecDeque::new();
         for node in &all_nodes {
@@ -1043,13 +1083,13 @@ impl BlockRouter {
                 queue.push_back(node.clone());
             }
         }
-        
+
         let mut result = Vec::new();
-        
+
         // Process nodes in topological order
         while let Some(current) = queue.pop_front() {
             result.push(current.clone());
-            
+
             if let Some(neighbors) = adj_list.get(&current) {
                 for neighbor in neighbors {
                     if let Some(degree) = in_degree.get_mut(neighbor) {
@@ -1061,14 +1101,14 @@ impl BlockRouter {
                 }
             }
         }
-        
+
         // Check if all nodes were processed (no cycles)
         if result.len() != all_nodes.len() {
             return Err(MultivmError::InvalidState(
                 "Circular dependency detected during topological sort".to_string(),
             ));
         }
-        
+
         Ok(result)
     }
 }

@@ -1,4 +1,5 @@
 use multivm_common::*;
+use sha2::Digest;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UnixListener, UnixStream};
 use tokio::sync::{mpsc, RwLock};
-use sha2::Digest;
 
 /// IPC transport implementation for the process manager
 pub struct IpcTransportImpl {
@@ -76,15 +76,19 @@ impl IpcTransportImpl {
             // Wait for response with proper message correlation
             let timeout = std::time::Duration::from_secs(30);
             let start_time = std::time::Instant::now();
-            
+
             // Poll for response with correlation ID matching
             while start_time.elapsed() < timeout {
                 let mut receiver_guard = connection.receiver.write().await;
-                
+
                 // Try to receive a response
                 match receiver_guard.try_recv() {
                     Ok(response) => {
-                        tracing::debug!("Received response for process {}: {:?}", process_id, response);
+                        tracing::debug!(
+                            "Received response for process {}: {:?}",
+                            process_id,
+                            response
+                        );
                         return Ok(response);
                     }
                     Err(mpsc::error::TryRecvError::Empty) => {
@@ -100,7 +104,7 @@ impl IpcTransportImpl {
                     }
                 }
             }
-            
+
             // Timeout occurred
             Err(MultivmError::Ipc(format!(
                 "Command to process {} timed out after {:?}",
@@ -211,7 +215,7 @@ async fn handle_tcp_connection(
 ) -> MultivmResult<()> {
     // Perform handshake to identify the connecting process
     tracing::info!("TCP connection established, performing handshake");
-    
+
     // Read handshake message to identify process
     let mut handshake_buffer = [0; 256];
     match stream.read(&mut handshake_buffer).await {
@@ -220,26 +224,29 @@ async fn handle_tcp_connection(
             match TcpSocketTransport::parse_handshake(handshake_data) {
                 Ok(process_id) => {
                     tracing::info!("Handshake successful for process: {}", process_id);
-                    
+
                     // Send handshake acknowledgment
                     let ack_message = TcpSocketTransport::create_handshake_ack();
                     if let Err(e) = stream.write_all(&ack_message).await {
                         tracing::error!("Failed to send handshake ack: {}", e);
                         return Err(MultivmError::Ipc(format!("Handshake ack failed: {}", e)));
                     }
-                    
+
                     // Set up bidirectional communication channels
                     let (msg_sender, _msg_receiver) = mpsc::unbounded_channel::<IpcMessage>();
                     let (_resp_sender, resp_receiver) = mpsc::unbounded_channel::<IpcResponse>();
-                    
+
                     let connection_handle = ConnectionHandle {
                         sender: msg_sender,
                         receiver: Arc::new(RwLock::new(resp_receiver)),
                     };
-                    
+
                     // Register connection
-                    _connections.write().await.insert(process_id, connection_handle);
-                    
+                    _connections
+                        .write()
+                        .await
+                        .insert(process_id, connection_handle);
+
                     tracing::info!("Process {} registered successfully", process_id);
                 }
                 Err(e) => {
@@ -264,18 +271,21 @@ async fn handle_tcp_connection(
             }
             Ok(n) => {
                 tracing::trace!("Received {} bytes on TCP connection", n);
-                
+
                 // Parse and process the IPC message
                 match TcpSocketTransport::parse_ipc_message(&buffer[..n]) {
                     Ok(message) => {
                         // Process the message and generate response
                         let response = TcpSocketTransport::process_ipc_message(message).await;
-                        
+
                         // Serialize and send response
                         match TcpSocketTransport::serialize_ipc_response(&response) {
                             Ok(response_bytes) => {
                                 if let Err(e) = stream.write_all(&response_bytes).await {
-                                    tracing::error!("Failed to write response to TCP stream: {}", e);
+                                    tracing::error!(
+                                        "Failed to write response to TCP stream: {}",
+                                        e
+                                    );
                                     break;
                                 }
                             }
@@ -289,7 +299,9 @@ async fn handle_tcp_connection(
                         tracing::error!("Failed to parse IPC message: {}", e);
                         // Send error response
                         let error_response = TcpSocketTransport::create_error_response(&e);
-                        if let Ok(error_bytes) = TcpSocketTransport::serialize_ipc_response(&error_response) {
+                        if let Ok(error_bytes) =
+                            TcpSocketTransport::serialize_ipc_response(&error_response)
+                        {
                             let _ = stream.write_all(&error_bytes).await;
                         }
                     }
@@ -344,25 +356,28 @@ impl TcpSocketTransport {
     fn parse_handshake(data: &[u8]) -> Result<ProcessId, MultivmError> {
         let handshake_str = std::str::from_utf8(data)
             .map_err(|e| MultivmError::Ipc(format!("Invalid handshake data: {}", e)))?;
-        
+
         // Expected format: "MULTIVM_HANDSHAKE:<process_id>"
         if let Some(process_part) = handshake_str.strip_prefix("MULTIVM_HANDSHAKE:") {
             match process_part.trim() {
                 "solana" => Ok(ProcessId::Solana),
                 "ethereum" => Ok(ProcessId::Ethereum),
                 "main" => Ok(ProcessId::Main),
-                _ => Err(MultivmError::Ipc(format!("Unknown process ID: {}", process_part)))
+                _ => Err(MultivmError::Ipc(format!(
+                    "Unknown process ID: {}",
+                    process_part
+                ))),
             }
         } else {
             Err(MultivmError::Ipc("Invalid handshake format".to_string()))
         }
     }
-    
+
     /// Create handshake acknowledgment
     fn create_handshake_ack() -> Vec<u8> {
         b"MULTIVM_HANDSHAKE_ACK".to_vec()
     }
-    
+
     /// Parse IPC message from bytes
     fn parse_ipc_message(data: &[u8]) -> Result<IpcMessage, MultivmError> {
         // Use bincode for efficient binary serialization
@@ -373,7 +388,11 @@ impl TcpSocketTransport {
     /// Process an IPC message and generate appropriate response
     async fn process_ipc_message(message: IpcMessage) -> IpcResponse {
         match message.command {
-            IpcCommand::ProcessBlock { block_data_bytes, blockchain_type, .. } => {
+            IpcCommand::ProcessBlock {
+                block_data_bytes,
+                blockchain_type,
+                ..
+            } => {
                 // Process the block through the appropriate execution engine
                 match Self::route_block_data_to_engine(&block_data_bytes, blockchain_type).await {
                     Ok(result_bytes) => IpcResponse::BlockProcessed {
@@ -385,7 +404,7 @@ impl TcpSocketTransport {
                         code: 500,
                         message: "Block processing failed".to_string(),
                         details: Some("Failed to process block data".to_string()),
-                    }
+                    },
                 }
             }
             IpcCommand::GetHealth => {
@@ -405,7 +424,7 @@ impl TcpSocketTransport {
                         errors_count: 0,
                         last_error: None,
                         timestamp: std::time::SystemTime::now(),
-                    }
+                    },
                 }
             }
             IpcCommand::Shutdown { .. } => {
@@ -413,9 +432,7 @@ impl TcpSocketTransport {
                 tracing::info!("Shutdown command received via IPC");
                 IpcResponse::Ack
             }
-            IpcCommand::Ping => {
-                IpcResponse::Pong
-            }
+            IpcCommand::Ping => IpcResponse::Pong,
             _ => {
                 // Unsupported command
                 IpcResponse::Error {
@@ -428,14 +445,17 @@ impl TcpSocketTransport {
     }
 
     /// Route block data to appropriate execution engine
-    async fn route_block_data_to_engine(block_data_bytes: &[u8], blockchain_type: BlockchainType) -> Result<Vec<u8>, MultivmError> {
+    async fn route_block_data_to_engine(
+        block_data_bytes: &[u8],
+        blockchain_type: BlockchainType,
+    ) -> Result<Vec<u8>, MultivmError> {
         match blockchain_type {
             BlockchainType::Solana => {
                 // Route to Solana execution engine
                 Self::process_solana_block_bytes(block_data_bytes).await
             }
             BlockchainType::Ethereum => {
-                // Route to Ethereum execution engine  
+                // Route to Ethereum execution engine
                 Self::process_ethereum_block_bytes(block_data_bytes).await
             }
         }
@@ -443,8 +463,11 @@ impl TcpSocketTransport {
 
     /// Process Solana block from bytes
     async fn process_solana_block_bytes(block_data_bytes: &[u8]) -> Result<Vec<u8>, MultivmError> {
-        tracing::debug!("Processing Solana block data ({} bytes)", block_data_bytes.len());
-        
+        tracing::debug!(
+            "Processing Solana block data ({} bytes)",
+            block_data_bytes.len()
+        );
+
         // Parse the Solana transaction/block data
         let processing_result = match Self::parse_solana_block_data(block_data_bytes).await {
             Ok(parsed_data) => {
@@ -456,7 +479,7 @@ impl TcpSocketTransport {
                 return Err(e);
             }
         };
-        
+
         match processing_result {
             Ok(execution_result) => {
                 let result = serde_json::json!({
@@ -470,8 +493,9 @@ impl TcpSocketTransport {
                     "timestamp": chrono::Utc::now(),
                     "execution_time_ms": execution_result.execution_time_ms
                 });
-                
-                serde_json::to_vec(&result).map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
+
+                serde_json::to_vec(&result)
+                    .map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
             }
             Err(e) => {
                 tracing::error!("Solana transaction execution failed: {}", e);
@@ -481,9 +505,14 @@ impl TcpSocketTransport {
     }
 
     /// Process Ethereum block from bytes
-    async fn process_ethereum_block_bytes(block_data_bytes: &[u8]) -> Result<Vec<u8>, MultivmError> {
-        tracing::debug!("Processing Ethereum block data ({} bytes)", block_data_bytes.len());
-        
+    async fn process_ethereum_block_bytes(
+        block_data_bytes: &[u8],
+    ) -> Result<Vec<u8>, MultivmError> {
+        tracing::debug!(
+            "Processing Ethereum block data ({} bytes)",
+            block_data_bytes.len()
+        );
+
         // Parse the Ethereum transaction/block data
         let processing_result = match Self::parse_ethereum_block_data(block_data_bytes).await {
             Ok(parsed_data) => {
@@ -495,7 +524,7 @@ impl TcpSocketTransport {
                 return Err(e);
             }
         };
-        
+
         match processing_result {
             Ok(execution_result) => {
                 let result = serde_json::json!({
@@ -510,8 +539,9 @@ impl TcpSocketTransport {
                     "timestamp": chrono::Utc::now(),
                     "execution_time_ms": execution_result.execution_time_ms
                 });
-                
-                serde_json::to_vec(&result).map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
+
+                serde_json::to_vec(&result)
+                    .map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
             }
             Err(e) => {
                 tracing::error!("Ethereum transaction execution failed: {}", e);
@@ -522,8 +552,11 @@ impl TcpSocketTransport {
 
     /// Process MultiVM block from bytes
     async fn process_multivm_block_bytes(block_data_bytes: &[u8]) -> Result<Vec<u8>, MultivmError> {
-        tracing::debug!("Processing MultiVM block data ({} bytes)", block_data_bytes.len());
-        
+        tracing::debug!(
+            "Processing MultiVM block data ({} bytes)",
+            block_data_bytes.len()
+        );
+
         // Parse the MultiVM block data which contains both SVM and EVM transactions
         let processing_result = match Self::parse_multivm_block_data(block_data_bytes).await {
             Ok(parsed_data) => {
@@ -535,7 +568,7 @@ impl TcpSocketTransport {
                 return Err(e);
             }
         };
-        
+
         match processing_result {
             Ok(execution_result) => {
                 let result = serde_json::json!({
@@ -554,8 +587,9 @@ impl TcpSocketTransport {
                     "timestamp": chrono::Utc::now(),
                     "execution_time_ms": execution_result.execution_time_ms
                 });
-                
-                serde_json::to_vec(&result).map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
+
+                serde_json::to_vec(&result)
+                    .map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
             }
             Err(e) => {
                 tracing::error!("MultiVM transaction execution failed: {}", e);
@@ -580,40 +614,48 @@ impl TcpSocketTransport {
     }
 
     // Supporting methods for block processing
-    
+
     /// Parse Solana block data from bytes
-    async fn parse_solana_block_data(block_data_bytes: &[u8]) -> Result<SolanaBlockData, MultivmError> {
+    async fn parse_solana_block_data(
+        block_data_bytes: &[u8],
+    ) -> Result<SolanaBlockData, MultivmError> {
         // In a real implementation, this would use Solana's native block parsing
         // For now, we'll decode from our internal format
-        let block_data: SolanaBlockData = bincode::deserialize(block_data_bytes)
-            .map_err(|e| MultivmError::Serialization(format!("Failed to parse Solana block: {}", e)))?;
-        
-        tracing::debug!("Parsed Solana block with {} transactions", block_data.transactions.len());
+        let block_data: SolanaBlockData = bincode::deserialize(block_data_bytes).map_err(|e| {
+            MultivmError::Serialization(format!("Failed to parse Solana block: {}", e))
+        })?;
+
+        tracing::debug!(
+            "Parsed Solana block with {} transactions",
+            block_data.transactions.len()
+        );
         Ok(block_data)
     }
-    
+
     /// Execute Solana transactions
-    async fn execute_solana_transactions(block_data: SolanaBlockData) -> Result<SolanaExecutionResult, MultivmError> {
+    async fn execute_solana_transactions(
+        block_data: SolanaBlockData,
+    ) -> Result<SolanaExecutionResult, MultivmError> {
         let start_time = std::time::Instant::now();
         let mut compute_units_consumed = 0;
         let mut accounts_modified = std::collections::HashSet::new();
         let mut transactions_processed = 0;
-        
+
         for transaction in block_data.transactions {
             // Simulate transaction execution
             compute_units_consumed += Self::estimate_solana_compute_units(&transaction);
-            
+
             // Track account modifications
             for account in &transaction.accounts {
                 accounts_modified.insert(account.clone());
             }
-            
+
             transactions_processed += 1;
-            
+
             // Simulate execution time
             tokio::time::sleep(std::time::Duration::from_micros(100)).await;
         }
-        
+
         Ok(SolanaExecutionResult {
             transactions_processed,
             accounts_modified: accounts_modified.len(),
@@ -621,36 +663,53 @@ impl TcpSocketTransport {
             execution_time_ms: start_time.elapsed().as_millis() as u64,
         })
     }
-    
+
     /// Parse Ethereum block data from bytes
-    async fn parse_ethereum_block_data(block_data_bytes: &[u8]) -> Result<EthereumBlockData, MultivmError> {
+    async fn parse_ethereum_block_data(
+        block_data_bytes: &[u8],
+    ) -> Result<EthereumBlockData, MultivmError> {
         // In a real implementation, this would use Ethereum's native block parsing
-        let block_data: EthereumBlockData = bincode::deserialize(block_data_bytes)
-            .map_err(|e| MultivmError::Serialization(format!("Failed to parse Ethereum block: {}", e)))?;
-        
-        tracing::debug!("Parsed Ethereum block with {} transactions", block_data.transactions.len());
+        let block_data: EthereumBlockData =
+            bincode::deserialize(block_data_bytes).map_err(|e| {
+                MultivmError::Serialization(format!("Failed to parse Ethereum block: {}", e))
+            })?;
+
+        tracing::debug!(
+            "Parsed Ethereum block with {} transactions",
+            block_data.transactions.len()
+        );
         Ok(block_data)
     }
-    
+
     /// Execute Ethereum transactions
-    async fn execute_ethereum_transactions(block_data: EthereumBlockData) -> Result<EthereumExecutionResult, MultivmError> {
+    async fn execute_ethereum_transactions(
+        block_data: EthereumBlockData,
+    ) -> Result<EthereumExecutionResult, MultivmError> {
         let start_time = std::time::Instant::now();
         let mut gas_used = 0;
         let mut transactions_processed = 0;
-        
+
         for transaction in block_data.transactions {
             // Simulate transaction execution
             gas_used += Self::estimate_ethereum_gas_usage(&transaction);
             transactions_processed += 1;
-            
+
             // Simulate execution time
             tokio::time::sleep(std::time::Duration::from_micros(200)).await;
         }
-        
+
         // Generate mock state and receipt roots
-        let state_root = format!("0x{}", hex::encode(&sha2::Sha256::digest(format!("state_{}", transactions_processed).as_bytes())[..16]));
-        let receipts_root = format!("0x{}", hex::encode(&sha2::Sha256::digest(format!("receipts_{}", gas_used).as_bytes())[..16]));
-        
+        let state_root = format!(
+            "0x{}",
+            hex::encode(
+                &sha2::Sha256::digest(format!("state_{}", transactions_processed).as_bytes())[..16]
+            )
+        );
+        let receipts_root = format!(
+            "0x{}",
+            hex::encode(&sha2::Sha256::digest(format!("receipts_{}", gas_used).as_bytes())[..16])
+        );
+
         Ok(EthereumExecutionResult {
             transactions_processed,
             gas_used,
@@ -659,12 +718,15 @@ impl TcpSocketTransport {
             execution_time_ms: start_time.elapsed().as_millis() as u64,
         })
     }
-    
+
     /// Parse MultiVM block data from bytes
-    async fn parse_multivm_block_data(block_data_bytes: &[u8]) -> Result<MultiVmBlockData, MultivmError> {
-        let block_data: MultiVmBlockData = bincode::deserialize(block_data_bytes)
-            .map_err(|e| MultivmError::Serialization(format!("Failed to parse MultiVM block: {}", e)))?;
-        
+    async fn parse_multivm_block_data(
+        block_data_bytes: &[u8],
+    ) -> Result<MultiVmBlockData, MultivmError> {
+        let block_data: MultiVmBlockData = bincode::deserialize(block_data_bytes).map_err(|e| {
+            MultivmError::Serialization(format!("Failed to parse MultiVM block: {}", e))
+        })?;
+
         tracing::debug!(
             "Parsed MultiVM block with {} SVM txs, {} EVM txs, {} special txs",
             block_data.svm_transactions.len(),
@@ -673,11 +735,13 @@ impl TcpSocketTransport {
         );
         Ok(block_data)
     }
-    
+
     /// Execute MultiVM transactions across both engines
-    async fn execute_multivm_transactions(block_data: MultiVmBlockData) -> Result<MultiVmExecutionResult, MultivmError> {
+    async fn execute_multivm_transactions(
+        block_data: MultiVmBlockData,
+    ) -> Result<MultiVmExecutionResult, MultivmError> {
         let start_time = std::time::Instant::now();
-        
+
         // Execute SVM transactions
         let svm_result = if !block_data.svm_transactions.is_empty() {
             let svm_block = SolanaBlockData {
@@ -687,7 +751,7 @@ impl TcpSocketTransport {
         } else {
             None
         };
-        
+
         // Execute EVM transactions
         let evm_result = if !block_data.evm_transactions.is_empty() {
             let evm_block = EthereumBlockData {
@@ -697,7 +761,7 @@ impl TcpSocketTransport {
         } else {
             None
         };
-        
+
         // Process special transactions (cross-VM operations, account bindings)
         let mut cross_vm_operations = 0;
         for special_tx in &block_data.special_transactions {
@@ -710,40 +774,77 @@ impl TcpSocketTransport {
             }
             tokio::time::sleep(std::time::Duration::from_micros(500)).await;
         }
-        
+
         // Generate combined state roots
-        let solana_state_root = format!("0x{}", hex::encode(&sha2::Sha256::digest(format!("svm_state_{}", svm_result.as_ref().map(|r| r.transactions_processed).unwrap_or(0)).as_bytes())[..16]));
-        let ethereum_state_root = format!("0x{}", hex::encode(&sha2::Sha256::digest(format!("evm_state_{}", evm_result.as_ref().map(|r| r.transactions_processed).unwrap_or(0)).as_bytes())[..16]));
-        
+        let solana_state_root = format!(
+            "0x{}",
+            hex::encode(
+                &sha2::Sha256::digest(
+                    format!(
+                        "svm_state_{}",
+                        svm_result
+                            .as_ref()
+                            .map(|r| r.transactions_processed)
+                            .unwrap_or(0)
+                    )
+                    .as_bytes()
+                )[..16]
+            )
+        );
+        let ethereum_state_root = format!(
+            "0x{}",
+            hex::encode(
+                &sha2::Sha256::digest(
+                    format!(
+                        "evm_state_{}",
+                        evm_result
+                            .as_ref()
+                            .map(|r| r.transactions_processed)
+                            .unwrap_or(0)
+                    )
+                    .as_bytes()
+                )[..16]
+            )
+        );
+
         Ok(MultiVmExecutionResult {
-            svm_transactions_processed: svm_result.as_ref().map(|r| r.transactions_processed).unwrap_or(0),
-            evm_transactions_processed: evm_result.as_ref().map(|r| r.transactions_processed).unwrap_or(0),
+            svm_transactions_processed: svm_result
+                .as_ref()
+                .map(|r| r.transactions_processed)
+                .unwrap_or(0),
+            evm_transactions_processed: evm_result
+                .as_ref()
+                .map(|r| r.transactions_processed)
+                .unwrap_or(0),
             special_transactions_processed: block_data.special_transactions.len(),
             cross_vm_operations,
             total_gas_used: evm_result.as_ref().map(|r| r.gas_used).unwrap_or(0),
-            total_compute_units: svm_result.as_ref().map(|r| r.compute_units_consumed).unwrap_or(0),
+            total_compute_units: svm_result
+                .as_ref()
+                .map(|r| r.compute_units_consumed)
+                .unwrap_or(0),
             solana_state_root,
             ethereum_state_root,
             execution_time_ms: start_time.elapsed().as_millis() as u64,
         })
     }
-    
+
     /// Estimate compute units for Solana transaction
     fn estimate_solana_compute_units(transaction: &SolanaTransactionData) -> u64 {
         // Basic estimation based on instruction complexity
         let base_units = 5000;
         let account_factor = transaction.accounts.len() as u64 * 1000;
         let data_factor = transaction.data.len() as u64 * 10;
-        
+
         base_units + account_factor + data_factor
     }
-    
+
     /// Estimate gas usage for Ethereum transaction
     fn estimate_ethereum_gas_usage(transaction: &EthereumTransactionData) -> u64 {
         // Basic estimation based on transaction complexity
         let base_gas = 21000;
         let data_gas = transaction.data.len() as u64 * 16; // 16 gas per byte
-        
+
         std::cmp::min(base_gas + data_gas, transaction.gas_limit)
     }
 }
@@ -841,13 +942,13 @@ impl IpcClient {
                 socket_path
             )));
         }
-        
+
         Ok(Self {
             socket_path: Some(path),
             tcp_address: None,
         })
     }
-    
+
     /// Create a new TCP IPC client
     pub async fn new_tcp_socket(address: SocketAddr) -> MultivmResult<Self> {
         Ok(Self {
@@ -855,7 +956,7 @@ impl IpcClient {
             tcp_address: Some(address),
         })
     }
-    
+
     /// Send a command and await response
     pub async fn send_command(&self, command: IpcCommand) -> MultivmResult<IpcResponse> {
         if let Some(ref socket_path) = self.socket_path {
@@ -866,84 +967,120 @@ impl IpcClient {
             Err(MultivmError::Ipc("No connection configured".to_string()))
         }
     }
-    
+
     /// Send command via Unix socket
     #[cfg(unix)]
-    async fn send_command_unix(&self, socket_path: &PathBuf, command: IpcCommand) -> MultivmResult<IpcResponse> {
-        let mut stream = UnixStream::connect(socket_path).await
+    async fn send_command_unix(
+        &self,
+        socket_path: &PathBuf,
+        command: IpcCommand,
+    ) -> MultivmResult<IpcResponse> {
+        let mut stream = UnixStream::connect(socket_path)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to connect to Unix socket: {}", e)))?;
-        
+
         // Send handshake
-        stream.write_all(b"MULTIVM_HANDSHAKE:client").await
+        stream
+            .write_all(b"MULTIVM_HANDSHAKE:client")
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Handshake failed: {}", e)))?;
-        
+
         // Read handshake ack
         let mut ack_buffer = [0; 64];
-        let n = stream.read(&mut ack_buffer).await
+        let n = stream
+            .read(&mut ack_buffer)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to read handshake ack: {}", e)))?;
-        
+
         if &ack_buffer[..n] != b"MULTIVM_HANDSHAKE_ACK" {
-            return Err(MultivmError::Ipc("Invalid handshake acknowledgment".to_string()));
+            return Err(MultivmError::Ipc(
+                "Invalid handshake acknowledgment".to_string(),
+            ));
         }
-        
+
         // Create and send message
         let message = IpcMessage::new(ProcessId::Main, ProcessId::Main, command);
         let message_bytes = bincode::serialize(&message)
             .map_err(|e| MultivmError::Ipc(format!("Failed to serialize message: {}", e)))?;
-        
-        stream.write_all(&message_bytes).await
+
+        stream
+            .write_all(&message_bytes)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to send message: {}", e)))?;
-        
+
         // Read response
         let mut response_buffer = vec![0; 4096];
-        let n = stream.read(&mut response_buffer).await
+        let n = stream
+            .read(&mut response_buffer)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to read response: {}", e)))?;
-        
+
         let response: IpcResponse = bincode::deserialize(&response_buffer[..n])
             .map_err(|e| MultivmError::Ipc(format!("Failed to deserialize response: {}", e)))?;
-        
+
         Ok(response)
     }
-    
+
     /// Send command via TCP socket
-    async fn send_command_tcp(&self, address: SocketAddr, command: IpcCommand) -> MultivmResult<IpcResponse> {
-        let mut stream = TcpStream::connect(address).await
+    async fn send_command_tcp(
+        &self,
+        address: SocketAddr,
+        command: IpcCommand,
+    ) -> MultivmResult<IpcResponse> {
+        let mut stream = TcpStream::connect(address)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to connect to TCP socket: {}", e)))?;
-        
+
         // Send handshake
-        stream.write_all(b"MULTIVM_HANDSHAKE:client").await
+        stream
+            .write_all(b"MULTIVM_HANDSHAKE:client")
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Handshake failed: {}", e)))?;
-        
+
         // Read handshake ack
         let mut ack_buffer = [0; 64];
-        let n = stream.read(&mut ack_buffer).await
+        let n = stream
+            .read(&mut ack_buffer)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to read handshake ack: {}", e)))?;
-        
+
         if &ack_buffer[..n] != b"MULTIVM_HANDSHAKE_ACK" {
-            return Err(MultivmError::Ipc("Invalid handshake acknowledgment".to_string()));
+            return Err(MultivmError::Ipc(
+                "Invalid handshake acknowledgment".to_string(),
+            ));
         }
-        
+
         // Create and send message
         let message = IpcMessage::new(ProcessId::Main, ProcessId::Main, command);
         let message_bytes = bincode::serialize(&message)
             .map_err(|e| MultivmError::Ipc(format!("Failed to serialize message: {}", e)))?;
-        
-        stream.write_all(&message_bytes).await
+
+        stream
+            .write_all(&message_bytes)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to send message: {}", e)))?;
-        
+
         // Read response
         let mut response_buffer = vec![0; 4096];
-        let n = stream.read(&mut response_buffer).await
+        let n = stream
+            .read(&mut response_buffer)
+            .await
             .map_err(|e| MultivmError::Ipc(format!("Failed to read response: {}", e)))?;
-        
+
         let response: IpcResponse = bincode::deserialize(&response_buffer[..n])
             .map_err(|e| MultivmError::Ipc(format!("Failed to deserialize response: {}", e)))?;
-        
+
         Ok(response)
     }
-    
+
     #[cfg(not(unix))]
-    async fn send_command_unix(&self, _socket_path: &PathBuf, _command: IpcCommand) -> MultivmResult<IpcResponse> {
-        Err(MultivmError::Ipc("Unix sockets not supported on this platform".to_string()))
+    async fn send_command_unix(
+        &self,
+        _socket_path: &PathBuf,
+        _command: IpcCommand,
+    ) -> MultivmResult<IpcResponse> {
+        Err(MultivmError::Ipc(
+            "Unix sockets not supported on this platform".to_string(),
+        ))
     }
 }

@@ -180,10 +180,13 @@ fn extract_client_identifier(headers: &HeaderMap, request: &Request) -> String {
     }
 
     // Fall back to connection info using axum extensions
-    if let Some(connect_info) = request.extensions().get::<axum::extract::ConnectInfo<std::net::SocketAddr>>() {
+    if let Some(connect_info) = request
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+    {
         return format!("ip:{}", connect_info.0.ip());
     }
-    
+
     // Ultimate fallback for unknown clients
     format!("ip:127.0.0.1")
 }
@@ -195,14 +198,14 @@ async fn check_rate_limit(
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     // Get rate limiting configuration
     let rate_limit_config = &state.config.rate_limiting;
-    
+
     if !rate_limit_config.enabled {
         return Ok(true);
     }
-    
+
     // Create cache key for this client
     let cache_key = format!("rate_limit:{}", client_id);
-    
+
     // Check current request count
     match state.cache.get::<u32>(&cache_key).await {
         Ok(Some(current_count)) => {
@@ -210,15 +213,21 @@ async fn check_rate_limit(
                 tracing::warn!("Rate limit exceeded for client: {}", client_id);
                 return Ok(false);
             }
-            
+
             // Increment counter
             let new_count = current_count + 1;
-            let _ = state.cache.set(&cache_key, &new_count, std::time::Duration::from_secs(60)).await;
+            let _ = state
+                .cache
+                .set(&cache_key, &new_count, std::time::Duration::from_secs(60))
+                .await;
             Ok(true)
         }
         Ok(None) => {
             // First request from this client in the current window
-            let _ = state.cache.set(&cache_key, &1u32, std::time::Duration::from_secs(60)).await;
+            let _ = state
+                .cache
+                .set(&cache_key, &1u32, std::time::Duration::from_secs(60))
+                .await;
             Ok(true)
         }
         Err(e) => {

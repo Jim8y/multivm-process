@@ -233,24 +233,26 @@ impl AccountMappingLayer for MemoryStorage {
                 metadata,
             } => {
                 // Check if either account already has a binding
-                let existing_source = self.get_binding_by_account(&source_account)
+                let existing_source = self
+                    .get_binding_by_account(&source_account)
                     .await
                     .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                
-                let existing_target = self.get_binding_by_account(&target_account)
+
+                let existing_target = self
+                    .get_binding_by_account(&target_account)
                     .await
                     .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
 
                 let multivm_id = if let Some(existing) = existing_source {
                     // Extend existing binding to include target account
                     let mut updated_binding = existing.clone();
-                    
+
                     // Update based on account type
                     match &target_account {
                         AccountAddress::Solana(_) => {
                             if updated_binding.svm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Source binding already has SVM account".to_string()
+                                    "Source binding already has SVM account".to_string(),
                                 ));
                             }
                             updated_binding.svm_account = Some(target_account);
@@ -258,37 +260,37 @@ impl AccountMappingLayer for MemoryStorage {
                         AccountAddress::Ethereum(_) => {
                             if updated_binding.evm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Source binding already has EVM account".to_string()
+                                    "Source binding already has EVM account".to_string(),
                                 ));
                             }
                             updated_binding.evm_account = Some(target_account);
                         }
                     }
-                    
+
                     // Add the proof
                     updated_binding.binding_proofs.push(proof);
-                    
+
                     if let Some(meta) = metadata {
                         updated_binding.metadata.notes = meta.notes;
                         updated_binding.metadata.tags.extend(meta.tags);
                     }
-                    
+
                     let multivm_id = updated_binding.multivm_account.clone();
                     self.store_binding(&updated_binding)
                         .await
                         .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                    
+
                     multivm_id
                 } else if let Some(existing) = existing_target {
                     // Extend existing binding to include source account
                     let mut updated_binding = existing.clone();
-                    
+
                     // Update based on account type
                     match &source_account {
                         AccountAddress::Solana(_) => {
                             if updated_binding.svm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Target binding already has SVM account".to_string()
+                                    "Target binding already has SVM account".to_string(),
                                 ));
                             }
                             updated_binding.svm_account = Some(source_account);
@@ -296,26 +298,26 @@ impl AccountMappingLayer for MemoryStorage {
                         AccountAddress::Ethereum(_) => {
                             if updated_binding.evm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Target binding already has EVM account".to_string()
+                                    "Target binding already has EVM account".to_string(),
                                 ));
                             }
                             updated_binding.evm_account = Some(source_account);
                         }
                     }
-                    
+
                     // Add the proof
                     updated_binding.binding_proofs.push(proof);
-                    
+
                     if let Some(meta) = metadata {
                         updated_binding.metadata.notes = meta.notes;
                         updated_binding.metadata.tags.extend(meta.tags);
                     }
-                    
+
                     let multivm_id = updated_binding.multivm_account.clone();
                     self.store_binding(&updated_binding)
                         .await
                         .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                    
+
                     multivm_id
                 } else {
                     // Create new binding
@@ -331,26 +333,29 @@ impl AccountMappingLayer for MemoryStorage {
                             active: true,
                             last_used: None,
                             notes: metadata.as_ref().and_then(|m| m.notes.clone()),
-                            tags: metadata.as_ref().map(|m| m.tags.clone()).unwrap_or_default(),
+                            tags: metadata
+                                .as_ref()
+                                .map(|m| m.tags.clone())
+                                .unwrap_or_default(),
                             config: crate::BindingConfiguration::default(),
                         },
                     };
-                    
+
                     // Set accounts based on type
                     match &source_account {
                         AccountAddress::Solana(_) => binding.svm_account = Some(source_account),
                         AccountAddress::Ethereum(_) => binding.evm_account = Some(source_account),
                     }
-                    
+
                     match &target_account {
                         AccountAddress::Solana(_) => binding.svm_account = Some(target_account),
                         AccountAddress::Ethereum(_) => binding.evm_account = Some(target_account),
                     }
-                    
+
                     self.store_binding(&binding)
                         .await
                         .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                    
+
                     multivm_id
                 };
 
@@ -363,7 +368,7 @@ impl AccountMappingLayer for MemoryStorage {
                     error: None,
                 })
             }
-            
+
             SpecialTransaction::CrossVmTransfer {
                 from,
                 to,
@@ -376,29 +381,33 @@ impl AccountMappingLayer for MemoryStorage {
                 // 1. Validate the transfer
                 // 2. Update balances
                 // 3. Record the transaction
-                
+
                 Ok(SpecialTransactionResult {
                     success: true,
                     multivm_account: Some(from.clone()),
                     compute_units_used: 2000,
-                    return_data: Some(format!(
-                        "Cross-VM transfer of {} {} from {} to {} completed{}",
-                        amount,
-                        asset_type,
-                        from,
-                        to,
-                        memo.as_ref().map(|m| format!(" (memo: {})", m)).unwrap_or_default()
-                    ).as_bytes().to_vec()),
+                    return_data: Some(
+                        format!(
+                            "Cross-VM transfer of {} {} from {} to {} completed{}",
+                            amount,
+                            asset_type,
+                            from,
+                            to,
+                            memo.as_ref()
+                                .map(|m| format!(" (memo: {})", m))
+                                .unwrap_or_default()
+                        )
+                        .as_bytes()
+                        .to_vec(),
+                    ),
                     events: vec![],
                     error: None,
                 })
             }
-            
-            _ => {
-                Err(multivm_common::MultivmError::AccountMapping(
-                    "Unsupported special transaction type".to_string(),
-                ))
-            }
+
+            _ => Err(multivm_common::MultivmError::AccountMapping(
+                "Unsupported special transaction type".to_string(),
+            )),
         }
     }
 
@@ -502,11 +511,10 @@ impl FileStorage {
             return Ok(());
         }
 
-        let stored_bindings: Vec<AccountBinding> = serde_json::from_str(&contents).map_err(|e| {
-            crate::AccountMappingError::Internal {
+        let stored_bindings: Vec<AccountBinding> =
+            serde_json::from_str(&contents).map_err(|e| crate::AccountMappingError::Internal {
                 message: format!("Failed to deserialize storage file: {}", e),
-            }
-        })?;
+            })?;
 
         let mut bindings = self.bindings.write().await;
         let mut reverse_lookup = self.reverse_lookup.write().await;
@@ -678,24 +686,26 @@ impl AccountMappingLayer for FileStorage {
                 metadata,
             } => {
                 // Check if either account already has a binding
-                let existing_source = self.get_binding_by_account(&source_account)
+                let existing_source = self
+                    .get_binding_by_account(&source_account)
                     .await
                     .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                
-                let existing_target = self.get_binding_by_account(&target_account)
+
+                let existing_target = self
+                    .get_binding_by_account(&target_account)
                     .await
                     .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
 
                 let multivm_id = if let Some(existing) = existing_source {
                     // Extend existing binding to include target account
                     let mut updated_binding = existing.clone();
-                    
+
                     // Update based on account type
                     match &target_account {
                         AccountAddress::Solana(_) => {
                             if updated_binding.svm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Source binding already has SVM account".to_string()
+                                    "Source binding already has SVM account".to_string(),
                                 ));
                             }
                             updated_binding.svm_account = Some(target_account);
@@ -703,37 +713,37 @@ impl AccountMappingLayer for FileStorage {
                         AccountAddress::Ethereum(_) => {
                             if updated_binding.evm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Source binding already has EVM account".to_string()
+                                    "Source binding already has EVM account".to_string(),
                                 ));
                             }
                             updated_binding.evm_account = Some(target_account);
                         }
                     }
-                    
+
                     // Add the proof
                     updated_binding.binding_proofs.push(proof);
-                    
+
                     if let Some(meta) = metadata {
                         updated_binding.metadata.notes = meta.notes;
                         updated_binding.metadata.tags.extend(meta.tags);
                     }
-                    
+
                     let multivm_id = updated_binding.multivm_account.clone();
                     self.store_binding(&updated_binding)
                         .await
                         .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                    
+
                     multivm_id
                 } else if let Some(existing) = existing_target {
                     // Extend existing binding to include source account
                     let mut updated_binding = existing.clone();
-                    
+
                     // Update based on account type
                     match &source_account {
                         AccountAddress::Solana(_) => {
                             if updated_binding.svm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Target binding already has SVM account".to_string()
+                                    "Target binding already has SVM account".to_string(),
                                 ));
                             }
                             updated_binding.svm_account = Some(source_account);
@@ -741,26 +751,26 @@ impl AccountMappingLayer for FileStorage {
                         AccountAddress::Ethereum(_) => {
                             if updated_binding.evm_account.is_some() {
                                 return Err(multivm_common::MultivmError::AccountMapping(
-                                    "Target binding already has EVM account".to_string()
+                                    "Target binding already has EVM account".to_string(),
                                 ));
                             }
                             updated_binding.evm_account = Some(source_account);
                         }
                     }
-                    
+
                     // Add the proof
                     updated_binding.binding_proofs.push(proof);
-                    
+
                     if let Some(meta) = metadata {
                         updated_binding.metadata.notes = meta.notes;
                         updated_binding.metadata.tags.extend(meta.tags);
                     }
-                    
+
                     let multivm_id = updated_binding.multivm_account.clone();
                     self.store_binding(&updated_binding)
                         .await
                         .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                    
+
                     multivm_id
                 } else {
                     // Create new binding
@@ -776,26 +786,29 @@ impl AccountMappingLayer for FileStorage {
                             active: true,
                             last_used: None,
                             notes: metadata.as_ref().and_then(|m| m.notes.clone()),
-                            tags: metadata.as_ref().map(|m| m.tags.clone()).unwrap_or_default(),
+                            tags: metadata
+                                .as_ref()
+                                .map(|m| m.tags.clone())
+                                .unwrap_or_default(),
                             config: crate::BindingConfiguration::default(),
                         },
                     };
-                    
+
                     // Set accounts based on type
                     match &source_account {
                         AccountAddress::Solana(_) => binding.svm_account = Some(source_account),
                         AccountAddress::Ethereum(_) => binding.evm_account = Some(source_account),
                     }
-                    
+
                     match &target_account {
                         AccountAddress::Solana(_) => binding.svm_account = Some(target_account),
                         AccountAddress::Ethereum(_) => binding.evm_account = Some(target_account),
                     }
-                    
+
                     self.store_binding(&binding)
                         .await
                         .map_err(|e| multivm_common::MultivmError::AccountMapping(e.to_string()))?;
-                    
+
                     multivm_id
                 };
 
@@ -808,7 +821,7 @@ impl AccountMappingLayer for FileStorage {
                     error: None,
                 })
             }
-            
+
             SpecialTransaction::CrossVmTransfer {
                 from,
                 to,
@@ -821,29 +834,33 @@ impl AccountMappingLayer for FileStorage {
                 // 1. Validate the transfer
                 // 2. Update balances
                 // 3. Record the transaction
-                
+
                 Ok(SpecialTransactionResult {
                     success: true,
                     multivm_account: Some(from.clone()),
                     compute_units_used: 2000,
-                    return_data: Some(format!(
-                        "Cross-VM transfer of {} {} from {} to {} completed{}",
-                        amount,
-                        asset_type,
-                        from,
-                        to,
-                        memo.as_ref().map(|m| format!(" (memo: {})", m)).unwrap_or_default()
-                    ).as_bytes().to_vec()),
+                    return_data: Some(
+                        format!(
+                            "Cross-VM transfer of {} {} from {} to {} completed{}",
+                            amount,
+                            asset_type,
+                            from,
+                            to,
+                            memo.as_ref()
+                                .map(|m| format!(" (memo: {})", m))
+                                .unwrap_or_default()
+                        )
+                        .as_bytes()
+                        .to_vec(),
+                    ),
                     events: vec![],
                     error: None,
                 })
             }
-            
-            _ => {
-                Err(multivm_common::MultivmError::AccountMapping(
-                    "Unsupported special transaction type".to_string(),
-                ))
-            }
+
+            _ => Err(multivm_common::MultivmError::AccountMapping(
+                "Unsupported special transaction type".to_string(),
+            )),
         }
     }
 

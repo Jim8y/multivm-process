@@ -513,8 +513,8 @@ impl Default for RestServerConfig {
             port: 8080,
             request_timeout: Duration::from_secs(30),
             max_body_size: 1024 * 1024, // 1MB
-            enable_cors: false, // Disabled by default for security
-            cors_origins: vec![], // Empty by default, configure as needed
+            enable_cors: false,         // Disabled by default for security
+            cors_origins: vec![],       // Empty by default, configure as needed
             enable_logging: true,
         }
     }

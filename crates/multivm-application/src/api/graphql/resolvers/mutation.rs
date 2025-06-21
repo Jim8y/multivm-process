@@ -194,16 +194,25 @@ impl MutationResolver {
         }
 
         // Parse the transaction data to extract cross-VM transaction components
-        let cross_vm_data: Result<serde_json::Value, _> = serde_json::from_str(&input.transaction_data);
+        let cross_vm_data: Result<serde_json::Value, _> =
+            serde_json::from_str(&input.transaction_data);
         let (svm_tx, evm_tx) = match cross_vm_data {
             Ok(data) => {
                 // Extract source and target transaction data
-                let svm_part = data.get("svm_transaction")
+                let svm_part = data
+                    .get("svm_transaction")
                     .and_then(|v| v.as_str())
                     .unwrap_or(&input.transaction_data);
-                    
-                let default_evm_tx = format!("0x{}", hex::encode(&input.transaction_data.as_bytes()[..std::cmp::min(32, input.transaction_data.len())]));
-                let evm_part = data.get("evm_transaction")
+
+                let default_evm_tx = format!(
+                    "0x{}",
+                    hex::encode(
+                        &input.transaction_data.as_bytes()
+                            [..std::cmp::min(32, input.transaction_data.len())]
+                    )
+                );
+                let evm_part = data
+                    .get("evm_transaction")
                     .and_then(|v| v.as_str())
                     .unwrap_or(&default_evm_tx);
 
@@ -218,7 +227,10 @@ impl MutationResolver {
                 if input.from_vm == "svm" {
                     (
                         input.transaction_data.clone(),
-                        format!("0x{}", hex::encode(sha2::Sha256::digest(input.transaction_data.as_bytes()))),
+                        format!(
+                            "0x{}",
+                            hex::encode(sha2::Sha256::digest(input.transaction_data.as_bytes()))
+                        ),
                     )
                 } else {
                     (
@@ -327,21 +339,24 @@ impl MutationResolver {
                     .simulate_transaction(&transaction_data)
                     .await
                 {
-                    Ok(simulation_result) => {
-                        Ok(SimulationResult {
-                            success: simulation_result.success,
-                            logs: simulation_result.logs.iter().map(|log| {
-                                format!("Event from {}: {} topics, data: {}", 
-                                    log.address, 
-                                    log.topics.len(), 
+                    Ok(simulation_result) => Ok(SimulationResult {
+                        success: simulation_result.success,
+                        logs: simulation_result
+                            .logs
+                            .iter()
+                            .map(|log| {
+                                format!(
+                                    "Event from {}: {} topics, data: {}",
+                                    log.address,
+                                    log.topics.len(),
                                     &log.data[..std::cmp::min(20, log.data.len())]
                                 )
-                            }).collect(),
-                            units_consumed: Some(simulation_result.gas_used),
-                            return_data: simulation_result.return_data,
-                            error: simulation_result.error,
-                        })
-                    }
+                            })
+                            .collect(),
+                        units_consumed: Some(simulation_result.gas_used),
+                        return_data: simulation_result.return_data,
+                        error: simulation_result.error,
+                    }),
                     Err(e) => {
                         tracing::error!("Failed to simulate EVM transaction: {}", e);
                         Ok(SimulationResult {

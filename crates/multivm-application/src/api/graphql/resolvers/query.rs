@@ -93,7 +93,11 @@ impl QueryResolver {
         // Parse the address and look up actual bindings
         match multivm_account_mapping::AccountAddress::from_string(&address) {
             Ok(account_address) => {
-                match state.multivm_gateway.get_account_binding(&account_address).await? {
+                match state
+                    .multivm_gateway
+                    .get_account_binding(&account_address)
+                    .await?
+                {
                     Some(binding_info) => Ok(Some(AccountBindings {
                         multivm_account: binding_info.multivm_id,
                         svm_account: binding_info.svm_address,
@@ -142,9 +146,15 @@ impl QueryResolver {
                         all_transactions.push(Transaction {
                             id: tx.signature,
                             vm_type: "svm".to_string(),
-                            status: if tx.err.is_none() { "success".to_string() } else { "failed".to_string() },
+                            status: if tx.err.is_none() {
+                                "success".to_string()
+                            } else {
+                                "failed".to_string()
+                            },
                             block: Some(tx.slot.to_string()),
-                            timestamp: tx.block_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap_or_default()),
+                            timestamp: tx.block_time.map(|t| {
+                                chrono::DateTime::from_timestamp(t, 0).unwrap_or_default()
+                            }),
                         });
                         total_found += 1;
                     }

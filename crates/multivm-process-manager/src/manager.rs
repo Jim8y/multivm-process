@@ -14,11 +14,23 @@ use multivm_common::{
 /// Events emitted by the process manager
 #[derive(Debug, Clone)]
 pub enum ProcessManagerEvent {
-    ProcessStarted { process_id: ProcessId },
-    ProcessStopped { process_id: ProcessId },
-    ProcessFailed { process_id: ProcessId, error: String },
-    ProcessRestarted { process_id: ProcessId },
-    HealthCheckFailed { process_id: ProcessId, error: String },
+    ProcessStarted {
+        process_id: ProcessId,
+    },
+    ProcessStopped {
+        process_id: ProcessId,
+    },
+    ProcessFailed {
+        process_id: ProcessId,
+        error: String,
+    },
+    ProcessRestarted {
+        process_id: ProcessId,
+    },
+    HealthCheckFailed {
+        process_id: ProcessId,
+        error: String,
+    },
 }
 
 use crate::{BlockRouter, HealthMonitor, ProcessHandle, SystemResourceMonitor};
@@ -219,12 +231,17 @@ impl MultivmProcessManager {
 
         // Get the current process handle
         let processes = self.inner.processes.read().await;
-        let handle = processes.get(&process_id).cloned()
+        let handle = processes
+            .get(&process_id)
+            .cloned()
             .ok_or_else(|| MultivmError::Process(format!("Process not found: {}", process_id)))?;
         drop(processes);
 
         // Stop the current process
-        if let Err(e) = self.stop_process_internal(&handle, true, Some(Duration::from_secs(10))).await {
+        if let Err(e) = self
+            .stop_process_internal(&handle, true, Some(Duration::from_secs(10)))
+            .await
+        {
             tracing::warn!("Failed to gracefully stop process {}: {}", process_id, e);
         }
 
@@ -235,21 +252,34 @@ impl MultivmProcessManager {
         let new_handle = match process_id {
             ProcessId::Solana => {
                 tracing::info!("Starting new SVM engine process");
-                ProcessHandle::start_solana_engine(&self.inner.config.solana, &self.inner.config.ipc).await?
+                ProcessHandle::start_solana_engine(
+                    &self.inner.config.solana,
+                    &self.inner.config.ipc,
+                )
+                .await?
             }
             ProcessId::Ethereum => {
                 tracing::info!("Starting new EVM engine process");
-                ProcessHandle::start_ethereum_engine(&self.inner.config.ethereum, &self.inner.config.ipc).await?
+                ProcessHandle::start_ethereum_engine(
+                    &self.inner.config.ethereum,
+                    &self.inner.config.ipc,
+                )
+                .await?
             }
             _ => {
-                return Err(MultivmError::UnsupportedOperation(
-                    format!("Cannot restart process type: {}", process_id)
-                ));
+                return Err(MultivmError::UnsupportedOperation(format!(
+                    "Cannot restart process type: {}",
+                    process_id
+                )));
             }
         };
 
         // Store the new handle
-        self.inner.processes.write().await.insert(process_id, new_handle);
+        self.inner
+            .processes
+            .write()
+            .await
+            .insert(process_id, new_handle);
 
         // Notify about successful restart
         if let Some(event_sender) = &self.inner.event_sender {
@@ -376,24 +406,24 @@ impl MultivmProcessManager {
         let inner = self.inner.clone();
         let processes_handle = Arc::clone(&inner.processes);
         let health_monitor = inner.health_monitor.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30)); // Health check every 30 seconds
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Perform health checks on all processes
                 let processes = processes_handle.read().await;
                 for (process_id, handle) in processes.iter() {
                     let status = handle.health_check().await;
                     if !status.is_healthy {
                         tracing::warn!(
-                            "Process {} is unhealthy: {:?}", 
-                            process_id, 
+                            "Process {} is unhealthy: {:?}",
+                            process_id,
                             status.last_error
                         );
-                        
+
                         // Update health check timestamp
                         health_monitor.update_last_check(*process_id);
                     } else {
@@ -401,7 +431,7 @@ impl MultivmProcessManager {
                     }
                 }
                 drop(processes);
-                
+
                 // System health is implicitly checked through individual process health
             }
         });

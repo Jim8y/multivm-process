@@ -101,13 +101,13 @@ impl CacheLayer {
             crate::config::CacheStrategy::WriteBack => {
                 // Write to memory cache immediately, Redis later
                 self.memory_cache.set(key, value, Some(ttl)).await?;
-                
+
                 // Schedule write-back to Redis (asynchronous)
                 if let Some(redis_cache) = &self.redis_cache {
                     let redis_cache = redis_cache.clone();
                     let key = key.to_string();
                     let value = value.clone();
-                    
+
                     tokio::spawn(async move {
                         if let Err(e) = redis_cache.set(&key, &value, Some(ttl)).await {
                             tracing::warn!("Write-back to Redis failed for key '{}': {}", key, e);
@@ -210,12 +210,7 @@ impl CacheLayer {
     }
 
     /// Cache typed value with automatic key prefix
-    pub async fn cache_typed<T>(
-        &self,
-        data_type: &str,
-        id: &str,
-        value: &T,
-    ) -> CacheResult<()>
+    pub async fn cache_typed<T>(&self, data_type: &str, id: &str, value: &T) -> CacheResult<()>
     where
         T: Clone + Serialize + Send + Sync + 'static,
     {
@@ -225,11 +220,7 @@ impl CacheLayer {
     }
 
     /// Get typed value with automatic key prefix
-    pub async fn get_typed<T>(
-        &self,
-        data_type: &str,
-        id: &str,
-    ) -> CacheResult<Option<T>>
+    pub async fn get_typed<T>(&self, data_type: &str, id: &str) -> CacheResult<Option<T>>
     where
         T: Clone + Serialize + DeserializeOwned,
     {

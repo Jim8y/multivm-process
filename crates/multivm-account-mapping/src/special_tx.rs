@@ -2,7 +2,7 @@
 
 use crate::{
     AccountAddress, AccountBinding, AccountBindingValidator, AccountMappingError,
-    AccountMappingLayer, AccountMappingResult, BindingConfiguration, BindingProof, 
+    AccountMappingLayer, AccountMappingResult, BindingConfiguration, BindingProof,
     MultivmAccountId, ProofType, ValidationConfig,
 };
 
@@ -111,7 +111,6 @@ impl std::fmt::Display for AssetType {
         }
     }
 }
-
 
 /// Result of processing a special transaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -308,7 +307,7 @@ impl SpecialTransactionProcessor {
             proof: proof.clone(),
             metadata: metadata.clone(),
         };
-        
+
         // For now, we'll simulate the account binding result since we can't mutably borrow from Arc
         // In a production implementation, this would require a different approach or trait design
         let binding_result = {
@@ -322,14 +321,14 @@ impl SpecialTransactionProcessor {
                 error: None,
             }
         };
-        
+
         match Ok::<SpecialTransactionResult, AccountMappingError>(binding_result) {
             Ok(result) => {
                 info!(
                     "Successfully bound accounts for MultiVM ID: {}",
                     source_multivm_account
                 );
-                
+
                 Ok(SpecialTransactionResult {
                     success: result.success,
                     multivm_account: result.multivm_account,
@@ -396,7 +395,7 @@ impl SpecialTransactionProcessor {
             .map_err(|e| AccountMappingError::AccountNotFound {
                 address: format!("MultiVM account {}: {}", from, e),
             })?;
-            
+
         let to_addresses = self
             .account_mapping
             .get_bound_addresses(&to)
@@ -1355,16 +1354,20 @@ impl SpecialTransactionProcessor {
 
         // Production implementation of binding configuration update:
         // 1. Update the binding in persistent storage
-        self.update_binding_in_storage(multivm_account, new_config).await?;
-        
+        self.update_binding_in_storage(multivm_account, new_config)
+            .await?;
+
         // 2. Notify all bound addresses of the configuration change
-        self.notify_bound_addresses_of_config_change(multivm_account, new_config).await?;
-        
+        self.notify_bound_addresses_of_config_change(multivm_account, new_config)
+            .await?;
+
         // 3. Update any cached configurations
-        self.update_cached_configurations(multivm_account, new_config).await?;
-        
+        self.update_cached_configurations(multivm_account, new_config)
+            .await?;
+
         // 4. Emit blockchain events if necessary
-        self.emit_configuration_change_events(multivm_account, new_config).await?;
+        self.emit_configuration_change_events(multivm_account, new_config)
+            .await?;
         debug!(
             "Applying configuration update for account: {}",
             multivm_account
@@ -1407,15 +1410,18 @@ impl SpecialTransactionProcessor {
             });
         }
         check_cost += 25;
-        
+
         // 2. No active smart contracts depending on this binding
-        if self.has_dependent_contracts(binding, account_to_unbind).await? {
+        if self
+            .has_dependent_contracts(binding, account_to_unbind)
+            .await?
+        {
             return Err(AccountMappingError::InvalidBinding {
                 reason: "Account has dependent smart contracts".to_string(),
             });
         }
         check_cost += 25;
-        
+
         // 3. No outstanding obligations or locks
         if self.has_outstanding_obligations(account_to_unbind).await? {
             return Err(AccountMappingError::InvalidBinding {
@@ -1423,7 +1429,7 @@ impl SpecialTransactionProcessor {
             });
         }
         check_cost += 25;
-        
+
         // 4. Sufficient time has passed since last binding operation
         if !self.check_cooling_period(binding).await? {
             return Err(AccountMappingError::InvalidBinding {
@@ -1502,23 +1508,26 @@ impl SpecialTransactionProcessor {
         );
 
         // 1. Remove the account from the binding in persistent storage
-        self.remove_account_from_storage(multivm_account, account_to_unbind).await?;
+        self.remove_account_from_storage(multivm_account, account_to_unbind)
+            .await?;
         execution_cost += 50;
-        
+
         // 2. Update reverse lookup indices
         self.update_reverse_lookups(account_to_unbind, None).await?;
         execution_cost += 30;
-        
+
         // 3. Clean up any cached data
         self.cleanup_account_cache(account_to_unbind).await?;
         execution_cost += 20;
-        
+
         // 4. Emit events to notify other system components
-        self.emit_unbinding_events(multivm_account, account_to_unbind).await?;
+        self.emit_unbinding_events(multivm_account, account_to_unbind)
+            .await?;
         execution_cost += 25;
-        
+
         // 5. Update metrics and monitoring
-        self.update_unbinding_metrics(multivm_account, account_to_unbind).await?;
+        self.update_unbinding_metrics(multivm_account, account_to_unbind)
+            .await?;
         execution_cost += 25;
 
         // Additional cost if this completely removes the MultiVM account
@@ -1542,100 +1551,160 @@ impl SpecialTransactionProcessor {
         debug!("Account unbinding executed with cost: {}", execution_cost);
         Ok(execution_cost)
     }
-    
+
     // Helper methods for production implementation
-    
-    async fn update_binding_in_storage(&self, multivm_account: &MultivmAccountId, __config: &BindingConfiguration) -> AccountMappingResult<()> {
+
+    async fn update_binding_in_storage(
+        &self,
+        multivm_account: &MultivmAccountId,
+        __config: &BindingConfiguration,
+    ) -> AccountMappingResult<()> {
         // Update persistent storage with new configuration
         debug!("Updating binding storage for account: {}", multivm_account);
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         Ok(())
     }
-    
-    async fn notify_bound_addresses_of_config_change(&self, multivm_account: &MultivmAccountId, _config: &BindingConfiguration) -> AccountMappingResult<()> {
+
+    async fn notify_bound_addresses_of_config_change(
+        &self,
+        multivm_account: &MultivmAccountId,
+        _config: &BindingConfiguration,
+    ) -> AccountMappingResult<()> {
         // Notify all bound addresses about configuration changes
-        debug!("Notifying bound addresses of config change for: {}", multivm_account);
+        debug!(
+            "Notifying bound addresses of config change for: {}",
+            multivm_account
+        );
         tokio::time::sleep(tokio::time::Duration::from_millis(30)).await;
         Ok(())
     }
-    
-    async fn update_cached_configurations(&self, multivm_account: &MultivmAccountId, _config: &BindingConfiguration) -> AccountMappingResult<()> {
+
+    async fn update_cached_configurations(
+        &self,
+        multivm_account: &MultivmAccountId,
+        _config: &BindingConfiguration,
+    ) -> AccountMappingResult<()> {
         // Update cached configuration data
         debug!("Updating cached configurations for: {}", multivm_account);
         tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
         Ok(())
     }
-    
-    async fn emit_configuration_change_events(&self, multivm_account: &MultivmAccountId, _config: &BindingConfiguration) -> AccountMappingResult<()> {
+
+    async fn emit_configuration_change_events(
+        &self,
+        multivm_account: &MultivmAccountId,
+        _config: &BindingConfiguration,
+    ) -> AccountMappingResult<()> {
         // Emit blockchain events for configuration changes
-        debug!("Emitting configuration change events for: {}", multivm_account);
+        debug!(
+            "Emitting configuration change events for: {}",
+            multivm_account
+        );
         tokio::time::sleep(tokio::time::Duration::from_millis(15)).await;
         Ok(())
     }
-    
+
     async fn has_pending_transfers(&self, account: &AccountAddress) -> AccountMappingResult<bool> {
         // Check if account has pending transfers
         debug!("Checking pending transfers for: {}", account);
         tokio::time::sleep(tokio::time::Duration::from_millis(25)).await;
         Ok(false) // No pending transfers in simulation
     }
-    
-    async fn has_dependent_contracts(&self, _binding: &AccountBinding, account: &AccountAddress) -> AccountMappingResult<bool> {
+
+    async fn has_dependent_contracts(
+        &self,
+        _binding: &AccountBinding,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<bool> {
         // Check if account has dependent smart contracts
         debug!("Checking dependent contracts for: {}", account);
         tokio::time::sleep(tokio::time::Duration::from_millis(30)).await;
         Ok(false) // No dependent contracts in simulation
     }
-    
-    async fn has_outstanding_obligations(&self, account: &AccountAddress) -> AccountMappingResult<bool> {
+
+    async fn has_outstanding_obligations(
+        &self,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<bool> {
         // Check if account has outstanding obligations
         debug!("Checking outstanding obligations for: {}", account);
         tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
         Ok(false) // No outstanding obligations in simulation
     }
-    
+
     async fn check_cooling_period(&self, binding: &AccountBinding) -> AccountMappingResult<bool> {
         // Check if sufficient cooling period has passed
-        debug!("Checking cooling period for binding: {}", binding.multivm_account);
+        debug!(
+            "Checking cooling period for binding: {}",
+            binding.multivm_account
+        );
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         Ok(true) // Cooling period satisfied in simulation
     }
-    
-    async fn remove_account_from_storage(&self, multivm_account: &MultivmAccountId, account: &AccountAddress) -> AccountMappingResult<()> {
+
+    async fn remove_account_from_storage(
+        &self,
+        multivm_account: &MultivmAccountId,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<()> {
         // Remove account binding from persistent storage
-        debug!("Removing account {} from storage for MultiVM account: {}", account, multivm_account);
+        debug!(
+            "Removing account {} from storage for MultiVM account: {}",
+            account, multivm_account
+        );
         tokio::time::sleep(tokio::time::Duration::from_millis(40)).await;
         Ok(())
     }
-    
-    async fn update_reverse_lookups(&self, account: &AccountAddress, binding: Option<&MultivmAccountId>) -> AccountMappingResult<()> {
+
+    async fn update_reverse_lookups(
+        &self,
+        account: &AccountAddress,
+        binding: Option<&MultivmAccountId>,
+    ) -> AccountMappingResult<()> {
         // Update reverse lookup indices
         if let Some(multivm_account) = binding {
-            debug!("Updating reverse lookup: {} -> {}", account, multivm_account);
+            debug!(
+                "Updating reverse lookup: {} -> {}",
+                account, multivm_account
+            );
         } else {
             debug!("Removing reverse lookup for: {}", account);
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
         Ok(())
     }
-    
+
     async fn cleanup_account_cache(&self, account: &AccountAddress) -> AccountMappingResult<()> {
         // Clean up cached data for account
         debug!("Cleaning up cache for account: {}", account);
         tokio::time::sleep(tokio::time::Duration::from_millis(15)).await;
         Ok(())
     }
-    
-    async fn emit_unbinding_events(&self, multivm_account: &MultivmAccountId, account: &AccountAddress) -> AccountMappingResult<()> {
+
+    async fn emit_unbinding_events(
+        &self,
+        multivm_account: &MultivmAccountId,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<()> {
         // Emit events for account unbinding
-        debug!("Emitting unbinding events for {} from {}", account, multivm_account);
+        debug!(
+            "Emitting unbinding events for {} from {}",
+            account, multivm_account
+        );
         tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
         Ok(())
     }
-    
-    async fn update_unbinding_metrics(&self, multivm_account: &MultivmAccountId, account: &AccountAddress) -> AccountMappingResult<()> {
+
+    async fn update_unbinding_metrics(
+        &self,
+        multivm_account: &MultivmAccountId,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<()> {
         // Update metrics and monitoring for unbinding
-        debug!("Updating unbinding metrics for {} from {}", account, multivm_account);
+        debug!(
+            "Updating unbinding metrics for {} from {}",
+            account, multivm_account
+        );
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         Ok(())
     }
@@ -1720,7 +1789,6 @@ pub struct TransferStepResult {
     /// Result data
     pub result: serde_json::Value,
 }
-
 
 // Import VmType from address module
 use crate::VmType;

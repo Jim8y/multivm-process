@@ -73,7 +73,10 @@ impl HealthMonitor {
 
     /// Update the last check time for a process
     pub fn update_last_check(&self, process_id: ProcessId) {
-        self.last_check_times.lock().unwrap().insert(process_id, Instant::now());
+        self.last_check_times
+            .lock()
+            .unwrap()
+            .insert(process_id, Instant::now());
     }
 
     /// Check if a process needs a health check
@@ -88,5 +91,4 @@ impl HealthMonitor {
     pub fn check_interval(&self) -> Duration {
         self.check_interval
     }
-
 }

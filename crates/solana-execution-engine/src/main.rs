@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📁 Data directory: {}", config.data_dir.display());
     println!("🌐 RPC port: {}", config.rpc_port);
     println!("🔗 RPC address: {}", config.rpc_addr);
-    
+
     #[cfg(feature = "mock")]
     println!("🎭 Running in MOCK mode (no real validator process)");
     #[cfg(not(feature = "mock"))]

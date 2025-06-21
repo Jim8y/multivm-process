@@ -111,10 +111,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         validate_signatures: false, // Disable signature validation for demo
         ..ValidationConfig::default()
     };
-    let processor = SpecialTransactionProcessor::new_with_config(
-        storage.clone(),
-        special_tx_validation_config,
-    );
+    let processor =
+        SpecialTransactionProcessor::new_with_config(storage.clone(), special_tx_validation_config);
 
     let special_tx = SpecialTransaction::AccountBinding {
         source_account: solana_account.clone(),
@@ -124,10 +122,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_type: ProofType::Signature {
                 message: b"Binding transaction".to_vec(),
                 signature: {
-                let mut sig = vec![0u8; 64];
-                sig.push(27); // Add recovery ID
-                sig
-            }, // Mock Ethereum signature with valid recovery ID
+                    let mut sig = vec![0u8; 64];
+                    sig.push(27); // Add recovery ID
+                    sig
+                }, // Mock Ethereum signature with valid recovery ID
             },
             proof_data: vec![],
             timestamp: SystemTime::now(),
@@ -244,10 +242,10 @@ mod tests {
             proof_type: ProofType::Signature {
                 message: b"test".to_vec(),
                 signature: {
-                let mut sig = vec![0u8; 64];
-                sig.push(27); // Add recovery ID
-                sig
-            }, // Mock Ethereum signature with valid recovery ID
+                    let mut sig = vec![0u8; 64];
+                    sig.push(27); // Add recovery ID
+                    sig
+                }, // Mock Ethereum signature with valid recovery ID
             },
             proof_data: vec![],
             timestamp: SystemTime::now(),

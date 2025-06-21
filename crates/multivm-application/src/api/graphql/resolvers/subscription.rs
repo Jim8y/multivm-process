@@ -12,10 +12,11 @@ impl SubscriptionResolver {
     /// Subscribe to new blocks from all VMs
     async fn new_blocks(&self, ctx: &Context<'_>) -> impl Stream<Item = NewBlockEvent> {
         // Get application state to access gateways
-        let state = ctx.data::<std::sync::Arc<crate::ApplicationState>>()
+        let state = ctx
+            .data::<std::sync::Arc<crate::ApplicationState>>()
             .expect("ApplicationState not found in context")
             .clone();
-            
+
         async_stream::stream! {
             let mut interval = tokio::time::interval(Duration::from_secs(2));
             let mut last_svm_block = 0u64;

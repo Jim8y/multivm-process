@@ -162,7 +162,7 @@ pub struct SolanaExecutionEngine {
     /// Engine status
     is_initialized: bool,
     is_rpc_running: bool,
-    
+
     /// Mock mode configuration
     mock_mode: bool,
 }
@@ -172,13 +172,15 @@ impl SolanaExecutionEngine {
     pub fn new(config: SolanaConfig) -> Self {
         Self::new_with_mode(config, cfg!(feature = "mock"))
     }
-    
+
     /// Create a new Solana engine with explicit mock mode setting
     pub fn new_with_mode(config: SolanaConfig, mock_mode: bool) -> Self {
         if mock_mode {
             info!("Creating Solana execution engine in MOCK mode (no real validator process)");
         } else {
-            info!("Creating Solana execution engine that will manage real solana-validator process");
+            info!(
+                "Creating Solana execution engine that will manage real solana-validator process"
+            );
         }
 
         Self {
@@ -417,33 +419,36 @@ impl SolanaExecutionEngine {
         if self.mock_mode {
             // In mock mode, simulate transaction submission
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-            info!("Mock: Submitted Solana transaction {}", transaction.signature);
+            info!(
+                "Mock: Submitted Solana transaction {}",
+                transaction.signature
+            );
             Ok(transaction.signature.clone())
         } else {
             // Create RPC client for transaction submission
             let rpc_url = format!("http://{}:{}", self.config.rpc_addr, self.config.rpc_port);
             let rpc_client = solana_client::rpc_client::RpcClient::new(rpc_url);
-            
+
             // Deserialize and submit the transaction
             match self.deserialize_solana_transaction(&transaction.data) {
-                Ok(solana_tx) => {
-                    match rpc_client.send_and_confirm_transaction(&solana_tx) {
-                        Ok(signature) => {
-                            info!("Successfully submitted Solana transaction: {}", signature);
-                            Ok(signature.to_string())
-                        }
-                        Err(e) => {
-                            error!("Failed to submit Solana transaction: {}", e);
-                            Err(SolanaEngineError::Transaction(format!(
-                                "Transaction submission failed: {}", e
-                            )))
-                        }
+                Ok(solana_tx) => match rpc_client.send_and_confirm_transaction(&solana_tx) {
+                    Ok(signature) => {
+                        info!("Successfully submitted Solana transaction: {}", signature);
+                        Ok(signature.to_string())
                     }
-                }
+                    Err(e) => {
+                        error!("Failed to submit Solana transaction: {}", e);
+                        Err(SolanaEngineError::Transaction(format!(
+                            "Transaction submission failed: {}",
+                            e
+                        )))
+                    }
+                },
                 Err(e) => {
                     error!("Failed to deserialize Solana transaction: {}", e);
                     Err(SolanaEngineError::Serialization(format!(
-                        "Transaction deserialization failed: {}", e
+                        "Transaction deserialization failed: {}",
+                        e
                     )))
                 }
             }
@@ -571,7 +576,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
                 "Processing Solana block for slot {} in MOCK mode",
                 block.slot
             );
-            
+
             // Simulate processing time in mock mode
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         } else {
@@ -665,41 +670,41 @@ impl ExecutionEngine for SolanaExecutionEngine {
             "Starting Solana RPC server on {}:{}",
             self.config.rpc_addr, self.config.rpc_port
         );
-        
+
         if self.mock_mode {
             info!("Mock: Solana RPC server started (simulated)");
             return Ok(());
         }
-        
+
         // Start the actual Solana RPC server
         let rpc_bind_address = format!("{}:{}", config.host, config.port);
-        
+
         // In a production environment, you would typically start the Solana validator
         // with RPC enabled using something like:
         // solana-validator --rpc-bind-address 0.0.0.0:8899 --rpc-port 8899
-        
+
         // For now, we'll start a basic JSON-RPC server using jsonrpc-http-server
-        use jsonrpc_http_server::{ServerBuilder, RestApi};
         use jsonrpc_core::IoHandler;
-        
+        use jsonrpc_http_server::{RestApi, ServerBuilder};
+
         let mut io = IoHandler::default();
-        
+
         // Add basic RPC methods
         io.add_method("eth_blockNumber", |_params| async {
             Ok(serde_json::Value::String("0x1".to_string()))
         });
-        
+
         io.add_method("eth_getBalance", |_params| async {
             Ok(serde_json::Value::String("0x0".to_string()))
         });
-        
+
         io.add_method("solana_getHealth", |_params| async {
             Ok(serde_json::json!({
                 "jsonrpc": "2.0",
                 "result": "ok"
             }))
         });
-        
+
         io.add_method("solana_getVersion", |_params| async {
             Ok(serde_json::json!({
                 "jsonrpc": "2.0",
@@ -709,60 +714,60 @@ impl ExecutionEngine for SolanaExecutionEngine {
                 }
             }))
         });
-        
+
         // Start the server
         tokio::spawn(async move {
             let server = ServerBuilder::new(io)
                 .rest_api(RestApi::Unsecure)
                 .start_http(&rpc_bind_address.parse().unwrap())
                 .expect("Failed to start RPC server");
-            
+
             info!("Solana RPC server listening on {}", rpc_bind_address);
             server.wait();
         });
-        
+
         // Give the server a moment to start
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         Ok(())
     }
 
     async fn stop_rpc_server(&self) -> Result<(), Self::Error> {
         info!("Stopping Solana RPC server");
-        
+
         if self.mock_mode {
             info!("Mock: Solana RPC server stopped (simulated)");
             return Ok(());
         }
-        
+
         // In a production implementation, we would:
         // 1. Store the server handle when starting
         // 2. Send a shutdown signal to the server
         // 3. Wait for graceful shutdown
-        
+
         // For now, we'll just log the shutdown
         // The actual server shutdown would require storing the server handle
         // and implementing a proper shutdown mechanism
-        
+
         warn!("RPC server shutdown not fully implemented - server may continue running");
         info!("Solana RPC server shutdown requested");
-        
+
         Ok(())
     }
 
     async fn initialize(&mut self) -> Result<(), Self::Error> {
         if self.mock_mode {
             info!("Initializing Solana execution engine in MOCK mode");
-            
+
             // Create data directory for mock mode too
             std::fs::create_dir_all(&self.config.data_dir).map_err(|e| {
                 SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
             })?;
-            
+
             // Mock initialization - no real validator process
             self.is_initialized = true;
             self.is_rpc_running = true;
-            
+
             info!("Solana execution engine initialized successfully in MOCK mode");
         } else {
             info!("Initializing Solana execution engine with real validator process");
@@ -786,18 +791,17 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
             info!("Solana execution engine initialized successfully with validator process");
         }
-        
+
         Ok(())
     }
-
 
     async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), Self::Error> {
         if self.mock_mode {
             info!("Shutting down Solana execution engine (MOCK mode)");
-            
+
             self.is_rpc_running = false;
             self.rpc_client = None;
-            
+
             info!("Solana execution engine shut down successfully (MOCK mode)");
         } else {
             info!("Shutting down Solana execution engine and validator process");
@@ -831,7 +835,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
             info!("Solana execution engine shut down successfully");
         }
-        
+
         Ok(())
     }
 
@@ -860,23 +864,23 @@ impl ExecutionEngine for SolanaExecutionEngine {
 /// Calculate state root hash for a processed block
 fn calculate_state_root(block: &SolanaBlockData) -> Hash {
     use sha2::{Digest, Sha256};
-    
+
     // In a production Solana implementation, the state root would be calculated by:
     // 1. Collecting all account state changes from transaction execution
     // 2. Building a Merkle tree of account hashes
     // 3. Computing the root hash of the state tree
-    
+
     // For our simplified implementation, we calculate a deterministic hash based on:
     // - Block slot
     // - Transaction signatures
     // - Previous block hash
-    
+
     let mut hasher = Sha256::new();
-    
+
     // Add block metadata
     hasher.update(block.slot.to_le_bytes());
     hasher.update(block.block_hash.to_bytes());
-    
+
     // Add transaction signatures
     for tx in &block.transactions {
         hasher.update(tx.signature.as_bytes());
@@ -884,12 +888,12 @@ fn calculate_state_root(block: &SolanaBlockData) -> Hash {
         let tx_hash = Sha256::digest(&tx.data);
         hasher.update(tx_hash);
     }
-    
+
     // Add timestamp for additional uniqueness
     if let Ok(timestamp) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         hasher.update(timestamp.as_secs().to_le_bytes());
     }
-    
+
     // Create hash from digest
     let state_hash = hasher.finalize();
     Hash::new_from_array(state_hash.into())
@@ -915,7 +919,12 @@ fn get_memory_usage_standard() -> u64 {
 
     // Fallback: estimate based on Rust program typical usage
     let base_memory = 64 * 1024 * 1024; // 64MB base
-    let thread_memory = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4) * 8 * 1024 * 1024; // 8MB per thread
+    let thread_memory = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        * 8
+        * 1024
+        * 1024; // 8MB per thread
     (base_memory + thread_memory) as u64
 }
 
@@ -923,10 +932,10 @@ fn get_cpu_usage_standard() -> f64 {
     // Get actual CPU usage using cross-platform approach
     static mut LAST_CPU_TIME: Option<std::time::Instant> = None;
     static mut LAST_PROCESS_TIME: Option<u64> = None;
-    
+
     unsafe {
         let current_time = std::time::Instant::now();
-        
+
         #[cfg(target_os = "linux")]
         {
             if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
@@ -935,11 +944,13 @@ fn get_cpu_usage_standard() -> f64 {
                     let utime: u64 = fields[13].parse().unwrap_or(0);
                     let stime: u64 = fields[14].parse().unwrap_or(0);
                     let total_process_time = utime + stime;
-                    
-                    if let (Some(last_time), Some(last_process)) = (LAST_CPU_TIME, LAST_PROCESS_TIME) {
+
+                    if let (Some(last_time), Some(last_process)) =
+                        (LAST_CPU_TIME, LAST_PROCESS_TIME)
+                    {
                         let time_diff = current_time.duration_since(last_time).as_millis() as u64;
                         let process_diff = total_process_time - last_process;
-                        
+
                         // Calculate CPU percentage (process_diff is in jiffies, typically 100 per second)
                         if time_diff > 0 {
                             let cpu_percent = (process_diff as f64 * 10.0) / time_diff as f64; // Convert jiffies to percentage
@@ -948,13 +959,13 @@ fn get_cpu_usage_standard() -> f64 {
                             return cpu_percent.min(100.0);
                         }
                     }
-                    
+
                     LAST_CPU_TIME = Some(current_time);
                     LAST_PROCESS_TIME = Some(total_process_time);
                 }
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             use std::process::Command;
@@ -970,7 +981,7 @@ fn get_cpu_usage_standard() -> f64 {
                 }
             }
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             // Windows implementation would use Performance Counters or WMI
@@ -986,7 +997,7 @@ fn get_cpu_usage_standard() -> f64 {
             }
             LAST_CPU_TIME = Some(current_time);
         }
-        
+
         // Fallback: return low but non-zero value to indicate activity
         2.5
     }
@@ -995,7 +1006,7 @@ fn get_cpu_usage_standard() -> f64 {
 /// Generate mock Solana block data for testing
 pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> SolanaBlockData {
     use solana_sdk::hash::Hash;
-    
+
     let mut transactions = Vec::new();
     for i in 0..transaction_count {
         transactions.push(SolanaTransaction {
@@ -1004,16 +1015,18 @@ pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> Solana
             compute_units: 5000 + (i as u64 * 100),
         });
     }
-    
+
     SolanaBlockData {
         slot,
         block_hash: Hash::new_from_array([0u8; 32]),
         parent_slot: slot.saturating_sub(1),
         transactions,
-        block_time: Some(std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64),
+        block_time: Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        ),
         previous_blockhash: Hash::new_from_array([1u8; 32]),
     }
 }

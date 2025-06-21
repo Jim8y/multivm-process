@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+i am working to creta a rust project that can have both valid solana @https://github.com/anza-xyz/agave  and reth@https://github.com/paradigmxyz/reth  in two process, then communite with them to provide valid solana block and eth block for processing,
+
+what i need is solana node and reth node does not join p2p, does not have consensus, it just synchronize the given block, update the blockchain state, answer rpc request.
+
+help me make the project complete, correct, consistent, try not define struct as much as possible, try use staruct defiend by solana and reth dependencies. make real production execution engine
+
+everything must be produciton ready, no placeholder implementations, like
+
+todo, for now, in a real implementations, in produciton, placeholder

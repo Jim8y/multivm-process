@@ -329,94 +329,98 @@ impl AccountBindingValidator {
 
         // Recover the public key from the signature and verify against expected address
         let recovered_address = self.recover_ethereum_address(message, signature)?;
-        
+
         // Compare recovered address with expected address
         if recovered_address.0 != _expected_addr.0 {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: "Signature does not match expected Ethereum address".to_string(),
             });
         }
-        
+
         // Signature verification passed
 
         Ok(())
     }
-    
+
     /// Recover Ethereum address from signature using ECDSA
-    fn recover_ethereum_address(&self, message: &[u8], signature: &[u8]) -> AccountMappingResult<EthereumAddress> {
-        use k256::{
-            ecdsa::{RecoveryId, Signature, VerifyingKey},
-        };
+    fn recover_ethereum_address(
+        &self,
+        message: &[u8],
+        signature: &[u8],
+    ) -> AccountMappingResult<EthereumAddress> {
+        use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
         use sha3::{Digest, Keccak256};
-        
+
         if signature.len() != 65 {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: "Invalid Ethereum signature length".to_string(),
             });
         }
-        
+
         // Split signature into components
         let r = &signature[0..32];
         let s = &signature[32..64];
         let recovery_id = signature[64];
-        
+
         // Normalize recovery ID
         let recovery_id = if recovery_id >= 27 {
             recovery_id - 27
         } else {
             recovery_id
         };
-        
+
         if recovery_id > 1 {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: "Invalid recovery ID".to_string(),
             });
         }
-        
+
         // Create the message hash (Ethereum signed message)
         let eth_message = format!("\\x19Ethereum Signed Message:\\n{}", message.len());
         let mut hasher = Keccak256::new();
         hasher.update(eth_message.as_bytes());
         hasher.update(message);
         let message_hash = hasher.finalize();
-        
+
         // Parse signature components
         let mut r_bytes = [0u8; 32];
         let mut s_bytes = [0u8; 32];
         r_bytes.copy_from_slice(r);
         s_bytes.copy_from_slice(s);
-        
+
         // Create signature and recovery ID
-        let sig = Signature::from_scalars(r_bytes, s_bytes)
-            .map_err(|e| AccountMappingError::InvalidBindingProof {
+        let sig = Signature::from_scalars(r_bytes, s_bytes).map_err(|e| {
+            AccountMappingError::InvalidBindingProof {
                 reason: format!("Invalid signature scalars: {}", e),
-            })?;
-        
-        let recovery_id = RecoveryId::try_from(recovery_id)
-            .map_err(|e| AccountMappingError::InvalidBindingProof {
+            }
+        })?;
+
+        let recovery_id = RecoveryId::try_from(recovery_id).map_err(|e| {
+            AccountMappingError::InvalidBindingProof {
                 reason: format!("Invalid recovery ID: {}", e),
-            })?;
-        
+            }
+        })?;
+
         // Recover the public key
         let verifying_key = VerifyingKey::recover_from_prehash(&message_hash, &sig, recovery_id)
             .map_err(|e| AccountMappingError::InvalidBindingProof {
                 reason: format!("Failed to recover public key: {}", e),
             })?;
-        
+
         // Get the uncompressed public key point
         let public_key_point = verifying_key.to_encoded_point(false);
         let public_key_bytes = public_key_point.as_bytes();
-        
+
         // Skip the 0x04 prefix and hash the coordinates
         let public_key_coords = &public_key_bytes[1..];
         let mut hasher = Keccak256::new();
         hasher.update(public_key_coords);
         let hash = hasher.finalize();
-        
+
         // Take the last 20 bytes as the Ethereum address
         let mut address = [0u8; 20];
         address.copy_from_slice(&hash[12..]);
-        
+
         Ok(EthereumAddress(address))
     }
 
@@ -445,7 +449,8 @@ impl AccountBindingValidator {
                 // Solana transaction hashes are 32 bytes (base58 encoded in practice)
                 if tx_hash.len() != 32 {
                     return Err(AccountMappingError::InvalidBindingProof {
-                        reason: "Invalid Solana transaction hash length (expected 32 bytes)".to_string(),
+                        reason: "Invalid Solana transaction hash length (expected 32 bytes)"
+                            .to_string(),
                     });
                 }
                 if block_hash.len() != 32 {
@@ -458,12 +463,14 @@ impl AccountBindingValidator {
                 // Ethereum transaction hashes are 32 bytes (keccak256)
                 if tx_hash.len() != 32 {
                     return Err(AccountMappingError::InvalidBindingProof {
-                        reason: "Invalid Ethereum transaction hash length (expected 32 bytes)".to_string(),
+                        reason: "Invalid Ethereum transaction hash length (expected 32 bytes)"
+                            .to_string(),
                     });
                 }
                 if block_hash.len() != 32 {
                     return Err(AccountMappingError::InvalidBindingProof {
-                        reason: "Invalid Ethereum block hash length (expected 32 bytes)".to_string(),
+                        reason: "Invalid Ethereum block hash length (expected 32 bytes)"
+                            .to_string(),
                     });
                 }
             }
@@ -489,7 +496,7 @@ impl AccountBindingValidator {
         // 2. Confirm transaction was sent from the claimed account
         // 3. Verify sufficient block confirmations
         // 4. Validate block hash matches transaction's containing block
-        
+
         Ok(())
     }
 

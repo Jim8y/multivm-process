@@ -91,32 +91,32 @@ pub async fn create_app(state: Arc<ApplicationState>) -> ApplicationResult<Route
 
 /// Admin dashboard
 async fn admin_dashboard(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/admin/dashboard.html").to_string())
+    Html(include_str!("../../../../assets/static/admin/dashboard.html").to_string())
 }
 
 /// Nodes management page
 async fn nodes_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/admin/nodes.html").to_string())
+    Html(include_str!("../../../../assets/static/admin/nodes.html").to_string())
 }
 
 /// Transactions page
 async fn transactions_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/admin/transactions.html").to_string())
+    Html(include_str!("../../../../assets/static/admin/transactions.html").to_string())
 }
 
 /// Accounts page
 async fn accounts_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/admin/accounts.html").to_string())
+    Html(include_str!("../../../../assets/static/admin/accounts.html").to_string())
 }
 
 /// System page
 async fn system_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/admin/system.html").to_string())
+    Html(include_str!("../../../../assets/static/admin/system.html").to_string())
 }
 
 /// Logs page
 async fn logs_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/admin/logs.html").to_string())
+    Html(include_str!("../../../../assets/static/admin/logs.html").to_string())
 }
 
 // API Handlers
@@ -217,7 +217,7 @@ async fn api_restart_node(
     tracing::info!("Restart requested for node: {}", request.node_name);
 
     let operation_id = uuid::Uuid::new_v4().to_string();
-    
+
     // Validate node name
     if !matches!(request.node_name.as_str(), "solana" | "reth" | "multivm") {
         return Ok(Json(OperationResult {
@@ -226,13 +226,13 @@ async fn api_restart_node(
             operation_id,
         }));
     }
-    
+
     // In a production environment, this would:
     // 1. Gracefully shutdown the specified node
     // 2. Wait for pending operations to complete
     // 3. Restart the node process
     // 4. Verify the node is healthy after restart
-    
+
     // For now, we simulate the restart process
     match request.node_name.as_str() {
         "solana" => {
@@ -306,30 +306,37 @@ async fn api_update_config(
     tracing::info!("Configuration update requested: {:?}", request);
 
     let operation_id = uuid::Uuid::new_v4().to_string();
-    
+
     // Validate and apply configuration updates
     let mut updated_config = state.config.clone();
-    
+
     // Update server configuration if provided
     if let Some(server_config) = request.server {
         // Validate port ranges
-        for port in [server_config.rest_port, server_config.graphql_port, 
-                    server_config.websocket_port, server_config.admin_port] {
+        for port in [
+            server_config.rest_port,
+            server_config.graphql_port,
+            server_config.websocket_port,
+            server_config.admin_port,
+        ] {
             if port < 1024 || port > 65535 {
                 return Ok(Json(OperationResult {
                     success: false,
-                    message: format!("Invalid port number: {}. Must be between 1024 and 65535", port),
+                    message: format!(
+                        "Invalid port number: {}. Must be between 1024 and 65535",
+                        port
+                    ),
                     operation_id,
                 }));
             }
         }
-        
+
         updated_config.server.rest.port = server_config.rest_port;
         updated_config.server.graphql.port = server_config.graphql_port;
         updated_config.server.websocket.port = server_config.websocket_port;
         updated_config.server.admin.port = server_config.admin_port;
     }
-    
+
     // Update cache configuration if provided
     if let Some(cache_config) = request.cache {
         if cache_config.ttl_seconds == 0 {
@@ -339,25 +346,25 @@ async fn api_update_config(
                 operation_id,
             }));
         }
-        
+
         updated_config.cache.default_ttl = std::time::Duration::from_secs(cache_config.ttl_seconds);
     }
-    
+
     // Update monitoring configuration if provided
     if let Some(monitoring_config) = request.monitoring {
         updated_config.monitoring.enable_metrics = monitoring_config.enable_metrics;
         updated_config.monitoring.metrics.port = monitoring_config.metrics_port;
     }
-    
+
     // In a production system, you would:
     // 1. Validate the entire configuration
     // 2. Write the updated config to persistent storage
     // 3. Notify relevant components of config changes
     // 4. Potentially restart components that require it
-    
+
     // For this implementation, we'll just log the successful update
     tracing::info!("Configuration validation and update completed");
-    
+
     Ok(Json(OperationResult {
         success: true,
         message: "Configuration updated and validated successfully".to_string(),
@@ -374,7 +381,7 @@ async fn api_get_logs(
     // 2. Centralized logging system (ELK stack, etc.)
     // 3. In-memory log buffer
     // 4. External logging services
-    
+
     // For this implementation, we'll fetch recent application events
     let recent_logs = vec![
         LogEntry {
@@ -387,26 +394,37 @@ async fn api_get_logs(
             timestamp: chrono::Utc::now() - chrono::Duration::minutes(4),
             level: "INFO".to_string(),
             component: "svm_gateway".to_string(),
-            message: format!("Connected to Solana node at {}", state.config.vm_clients.solana.rpc_url),
+            message: format!(
+                "Connected to Solana node at {}",
+                state.config.vm_clients.solana.rpc_url
+            ),
         },
         LogEntry {
             timestamp: chrono::Utc::now() - chrono::Duration::minutes(3),
             level: "INFO".to_string(),
             component: "evm_gateway".to_string(),
-            message: format!("Connected to Reth node at {}", state.config.vm_clients.reth.rpc_url),
+            message: format!(
+                "Connected to Reth node at {}",
+                state.config.vm_clients.reth.rpc_url
+            ),
         },
         LogEntry {
             timestamp: chrono::Utc::now() - chrono::Duration::minutes(2),
             level: "INFO".to_string(),
             component: "rest_api".to_string(),
-            message: format!("REST API server listening on {}:{}", 
-                           state.config.server.rest.host, state.config.server.rest.port),
+            message: format!(
+                "REST API server listening on {}:{}",
+                state.config.server.rest.host, state.config.server.rest.port
+            ),
         },
         LogEntry {
             timestamp: chrono::Utc::now() - chrono::Duration::minutes(1),
             level: "INFO".to_string(),
             component: "cache".to_string(),
-            message: format!("Cache initialized with strategy: {:?}", state.config.cache.strategy),
+            message: format!(
+                "Cache initialized with strategy: {:?}",
+                state.config.cache.strategy
+            ),
         },
         LogEntry {
             timestamp: chrono::Utc::now(),
@@ -415,7 +433,7 @@ async fn api_get_logs(
             message: "Admin interface is ready and accepting requests".to_string(),
         },
     ];
-    
+
     let logs = LogsResponse {
         logs: recent_logs,
         total: 6,
@@ -434,7 +452,7 @@ async fn api_create_backup(
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
     let backup_filename = format!("multivm_backup_{}_{}.tar.gz", timestamp, &backup_id[..8]);
     let backup_path = format!("/var/backups/multivm/{}", backup_filename);
-    
+
     // In a production implementation, this would:
     // 1. Create a consistent snapshot of the database
     // 2. Backup configuration files
@@ -442,32 +460,32 @@ async fn api_create_backup(
     // 4. Create compressed archive
     // 5. Verify backup integrity
     // 6. Store backup metadata
-    
+
     // Simulate backup creation process
     let backup_id_clone = backup_id.clone();
     let backup_path_clone = backup_path.clone();
     tokio::spawn(async move {
         tracing::info!("Starting backup creation with ID: {}", backup_id_clone);
-        
+
         // Simulate database backup
         tracing::info!("Creating database snapshot...");
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
+
         // Simulate configuration backup
         tracing::info!("Backing up configuration files...");
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        
+
         // Simulate VM state export
         tracing::info!("Exporting VM states...");
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-        
+
         // Simulate compression
         tracing::info!("Compressing backup archive...");
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
+
         tracing::info!("Backup creation completed: {}", backup_path_clone);
     });
-    
+
     Ok(Json(BackupResult {
         success: true,
         backup_id,
@@ -483,9 +501,9 @@ async fn api_restore_backup(
     Json(request): Json<RestoreBackupRequest>,
 ) -> Result<Json<OperationResult>, StatusCode> {
     tracing::info!("Restore requested for backup: {}", request.backup_id);
-    
+
     let operation_id = uuid::Uuid::new_v4().to_string();
-    
+
     // Validate backup ID format
     if request.backup_id.is_empty() || request.backup_id.len() < 8 {
         return Ok(Json(OperationResult {
@@ -494,7 +512,7 @@ async fn api_restore_backup(
             operation_id,
         }));
     }
-    
+
     // In a production implementation, this would:
     // 1. Verify backup file exists and is valid
     // 2. Check backup integrity
@@ -504,38 +522,41 @@ async fn api_restore_backup(
     // 6. Import VM states
     // 7. Restart all services
     // 8. Verify system health
-    
+
     let backup_id = request.backup_id.clone();
     tokio::spawn(async move {
         tracing::info!("Starting restore process for backup: {}", backup_id);
-        
+
         // Simulate backup validation
         tracing::info!("Validating backup integrity...");
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        
+
         // Simulate service shutdown
         tracing::info!("Shutting down services for restore...");
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
+
         // Simulate database restore
         tracing::info!("Restoring database from backup...");
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        
+
         // Simulate configuration restore
         tracing::info!("Restoring configuration files...");
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        
+
         // Simulate VM state import
         tracing::info!("Importing VM states...");
         tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-        
+
         // Simulate service restart
         tracing::info!("Restarting services...");
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-        
-        tracing::info!("Restore process completed successfully for backup: {}", backup_id);
+
+        tracing::info!(
+            "Restore process completed successfully for backup: {}",
+            backup_id
+        );
     });
-    
+
     Ok(Json(OperationResult {
         success: true,
         message: format!("Restore from backup {} initiated successfully. This process will take several minutes.", request.backup_id),
