@@ -36,6 +36,9 @@ hex = { workspace = true }
 base64 = { workspace = true }
 sha2 = { workspace = true }
 
+# Concurrency utilities
+once_cell = { workspace = true }
+
 # CLI parsing
 clap = { workspace = true }
 

@@ -391,7 +391,7 @@ impl BlockRouter {
     /// Resolve transaction dependencies and ensure proper ordering
     async fn resolve_transaction_dependencies(
         &self,
-        dependencies: &mut Vec<TransactionDependency>,
+        dependencies: &mut [TransactionDependency],
     ) -> MultivmResult<()> {
         debug!("Resolving {} transaction dependencies", dependencies.len());
 
@@ -618,7 +618,7 @@ impl BlockRouter {
             hash: format!(
                 "0x{}",
                 hex::encode(
-                    blake3::hash(&format!("evm_burn_{}", operation.nonce).as_bytes()).as_bytes()
+                    blake3::hash(format!("evm_burn_{}", operation.nonce).as_bytes()).as_bytes()
                 )
             ),
             from: operation.from_account.clone(),
@@ -652,7 +652,7 @@ impl BlockRouter {
             hash: format!(
                 "0x{}",
                 hex::encode(
-                    blake3::hash(&format!("evm_mint_{}", operation.nonce).as_bytes()).as_bytes()
+                    blake3::hash(format!("evm_mint_{}", operation.nonce).as_bytes()).as_bytes()
                 )
             ),
             from: "0x0000000000000000000000000000000000000001".to_string(), // Mint authority

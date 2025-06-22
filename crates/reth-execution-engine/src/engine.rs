@@ -1056,105 +1056,16 @@ impl ExecutionEngine for RethExecutionEngine {
     }
 }
 
-// Helper functions for system metrics (consistent with Solana implementation)
+// Helper functions for system metrics
 fn get_memory_usage_standard() -> u64 {
-    // Get actual memory usage from system metrics
-    use std::fs;
-
-    // Try to read from /proc/self/status on Linux
-    if let Ok(status) = fs::read_to_string("/proc/self/status") {
-        for line in status.lines() {
-            if line.starts_with("VmRSS:") {
-                if let Some(kb_str) = line.split_whitespace().nth(1) {
-                    if let Ok(kb) = kb_str.parse::<u64>() {
-                        return kb * 1024; // Convert KB to bytes
-                    }
-                }
-            }
-        }
-    }
-
-    // Fallback: estimate based on Rust program typical usage
-    let base_memory = 80 * 1024 * 1024; // 80MB base (slightly higher than Solana)
-    let thread_memory = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4)
-        * 10
-        * 1024
-        * 1024; // 10MB per thread
-    (base_memory + thread_memory) as u64
+    multivm_common::monitoring::get_memory_usage()
 }
 
 fn get_cpu_usage_standard() -> f64 {
-    // Get actual CPU usage using cross-platform approach
-    static mut LAST_CPU_TIME: Option<std::time::Instant> = None;
-    static mut LAST_PROCESS_TIME: Option<u64> = None;
-
-    unsafe {
-        let current_time = std::time::Instant::now();
-
-        #[cfg(target_os = "linux")]
-        {
-            if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
-                let fields: Vec<&str> = stat.split_whitespace().collect();
-                if fields.len() > 15 {
-                    let utime: u64 = fields[13].parse().unwrap_or(0);
-                    let stime: u64 = fields[14].parse().unwrap_or(0);
-                    let total_process_time = utime + stime;
-
-                    if let (Some(last_time), Some(last_process)) =
-                        (LAST_CPU_TIME, LAST_PROCESS_TIME)
-                    {
-                        let time_diff = current_time.duration_since(last_time).as_millis() as u64;
-                        let process_diff = total_process_time - last_process;
-
-                        if time_diff > 0 {
-                            let cpu_percent = (process_diff as f64 * 10.0) / time_diff as f64;
-                            LAST_CPU_TIME = Some(current_time);
-                            LAST_PROCESS_TIME = Some(total_process_time);
-                            return cpu_percent.min(100.0);
-                        }
-                    }
-
-                    LAST_CPU_TIME = Some(current_time);
-                    LAST_PROCESS_TIME = Some(total_process_time);
-                }
-            }
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            use std::process::Command;
-            if let Ok(output) = Command::new("ps")
-                .args(&["-o", "pcpu=", "-p"])
-                .arg(std::process::id().to_string())
-                .output()
-            {
-                if let Ok(cpu_str) = String::from_utf8(output.stdout) {
-                    if let Ok(cpu_usage) = cpu_str.trim().parse::<f64>() {
-                        return cpu_usage;
-                    }
-                }
-            }
-        }
-
-        #[cfg(target_os = "windows")]
-        {
-            if let Some(last_time) = LAST_CPU_TIME {
-                let time_diff = current_time.duration_since(last_time).as_millis();
-                if time_diff > 0 {
-                    let estimated_cpu = (time_diff as f64 / 1000.0) * 5.0;
-                    LAST_CPU_TIME = Some(current_time);
-                    return estimated_cpu.min(100.0);
-                }
-            }
-            LAST_CPU_TIME = Some(current_time);
-        }
-
-        // Fallback: return low but non-zero value to indicate activity
-        3.2 // Slightly higher than Solana engine
-    }
+    multivm_common::monitoring::get_cpu_usage()
 }
+
+
 
 /// Generate mock Reth block data for testing
 #[allow(dead_code)]

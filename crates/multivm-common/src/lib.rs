@@ -1,6 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod ipc;
+pub mod monitoring;
 pub mod traits;
 pub mod types;
 

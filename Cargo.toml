@@ -88,7 +88,7 @@ jsonrpc-http-server = "18.0"
 jsonrpc-core = "18.0"
 hyper = { version = "0.14", features = ["full"] }
 tower = "0.4"
-tower-http = { version = "0.4", features = ["cors", "trace", "compression-gzip", "timeout"] }
+tower-http = { version = "0.4", features = ["cors", "trace", "compression-gzip", "timeout", "limit", "set-header"] }
 sha2 = "0.10"
 sha3 = "0.10"
 blake3 = "1.5"

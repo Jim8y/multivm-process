@@ -34,6 +34,9 @@ tracing-subscriber = { workspace = true }
 # Crypto and encoding
 hex = { workspace = true }
 
+# Concurrency utilities
+once_cell = { workspace = true }
+
 # HTTP client for RPC communication
 reqwest = { workspace = true }
 

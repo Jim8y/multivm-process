@@ -30,6 +30,9 @@ hmac = { workspace = true }
 # Time handling
 chrono = { workspace = true }
 
+# Concurrency utilities
+once_cell = { workspace = true }
+
 # Blockchain-specific dependencies moved to execution engines
 # solana-sdk moved to solana-execution-engine
 # alloy-primitives moved to reth-execution-engine  

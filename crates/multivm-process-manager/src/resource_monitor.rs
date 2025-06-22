@@ -146,10 +146,8 @@ impl SystemResourceMonitor {
 
                         if path.is_dir() {
                             size += visit_dir(&path)?;
-                        } else {
-                            if let Ok(metadata) = entry.metadata() {
-                                size += metadata.len();
-                            }
+                        } else if let Ok(metadata) = entry.metadata() {
+                            size += metadata.len();
                         }
                     }
                 }

@@ -99,6 +99,7 @@ pub mod cache;
 pub mod config;
 pub mod error;
 pub mod gateway;
+pub mod middleware;
 pub mod monitoring;
 
 // Re-export main types
