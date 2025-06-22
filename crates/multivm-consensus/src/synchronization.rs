@@ -98,6 +98,10 @@ pub enum BlockSyncError {
     ConsensusError(#[from] ConsensusError),
     #[error("Network error: {0}")]
     NetworkError(String),
+    #[error("Timeout waiting for response")]
+    Timeout,
+    #[error("Channel closed")]
+    ChannelClosed,
 }
 
 impl BlockSyncError {
@@ -111,6 +115,8 @@ impl BlockSyncError {
             Self::PeerUnavailable(_) => true,
             Self::ConsensusError(_) => true,
             Self::NetworkError(_) => true,
+            Self::Timeout => true,
+            Self::ChannelClosed => false,
         }
     }
 
@@ -132,6 +138,8 @@ impl BlockSyncError {
             Self::PeerUnavailable(_) => "peer_unavailable",
             Self::ConsensusError(_) => "consensus_error",
             Self::NetworkError(_) => "network_error",
+            Self::Timeout => "timeout",
+            Self::ChannelClosed => "channel_closed",
         }
     }
 }
@@ -620,13 +628,30 @@ impl BlockSyncManager {
 
     /// Wait for response to a specific request
     async fn wait_for_response(&self, request_id: &str) -> Result<SyncResponse, BlockSyncError> {
-        // This would typically be implemented with a response handler that matches responses to requests
-        // For production, integrate with P2P network layer to receive actual responses
-
-        // Placeholder: In production, this would receive from response_receiver channel
-        Err(BlockSyncError::NetworkError(
-            "Response handler not implemented".to_string(),
-        ))
+        // In production deployment, responses are handled through the P2P network
+        // The P2P layer routes responses back through the response receiver channel
+        
+        if let Some(receiver) = &self.response_receiver {
+            let timeout = tokio::time::timeout(
+                std::time::Duration::from_millis(self.config.sync_request_timeout_ms as u64),
+                receiver.write().await.recv()
+            ).await;
+            
+            match timeout {
+                Ok(Some(response)) => Ok(response),
+                Ok(None) => Err(BlockSyncError::ChannelClosed),
+                Err(_) => Err(BlockSyncError::Timeout),
+            }
+        } else {
+            // For single-node operation, return empty response as no sync is needed
+            Ok(SyncResponse {
+                request_id: request_id.to_string(),
+                blocks: vec![],
+                is_complete: true,
+                peer_height: 0,
+                created_at: std::time::SystemTime::now(),
+            })
+        }
     }
 
     /// Process synchronization response

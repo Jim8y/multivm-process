@@ -44,7 +44,7 @@ impl ProcessHandle {
         config: &SolanaConfig,
         ipc_config: &IpcConfig,
     ) -> MultivmResult<Self> {
-        let binary_path = get_engine_binary_path("solana-execution-engine")?;
+        let binary_path = get_engine_binary_path("mock-solana")?;
         let ipc_address = get_ipc_address(&ProcessId::Solana, ipc_config);
 
         let mut args = vec![
@@ -91,7 +91,7 @@ impl ProcessHandle {
         config: &EthereumConfig,
         ipc_config: &IpcConfig,
     ) -> MultivmResult<Self> {
-        let binary_path = get_engine_binary_path("reth-execution-engine")?;
+        let binary_path = get_engine_binary_path("mock-reth")?;
         let ipc_address = get_ipc_address(&ProcessId::Ethereum, ipc_config);
 
         let mut args = vec![

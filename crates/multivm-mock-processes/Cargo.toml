@@ -1,0 +1,25 @@
+[package]
+name = "multivm-mock-processes"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[[bin]]
+name = "mock-solana"
+path = "src/mock_solana.rs"
+
+[[bin]]
+name = "mock-reth"
+path = "src/mock_reth.rs"
+
+[dependencies]
+multivm-common = { path = "../multivm-common" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+hex = "0.4.3"

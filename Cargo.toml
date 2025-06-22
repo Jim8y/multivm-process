@@ -9,6 +9,7 @@ members = [
     "crates/reth-execution-engine",
     "crates/multivm-application",
     "crates/multivm-cli",
+    "crates/multivm-mock-processes",
     "examples",
     "tests"
 ]

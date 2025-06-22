@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Single MultiVM Node with verbose logging
+  multivm-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multivm-single-node
+    hostname: multivm-single-node
+    environment:
+      - NODE_ID=single-node
+      - NODE_TYPE=bootstrap
+      - P2P_LISTEN_ADDR=0.0.0.0:26656
+      - API_LISTEN_ADDR=0.0.0.0:8080
+      - CONSENSUS_ROLE=validator
+      - LOG_LEVEL=debug  # Set to debug for verbose logging
+      - BOOTSTRAP_NODES=
+      - VALIDATOR_KEY=single-validator-key
+      - BLOCK_GENERATION_ENABLED=true
+      - BLOCK_INTERVAL_MS=2000
+      - SVM_TX_PER_BLOCK=3
+      - EVM_TX_PER_BLOCK=3
+      - RUST_LOG=debug,multivm=trace  # Enable trace logging for multivm modules
+    ports:
+      - "8080:8080"   # REST API
+      - "26656:26656" # P2P
+      - "8545:8545"   # EVM RPC
+      - "8899:8899"   # SVM RPC
+    volumes:
+      - multivm-single-data:/opt/multivm/data
+      - ./logs:/opt/multivm/logs
+    networks:
+      - multivm-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Keep container running and show logs with proper formatting
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    command: >
+      sh -c "
+        echo '🚀 Starting MultiVM Single Node...' &&
+        echo 'Node ID: $${NODE_ID}' &&
+        echo 'Block Generation: $${BLOCK_GENERATION_ENABLED}' &&
+        echo 'Block Interval: $${BLOCK_INTERVAL_MS}ms' &&
+        echo '-----------------------------------' &&
+        echo 'Starting block generation every 2 seconds...' &&
+        echo '' &&
+        exec /opt/multivm/bin/multivm-node \
+          --config /opt/multivm/config/multivm.toml \
+          --data-dir /opt/multivm/data \
+          --log-level $${LOG_LEVEL} 2>&1
+      "
+
+  # Log viewer service for monitoring
+  log-viewer:
+    image: busybox
+    container_name: multivm-log-viewer
+    volumes:
+      - ./logs:/logs:ro
+    networks:
+      - multivm-net
+    command: >
+      sh -c "
+        echo 'Log viewer started. Monitoring MultiVM logs...' &&
+        tail -f /logs/*.log 2>/dev/null || echo 'Waiting for logs...'
+      "
+    depends_on:
+      - multivm-node
+
+networks:
+  multivm-net:
+    driver: bridge
+
+volumes:
+  multivm-single-data:

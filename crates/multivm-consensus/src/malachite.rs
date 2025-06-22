@@ -21,6 +21,7 @@ use std::fmt::Display;
 
 use crate::{
     block::MultiVMBlock,
+    crypto::ProductionSigningScheme,
     error::ConsensusError,
     state::ConsensusState,
     traits::{ConsensusEngine, ConsensusStats},
@@ -309,7 +310,7 @@ impl MultiVMContext {
         let validator = MultiVMValidator::new(
             validator_address,
             100, // Default voting power
-            signing_scheme.public_key().to_vec(),
+            signing_scheme.public_key(),
         );
         let validator_set = MultiVMValidatorSet::new(vec![validator]);
 
@@ -324,17 +325,24 @@ impl MultiVMContext {
 
     pub fn with_validators(node_id: String, validators: Vec<ValidatorInfo>) -> Self {
         let mut multivm_validators = Vec::new();
-        let signing_scheme = MultiVMSigningScheme::generate();
+        let mut signing_scheme = None;
 
         for validator_info in validators {
             let address = ValidatorAddress(validator_info.public_key.clone());
-            let public_key = hex::decode(&validator_info.public_key)
-                .unwrap_or_else(|_| signing_scheme.public_key().to_vec());
+            let validator_scheme = MultiVMSigningScheme::from_validator_info(&validator_info);
+            let public_key = validator_scheme.public_key_bytes();
+            
+            // Use the first validator's signing scheme if it matches our node_id
+            if validator_info.public_key == node_id || signing_scheme.is_none() {
+                signing_scheme = Some(validator_scheme);
+            }
+            
             let validator = MultiVMValidator::new(address, validator_info.voting_power, public_key);
             multivm_validators.push(validator);
         }
 
         let validator_set = MultiVMValidatorSet::new(multivm_validators);
+        let signing_scheme = signing_scheme.unwrap_or_else(MultiVMSigningScheme::generate);
 
         Self {
             node_id,
@@ -659,57 +667,49 @@ impl MultiVMVote {
 /// MultiVM SigningScheme implementation with production-grade cryptography
 #[derive(Debug, Clone)]
 pub struct MultiVMSigningScheme {
-    private_key: Vec<u8>,
-    public_key: Vec<u8>,
+    inner: ProductionSigningScheme,
 }
 
 impl MultiVMSigningScheme {
     pub fn new(private_key: Vec<u8>, public_key: Vec<u8>) -> Self {
+        // Create from private key bytes
+        let inner = ProductionSigningScheme::from_private_key_bytes(&private_key)
+            .unwrap_or_else(|_| ProductionSigningScheme::generate());
+        Self { inner }
+    }
+
+    /// Generate a new keypair
+    pub fn generate() -> Self {
         Self {
-            private_key,
-            public_key,
+            inner: ProductionSigningScheme::generate(),
         }
     }
 
-    /// Generate a new keypair for testing/development
-    pub fn generate() -> Self {
-        use sha2::{Digest, Sha256};
-        let private_key = rand::random::<[u8; 32]>().to_vec();
-        let mut hasher = Sha256::new();
-        hasher.update(&private_key);
-        let public_key = hasher.finalize().to_vec();
-
-        Self {
-            private_key,
-            public_key,
-        }
+    /// Create from validator info
+    pub fn from_validator_info(info: &ValidatorInfo) -> Self {
+        // In production, this would be loaded from secure storage
+        // For now, generate deterministically from public key string
+        use crate::crypto::hash_data;
+        let seed = hash_data(info.public_key.as_bytes());
+        let inner = ProductionSigningScheme::from_private_key_bytes(&seed[..32])
+            .unwrap_or_else(|_| ProductionSigningScheme::generate());
+        Self { inner }
     }
 
     pub fn sign(&self, data: &[u8]) -> Vec<u8> {
-        // Production implementation using Ed25519 or ECDSA
-        // For now, using HMAC-SHA256 as a secure signing mechanism
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(&self.private_key);
-        hasher.update(data);
-        hasher.finalize().to_vec()
+        self.inner.sign(data)
     }
 
     pub fn verify(&self, signature: &[u8], data: &[u8], public_key: &[u8]) -> bool {
-        // Verify signature matches expected result
-        let expected_signature = {
-            use sha2::{Digest, Sha256};
-            let mut hasher = Sha256::new();
-            // In production, this would properly derive verification from public key
-            hasher.update(&self.private_key);
-            hasher.update(data);
-            hasher.finalize().to_vec()
-        };
-        signature == expected_signature && public_key == self.public_key
+        self.inner.verify(signature, data, public_key)
     }
 
-    pub fn public_key(&self) -> &[u8] {
-        &self.public_key
+    pub fn public_key(&self) -> Vec<u8> {
+        self.inner.public_key_bytes()
+    }
+
+    pub fn public_key_bytes(&self) -> Vec<u8> {
+        self.inner.public_key_bytes()
     }
 }
 

@@ -1,8 +1,8 @@
 use clap::{Arg, Command};
 use multivm_common::config::MultivmConfig;
-use multivm_consensus::MalachiteConfig;
+use multivm_consensus::{MalachiteConfig, ValidatorInfo};
 use multivm_process_manager::{
-    BlockGenerator, BlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator,
+    ConsensusBlockGenerator, ConsensusBlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -55,13 +55,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Data directory: {:?}", data_dir);
 
     // Load configuration from file
-    let config = load_config(&config_path).await?;
+    let _config = load_config(&config_path).await?;
     info!("Configuration loaded successfully");
 
-    // Create coordinator configuration from loaded config
+    // Get node configuration from environment
+    let node_id = std::env::var("NODE_ID").unwrap_or_else(|_| "single-node".to_string());
+    let validator_key = std::env::var("VALIDATOR_KEY").unwrap_or_else(|_| "single-validator-key".to_string());
+    let is_bootstrap = std::env::var("NODE_TYPE").unwrap_or_else(|_| "bootstrap".to_string()) == "bootstrap";
+    
+    // Configure validators for single node consensus
+    let validators = if is_bootstrap {
+        // For single node, we need at least one validator
+        vec![ValidatorInfo {
+            public_key: validator_key.clone(),
+            voting_power: 1000, // Single node has all voting power
+        }]
+    } else {
+        vec![]
+    };
+    
+    let validator_count = validators.len();
+
+    // Create coordinator configuration with proper consensus setup
     let coordinator_config = CoordinatorConfig {
         consensus: MalachiteConfig {
-            node_id: std::env::var("NODE_ID").unwrap_or_else(|_| "default-node".to_string()),
+            node_id: node_id.clone(),
+            validators,
             ..MalachiteConfig::default()
         },
         health_check_interval: Duration::from_secs(30),
@@ -78,9 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     coordinator.start().await?;
     info!("MultiVM Coordinator started");
 
-    // Create block generator for continuous block production
+    // Create consensus-aware block generator for continuous block production
     let coordinator_arc = Arc::new(RwLock::new(coordinator));
-    let block_gen_config = BlockGeneratorConfig {
+    let block_gen_config = ConsensusBlockGeneratorConfig {
         block_interval_ms: std::env::var("BLOCK_INTERVAL_MS")
             .unwrap_or_else(|_| "2000".to_string())
             .parse()
@@ -98,8 +117,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .parse()
             .unwrap_or(true),
     };
+    
+    let block_interval = block_gen_config.block_interval_ms;
 
-    let block_generator = BlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
+    let block_generator = ConsensusBlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
 
     // Start block generator in background
     let generator_handle = {
@@ -110,10 +131,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
     };
-
-    info!("MultiVM Node is running with continuous block generation...");
+    
+    info!("MultiVM Node is running with consensus block generation...");
+    info!("Node ID: {}", node_id);
+    info!("Validator count: {}", validator_count);
     info!("Using data directory: {:?}", data_dir);
-    info!("Generating blocks every 2 seconds");
+    info!("Generating signed blocks every {} ms", block_interval);
 
     // Wait for shutdown signal
     tokio::signal::ctrl_c().await?;

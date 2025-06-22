@@ -12,6 +12,7 @@
 )]
 
 pub mod block;
+pub mod crypto;
 pub mod error;
 pub mod fork_detection;
 pub mod malachite;
@@ -41,7 +42,10 @@ pub use traits::{
 };
 
 // Re-export Malachite consensus implementation
-pub use malachite::{MalachiteConfig, MalachiteConsensus};
+pub use malachite::{MalachiteConfig, MalachiteConsensus, ValidatorInfo};
+
+// Re-export cryptographic types
+pub use crypto::{ProductionSigningScheme, ValidatorPublicKey, ConsensusSignature};
 
 // Re-export fork detection types
 pub use fork_detection::{
