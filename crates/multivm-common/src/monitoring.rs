@@ -62,7 +62,8 @@ pub fn get_cpu_usage() -> f64 {
                     let mut last_cpu_time = LAST_CPU_TIME.lock().unwrap();
                     let mut last_process_time = LAST_PROCESS_TIME.lock().unwrap();
 
-                    if let (Some(last_time), Some(last_process)) = (*last_cpu_time, *last_process_time)
+                    if let (Some(last_time), Some(last_process)) =
+                        (*last_cpu_time, *last_process_time)
                     {
                         let time_diff = current_time.duration_since(last_time).as_millis() as u64;
                         let process_diff = total_process_time - last_process;
@@ -143,8 +144,11 @@ mod tests {
         let start = std::time::Instant::now();
         let cpu = get_cpu_usage();
         let duration = start.elapsed();
-        
-        assert!(duration < std::time::Duration::from_secs(5), "CPU usage check took too long");
+
+        assert!(
+            duration < std::time::Duration::from_secs(5),
+            "CPU usage check took too long"
+        );
         assert!(cpu >= 0.0, "CPU usage should be non-negative");
         assert!(cpu <= 100.0, "CPU usage should not exceed 100%");
     }
@@ -153,13 +157,16 @@ mod tests {
     fn test_cpu_usage_over_time() {
         // Use a timeout to prevent the test from running forever
         let start = std::time::Instant::now();
-        
+
         let cpu1 = get_cpu_usage();
         std::thread::sleep(std::time::Duration::from_millis(100));
         let cpu2 = get_cpu_usage();
-        
+
         let duration = start.elapsed();
-        assert!(duration < std::time::Duration::from_secs(5), "CPU usage test took too long");
+        assert!(
+            duration < std::time::Duration::from_secs(5),
+            "CPU usage test took too long"
+        );
 
         // Both readings should be valid
         assert!((0.0..=100.0).contains(&cpu1));

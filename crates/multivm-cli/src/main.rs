@@ -1,7 +1,9 @@
 use clap::{Arg, Command};
 use multivm_common::config::MultivmConfig;
 use multivm_consensus::MalachiteConfig;
-use multivm_process_manager::{BlockGenerator, BlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator};
+use multivm_process_manager::{
+    BlockGenerator, BlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -96,9 +98,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .parse()
             .unwrap_or(true),
     };
-    
+
     let block_generator = BlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
-    
+
     // Start block generator in background
     let generator_handle = {
         let mut gen = block_generator;
@@ -119,10 +121,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown
     info!("Shutting down MultiVM Node...");
-    
+
     // Stop block generator
     generator_handle.abort();
-    
+
     // Stop coordinator
     {
         let mut coordinator = coordinator_arc.write().await;

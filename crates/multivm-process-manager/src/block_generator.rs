@@ -2,12 +2,12 @@
 
 use crate::coordinator::MultivmCoordinator;
 use multivm_common::MultivmResult;
-use multivm_consensus::{MultiVMBlock, BlockHeader, SvmTransaction, EvmTransaction, EvmSignature};
+use multivm_consensus::{BlockHeader, EvmSignature, EvmTransaction, MultiVMBlock, SvmTransaction};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tokio::time::{interval, Interval};
-use tracing::{debug, info, error};
+use tracing::{debug, error, info};
 
 /// Configuration for block generation
 #[derive(Debug, Clone)]
@@ -44,10 +44,7 @@ pub struct BlockGenerator {
 
 impl BlockGenerator {
     /// Create a new block generator
-    pub fn new(
-        config: BlockGeneratorConfig,
-        coordinator: Arc<RwLock<MultivmCoordinator>>,
-    ) -> Self {
+    pub fn new(config: BlockGeneratorConfig, coordinator: Arc<RwLock<MultivmCoordinator>>) -> Self {
         Self {
             config,
             coordinator,
@@ -76,7 +73,7 @@ impl BlockGenerator {
 
         // Create interval timer
         let mut interval = interval(Duration::from_millis(self.config.block_interval_ms));
-        
+
         // Skip the first immediate tick
         interval.tick().await;
 
@@ -207,14 +204,12 @@ impl BlockGenerator {
             svm_transactions,
             evm_transactions,
             multivm_transactions: vec![], // No special transactions for now
-            state_transitions: vec![], // No state transitions for mock mode
+            state_transitions: vec![],    // No state transitions for mock mode
         };
 
         info!(
-            "Generated mock block {} with {} SVM and {} EVM transactions", 
-            height, 
-            self.config.svm_tx_per_block,
-            self.config.evm_tx_per_block
+            "Generated mock block {} with {} SVM and {} EVM transactions",
+            height, self.config.svm_tx_per_block, self.config.evm_tx_per_block
         );
 
         Ok(block)
@@ -254,10 +249,10 @@ mod tests {
             max_concurrent_blocks: 10,
             enable_recovery: true,
         };
-        
+
         let coordinator = MultivmCoordinator::new(coordinator_config).await.unwrap();
         let coordinator = Arc::new(RwLock::new(coordinator));
-        
+
         let generator = BlockGenerator::new(config, coordinator);
         assert!(!generator.is_running().await);
         assert_eq!(generator.get_current_height().await, 1);
@@ -271,7 +266,7 @@ mod tests {
             evm_tx_per_block: 2,
             enabled: true,
         };
-        
+
         let coordinator_config = CoordinatorConfig {
             consensus: MalachiteConfig::default(),
             health_check_interval: Duration::from_secs(30),
@@ -279,13 +274,13 @@ mod tests {
             max_concurrent_blocks: 10,
             enable_recovery: true,
         };
-        
+
         let coordinator = MultivmCoordinator::new(coordinator_config).await.unwrap();
         let coordinator = Arc::new(RwLock::new(coordinator));
-        
+
         let generator = BlockGenerator::new(config, coordinator);
         let block = generator.generate_mock_block(1).await.unwrap();
-        
+
         assert_eq!(block.header.height, 1);
         assert_eq!(block.svm_transactions.len(), 3);
         assert_eq!(block.evm_transactions.len(), 2);
