@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod block_generator;
 pub mod block_router;
 pub mod coordinator;
 pub mod health;
@@ -12,6 +13,7 @@ pub mod resource_monitor;
 #[cfg(test)]
 mod block_router_tests;
 
+pub use block_generator::*;
 pub use block_router::*;
 pub use coordinator::{
     CoordinatorConfig, CoordinatorState, MultivmCoordinator,

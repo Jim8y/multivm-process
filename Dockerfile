@@ -13,14 +13,7 @@ WORKDIR /app
 
 # Copy workspace files
 COPY Cargo.toml Cargo.lock ./
-COPY multivm-common ./multivm-common
-COPY multivm-account-mapping ./multivm-account-mapping
-COPY multivm-p2p ./multivm-p2p
-COPY multivm-consensus ./multivm-consensus
-COPY multivm-process-manager ./multivm-process-manager
-COPY multivm-application ./multivm-application
-COPY solana-execution-engine ./solana-execution-engine
-COPY reth-execution-engine ./reth-execution-engine
+COPY crates ./crates
 
 # Build the application
 RUN cargo build --release --bin multivm-node

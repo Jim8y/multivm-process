@@ -58,27 +58,33 @@ pub fn get_cpu_usage() -> f64 {
                 let stime: u64 = fields[14].parse().unwrap_or(0);
                 let total_process_time = utime + stime;
 
-                let last_cpu_time = LAST_CPU_TIME.lock().unwrap();
-                let last_process_time = LAST_PROCESS_TIME.lock().unwrap();
+                let (calc_cpu, _update_time) = {
+                    let mut last_cpu_time = LAST_CPU_TIME.lock().unwrap();
+                    let mut last_process_time = LAST_PROCESS_TIME.lock().unwrap();
 
-                if let (Some(last_time), Some(last_process)) = (*last_cpu_time, *last_process_time)
-                {
-                    drop(last_cpu_time);
-                    drop(last_process_time);
+                    if let (Some(last_time), Some(last_process)) = (*last_cpu_time, *last_process_time)
+                    {
+                        let time_diff = current_time.duration_since(last_time).as_millis() as u64;
+                        let process_diff = total_process_time - last_process;
 
-                    let time_diff = current_time.duration_since(last_time).as_millis() as u64;
-                    let process_diff = total_process_time - last_process;
-
-                    if time_diff > 0 {
-                        let cpu_percent = (process_diff as f64 * 10.0) / time_diff as f64;
-                        *LAST_CPU_TIME.lock().unwrap() = Some(current_time);
-                        *LAST_PROCESS_TIME.lock().unwrap() = Some(total_process_time);
-                        return cpu_percent.min(100.0);
+                        if time_diff > 0 {
+                            let cpu_percent = (process_diff as f64 * 10.0) / time_diff as f64;
+                            *last_cpu_time = Some(current_time);
+                            *last_process_time = Some(total_process_time);
+                            (Some(cpu_percent.min(100.0)), false)
+                        } else {
+                            (None, false)
+                        }
+                    } else {
+                        *last_cpu_time = Some(current_time);
+                        *last_process_time = Some(total_process_time);
+                        (None, true)
                     }
-                }
+                };
 
-                *LAST_CPU_TIME.lock().unwrap() = Some(current_time);
-                *LAST_PROCESS_TIME.lock().unwrap() = Some(total_process_time);
+                if let Some(cpu) = calc_cpu {
+                    return cpu;
+                }
             }
         }
     }
@@ -101,15 +107,16 @@ pub fn get_cpu_usage() -> f64 {
 
     #[cfg(target_os = "windows")]
     {
-        if let Some(last_time) = *LAST_CPU_TIME.lock().unwrap() {
+        let mut last_cpu_time = LAST_CPU_TIME.lock().unwrap();
+        if let Some(last_time) = *last_cpu_time {
             let time_diff = current_time.duration_since(last_time).as_millis();
             if time_diff > 0 {
                 let estimated_cpu = (time_diff as f64 / 1000.0) * 5.0;
-                *LAST_CPU_TIME.lock().unwrap() = Some(current_time);
+                *last_cpu_time = Some(current_time);
                 return estimated_cpu.min(100.0);
             }
         }
-        *LAST_CPU_TIME.lock().unwrap() = Some(current_time);
+        *last_cpu_time = Some(current_time);
     }
 
     // Fallback: return low but non-zero value to indicate activity
@@ -132,16 +139,27 @@ mod tests {
 
     #[test]
     fn test_cpu_usage() {
+        // Use a timeout to prevent the test from running forever
+        let start = std::time::Instant::now();
         let cpu = get_cpu_usage();
+        let duration = start.elapsed();
+        
+        assert!(duration < std::time::Duration::from_secs(5), "CPU usage check took too long");
         assert!(cpu >= 0.0, "CPU usage should be non-negative");
         assert!(cpu <= 100.0, "CPU usage should not exceed 100%");
     }
 
     #[test]
     fn test_cpu_usage_over_time() {
+        // Use a timeout to prevent the test from running forever
+        let start = std::time::Instant::now();
+        
         let cpu1 = get_cpu_usage();
         std::thread::sleep(std::time::Duration::from_millis(100));
         let cpu2 = get_cpu_usage();
+        
+        let duration = start.elapsed();
+        assert!(duration < std::time::Duration::from_secs(5), "CPU usage test took too long");
 
         // Both readings should be valid
         assert!((0.0..=100.0).contains(&cpu1));

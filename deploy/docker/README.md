@@ -7,6 +7,8 @@ Complete Docker-based deployment for the MultiVM multi-blockchain execution syst
 This directory contains everything needed to deploy a production-ready MultiVM cluster using Docker Compose:
 
 - **4-Node Cluster**: 1 bootstrap node + 3 validator nodes
+- **Continuous Block Generation**: Automated block production every 2 seconds
+- **Cross-VM Transaction Processing**: SVM + EVM transaction execution
 - **P2P Networking**: Custom bridge network with service discovery
 - **Monitoring Stack**: Prometheus metrics and Loki log aggregation
 - **Health Checks**: Automated health monitoring and recovery
@@ -29,19 +31,22 @@ sudo usermod -aG docker $USER
 
 ```bash
 # Navigate to docker directory
-cd docker
+cd deploy/docker
 
-# Start the full 4-node cluster
-./scripts/manage-cluster.sh start
+# Deploy complete network with continuous block generation
+./scripts/deploy-network.sh deploy
 
-# Check cluster status
-./scripts/manage-cluster.sh status
+# Check network status
+./scripts/deploy-network.sh status
 
-# View logs
-./scripts/manage-cluster.sh logs
+# View real-time logs
+./scripts/deploy-network.sh logs
+
+# Verify block generation is working
+./scripts/deploy-network.sh verify
 
 # Stop cluster
-./scripts/manage-cluster.sh stop
+./scripts/deploy-network.sh stop
 ```
 
 ## Architecture
@@ -94,6 +99,45 @@ cd docker
 |---------|---------|---------|
 | test-runner | Integration tests | testing |
 
+## Block Generation
+
+### Continuous Block Production
+
+The MultiVM network features automated block generation for continuous operation:
+
+- **Block Generator**: Node 1 (Bootstrap) generates blocks every 2 seconds
+- **Transaction Mix**: Each block contains 3 SVM + 3 EVM mock transactions
+- **Consensus Processing**: All validators participate in consensus for each block
+- **Cross-VM Transactions**: Special transactions for account binding and asset transfers
+
+### Block Generation Configuration
+
+Environment variables for block generation:
+
+```bash
+BLOCK_GENERATION_ENABLED=true    # Enable/disable block generation
+BLOCK_INTERVAL_MS=2000          # Block interval in milliseconds  
+SVM_TX_PER_BLOCK=3             # Solana transactions per block
+EVM_TX_PER_BLOCK=3             # Ethereum transactions per block
+```
+
+Only the bootstrap node (Node 1) has block generation enabled by default.
+
+### Monitoring Block Generation
+
+```bash
+# Verify blocks are being generated
+./scripts/deploy-network.sh verify
+
+# Check real-time block progression
+curl http://localhost:8080/api/v1/status | jq '.block_height'
+
+# Monitor consensus across all nodes
+for port in 8080 8081 8082 8083; do
+  echo "Node on port $port: $(curl -s http://localhost:$port/api/v1/status | jq -r '.block_height // "unavailable"')"
+done
+```
+
 ## Configuration
 
 ### Node Configuration
@@ -131,26 +175,42 @@ reth_mode = "mock"    # Change to "native" for production
 
 ## Management Commands
 
-### Cluster Management
+### Network Deployment
+
+```bash
+# Deploy complete network with block generation
+./scripts/deploy-network.sh deploy
+
+# Verify network is working (block generation, consensus)
+./scripts/deploy-network.sh verify
+
+# Check network status and endpoints
+./scripts/deploy-network.sh status
+
+# View real-time logs (default: 60 seconds)
+./scripts/deploy-network.sh logs [duration]
+
+# Restart network and verify
+./scripts/deploy-network.sh restart
+
+# Stop network
+./scripts/deploy-network.sh stop
+
+# Clean up all containers and volumes
+./scripts/deploy-network.sh cleanup
+```
+
+### Advanced Cluster Management
 
 ```bash
 # Build Docker images
 ./scripts/manage-cluster.sh build
 
-# Start all nodes
+# Start specific nodes
 ./scripts/manage-cluster.sh start
 
 # Stop all nodes
 ./scripts/manage-cluster.sh stop
-
-# Restart cluster
-./scripts/manage-cluster.sh restart
-
-# Check status
-./scripts/manage-cluster.sh status
-
-# View logs
-./scripts/manage-cluster.sh logs [node]
 
 # Scale cluster (1-4 nodes)
 ./scripts/manage-cluster.sh scale 3

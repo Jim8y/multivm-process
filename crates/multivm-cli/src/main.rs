@@ -1,9 +1,11 @@
 use clap::{Arg, Command};
 use multivm_common::config::MultivmConfig;
 use multivm_consensus::MalachiteConfig;
-use multivm_process_manager::{CoordinatorConfig, MultivmCoordinator};
+use multivm_process_manager::{BlockGenerator, BlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 use tracing::info;
 
 #[tokio::main]
@@ -50,13 +52,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Configuration file: {:?}", config_path);
     info!("Data directory: {:?}", data_dir);
 
-    // Load configuration (for future use)
-    let _config = load_config(&config_path).await?;
+    // Load configuration from file
+    let config = load_config(&config_path).await?;
     info!("Configuration loaded successfully");
 
-    // Create coordinator configuration with proper fields
+    // Create coordinator configuration from loaded config
     let coordinator_config = CoordinatorConfig {
-        consensus: MalachiteConfig::default(),
+        consensus: MalachiteConfig {
+            node_id: std::env::var("NODE_ID").unwrap_or_else(|_| "default-node".to_string()),
+            ..MalachiteConfig::default()
+        },
         health_check_interval: Duration::from_secs(30),
         block_timeout: Duration::from_secs(60),
         max_concurrent_blocks: 10,
@@ -71,8 +76,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     coordinator.start().await?;
     info!("MultiVM Coordinator started");
 
-    info!("MultiVM Node is running...");
+    // Create block generator for continuous block production
+    let coordinator_arc = Arc::new(RwLock::new(coordinator));
+    let block_gen_config = BlockGeneratorConfig {
+        block_interval_ms: std::env::var("BLOCK_INTERVAL_MS")
+            .unwrap_or_else(|_| "2000".to_string())
+            .parse()
+            .unwrap_or(2000),
+        svm_tx_per_block: std::env::var("SVM_TX_PER_BLOCK")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse()
+            .unwrap_or(3),
+        evm_tx_per_block: std::env::var("EVM_TX_PER_BLOCK")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse()
+            .unwrap_or(3),
+        enabled: std::env::var("BLOCK_GENERATION_ENABLED")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true),
+    };
+    
+    let block_generator = BlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
+    
+    // Start block generator in background
+    let generator_handle = {
+        let mut gen = block_generator;
+        tokio::spawn(async move {
+            if let Err(e) = gen.start().await {
+                tracing::error!("Block generator failed: {}", e);
+            }
+        })
+    };
+
+    info!("MultiVM Node is running with continuous block generation...");
     info!("Using data directory: {:?}", data_dir);
+    info!("Generating blocks every 2 seconds");
 
     // Wait for shutdown signal
     tokio::signal::ctrl_c().await?;
@@ -80,7 +119,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown
     info!("Shutting down MultiVM Node...");
-    coordinator.stop().await?;
+    
+    // Stop block generator
+    generator_handle.abort();
+    
+    // Stop coordinator
+    {
+        let mut coordinator = coordinator_arc.write().await;
+        coordinator.stop().await?;
+    }
     info!("MultiVM Node stopped successfully");
 
     Ok(())

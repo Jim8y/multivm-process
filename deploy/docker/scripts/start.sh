@@ -12,6 +12,10 @@ CONSENSUS_ROLE=${CONSENSUS_ROLE:-"observer"}
 LOG_LEVEL=${LOG_LEVEL:-"info"}
 BOOTSTRAP_NODES=${BOOTSTRAP_NODES:-""}
 VALIDATOR_KEY=${VALIDATOR_KEY:-""}
+BLOCK_GENERATION_ENABLED=${BLOCK_GENERATION_ENABLED:-"false"}
+BLOCK_INTERVAL_MS=${BLOCK_INTERVAL_MS:-"2000"}
+SVM_TX_PER_BLOCK=${SVM_TX_PER_BLOCK:-"3"}
+EVM_TX_PER_BLOCK=${EVM_TX_PER_BLOCK:-"3"}
 
 # Logging function
 log() {
@@ -26,6 +30,8 @@ log "Node Type: $NODE_TYPE"
 log "Consensus Role: $CONSENSUS_ROLE"
 log "P2P Listen Address: $P2P_LISTEN_ADDR"
 log "API Listen Address: $API_LISTEN_ADDR"
+log "Block Generation Enabled: $BLOCK_GENERATION_ENABLED"
+log "Block Interval: ${BLOCK_INTERVAL_MS}ms"
 
 # Generate configuration file
 cat > /opt/multivm/config/runtime.toml << EOF
@@ -62,6 +68,12 @@ websocket_enabled = true
 [execution]
 solana_mode = "mock"
 reth_mode = "mock"
+
+[block_generation]
+enabled = $BLOCK_GENERATION_ENABLED
+interval_ms = $BLOCK_INTERVAL_MS
+svm_tx_per_block = $SVM_TX_PER_BLOCK
+evm_tx_per_block = $EVM_TX_PER_BLOCK
 EOF
 
 # Wait for bootstrap nodes if this is not the bootstrap node

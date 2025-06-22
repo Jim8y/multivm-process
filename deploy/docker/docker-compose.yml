@@ -18,6 +18,10 @@ services:
       - LOG_LEVEL=info
       - BOOTSTRAP_NODES=
       - VALIDATOR_KEY=validator-1-key
+      - BLOCK_GENERATION_ENABLED=true
+      - BLOCK_INTERVAL_MS=2000
+      - SVM_TX_PER_BLOCK=3
+      - EVM_TX_PER_BLOCK=3
     ports:
       - "8080:8080"   # REST API
       - "26656:26656" # P2P
@@ -53,6 +57,10 @@ services:
       - LOG_LEVEL=info
       - BOOTSTRAP_NODES=multivm-node-1:26656
       - VALIDATOR_KEY=validator-2-key
+      - BLOCK_GENERATION_ENABLED=false
+      - BLOCK_INTERVAL_MS=2000
+      - SVM_TX_PER_BLOCK=3
+      - EVM_TX_PER_BLOCK=3
     ports:
       - "8081:8080"   # REST API
       - "26657:26656" # P2P
@@ -91,6 +99,10 @@ services:
       - LOG_LEVEL=info
       - BOOTSTRAP_NODES=multivm-node-1:26656,multivm-node-2:26656
       - VALIDATOR_KEY=validator-3-key
+      - BLOCK_GENERATION_ENABLED=false
+      - BLOCK_INTERVAL_MS=2000
+      - SVM_TX_PER_BLOCK=3
+      - EVM_TX_PER_BLOCK=3
     ports:
       - "8082:8080"   # REST API
       - "26658:26656" # P2P
@@ -131,6 +143,10 @@ services:
       - LOG_LEVEL=info
       - BOOTSTRAP_NODES=multivm-node-1:26656,multivm-node-2:26656,multivm-node-3:26656
       - VALIDATOR_KEY=
+      - BLOCK_GENERATION_ENABLED=false
+      - BLOCK_INTERVAL_MS=2000
+      - SVM_TX_PER_BLOCK=3
+      - EVM_TX_PER_BLOCK=3
     ports:
       - "8083:8080"   # REST API
       - "26659:26656" # P2P
