@@ -21,7 +21,7 @@ pub fn get_memory_usage() -> u64 {
             }
         }
         // Fallback if we couldn't read memory usage
-        return 50 * 1024 * 1024; // 50MB default
+        50 * 1024 * 1024 // 50MB default
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -34,7 +34,7 @@ pub fn get_memory_usage() -> u64 {
         if !ptr.is_null() {
             unsafe { System.dealloc(ptr, layout) };
         }
-        
+
         // Return a reasonable estimate
         let base_memory = 50 * 1024 * 1024; // 50MB base
         let thread_memory = std::thread::current().id().as_u64().get() * 1024 * 1024; // 1MB per thread estimate
@@ -60,13 +60,12 @@ pub fn get_cpu_usage() -> f64 {
 
                 let last_cpu_time = LAST_CPU_TIME.lock().unwrap();
                 let last_process_time = LAST_PROCESS_TIME.lock().unwrap();
-                
-                if let (Some(last_time), Some(last_process)) =
-                    (*last_cpu_time, *last_process_time)
+
+                if let (Some(last_time), Some(last_process)) = (*last_cpu_time, *last_process_time)
                 {
                     drop(last_cpu_time);
                     drop(last_process_time);
-                    
+
                     let time_diff = current_time.duration_since(last_time).as_millis() as u64;
                     let process_diff = total_process_time - last_process;
 
@@ -125,7 +124,10 @@ mod tests {
     fn test_memory_usage() {
         let memory = get_memory_usage();
         assert!(memory > 0, "Memory usage should be greater than 0");
-        assert!(memory < 100 * 1024 * 1024 * 1024, "Memory usage should be less than 100GB");
+        assert!(
+            memory < 100 * 1024 * 1024 * 1024,
+            "Memory usage should be less than 100GB"
+        );
     }
 
     #[test]
@@ -140,9 +142,9 @@ mod tests {
         let cpu1 = get_cpu_usage();
         std::thread::sleep(std::time::Duration::from_millis(100));
         let cpu2 = get_cpu_usage();
-        
+
         // Both readings should be valid
-        assert!(cpu1 >= 0.0 && cpu1 <= 100.0);
-        assert!(cpu2 >= 0.0 && cpu2 <= 100.0);
+        assert!((0.0..=100.0).contains(&cpu1));
+        assert!((0.0..=100.0).contains(&cpu2));
     }
 }

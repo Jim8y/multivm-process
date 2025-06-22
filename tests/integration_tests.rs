@@ -17,6 +17,7 @@ use tracing_test::traced_test;
 /// Test configuration for integration tests
 struct IntegrationTestConfig {
     coordinator_config: CoordinatorConfig,
+    #[allow(dead_code)]
     test_timeout: Duration,
     block_count: usize,
     tx_per_block: usize,
@@ -72,7 +73,7 @@ async fn test_health_monitoring() {
         .expect("Failed to get health status");
 
     // Verify health structure
-    assert_eq!(health.coordinator_running, false); // Not started
+    assert!(!health.coordinator_running); // Not started
     assert!(health.last_health_check <= SystemTime::now());
 }
 
@@ -243,8 +244,8 @@ async fn test_block_routing_logic() {
         .expect("Failed to decompose block");
 
     // Verify routing results
-    assert!(routing_result.svm_transactions.len() > 0);
-    assert!(routing_result.evm_transactions.len() > 0);
+    assert!(!routing_result.svm_transactions.is_empty());
+    assert!(!routing_result.evm_transactions.is_empty());
     assert_eq!(
         routing_result.routing_metadata.total_transactions,
         routing_result.routing_metadata.svm_count
@@ -252,8 +253,9 @@ async fn test_block_routing_logic() {
             + routing_result.routing_metadata.special_count
     );
 
-    // Verify metadata (routing time might be 0 in tests)
-    assert!(routing_result.routing_metadata.routing_time_ms >= 0);
+    // Verify metadata (routing time should be a valid value)
+    // Note: routing_time_ms is u64, so it's always >= 0
+    assert!(routing_result.routing_metadata.routing_time_ms < u64::MAX);
 }
 
 #[traced_test]

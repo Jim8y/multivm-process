@@ -721,7 +721,7 @@ impl BlockRouter {
         // Create a hash based on current time and some entropy
         let mut hasher = Sha256::new();
         hasher.update(
-            &std::time::SystemTime::now()
+            std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
@@ -732,7 +732,7 @@ impl BlockRouter {
         // Add some randomness
         use rand::Rng;
         let nonce: u64 = rand::thread_rng().gen();
-        hasher.update(&nonce.to_le_bytes());
+        hasher.update(nonce.to_le_bytes());
 
         bs58::encode(hasher.finalize()).into_string()
     }
@@ -812,11 +812,11 @@ impl BlockRouter {
                     // Track accounts involved in binding
                     account_operations
                         .entry(source_account.to_string())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push((idx, "account_binding".to_string()));
                     account_operations
                         .entry(target_account.to_string())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push((idx, "account_binding".to_string()));
                 }
                 SpecialTransaction::CrossVmTransfer { from, to, .. } => {
@@ -873,11 +873,12 @@ impl BlockRouter {
                 // Track this account operation for future dependencies
                 account_operations
                     .entry(account.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push((idx, "svm_transaction".to_string()));
             }
 
             // Check for dependencies with previous SVM transactions affecting same accounts
+            #[allow(clippy::needless_range_loop)]
             for prev_idx in 0..idx {
                 let prev_tx = &svm_transactions[prev_idx];
                 if Self::has_account_overlap(&svm_tx.accounts, &prev_tx.accounts) {
@@ -923,11 +924,12 @@ impl BlockRouter {
                 // Track this account operation
                 account_operations
                     .entry(account.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push((idx, "evm_transaction".to_string()));
             }
 
             // Check for dependencies with previous EVM transactions affecting same accounts
+            #[allow(clippy::needless_range_loop)]
             for prev_idx in 0..idx {
                 let prev_tx = &evm_transactions[prev_idx];
                 let mut prev_accounts = vec![prev_tx.from.clone()];
@@ -1070,7 +1072,7 @@ impl BlockRouter {
                 all_nodes.insert(dependency.clone());
                 adj_list
                     .entry(dependency.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(dep.tx_hash.clone());
                 *in_degree.entry(dep.tx_hash.clone()).or_insert(0) += 1;
             }

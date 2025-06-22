@@ -1,10 +1,7 @@
 //! Security middleware for adding security headers and protections
 
 use std::time::Duration;
-use tower_http::{
-    limit::RequestBodyLimitLayer,
-    timeout::TimeoutLayer,
-};
+use tower_http::{limit::RequestBodyLimitLayer, timeout::TimeoutLayer};
 
 /// Create a timeout layer with default 30 second timeout
 pub fn default_timeout_layer() -> TimeoutLayer {
@@ -29,7 +26,7 @@ pub fn body_limit_layer(max_bytes: u64) -> RequestBodyLimitLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_layer_creation() {
         // Verify all layers can be created without panic

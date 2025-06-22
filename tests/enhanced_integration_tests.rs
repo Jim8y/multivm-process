@@ -1,19 +1,13 @@
 //! Enhanced integration tests for the MultiVM system with comprehensive coverage
 
-use multivm_account_mapping::{
-    AccountMappingLayer, EthereumAddress, SolanaAddress, SpecialTransaction,
-};
-use multivm_common::{BlockchainType, MultivmConfig, MultivmError, MultivmResult, SystemConfig};
+use multivm_account_mapping::{EthereumAddress, SolanaAddress, SpecialTransaction};
 use multivm_consensus::{
     EvmSignature, EvmTransaction, MalachiteConfig, MultiVMBlock, SvmTransaction,
 };
-use multivm_p2p::{P2PNetworkConfig, P2PNetworkLayer};
-use multivm_process_manager::{BlockRouter, CoordinatorConfig, MultivmCoordinator};
+use multivm_process_manager::{CoordinatorConfig, MultivmCoordinator};
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
-use tokio::sync::RwLock;
-use tokio::time::timeout;
 
 #[tokio::test]
 async fn test_full_system_lifecycle() {
@@ -384,7 +378,7 @@ async fn test_performance_under_load() {
 
 // Helper functions
 
-fn create_test_config(data_dir: &std::path::Path) -> CoordinatorConfig {
+fn create_test_config(_data_dir: &std::path::Path) -> CoordinatorConfig {
     CoordinatorConfig {
         consensus: MalachiteConfig {
             node_id: "test-validator".to_string(),
@@ -412,7 +406,7 @@ fn create_multi_validator_config(
     data_dir: &std::path::Path,
     num_validators: usize,
 ) -> CoordinatorConfig {
-    let mut config = create_test_config(data_dir);
+    let config = create_test_config(data_dir);
 
     let mut validators = vec![];
     for i in 0..num_validators {

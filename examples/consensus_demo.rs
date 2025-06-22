@@ -12,7 +12,6 @@ use multivm_account_mapping::{
 };
 use multivm_consensus::*;
 use std::time::SystemTime;
-use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

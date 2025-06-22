@@ -691,7 +691,7 @@ impl TcpConnectionFactory {
         // Step 1: Send handshake initiation
         let handshake_init = HandshakeMessage::Init {
             version: PROTOCOL_VERSION,
-            client_id: process_id.clone(),
+            client_id: process_id,
             capabilities: vec!["multivm-1.0".to_string()],
             auth_token: self.generate_auth_token(&process_id).await?,
         };

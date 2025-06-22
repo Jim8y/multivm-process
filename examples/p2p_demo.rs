@@ -8,7 +8,6 @@
 //! - Cross-VM protocol support
 //! - Basic network operations
 
-use async_trait;
 use multivm_account_mapping::{
     AccountAddress, BindingProof, EthereumAddress, ProofType, SimpleBindingMetadata, SolanaAddress,
     SpecialTransaction,
@@ -20,7 +19,6 @@ use multivm_p2p::{
     P2PNetworkLayer, ResourceLimits, VmType,
 };
 use std::time::{Duration, SystemTime};
-use tokio;
 
 /// Simple event handler for demo purposes
 struct DemoEventHandler;

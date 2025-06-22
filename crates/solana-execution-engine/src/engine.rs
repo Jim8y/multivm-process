@@ -910,8 +910,6 @@ fn get_cpu_usage_standard() -> f64 {
     multivm_common::monitoring::get_cpu_usage()
 }
 
-
-
 /// Generate mock Solana block data for testing
 #[allow(dead_code)]
 pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> SolanaBlockData {

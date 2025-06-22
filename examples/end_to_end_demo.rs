@@ -232,9 +232,7 @@ async fn create_sample_block(
             id: Uuid::new_v4(),
             hash: format!(
                 "0x{}",
-                hex::encode(
-                    blake3::hash(&format!("evm_tx_{}_{}", height, i).as_bytes()).as_bytes()
-                )
+                hex::encode(blake3::hash(format!("evm_tx_{}_{}", height, i).as_bytes()).as_bytes())
             ),
             from: format!("0x{:040x}", i),
             to: Some(format!("0x{:040x}", i + 1)),
@@ -280,7 +278,7 @@ async fn create_sample_block(
     let mut block = MultiVMBlock::new(
         height,
         format!("previous_hash_{}", height - 1),
-        format!("node_0"),
+        "node_0".to_string(),
         vec![],
     );
 

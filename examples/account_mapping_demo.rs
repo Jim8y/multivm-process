@@ -208,7 +208,7 @@ mod tests {
         // This test ensures the core demo functionality works
         use multivm_account_mapping::AccountMappingStorage;
         let solana_account = AccountAddress::Solana(SolanaAddress([1u8; 32]));
-        let ethereum_account = AccountAddress::Ethereum(EthereumAddress([2u8; 20]));
+        let _ethereum_account = AccountAddress::Ethereum(EthereumAddress([2u8; 20]));
 
         // Test automatic binding
         let auto_binding = AccountBinding::create_auto_binding(solana_account.clone());

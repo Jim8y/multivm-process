@@ -4,7 +4,6 @@ use multivm_consensus::MalachiteConfig;
 use multivm_process_manager::{CoordinatorConfig, MultivmCoordinator};
 use std::path::PathBuf;
 use std::time::Duration;
-use tokio;
 use tracing::info;
 
 #[tokio::main]
