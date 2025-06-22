@@ -29,7 +29,27 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# Logs (keep logs directory structure)
+logs/*.log
 *.log
+/logs/*.log
+
+# Build artifacts
+build/
+dist/
+
+# Data directories
+data/
+/data/
+
+# IPC sockets
+*.sock
+/tmp/multivm-*.sock
+
+# Local development
+local/
+scratch/
 
 # Documentation build artifacts
 docs/_build/

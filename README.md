@@ -1,4 +1,4 @@
-# 🚀 MultiVM Process - Unified SVM+EVM Blockchain Execution
+# MultiVM - Production-Ready Multi-VM Blockchain Execution Platform
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](LICENSE)
