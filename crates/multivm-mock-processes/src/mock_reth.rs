@@ -85,50 +85,61 @@ async fn handle_connection(
 ) -> Result<(), Box<dyn std::error::Error>> {
     debug!("New connection established");
 
+    // Handle handshake first
+    let mut handshake_buf = vec![0u8; 64];
+    match stream.read(&mut handshake_buf).await {
+        Ok(n) => {
+            let handshake = String::from_utf8_lossy(&handshake_buf[..n]);
+            if handshake.starts_with("MULTIVM_HANDSHAKE:") {
+                // Send handshake acknowledgment
+                stream.write_all(b"MULTIVM_HANDSHAKE_ACK").await?;
+                debug!("Handshake completed");
+            } else {
+                error!("Invalid handshake: {}", handshake);
+                return Err("Invalid handshake".into());
+            }
+        }
+        Err(e) => {
+            error!("Failed to read handshake: {}", e);
+            return Err(e.into());
+        }
+    }
+
     loop {
-        // Read message length
-        let mut len_buf = [0u8; 4];
-        match stream.read_exact(&mut len_buf).await {
-            Ok(_) => {}
-            Err(_) => {
+        // Read the raw message (no length prefix in this protocol)
+        let mut msg_buf = vec![0u8; 4096];
+        match stream.read(&mut msg_buf).await {
+            Ok(0) => {
                 debug!("Connection closed");
                 return Ok(());
             }
-        }
+            Ok(n) => {
+                msg_buf.truncate(n);
 
-        let msg_len = u32::from_le_bytes(len_buf) as usize;
-        if msg_len > 1024 * 1024 {
-            error!("Message too large: {}", msg_len);
-            continue;
-        }
+                // Deserialize message
+                let message: IpcMessage = match bincode::deserialize(&msg_buf) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!("Failed to deserialize message: {}", e);
+                        continue;
+                    }
+                };
 
-        // Read message
-        let mut msg_buf = vec![0u8; msg_len];
-        stream.read_exact(&mut msg_buf).await?;
+                debug!("Received command: {:?}", message.command);
 
-        // Deserialize message
-        let message: IpcMessage = match bincode::deserialize(&msg_buf) {
-            Ok(msg) => msg,
-            Err(e) => {
-                error!("Failed to deserialize message: {}", e);
-                continue;
+                // Process command
+                let response = process_command(message.command, &state).await;
+
+                // Send response directly (no length prefix needed)
+                let response_bytes = bincode::serialize(&response)?;
+                stream.write_all(&response_bytes).await?;
+                stream.flush().await?;
             }
-        };
-
-        debug!("Received command: {:?}", message.command);
-
-        // Process command
-        let response = process_command(message.command, &state).await;
-
-        // For simplicity, just send the response as a serialized IpcResponse
-        // In a real implementation, this would be handled by a proper message router
-
-        let response_bytes = bincode::serialize(&response)?;
-        let response_len = (response_bytes.len() as u32).to_le_bytes();
-
-        stream.write_all(&response_len).await?;
-        stream.write_all(&response_bytes).await?;
-        stream.flush().await?;
+            Err(e) => {
+                error!("Failed to read from stream: {}", e);
+                return Err(e.into());
+            }
+        }
     }
 }
 
