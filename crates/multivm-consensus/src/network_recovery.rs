@@ -106,7 +106,10 @@ impl NetworkRecoveryError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        matches!(self, Self::PartitionDetected(_) | Self::InsufficientConnectivity { .. })
+        matches!(
+            self,
+            Self::PartitionDetected(_) | Self::InsufficientConnectivity { .. }
+        )
     }
 
     /// Get error category for metrics
@@ -811,8 +814,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_partition_detection() {
-        let mut config = NetworkRecoveryConfig::default();
-        config.min_connectivity_percentage = 75;
+        let config = NetworkRecoveryConfig {
+            min_connectivity_percentage: 75,
+            ..Default::default()
+        };
 
         let manager = NetworkRecoveryManager::new(config).await.unwrap();
 

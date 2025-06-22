@@ -260,9 +260,10 @@ impl MultiVMConsensusManager {
         };
 
         // Generate node ID from config or create random one
-        let node_id = config.node_id.clone().unwrap_or_else(|| {
-            format!("node-{}", &uuid::Uuid::new_v4().to_string()[..8])
-        });
+        let node_id = config
+            .node_id
+            .clone()
+            .unwrap_or_else(|| format!("node-{}", &uuid::Uuid::new_v4().to_string()[..8]));
 
         Ok(Self {
             consensus_engine,
@@ -1722,6 +1723,7 @@ mod tests {
     #[tokio::test]
     async fn test_consensus_manager_creation() {
         let config = ConsensusManagerConfig {
+            node_id: Some("test-node".to_string()),
             algorithm: ConsensusAlgorithmType::Malachite,
             algorithm_config: AlgorithmConfig::Malachite(MalachiteConfig {
                 node_id: "test-node".to_string(),

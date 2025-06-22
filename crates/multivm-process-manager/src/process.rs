@@ -201,15 +201,15 @@ impl ProcessHandle {
         // Create IPC client for this process
         let ipc_client = match &self.process_id {
             ProcessId::Solana => {
-                let socket_path = format!("/tmp/multivm-solana.sock");
+                let socket_path = "/tmp/multivm-solana.sock".to_string();
                 crate::ipc_transport::IpcClient::new_unix_socket(&socket_path).await?
             }
             ProcessId::Ethereum => {
-                let socket_path = format!("/tmp/multivm-ethereum.sock");
+                let socket_path = "/tmp/multivm-ethereum.sock".to_string();
                 crate::ipc_transport::IpcClient::new_unix_socket(&socket_path).await?
             }
             ProcessId::Main => {
-                let socket_path = format!("/tmp/multivm-main.sock");
+                let socket_path = "/tmp/multivm-main.sock".to_string();
                 crate::ipc_transport::IpcClient::new_unix_socket(&socket_path).await?
             }
         };
@@ -375,10 +375,7 @@ impl ProcessHandle {
 
             // Clean up old attempts (older than 1 hour)
             let cutoff_time = Instant::now() - Duration::from_secs(3600);
-            while attempts
-                .front()
-                .map_or(false, |a| a.timestamp < cutoff_time)
-            {
+            while attempts.front().is_some_and(|a| a.timestamp < cutoff_time) {
                 attempts.pop_front();
             }
 

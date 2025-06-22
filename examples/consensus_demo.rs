@@ -332,6 +332,7 @@ mod tests {
     async fn test_consensus_demo_components() {
         // Test consensus manager creation
         let config = ConsensusManagerConfig {
+            node_id: Some("test-validator".to_string()),
             algorithm: ConsensusAlgorithmType::Malachite,
             algorithm_config: AlgorithmConfig::Malachite(MalachiteConfig {
                 node_id: "test-validator".to_string(),
@@ -414,6 +415,7 @@ mod tests {
     #[tokio::test]
     async fn test_consensus_config() {
         let config = ConsensusManagerConfig {
+            node_id: Some("test-validator-2".to_string()),
             algorithm: ConsensusAlgorithmType::Malachite,
             algorithm_config: AlgorithmConfig::Malachite(MalachiteConfig {
                 node_id: "test-validator".to_string(),

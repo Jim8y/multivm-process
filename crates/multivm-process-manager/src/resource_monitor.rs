@@ -188,17 +188,15 @@ impl SystemResourceMonitor {
     pub fn get_process_resources(&mut self, pid: u32) -> Option<ProcessResources> {
         self.update_if_needed();
 
-        if let Some(process) = self.system.process(sysinfo::Pid::from(pid as usize)) {
-            Some(ProcessResources {
+        self.system
+            .process(sysinfo::Pid::from(pid as usize))
+            .map(|process| ProcessResources {
                 pid,
                 cpu_usage: process.cpu_usage() as f64,
                 memory_usage_kb: process.memory(),
                 virtual_memory_kb: process.virtual_memory(),
                 start_time: process.start_time(),
             })
-        } else {
-            None
-        }
     }
 }
 

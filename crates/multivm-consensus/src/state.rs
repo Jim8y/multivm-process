@@ -837,7 +837,10 @@ impl StatePersistenceError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        matches!(self, Self::CorruptionDetected(_) | Self::VerificationFailed(_))
+        matches!(
+            self,
+            Self::CorruptionDetected(_) | Self::VerificationFailed(_)
+        )
     }
 
     /// Get error category for metrics

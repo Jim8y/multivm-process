@@ -1019,10 +1019,10 @@ impl BlockRouter {
 
         // Check each transaction as a potential cycle start
         for dep in dependencies {
-            if !visited.contains(&dep.tx_hash) {
-                if dfs_check_cycle(&dep.tx_hash, &dep_map, &mut visited, &mut recursion_stack) {
-                    return true;
-                }
+            if !visited.contains(&dep.tx_hash)
+                && dfs_check_cycle(&dep.tx_hash, &dep_map, &mut visited, &mut recursion_stack)
+            {
+                return true;
             }
         }
 

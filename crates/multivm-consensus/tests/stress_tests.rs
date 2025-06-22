@@ -77,7 +77,8 @@ async fn stress_test_concurrent_fork_detection() {
     let metrics = detector.get_metrics().await;
     println!("Final metrics: {:?}", metrics);
 
-    assert!(metrics.forks_detected >= 0);
+    // Just verify metrics exist (all u64 values are >= 0 by definition)
+    let _verified = metrics.forks_detected;
 }
 
 #[tokio::test]
@@ -148,7 +149,8 @@ async fn stress_test_network_recovery_load() {
     println!("Final health: {:?}", health);
     println!("Final metrics: {:?}", metrics);
 
-    assert!(metrics.partitions_detected >= 0);
+    // Just verify metrics exist (all u64 values are >= 0 by definition)
+    let _verified = metrics.partitions_detected;
 }
 
 #[tokio::test]
@@ -267,7 +269,8 @@ async fn stress_test_memory_usage() {
         duration, final_metrics
     );
 
-    assert!(final_metrics.forks_detected >= 0);
+    // Just verify metrics exist (all u64 values are >= 0 by definition)
+    let _verified = final_metrics.forks_detected;
 }
 
 #[tokio::test]
@@ -455,5 +458,6 @@ async fn stress_test_mixed_operations() {
     println!("Block sync metrics: {:?}", sync_metrics);
 
     assert!(total_operations > 0);
-    assert!(fork_metrics.forks_detected >= 0);
+    // Just verify metrics exist (all u64 values are >= 0 by definition)
+    let _verified = fork_metrics.forks_detected;
 }

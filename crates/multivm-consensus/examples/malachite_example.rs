@@ -53,6 +53,7 @@ async fn main() -> ConsensusResult<()> {
 
     // Create consensus manager configuration
     let manager_config = ConsensusManagerConfig {
+        node_id: Some("example-node-1".to_string()),
         algorithm: ConsensusAlgorithmType::Malachite,
         algorithm_config: AlgorithmConfig::Malachite(malachite_config),
         state_manager_config: StateManagerConfig::default(),

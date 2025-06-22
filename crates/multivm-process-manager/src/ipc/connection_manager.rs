@@ -849,7 +849,7 @@ impl TcpConnectionFactory {
                 // Parse and send response
                 match serde_json::from_slice::<IpcResponse>(&response_buf) {
                     Ok(response) => {
-                        if let Err(_) = resp_sender.send(response) {
+                        if resp_sender.send(response).is_err() {
                             debug!("Response channel closed");
                             break;
                         }
@@ -949,7 +949,7 @@ impl UnixConnectionFactory {
                 // Parse and send response
                 match serde_json::from_slice::<IpcResponse>(&response_buf) {
                     Ok(response) => {
-                        if let Err(_) = resp_sender.send(response) {
+                        if resp_sender.send(response).is_err() {
                             debug!("Response channel closed");
                             break;
                         }

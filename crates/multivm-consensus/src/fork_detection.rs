@@ -106,7 +106,10 @@ impl ForkDetectionError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        matches!(self, Self::ForkDetected { .. } | Self::ResolutionFailed(_) | Self::NetworkPartition(_))
+        matches!(
+            self,
+            Self::ForkDetected { .. } | Self::ResolutionFailed(_) | Self::NetworkPartition(_)
+        )
     }
 
     /// Get error category for metrics

@@ -116,7 +116,10 @@ impl BlockSyncError {
 
     /// Check if this error is critical
     pub fn is_critical(&self) -> bool {
-        matches!(self, Self::InvalidBlockData(_) | Self::VerificationFailed(_))
+        matches!(
+            self,
+            Self::InvalidBlockData(_) | Self::VerificationFailed(_)
+        )
     }
 
     /// Get error category for metrics
