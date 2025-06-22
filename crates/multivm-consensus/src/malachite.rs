@@ -331,12 +331,12 @@ impl MultiVMContext {
             let address = ValidatorAddress(validator_info.public_key.clone());
             let validator_scheme = MultiVMSigningScheme::from_validator_info(&validator_info);
             let public_key = validator_scheme.public_key_bytes();
-            
+
             // Use the first validator's signing scheme if it matches our node_id
             if validator_info.public_key == node_id || signing_scheme.is_none() {
                 signing_scheme = Some(validator_scheme);
             }
-            
+
             let validator = MultiVMValidator::new(address, validator_info.voting_power, public_key);
             multivm_validators.push(validator);
         }

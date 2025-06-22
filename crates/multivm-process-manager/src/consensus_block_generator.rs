@@ -5,9 +5,7 @@
 
 use crate::coordinator::MultivmCoordinator;
 use multivm_common::MultivmResult;
-use multivm_consensus::{
-    BlockHeader, EvmSignature, EvmTransaction, MultiVMBlock, SvmTransaction,
-};
+use multivm_consensus::{BlockHeader, EvmSignature, EvmTransaction, MultiVMBlock, SvmTransaction};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -150,10 +148,7 @@ impl ConsensusBlockGenerator {
     /// Generate a block with proper structure for consensus
     async fn generate_block_for_consensus(&self, height: u64) -> MultivmResult<MultiVMBlock> {
         let timestamp = SystemTime::now();
-        let timestamp_secs = timestamp
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let timestamp_secs = timestamp.duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         // Generate SVM transactions
         let mut svm_transactions = Vec::new();
@@ -209,13 +204,13 @@ impl ConsensusBlockGenerator {
             height,
             timestamp,
             previous_hash: if height > 1 {
-                format!("consensus_hash_{}", height - 1).into()
+                format!("consensus_hash_{}", height - 1)
             } else {
-                "genesis".to_string().into()
+                "genesis".to_string()
             },
-            state_root: format!("state_root_{}", height).into(),
-            transactions_root: format!("tx_root_{}", height).into(),
-            proposer: "single-node".to_string().into(),
+            state_root: format!("state_root_{}", height),
+            transactions_root: format!("tx_root_{}", height),
+            proposer: "single-node".to_string(),
             consensus_data: vec![1, 2, 3, 4], // Consensus metadata
             version: 1,
             extra_data: vec![],

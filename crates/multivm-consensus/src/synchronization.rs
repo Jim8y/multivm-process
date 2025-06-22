@@ -630,13 +630,14 @@ impl BlockSyncManager {
     async fn wait_for_response(&self, request_id: &str) -> Result<SyncResponse, BlockSyncError> {
         // In production deployment, responses are handled through the P2P network
         // The P2P layer routes responses back through the response receiver channel
-        
+
         if let Some(receiver) = &self.response_receiver {
             let timeout = tokio::time::timeout(
-                std::time::Duration::from_millis(self.config.sync_request_timeout_ms as u64),
-                receiver.write().await.recv()
-            ).await;
-            
+                std::time::Duration::from_millis(self.config.sync_request_timeout_ms),
+                receiver.write().await.recv(),
+            )
+            .await;
+
             match timeout {
                 Ok(Some(response)) => Ok(response),
                 Ok(None) => Err(BlockSyncError::ChannelClosed),

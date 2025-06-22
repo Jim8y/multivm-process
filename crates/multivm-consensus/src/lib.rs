@@ -45,7 +45,7 @@ pub use traits::{
 pub use malachite::{MalachiteConfig, MalachiteConsensus, ValidatorInfo};
 
 // Re-export cryptographic types
-pub use crypto::{ProductionSigningScheme, ValidatorPublicKey, ConsensusSignature};
+pub use crypto::{ConsensusSignature, ProductionSigningScheme, ValidatorPublicKey};
 
 // Re-export fork detection types
 pub use fork_detection::{

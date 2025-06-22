@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 pub mod block_generator;
-pub mod consensus_block_generator;
 pub mod block_router;
+pub mod consensus_block_generator;
 pub mod coordinator;
 pub mod health;
 pub mod ipc;
@@ -15,8 +15,8 @@ pub mod resource_monitor;
 mod block_router_tests;
 
 pub use block_generator::*;
-pub use consensus_block_generator::*;
 pub use block_router::*;
+pub use consensus_block_generator::*;
 pub use coordinator::{
     CoordinatorConfig, CoordinatorState, MultivmCoordinator,
     SystemHealthStatus as CoordinatorHealthStatus, SystemMetrics,

@@ -60,9 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get node configuration from environment
     let node_id = std::env::var("NODE_ID").unwrap_or_else(|_| "single-node".to_string());
-    let validator_key = std::env::var("VALIDATOR_KEY").unwrap_or_else(|_| "single-validator-key".to_string());
-    let is_bootstrap = std::env::var("NODE_TYPE").unwrap_or_else(|_| "bootstrap".to_string()) == "bootstrap";
-    
+    let validator_key =
+        std::env::var("VALIDATOR_KEY").unwrap_or_else(|_| "single-validator-key".to_string());
+    let is_bootstrap =
+        std::env::var("NODE_TYPE").unwrap_or_else(|_| "bootstrap".to_string()) == "bootstrap";
+
     // Configure validators for single node consensus
     let validators = if is_bootstrap {
         // For single node, we need at least one validator
@@ -73,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         vec![]
     };
-    
+
     let validator_count = validators.len();
 
     // Create coordinator configuration with proper consensus setup
@@ -117,10 +119,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .parse()
             .unwrap_or(true),
     };
-    
+
     let block_interval = block_gen_config.block_interval_ms;
 
-    let block_generator = ConsensusBlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
+    let block_generator =
+        ConsensusBlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
 
     // Start block generator in background
     let generator_handle = {
@@ -131,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
     };
-    
+
     info!("MultiVM Node is running with consensus block generation...");
     info!("Node ID: {}", node_id);
     info!("Validator count: {}", validator_count);

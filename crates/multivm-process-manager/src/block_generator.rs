@@ -186,13 +186,13 @@ impl BlockGenerator {
             height,
             timestamp: SystemTime::now(),
             previous_hash: if height > 1 {
-                format!("block_hash_{}", height - 1).into()
+                format!("block_hash_{}", height - 1)
             } else {
-                "genesis".to_string().into()
+                "genesis".to_string()
             },
-            state_root: format!("state_root_{}", height).into(),
-            transactions_root: format!("tx_root_{}", height).into(),
-            proposer: "mock_validator".to_string().into(),
+            state_root: format!("state_root_{}", height),
+            transactions_root: format!("tx_root_{}", height),
+            proposer: "mock_validator".to_string(),
             consensus_data: vec![],
             version: 1,
             extra_data: vec![],

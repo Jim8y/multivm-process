@@ -4,8 +4,8 @@
 //! for testing the MultiVM system.
 
 use multivm_common::{
-    BlockchainType, EngineState, HealthStatus, ProcessId, RpcResponse,
     ipc::{IpcCommand, IpcMessage, IpcResponse},
+    BlockchainType, EngineState, HealthStatus, ProcessId, RpcResponse,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting mock Solana process");
 
     let socket_path = "/tmp/multivm-solana.sock";
-    
+
     // Remove existing socket
     if Path::new(socket_path).exists() {
         std::fs::remove_file(socket_path)?;
@@ -128,16 +128,16 @@ async fn handle_connection(
     }
 }
 
-async fn process_command(
-    command: IpcCommand,
-    state: &Arc<RwLock<MockSolanaState>>,
-) -> IpcResponse {
+async fn process_command(command: IpcCommand, state: &Arc<RwLock<MockSolanaState>>) -> IpcResponse {
     match command {
         IpcCommand::HealthCheck => {
             info!("Mock Solana health check");
             IpcResponse::HealthCheck
         }
-        IpcCommand::Shutdown { graceful: _, timeout: _ } => {
+        IpcCommand::Shutdown {
+            graceful: _,
+            timeout: _,
+        } => {
             info!("Mock Solana shutting down");
             IpcResponse::Ack
         }
@@ -158,14 +158,18 @@ async fn process_command(
             };
             IpcResponse::Health { status: health }
         }
-        IpcCommand::ProcessBlock { block_data_bytes, blockchain_type: _, expect_response: _ } => {
+        IpcCommand::ProcessBlock {
+            block_data_bytes,
+            blockchain_type: _,
+            expect_response: _,
+        } => {
             let mut state = state.write().await;
-            
+
             info!("Processing SVM block ({} bytes)", block_data_bytes.len());
 
             // Simulate processing
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-            
+
             state.blocks_processed += 1;
             state.transactions_processed += 3; // Mock 3 transactions per block
             state.latest_block_hash = format!("{:064x}", state.blocks_processed);
@@ -182,7 +186,10 @@ async fn process_command(
 
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
 
-            info!("SVM block {} processed successfully", state.blocks_processed);
+            info!(
+                "SVM block {} processed successfully",
+                state.blocks_processed
+            );
 
             IpcResponse::BlockProcessed {
                 result_bytes,
@@ -203,17 +210,18 @@ async fn process_command(
                 data_directory: "/tmp/mock-solana".to_string(),
                 chain_id: 103,
             };
-            IpcResponse::State { state: engine_state }
-        }
-        IpcCommand::Ping => {
-            IpcResponse::Pong
-        }
-        IpcCommand::RequestNextBlock { current_block: _, blockchain_type: _ } => {
-            IpcResponse::NextBlock {
-                block_data_bytes: None,
-                blockchain_type: None,
+            IpcResponse::State {
+                state: engine_state,
             }
         }
+        IpcCommand::Ping => IpcResponse::Pong,
+        IpcCommand::RequestNextBlock {
+            current_block: _,
+            blockchain_type: _,
+        } => IpcResponse::NextBlock {
+            block_data_bytes: None,
+            blockchain_type: None,
+        },
         IpcCommand::RpcCall { call } => {
             let response = RpcResponse {
                 result: Some(serde_json::json!({
