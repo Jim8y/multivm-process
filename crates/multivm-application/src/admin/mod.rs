@@ -91,32 +91,32 @@ pub async fn create_app(state: Arc<ApplicationState>) -> ApplicationResult<Route
 
 /// Admin dashboard
 async fn admin_dashboard(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/static/admin/dashboard.html").to_string())
+    Html(include_str!("../../../../docs/assets/web/static/admin/dashboard.html").to_string())
 }
 
 /// Nodes management page
 async fn nodes_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/static/admin/nodes.html").to_string())
+    Html(include_str!("../../../../docs/assets/web/static/admin/nodes.html").to_string())
 }
 
 /// Transactions page
 async fn transactions_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/static/admin/transactions.html").to_string())
+    Html(include_str!("../../../../docs/assets/web/static/admin/transactions.html").to_string())
 }
 
 /// Accounts page
 async fn accounts_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/static/admin/accounts.html").to_string())
+    Html(include_str!("../../../../docs/assets/web/static/admin/accounts.html").to_string())
 }
 
 /// System page
 async fn system_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/static/admin/system.html").to_string())
+    Html(include_str!("../../../../docs/assets/web/static/admin/system.html").to_string())
 }
 
 /// Logs page
 async fn logs_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../assets/static/admin/logs.html").to_string())
+    Html(include_str!("../../../../docs/assets/web/static/admin/logs.html").to_string())
 }
 
 // API Handlers
