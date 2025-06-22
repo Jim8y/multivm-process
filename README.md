@@ -2,8 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](LICENSE)
-[![Build Status](https://github.com/vm-multiverse/multivm/actions/workflows/ci.yml/badge.svg)](https://github.com/vm-multiverse/multivm/actions)
-[![Test Status](https://github.com/vm-multiverse/multivm/actions/workflows/test.yml/badge.svg)](https://github.com/vm-multiverse/multivm/actions)
+[![CI Status](https://github.com/vm-multiverse/multivm/actions/workflows/ci.yml/badge.svg)](https://github.com/vm-multiverse/multivm/actions)
 [![Status](https://img.shields.io/badge/status-heavy%20development-yellow.svg)](#development-status)
 
 **MultiVM Process** is an innovative blockchain execution system in heavy development that unifies Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM) under a single consensus mechanism using [Malachite consensus](https://github.com/informalsystems/malachite).
