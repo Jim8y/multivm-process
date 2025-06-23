@@ -13,7 +13,7 @@ pub enum P2PError {
     PeerNotFound { peer_id: String },
 
     #[error("Invalid message format: {reason}")]
-    InvalidMessage { reason: String },
+    InvalidMessageFormat { reason: String },
 
     #[error("Protocol error: {protocol} - {message}")]
     ProtocolError { protocol: String, message: String },
@@ -46,7 +46,7 @@ pub enum P2PError {
     InsufficientPeers { required: usize, available: usize },
 
     #[error("Message too large: {size} bytes exceeds limit {limit}")]
-    MessageTooLarge { size: usize, limit: usize },
+    MessageTooLargeWithLimit { size: usize, limit: usize },
 
     #[error("Unsupported protocol version: {version}")]
     UnsupportedProtocol { version: String },
@@ -54,8 +54,29 @@ pub enum P2PError {
     #[error("Authentication failed for peer: {peer_id}")]
     AuthenticationFailed { peer_id: String },
 
-    #[error("Rate limit exceeded for peer: {peer_id}")]
-    RateLimitExceeded { peer_id: String },
+    #[error("Rate limit exceeded: {0}")]
+    RateLimitExceeded(String),
+
+    #[error("Message too large: {0} bytes")]
+    MessageTooLarge(usize),
+
+    #[error("Invalid message: {0}")]
+    InvalidMessage(String),
+
+    #[error("Message expired: age {0:?}")]
+    MessageExpired(std::time::Duration),
+
+    #[error("Replay attack detected from peer {0} with nonce {1}")]
+    ReplayAttack(libp2p::PeerId, u64),
+
+    #[error("Unknown peer: {0}")]
+    UnknownPeer(libp2p::PeerId),
+
+    #[error("Invalid signature from peer: {0}")]
+    InvalidSignature(libp2p::PeerId),
+
+    #[error("Unauthorized peer: {0}")]
+    UnauthorizedPeer(libp2p::PeerId),
 
     #[error("Serialization error: {message}")]
     Serialization { message: String },
@@ -135,9 +156,7 @@ impl P2PError {
 
     /// Create an invalid message error
     pub fn invalid_message(reason: impl Into<String>) -> Self {
-        Self::InvalidMessage {
-            reason: reason.into(),
-        }
+        Self::InvalidMessage(reason.into())
     }
 
     /// Create a timeout error
@@ -152,7 +171,7 @@ impl P2PError {
             P2PError::ConnectionError { .. }
                 | P2PError::TimeoutError { .. }
                 | P2PError::InsufficientPeers { .. }
-                | P2PError::RateLimitExceeded { .. }
+                | P2PError::RateLimitExceeded(_)
                 | P2PError::TransportError { .. }
                 | P2PError::DiscoveryError { .. }
         )
@@ -164,7 +183,8 @@ impl P2PError {
             self,
             P2PError::ConfigurationError { .. }
                 | P2PError::UnsupportedProtocol { .. }
-                | P2PError::InvalidMessage { .. }
+                | P2PError::InvalidMessageFormat { .. }
+                | P2PError::InvalidMessage(_)
                 | P2PError::Serialization { .. }
         )
     }
@@ -174,7 +194,8 @@ impl P2PError {
         match self {
             P2PError::ConnectionError { .. } => "connection",
             P2PError::PeerNotFound { .. } => "peer",
-            P2PError::InvalidMessage { .. } => "message",
+            P2PError::InvalidMessageFormat { .. } => "message",
+            P2PError::InvalidMessage(_) => "message",
             P2PError::ProtocolError { .. } => "protocol",
             P2PError::TransportError { .. } => "transport",
             P2PError::DiscoveryError { .. } => "discovery",
@@ -184,16 +205,22 @@ impl P2PError {
             P2PError::NetworkNotStarted => "lifecycle",
             P2PError::NetworkAlreadyStarted => "lifecycle",
             P2PError::InsufficientPeers { .. } => "peers",
-            P2PError::MessageTooLarge { .. } => "message",
+            P2PError::MessageTooLargeWithLimit { .. } => "message",
+            P2PError::MessageTooLarge(_) => "message",
             P2PError::UnsupportedProtocol { .. } => "protocol",
             P2PError::AuthenticationFailed { .. } => "auth",
-            P2PError::RateLimitExceeded { .. } => "rate_limit",
+            P2PError::RateLimitExceeded(_) => "rate_limit",
             P2PError::Serialization { .. } => "serialization",
             P2PError::Io { .. } => "io",
             P2PError::Libp2p { .. } => "libp2p",
             P2PError::ProtocolTranslation(_) => "protocol_translation",
             P2PError::Internal(_) => "internal",
             P2PError::Transport(_) => "transport",
+            P2PError::MessageExpired(_) => "message",
+            P2PError::ReplayAttack(_, _) => "security",
+            P2PError::UnknownPeer(_) => "peer",
+            P2PError::InvalidSignature(_) => "security",
+            P2PError::UnauthorizedPeer(_) => "security",
         }
     }
 }

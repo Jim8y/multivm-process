@@ -1,6 +1,7 @@
 [package]
 name = "multivm-account-mapping"
 version.workspace = true
+authors = ["MultiVM Contributors"]
 edition.workspace = true
 license.workspace = true
 description = "Account mapping layer for MultiVM cross-VM account management"
@@ -33,9 +34,10 @@ tracing = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true }
 blake3 = { workspace = true }
-ed25519-dalek = { version = "2.0", features = ["serde"] }
+ed25519-dalek = { workspace = true, features = ["serde"] }
 k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 rand = { workspace = true }
+uuid = { workspace = true }
 
 # Ethereum primitives
 alloy-primitives = { workspace = true }
@@ -47,6 +49,8 @@ solana-sdk = { workspace = true }
 chrono = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
+bs58 = { workspace = true }
+reqwest = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

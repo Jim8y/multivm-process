@@ -132,6 +132,8 @@ mod tests {
             mac: vec![0u8; 32],                       // Mock MAC
             timestamp: SystemTime::now(),
             nonce: vec![0u8; 12], // Mock nonce
+            message_id: "test-message-id".to_string(),
+            sequence_number: 1,
         };
 
         // Verify fields

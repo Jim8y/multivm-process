@@ -1,6 +1,8 @@
 [package]
 name = "solana-execution-engine"
 version.workspace = true
+authors = ["MultiVM Contributors"]
+description = "Solana execution engine integration for MultiVM"
 edition.workspace = true
 license.workspace = true
 

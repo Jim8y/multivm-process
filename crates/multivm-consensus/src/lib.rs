@@ -20,6 +20,7 @@ pub mod manager;
 pub mod messages;
 pub mod metrics;
 pub mod network_recovery;
+pub mod process_integration;
 pub mod state;
 pub mod synchronization;
 pub mod traits;
@@ -43,6 +44,12 @@ pub use traits::{
 
 // Re-export Malachite consensus implementation
 pub use malachite::{MalachiteConfig, MalachiteConsensus, ValidatorInfo};
+
+// Re-export process integration types
+pub use process_integration::{
+    ExecutionState, ExecutionStats, ProcessConsensusConfig, ProcessConsensusCoordinator,
+    ProcessConsensusMetrics, ProcessExecutionConfig,
+};
 
 // Re-export cryptographic types
 pub use crypto::{ConsensusSignature, ProductionSigningScheme, ValidatorPublicKey};

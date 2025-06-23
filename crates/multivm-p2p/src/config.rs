@@ -19,6 +19,10 @@ pub struct P2PConfig {
     pub security: SecurityConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
+    /// Rate limiting configuration (alias for security.rate_limiting)
+    pub rate_limiting: RateLimitConfig,
+    /// Authentication configuration (alias for security.authentication)
+    pub auth: AuthConfig,
 }
 
 /// Network layer configuration
@@ -42,6 +46,8 @@ pub struct NetworkConfig {
     pub enable_relay: bool,
     /// Enable AutoNAT
     pub enable_autonat: bool,
+    /// Maximum message size in bytes
+    pub max_message_size: usize,
 }
 
 /// Transport layer configuration
@@ -246,7 +252,7 @@ pub enum AuthMethod {
 }
 
 /// Firewall configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FirewallConfig {
     /// Enable firewall
     pub enabled: bool,
@@ -258,6 +264,19 @@ pub struct FirewallConfig {
     pub allowed_ips: Vec<String>,
     /// Blocked IP ranges
     pub blocked_ips: Vec<String>,
+    /// Default firewall policy
+    pub default_policy: FirewallPolicy,
+}
+
+/// Firewall policy enum
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FirewallPolicy {
+    /// Allow all by default, block specific
+    Allow,
+    /// Block all by default, allow specific
+    Block,
+    /// Custom policy
+    Custom,
 }
 
 /// Logging configuration
@@ -311,6 +330,7 @@ impl Default for NetworkConfig {
             enable_nat_traversal: true,
             enable_relay: false,
             enable_autonat: true,
+            max_message_size: 1024 * 1024, // 1MB
         }
     }
 }
@@ -457,6 +477,19 @@ impl Default for AuthConfig {
             method: AuthMethod::None,
             trusted_peers: vec![],
             timeout: Duration::from_secs(30),
+        }
+    }
+}
+
+impl Default for FirewallConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            allowlist: vec![],
+            blocklist: vec![],
+            allowed_ips: vec![],
+            blocked_ips: vec![],
+            default_policy: FirewallPolicy::Allow,
         }
     }
 }

@@ -965,6 +965,114 @@ enable_pci_compliance = false      # Enable if handling payment data
 data_retention_period = "7y"       # Adjust based on requirements
 ```
 
+## Concurrency Security
+
+### Lock Ordering Protocol
+
+Prevent deadlocks with hierarchical lock ordering:
+
+```rust
+pub enum LockLevel {
+    CoordinatorState = 1,      // Highest level - acquire first
+    Processes = 2,
+    AccountMappings = 3,
+    CrossVmTransfers = 4,
+    ConnectionPools = 5,
+    TransactionQueues = 6,     // Lowest level - acquire last
+}
+
+pub async fn acquire_locks_safely<T>(
+    lock1: &RwLock<T>,
+    lock1_level: LockLevel,
+    lock2: &RwLock<T>,
+    lock2_level: LockLevel
+) -> Result<(RwLockWriteGuard<T>, RwLockWriteGuard<T>)> {
+    // Always acquire locks in order of their level
+    if lock1_level as u8 <= lock2_level as u8 {
+        let guard1 = lock1.write().await;
+        let guard2 = lock2.write().await;
+        Ok((guard1, guard2))
+    } else {
+        let guard2 = lock2.write().await;
+        let guard1 = lock1.write().await;
+        Ok((guard1, guard2))
+    }
+}
+```
+
+### Two-Phase Commit for Cross-VM Transactions
+
+Atomic cross-VM transactions with rollback support:
+
+```rust
+pub struct AtomicTransactionCoordinator {
+    active_transactions: Arc<RwLock<HashMap<TransactionId, AtomicTransaction>>>,
+    process_engines: Arc<ProcessEngineRegistry>,
+}
+
+impl AtomicTransactionCoordinator {
+    pub async fn execute_cross_vm_transaction(
+        &self,
+        tx: CrossVmTransaction
+    ) -> Result<TransactionReceipt> {
+        let tx_id = self.generate_transaction_id();
+        
+        // Phase 1: Prepare
+        let prepare_results = self.prepare_phase(&tx_id, &tx).await?;
+        
+        // Check if all participants voted to commit
+        if prepare_results.iter().all(|r| r.can_commit) {
+            // Phase 2: Commit
+            self.commit_phase(&tx_id, &tx).await?
+        } else {
+            // Phase 2: Rollback
+            self.rollback_phase(&tx_id, &tx).await?;
+            return Err(TransactionError::PrepareFailed);
+        }
+        
+        Ok(TransactionReceipt {
+            id: tx_id,
+            status: TransactionStatus::Committed,
+            timestamp: SystemTime::now(),
+        })
+    }
+}
+```
+
+## Security Improvements Summary
+
+### Recent Security Enhancements
+
+1. **Authentication Enhancement**:
+   - JWT tokens now use 256-bit entropy (fixed weak token generation)
+   - Added nonce-based replay protection
+   - Implemented automatic token rotation
+
+2. **Rate Limiting Improvements**:
+   - Added per-peer rate limiting with governor crate
+   - Implemented global rate limits
+   - Added message size validation
+
+3. **Cryptographic Enhancements**:
+   - Added replay protection to signature verification
+   - Implemented sequence number tracking
+   - Added nonce expiry mechanism
+
+4. **Concurrency Security**:
+   - Implemented lock ordering protocol to prevent deadlocks
+   - Fixed race conditions in process management
+   - Added timeout mechanisms for lock acquisition
+
+5. **Input Validation**:
+   - Comprehensive sanitization preventing injection attacks
+   - Field length limits
+   - Special character restrictions
+
+6. **P2P Security**:
+   - Ed25519 signatures on all messages
+   - Message authentication and validation
+   - Transport encryption with Noise protocol option
+
 ---
 
 Next: [Deployment Guide](DEPLOYMENT.md) | [Monitoring Guide](MONITORING.md)

@@ -1,6 +1,7 @@
 [package]
 name = "multivm-p2p"
 version.workspace = true
+authors = ["MultiVM Contributors"]
 edition.workspace = true
 license.workspace = true
 description = "P2P networking layer for MultiVM unified network interface"
@@ -54,6 +55,11 @@ tracing = { workspace = true }
 # Cryptography
 sha2 = { workspace = true }
 rand = { workspace = true }
+ed25519-dalek.workspace = true
+
+# Rate limiting
+governor.workspace = true
+nonzero_ext.workspace = true
 
 # Time and utilities
 chrono = { workspace = true }
@@ -61,7 +67,7 @@ uuid = { workspace = true }
 
 # Additional networking utilities
 bytes = "1.0"
-hex = "0.4"
+hex.workspace = true
 
 # Metrics (optional)
 prometheus = { version = "0.13", optional = true }

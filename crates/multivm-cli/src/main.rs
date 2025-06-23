@@ -1,14 +1,17 @@
 use clap::{Arg, Command};
-use multivm_common::config::MultivmConfig;
+use multivm_common::config::{MultivmConfig, MultivmUnifiedConfig};
 use multivm_consensus::{MalachiteConfig, ValidatorInfo};
 use multivm_process_manager::{
     ConsensusBlockGenerator, ConsensusBlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::info;
+
+mod config_migration;
+mod validation;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,6 +42,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .help("Log level (trace, debug, info, warn, error)")
                 .default_value("info"),
         )
+        .arg(
+            Arg::new("migrate-config")
+                .long("migrate-config")
+                .help("Migrate existing configuration to unified schema and exit")
+                .action(clap::ArgAction::SetTrue),
+        )
         .get_matches();
 
     // Initialize logging
@@ -47,23 +56,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Starting MultiVM Node...");
 
-    // Parse configuration
-    let config_path = PathBuf::from(matches.get_one::<String>("config").unwrap());
-    let data_dir = PathBuf::from(matches.get_one::<String>("data-dir").unwrap());
+    // Parse and validate configuration paths
+    let config_path_str = matches.get_one::<String>("config").unwrap();
+    let data_dir_str = matches.get_one::<String>("data-dir").unwrap();
+
+    let config_path = validation::validate_file_path(config_path_str, "configuration file")?;
+    let data_dir = validation::validate_file_path(data_dir_str, "data directory")?;
 
     info!("Configuration file: {:?}", config_path);
     info!("Data directory: {:?}", data_dir);
 
-    // Load configuration from file
-    let _config = load_config(&config_path).await?;
+    // Validate config file safety if it exists
+    if config_path.exists() {
+        validation::validate_config_file_safety(&config_path)?;
+    }
+
+    // Check if user wants to migrate configuration and exit
+    if matches.get_flag("migrate-config") {
+        return handle_config_migration(&config_path).await;
+    }
+
+    // Validate validator count for security
+    validation::validate_validator_count(1)?; // Single node for now
+
+    // Load and migrate configuration
+    let migration_result = config_migration::load_and_migrate_config(&config_path).await?;
+    let _unified_config = migration_result.config;
+
+    // Display any migration warnings
+    for warning in &migration_result.warnings {
+        tracing::warn!("Config migration: {}", warning);
+    }
+
     info!("Configuration loaded successfully");
 
-    // Get node configuration from environment
-    let node_id = std::env::var("NODE_ID").unwrap_or_else(|_| "single-node".to_string());
-    let validator_key =
+    // Get and validate node configuration from environment
+    let node_id_raw = std::env::var("NODE_ID").unwrap_or_else(|_| "single-node".to_string());
+    let node_id = validation::validate_node_id(&node_id_raw)?;
+
+    let validator_key_raw =
         std::env::var("VALIDATOR_KEY").unwrap_or_else(|_| "single-validator-key".to_string());
-    let is_bootstrap =
-        std::env::var("NODE_TYPE").unwrap_or_else(|_| "bootstrap".to_string()) == "bootstrap";
+    let validator_key = validation::validate_env_var("VALIDATOR_KEY", &validator_key_raw)?;
+
+    let node_type_raw = std::env::var("NODE_TYPE").unwrap_or_else(|_| "bootstrap".to_string());
+    let node_type = validation::validate_env_var("NODE_TYPE", &node_type_raw)?;
+    let is_bootstrap = node_type == "bootstrap";
 
     // Configure validators for single node consensus
     let validators = if is_bootstrap {
@@ -120,7 +157,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(true),
     };
 
-    let block_interval = block_gen_config.block_interval_ms;
+    // Validate block interval for security
+    let validated_interval =
+        validation::validate_block_interval(block_gen_config.block_interval_ms as u64)?;
+    let block_interval = validated_interval;
 
     let block_generator =
         ConsensusBlockGenerator::new(block_gen_config, Arc::clone(&coordinator_arc));
@@ -178,6 +218,8 @@ fn setup_logging(level: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// Legacy configuration loading functions (kept for reference)
+#[allow(dead_code)]
 async fn load_config(config_path: &PathBuf) -> Result<MultivmConfig, Box<dyn std::error::Error>> {
     if config_path.exists() {
         let config_str = tokio::fs::read_to_string(config_path).await?;
@@ -187,4 +229,76 @@ async fn load_config(config_path: &PathBuf) -> Result<MultivmConfig, Box<dyn std
         info!("Configuration file not found, using defaults");
         Ok(MultivmConfig::default())
     }
+}
+
+#[allow(dead_code)]
+async fn load_unified_config(
+    config_path: &PathBuf,
+) -> Result<MultivmUnifiedConfig, Box<dyn std::error::Error>> {
+    if config_path.exists() {
+        // Try to load as unified config first
+        let config_str = tokio::fs::read_to_string(config_path).await?;
+
+        // First try parsing as unified config
+        match toml::from_str::<MultivmUnifiedConfig>(&config_str) {
+            Ok(config) => {
+                info!("Loaded unified configuration schema");
+                Ok(config)
+            }
+            Err(e) => {
+                info!("Failed to parse as unified config, using defaults: {}", e);
+                info!("Consider migrating to the unified configuration schema");
+                Ok(MultivmUnifiedConfig::default())
+            }
+        }
+    } else {
+        info!("Configuration file not found, using unified defaults");
+        Ok(MultivmUnifiedConfig::default())
+    }
+}
+
+async fn handle_config_migration(config_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    println!("🔄 Starting configuration migration...");
+
+    let migration_result = config_migration::load_and_migrate_config(config_path).await?;
+
+    // Display warnings
+    if !migration_result.warnings.is_empty() {
+        println!("⚠️  Migration warnings:");
+        for warning in &migration_result.warnings {
+            println!("   • {}", warning);
+        }
+        println!();
+    }
+
+    // Generate output filename
+    let unified_config_path = if config_path.exists() {
+        config_path.with_file_name("multivm-unified.toml")
+    } else {
+        PathBuf::from("multivm-unified.toml")
+    };
+
+    // Save migrated configuration
+    config_migration::save_unified_config(&migration_result.config, &unified_config_path).await?;
+
+    println!("✅ Configuration migration completed!");
+    println!(
+        "📄 Unified configuration saved to: {:?}",
+        unified_config_path
+    );
+
+    // Generate migration report
+    let report = config_migration::generate_migration_report(config_path, &unified_config_path)?;
+    let report_path = unified_config_path.with_file_name("migration-report.md");
+    tokio::fs::write(&report_path, report).await?;
+
+    println!("📋 Migration report saved to: {:?}", report_path);
+    println!();
+    println!("🚀 Next steps:");
+    println!("   1. Review the generated unified configuration");
+    println!("   2. Update your deployment to use the new config file");
+    println!("   3. Set required environment variables for sensitive data");
+    println!("   4. Test the configuration in your development environment");
+
+    Ok(())
 }

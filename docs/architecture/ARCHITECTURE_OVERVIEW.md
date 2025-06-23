@@ -2,14 +2,15 @@
 
 ## Executive Summary
 
-The **MultiVM** project implements a revolutionary blockchain architecture that simultaneously supports both **Solana Virtual Machine (SVM)** and **Ethereum Virtual Machine (EVM)** within a unified consensus framework. Rather than building these virtual machines from scratch, we leverage existing production-grade implementations (Solana nodes and Reth nodes) as execution engines while providing a sophisticated coordination layer.
+The **MultiVM** project implements a revolutionary blockchain architecture that coordinates **Solana Virtual Machine (SVM)** and **Ethereum Virtual Machine (EVM)** processes within a unified consensus framework. MultiVM acts as a process coordinator that orchestrates external Solana validator and Reth node processes, delegating actual transaction execution to these production-grade implementations while providing sophisticated coordination, consensus, and cross-VM functionality.
 
 ## Core Design Principles
 
-### 🎯 **Reuse Over Rebuild**
-- Integrate actual Solana and Reth node processes as execution engines
-- Disable their native P2P and consensus mechanisms
-- Retain full execution capabilities and compatibility
+### 🎯 **Process Coordination Model**
+- MultiVM orchestrates external Solana and Reth processes
+- Delegates transaction execution to specialized engines
+- Disables native P2P and consensus in favor of unified coordination
+- Maintains full execution compatibility with existing chains
 
 ### 🔗 **Unified Coordination**
 - Single consensus mechanism for both SVM and EVM transactions
@@ -35,10 +36,12 @@ The **MultiVM** project implements a revolutionary blockchain architecture that 
 ├─────────────────────────────────────────────────────────────┤
 │                MultiVM Execution Layer                      │
 ├─────────────────────────────────────────────────────────────┤
-│              SVM+EVM Execution Layer                        │
+│            Process Execution Coordinator                    │
+├─────────────────────────────────────────────────────────────┤
+│              External Process Layer (OS-level)              │
 │   ┌─────────────────────┐ ┌─────────────────────┐          │
-│   │   Solana Node       │ │    Reth Node        │          │
-│   │   (P2P Disabled)    │ │   (P2P Disabled)    │          │
+│   │  Solana Validator   │ │    Reth Node        │          │
+│   │  (External Process) │ │ (External Process)  │          │
 │   └─────────────────────┘ └─────────────────────┘          │
 ├─────────────────────────────────────────────────────────────┤
 │                   Persistence Layer                         │
@@ -89,14 +92,15 @@ Optional: User binds Account B (other VM) → Result: A ↔ M ↔ B
 - Cryptographic proof maintenance for account relationships
 - Bidirectional address translation
 
-### 4. MultiVM Execution Layer
-**Responsibility**: Transaction routing and cross-VM coordination
+### 4. MultiVM Coordination Layer
+**Responsibility**: Process orchestration and cross-VM coordination
 
 **Core Functions**:
-- **Block Parsing**: Decompose unified blocks into VM-specific components
-- **Transaction Routing**: Direct transactions to appropriate execution engines
-- **State Coordination**: Maintain consistency across VM states
-- **Cross-VM Management**: Handle special MultiVM transactions
+- **Process Management**: Lifecycle control of external Solana/Reth processes
+- **Transaction Routing**: Direct transactions to appropriate external engines
+- **IPC Communication**: Secure inter-process communication with JWT authentication
+- **State Coordination**: Maintain consistency across VM processes
+- **Cross-VM Management**: Atomic transactions with two-phase commit protocol
 
 **Transaction Types**:
 1. **EVM Transactions**: Standard Ethereum transactions → Reth Engine

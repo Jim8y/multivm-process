@@ -1,0 +1,208 @@
+# MultiVM Unified Configuration Schema
+# This is the master configuration template that defines the standard structure
+# All environment-specific configs should follow this schema
+
+[system]
+# System-wide settings
+data_dir = "/opt/multivm/data"
+log_level = "info"
+log_format = "json"
+enable_metrics = true
+enable_tracing = true
+max_processes = 20
+process_restart_delay_seconds = 5
+health_check_interval_seconds = 30
+shutdown_timeout_seconds = 30
+
+[server]
+# REST API Server
+[server.rest]
+host = "0.0.0.0"
+port = 8080
+enable_cors = false
+request_timeout_seconds = 30
+max_request_size_bytes = 16777216  # 16MB
+enable_compression = true
+
+# GraphQL Server  
+[server.graphql]
+host = "0.0.0.0"
+port = 8081
+enable_playground = false
+query_timeout_seconds = 30
+query_complexity_limit = 1000
+enable_introspection = false
+
+# WebSocket Server
+[server.websocket]
+host = "0.0.0.0"
+port = 8082
+connection_timeout_seconds = 60
+max_connections = 1000
+ping_interval_seconds = 30
+
+# Admin Interface
+[server.admin]
+host = "127.0.0.1"  # Localhost only for security
+port = 8083
+enable_ui = false    # Disabled by default for security
+require_auth = true
+
+[database]
+# Database configuration - use connection URLs for consistency
+connection_url = "postgresql://multivm:multivm@localhost:5432/multivm"
+max_connections = 100
+min_connections = 10
+connection_timeout_seconds = 30
+query_timeout_seconds = 60
+enable_ssl = true
+migration_timeout_seconds = 300
+
+[cache]
+# Caching configuration
+strategy = "WriteThrough"  # Options: "WriteThrough", "WriteBack", "WriteAround"
+default_ttl_seconds = 300
+max_memory_bytes = 1073741824  # 1GB
+
+[cache.redis]
+connection_url = "redis://localhost:6379/0"
+key_prefix = "multivm:"
+connection_timeout_seconds = 5
+command_timeout_seconds = 10
+enable_cluster = false
+
+[cache.memory]
+max_items = 100000
+eviction_policy = "LRU"  # Options: "LRU", "LFU", "FIFO"
+
+[blockchain_clients]
+# Standardized client configuration
+[blockchain_clients.solana]
+rpc_url = "http://localhost:8899"
+timeout_seconds = 30
+max_retries = 3
+retry_backoff_seconds = 2
+enable_health_checks = true
+health_check_interval_seconds = 60
+
+[blockchain_clients.ethereum]
+rpc_url = "http://localhost:8545"
+timeout_seconds = 30
+max_retries = 3
+retry_backoff_seconds = 2
+enable_health_checks = true
+health_check_interval_seconds = 60
+
+[blockchain_clients.multivm]
+rpc_url = "http://localhost:9000"
+timeout_seconds = 30
+max_retries = 3
+retry_backoff_seconds = 2
+enable_health_checks = true
+health_check_interval_seconds = 60
+
+[consensus]
+# Consensus mechanism configuration
+algorithm = "malachite"
+block_time_milliseconds = 2000
+validator_count = 4
+enable_single_node = false
+finality_depth = 6
+max_block_size_bytes = 2097152  # 2MB
+
+[consensus.malachite]
+# Malachite-specific settings
+timeout_propose_milliseconds = 3000
+timeout_prevote_milliseconds = 1000
+timeout_precommit_milliseconds = 1000
+timeout_commit_milliseconds = 1000
+skip_timeout_commit = false
+
+[network]
+# P2P networking configuration
+enable_p2p = true
+listen_host = "0.0.0.0"
+listen_port = 26656
+external_address = ""  # Auto-detect if empty
+max_connections = 100
+connection_timeout_seconds = 10
+enable_upnp = false
+
+[network.discovery]
+enable_mdns = true
+enable_kad = true
+bootstrap_nodes = []  # List of multiaddresses
+
+[ipc]
+# Inter-process communication
+transport = "unix_socket"  # Options: "unix_socket", "tcp"
+socket_path = "/tmp/multivm.sock"
+tcp_host = "127.0.0.1"
+tcp_port = 9090
+timeout_milliseconds = 10000
+enable_encryption = true
+max_message_size_bytes = 16777216  # 16MB
+
+[security]
+# Security configuration
+enable_authentication = true
+enable_encryption = true
+enable_rate_limiting = true
+max_requests_per_minute = 1000
+jwt_expiration_hours = 24
+api_key_length = 32
+
+# Environment variables for sensitive data
+[security.secrets]
+jwt_secret_env = "MULTIVM_JWT_SECRET"
+database_password_env = "MULTIVM_DB_PASSWORD"
+redis_password_env = "MULTIVM_REDIS_PASSWORD"
+encryption_key_env = "MULTIVM_ENCRYPTION_KEY"
+
+[monitoring]
+# Monitoring and observability
+enable_prometheus = true
+prometheus_host = "0.0.0.0"
+prometheus_port = 9090
+enable_jaeger = true
+jaeger_endpoint = "http://localhost:14268/api/traces"
+service_name = "multivm"
+
+[monitoring.health_check]
+enable_endpoint = true
+host = "0.0.0.0"
+port = 8090
+path = "/health"
+
+[logging]
+# Logging configuration
+level = "info"  # Options: "trace", "debug", "info", "warn", "error"
+format = "json"  # Options: "json", "pretty", "compact"
+enable_file_logging = true
+log_directory = "/var/log/multivm"
+max_file_size_bytes = 104857600  # 100MB
+max_log_files = 10
+enable_log_rotation = true
+
+[execution_engines]
+# Mock processes for development
+enable_mock_solana = true
+enable_mock_ethereum = true
+
+[execution_engines.solana]
+binary_path = "/usr/local/bin/solana-validator"
+config_path = "/opt/multivm/solana/validator.json"
+data_dir = "/opt/multivm/data/solana"
+enable_rpc = true
+rpc_port = 8899
+
+[execution_engines.ethereum]
+binary_path = "/usr/local/bin/reth"
+config_path = "/opt/multivm/ethereum/reth.toml" 
+data_dir = "/opt/multivm/data/ethereum"
+enable_rpc = true
+rpc_port = 8545
+
+# Environment-specific overrides
+# These sections can be used in environment-specific config files
+# to override the defaults above while maintaining the same structure

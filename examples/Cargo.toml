@@ -3,6 +3,8 @@ name = "multivm-examples"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors = ["MultiVM Contributors"]
+description = "Example applications demonstrating MultiVM functionality"
 
 [[bin]]
 name = "account_mapping_demo"
@@ -19,6 +21,14 @@ path = "consensus_demo.rs"
 [[bin]]
 name = "end_to_end_demo"
 path = "end_to_end_demo.rs"
+
+[[bin]]
+name = "consensus_process_integration"
+path = "consensus_process_integration.rs"
+
+[[bin]]
+name = "mock_processes_demo"
+path = "mock_processes_demo.rs"
 
 [dependencies]
 # Core dependencies

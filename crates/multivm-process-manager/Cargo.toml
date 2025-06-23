@@ -1,6 +1,7 @@
 [package]
 name = "multivm-process-manager"
 version.workspace = true
+authors = ["MultiVM Contributors"]
 edition.workspace = true
 license.workspace = true
 description = "Process manager for multi-VM blockchain execution engines"

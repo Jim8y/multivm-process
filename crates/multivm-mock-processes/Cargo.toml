@@ -1,6 +1,8 @@
 [package]
 name = "multivm-mock-processes"
 version = { workspace = true }
+authors = ["MultiVM Contributors"]
+description = "Mock blockchain processes for MultiVM testing"
 edition = { workspace = true }
 license = { workspace = true }
 
@@ -22,4 +24,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
-hex = "0.4.3"
+hex.workspace = true
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true }

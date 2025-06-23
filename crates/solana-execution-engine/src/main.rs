@@ -6,6 +6,9 @@ mod engine;
 mod ipc_client;
 mod rpc_server;
 
+#[cfg(test)]
+mod engine_tests;
+
 use engine::{SolanaConfig, SolanaExecutionEngine};
 
 #[tokio::main]

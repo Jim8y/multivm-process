@@ -23,6 +23,9 @@ pub enum AccountMappingError {
     #[error("Cross-VM operation not supported: {operation}")]
     UnsupportedOperation { operation: String },
 
+    #[error("Unsupported account type: {account_type}")]
+    UnsupportedAccountType { account_type: String },
+
     #[error("Transfer failed: {reason}")]
     TransferFailed { reason: String },
 

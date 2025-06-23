@@ -73,6 +73,36 @@ Located in `tests/` directory:
 - System recovery after crashes
 - Performance under load
 
+#### Security Integration Tests
+- **P2P Security Tests** (`tests/p2p_security_test.rs`)
+  - Rate limiting protection
+  - Message authentication
+  - Replay attack prevention
+  - Message size validation
+  - Untrusted peer rejection
+  - Message integrity verification
+
+- **Concurrency Tests** (`tests/concurrency_test.rs`)
+  - Concurrent process restart
+  - Shutdown during registration
+  - Lock timeout handling
+  - Deadlock prevention
+  - Thread-safe operations
+
+- **IPC Integration Tests** (`tests/ipc_integration_test.rs`)
+  - Secure message transport
+  - Connection handling
+  - Message ordering
+  - Transport metrics
+  - Graceful shutdown
+
+- **Coordinator Reliability Tests** (`tests/coordinator_reliability_test.rs`)
+  - State management
+  - Process health monitoring
+  - Failure detection
+  - Recovery scenarios
+  - Cross-chain coordination
+
 ### 3. Performance Benchmarks
 
 Located in `benches/multivm_benchmarks.rs`:
@@ -113,6 +143,8 @@ cargo test
 cargo test -p multivm-consensus
 cargo test -p multivm-process-manager
 cargo test -p multivm-account-mapping
+cargo test -p reth-execution-engine
+cargo test -p solana-execution-engine
 ```
 
 #### Run integration tests only
@@ -121,9 +153,33 @@ cargo test --test integration_tests
 cargo test --test enhanced_integration_tests
 ```
 
+#### Run security tests
+```bash
+# All security tests
+cargo test --test p2p_security_test
+cargo test --test concurrency_test
+cargo test --test ipc_integration_test
+cargo test --test coordinator_reliability_test
+
+# Run all integration tests
+cargo test --test '*'
+```
+
 #### Run benchmarks
 ```bash
 cargo bench
+```
+
+#### Generate test coverage
+```bash
+# Install tarpaulin
+cargo install cargo-tarpaulin
+
+# Generate HTML coverage report
+cargo tarpaulin --out Html --output-dir coverage
+
+# View report
+open coverage/tarpaulin-report.html
 ```
 
 #### Run specific benchmark

@@ -31,7 +31,10 @@ pub mod error;
 pub mod messages;
 pub mod network;
 pub mod protocol;
+pub mod rate_limiter;
 pub mod routing;
+pub mod secure_network;
+pub mod security;
 pub mod transport;
 
 #[cfg(feature = "metrics")]

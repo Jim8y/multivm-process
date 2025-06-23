@@ -417,7 +417,7 @@ impl SpecialTransactionProcessor {
         }
 
         // Get binding information for validation
-        let from_binding = self
+        let mut from_binding = self
             .account_mapping
             .get_account_binding(&from_addresses[0])
             .await
@@ -517,7 +517,18 @@ impl SpecialTransactionProcessor {
                     });
                 }
             }
-            // Note: In a real implementation, we would update the usage counter here
+
+            // Update usage counter for rate limiting
+            if let Some(rate_limit) = from_binding.metadata.config.transfer_rate_limit.as_mut() {
+                rate_limit.current_usage += 1;
+                rate_limit.window_start = std::time::SystemTime::now();
+                tracing::debug!(
+                    "Updated transfer rate limit usage: {}/{} for account {}",
+                    rate_limit.current_usage,
+                    rate_limit.max_transfers,
+                    from
+                );
+            }
         }
         compute_units += 100;
 

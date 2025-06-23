@@ -84,6 +84,11 @@ eyre = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
 jsonrpsee = { version = "0.22", features = ["server", "http-client", "client", "macros"] }
 
+# Security and P2P dependencies
+ed25519-dalek = "2.1"
+governor = "0.6"
+nonzero_ext = "0.3"
+
 # Legacy JSON-RPC dependencies (for compatibility)
 jsonrpc-http-server = "18.0"
 jsonrpc-core = "18.0"
@@ -107,8 +112,6 @@ async-stream = "0.3"
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
 dashmap = "5.5"
-governor = "0.6"
-nonzero_ext = "0.3"
 prometheus = "0.13"
 metrics = "0.22"
 metrics-prometheus = "0.6"

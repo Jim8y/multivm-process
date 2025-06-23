@@ -1,6 +1,7 @@
 [package]
 name = "multivm-common"
 version.workspace = true
+authors = ["MultiVM Contributors"]
 edition.workspace = true
 license.workspace = true
 description = "Common types and traits for multi-VM blockchain processing"
@@ -26,6 +27,7 @@ bincode = { workspace = true }
 jsonwebtoken = { workspace = true }
 rand = { workspace = true }
 hmac = { workspace = true }
+uuid = { workspace = true }
 
 # Time handling
 chrono = { workspace = true }

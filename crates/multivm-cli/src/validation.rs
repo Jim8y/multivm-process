@@ -1,0 +1,248 @@
+use multivm_common::{MultivmError, MultivmResult};
+/// Input validation utilities for MultiVM CLI
+///
+/// This module provides comprehensive input validation to prevent
+/// security vulnerabilities like command injection, path traversal,
+/// and other attacks through CLI parameters.
+use std::path::{Path, PathBuf};
+
+/// Validate and sanitize a file path to prevent directory traversal attacks
+pub fn validate_file_path(path: &str, purpose: &str) -> MultivmResult<PathBuf> {
+    // Basic validation
+    if path.is_empty() {
+        return Err(MultivmError::Configuration(format!(
+            "Empty path provided for {}",
+            purpose
+        )));
+    }
+
+    // Check for obvious malicious patterns
+    if path.contains("..") || path.contains("~") {
+        return Err(MultivmError::Configuration(format!(
+            "Invalid path for {}: contains unsafe components",
+            purpose
+        )));
+    }
+
+    // Convert to PathBuf and canonicalize if it exists
+    let path_buf = PathBuf::from(path);
+
+    // For existing paths, canonicalize to resolve any remaining issues
+    if path_buf.exists() {
+        match path_buf.canonicalize() {
+            Ok(canonical) => Ok(canonical),
+            Err(e) => Err(MultivmError::Configuration(format!(
+                "Failed to canonicalize path for {}: {}",
+                purpose, e
+            ))),
+        }
+    } else {
+        // For non-existing paths, validate the parent directory if it exists
+        if let Some(parent) = path_buf.parent() {
+            if parent.exists() {
+                match parent.canonicalize() {
+                    Ok(canonical_parent) => {
+                        Ok(canonical_parent.join(path_buf.file_name().unwrap()))
+                    }
+                    Err(e) => Err(MultivmError::Configuration(format!(
+                        "Invalid parent directory for {}: {}",
+                        purpose, e
+                    ))),
+                }
+            } else {
+                Err(MultivmError::Configuration(format!(
+                    "Parent directory does not exist for {}",
+                    purpose
+                )))
+            }
+        } else {
+            Err(MultivmError::Configuration(format!(
+                "Invalid path structure for {}",
+                purpose
+            )))
+        }
+    }
+}
+
+/// Validate a node ID to ensure it's safe and follows expected patterns
+pub fn validate_node_id(node_id: &str) -> MultivmResult<String> {
+    if node_id.is_empty() {
+        return Err(MultivmError::Configuration(
+            "Node ID cannot be empty".to_string(),
+        ));
+    }
+
+    if node_id.len() > 64 {
+        return Err(MultivmError::Configuration(
+            "Node ID too long (max 64 characters)".to_string(),
+        ));
+    }
+
+    // Only allow alphanumeric characters, hyphens, and underscores
+    if !node_id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(MultivmError::Configuration(
+            "Node ID contains invalid characters (only alphanumeric, -, _ allowed)".to_string(),
+        ));
+    }
+
+    Ok(node_id.to_string())
+}
+
+/// Validate a port number
+#[allow(dead_code)]
+pub fn validate_port(port: u16, purpose: &str) -> MultivmResult<u16> {
+    match port {
+        0 => Err(MultivmError::Configuration(format!(
+            "Port 0 is not valid for {}",
+            purpose
+        ))),
+        1..=1023 => {
+            eprintln!(
+                "Warning: Using privileged port {} for {} (requires root)",
+                port, purpose
+            );
+            Ok(port)
+        }
+        1024..=65535 => Ok(port),
+    }
+}
+
+/// Validate block generation interval
+pub fn validate_block_interval(interval_ms: u64) -> MultivmResult<u64> {
+    match interval_ms {
+        0 => Err(MultivmError::Configuration(
+            "Block interval cannot be 0".to_string(),
+        )),
+        1..=100 => Err(MultivmError::Configuration(
+            "Block interval too fast (minimum 100ms)".to_string(),
+        )),
+        101..=3600000 => Ok(interval_ms), // 100ms to 1 hour
+        _ => Err(MultivmError::Configuration(
+            "Block interval too long (maximum 1 hour)".to_string(),
+        )),
+    }
+}
+
+/// Validate validator count
+pub fn validate_validator_count(count: usize) -> MultivmResult<usize> {
+    match count {
+        0 => Err(MultivmError::Configuration(
+            "Validator count cannot be 0".to_string(),
+        )),
+        1 => {
+            eprintln!("Warning: Single validator mode - only for development/testing");
+            Ok(count)
+        }
+        2..=1000 => Ok(count),
+        _ => Err(MultivmError::Configuration(
+            "Validator count too high (maximum 1000)".to_string(),
+        )),
+    }
+}
+
+/// Validate environment variables to prevent injection attacks
+pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String> {
+    // Check for suspicious characters that could be used for injection
+    let suspicious_chars = ['$', '`', ';', '|', '&', '>', '<', '\n', '\r'];
+
+    if var_value.chars().any(|c| suspicious_chars.contains(&c)) {
+        return Err(MultivmError::Configuration(format!(
+            "Environment variable {} contains suspicious characters",
+            var_name
+        )));
+    }
+
+    // Validate length
+    if var_value.len() > 1024 {
+        return Err(MultivmError::Configuration(format!(
+            "Environment variable {} is too long (max 1024 characters)",
+            var_name
+        )));
+    }
+
+    Ok(var_value.to_string())
+}
+
+/// Validate configuration file contents for basic safety
+pub fn validate_config_file_safety(config_path: &Path) -> MultivmResult<()> {
+    // Check file permissions (should not be world-writable)
+    let metadata = config_path.metadata().map_err(|e| {
+        MultivmError::Configuration(format!("Cannot read config file metadata: {}", e))
+    })?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let permissions = metadata.permissions();
+        let mode = permissions.mode();
+
+        // Check if world-writable (octal 002)
+        if mode & 0o002 != 0 {
+            return Err(MultivmError::Configuration(
+                "Config file is world-writable, which is a security risk".to_string(),
+            ));
+        }
+
+        // Check if group-writable (octal 020) and warn
+        if mode & 0o020 != 0 {
+            eprintln!("Warning: Config file is group-writable");
+        }
+    }
+
+    // Check file size (should be reasonable)
+    if metadata.len() > 1024 * 1024 {
+        // 1MB
+        return Err(MultivmError::Configuration(
+            "Config file is too large (max 1MB)".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use tempfile::TempDir;
+
+    #[test]
+    fn test_validate_file_path_traversal() {
+        assert!(validate_file_path("../etc/passwd", "config").is_err());
+        assert!(validate_file_path("~/secret", "config").is_err());
+        assert!(validate_file_path("", "config").is_err());
+    }
+
+    #[test]
+    fn test_validate_node_id() {
+        assert!(validate_node_id("valid-node_123").is_ok());
+        assert!(validate_node_id("invalid$node").is_err());
+        assert!(validate_node_id("").is_err());
+        assert!(validate_node_id(&"x".repeat(65)).is_err());
+    }
+
+    #[test]
+    fn test_validate_port() {
+        assert!(validate_port(8080, "test").is_ok());
+        assert!(validate_port(0, "test").is_err());
+        assert!(validate_port(80, "test").is_ok()); // Should warn but allow
+    }
+
+    #[test]
+    fn test_validate_block_interval() {
+        assert!(validate_block_interval(1000).is_ok());
+        assert!(validate_block_interval(0).is_err());
+        assert!(validate_block_interval(50).is_err());
+        assert!(validate_block_interval(4000000).is_err());
+    }
+
+    #[test]
+    fn test_validate_env_var() {
+        assert!(validate_env_var("TEST", "safe_value").is_ok());
+        assert!(validate_env_var("TEST", "unsafe;value").is_err());
+        assert!(validate_env_var("TEST", "unsafe$value").is_err());
+        assert!(validate_env_var("TEST", "unsafe`value").is_err());
+    }
+}

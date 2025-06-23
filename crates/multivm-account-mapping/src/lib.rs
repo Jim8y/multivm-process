@@ -17,22 +17,35 @@
 //! ```
 
 pub mod address;
+pub mod atomic_coordinator;
+pub mod cross_vm_coordinator;
 pub mod error;
+// TODO: Re-enable when IPC types are available in multivm-common
+// pub mod ipc_integration;
 pub mod mapping;
 pub mod special_tx;
 pub mod storage;
 pub mod validation;
+pub mod vm_engines;
 
 #[cfg(test)]
 mod validation_tests;
 
+// TODO: Re-enable when all dependencies are available
+// #[cfg(test)]
+// mod integration_tests;
+
 // Re-exports for public API
 pub use address::*;
+pub use atomic_coordinator::*;
+pub use cross_vm_coordinator::*;
 pub use error::*;
+// pub use ipc_integration::*;
 pub use mapping::*;
 pub use special_tx::*;
 pub use storage::*;
 pub use validation::*;
+pub use vm_engines::*;
 
 use multivm_common::MultivmResult;
 

@@ -1,4 +1,6 @@
 use crate::error::{ApplicationError, ApplicationResult};
+use hex;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -641,13 +643,21 @@ impl AuthConfig {
             }
             config.jwt_secret = jwt_secret;
         } else if config.jwt_secret == "your-jwt-secret-key-must-be-at-least-32-characters-long" {
-            // In production, we should never use the default secret
-            if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
+            // Production environments require proper JWT secret configuration
+            let env = std::env::var("RUST_ENV").unwrap_or_default();
+            if env == "production" || env == "prod" || env == "live" {
                 return Err(ApplicationError::ConfigurationError {
                     component: "auth".to_string(),
-                    message: "MULTIVM_JWT_SECRET environment variable must be set in production"
-                        .to_string(),
+                    message: "MULTIVM_JWT_SECRET environment variable must be set in production. Generate a cryptographically secure 256-bit key.".to_string(),
                 });
+            }
+
+            // Issue warning for non-production environments using default secret
+            if env != "test" && env != "development" {
+                tracing::warn!(
+                    "Using default JWT secret in environment '{}'. This is not recommended. Set MULTIVM_JWT_SECRET environment variable.",
+                    env
+                );
             }
         }
 
@@ -688,13 +698,21 @@ impl AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            jwt_secret: "your-jwt-secret-key-must-be-at-least-32-characters-long".to_string(),
+            jwt_secret: generate_secure_jwt_secret(),
             jwt_expiration: Duration::from_secs(3600), // 1 hour
             enable_api_keys: true,
             api_key_validation: ApiKeyValidation::Database,
             admin_api_key: None,
         }
     }
+}
+
+/// Generate a cryptographically secure JWT secret
+fn generate_secure_jwt_secret() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let secret: [u8; 32] = rng.gen();
+    hex::encode(secret)
 }
 
 impl Default for RateLimitingConfig {

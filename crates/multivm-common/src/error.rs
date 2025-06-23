@@ -33,6 +33,12 @@ pub enum MultivmError {
     #[error("Timeout error: operation timed out after {timeout:?}")]
     Timeout { timeout: std::time::Duration },
 
+    #[error("Lock timeout: failed to acquire lock '{lock_name}' after {timeout:?}")]
+    LockTimeout {
+        lock_name: String,
+        timeout: std::time::Duration,
+    },
+
     #[error("Resource limit exceeded: {resource} exceeded limit {limit}")]
     ResourceLimit { resource: String, limit: String },
 
@@ -128,6 +134,7 @@ impl MultivmError {
             MultivmError::Network(_) => ErrorCategory::Transient,
             MultivmError::Serialization(_) => ErrorCategory::Fatal,
             MultivmError::Timeout { .. } => ErrorCategory::Transient,
+            MultivmError::LockTimeout { .. } => ErrorCategory::Transient,
             MultivmError::ResourceLimit { .. } => ErrorCategory::Resource,
             MultivmError::InvalidState(_) => ErrorCategory::Fatal,
             MultivmError::UnsupportedOperation(_) => ErrorCategory::Configuration,

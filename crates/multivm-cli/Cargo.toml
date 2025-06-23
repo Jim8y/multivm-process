@@ -1,10 +1,10 @@
 [package]
 name = "multivm-cli"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 authors = ["Multi-VM Team"]
 description = "Command-line interface for multi-VM blockchain processing"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [[bin]]
 name = "multivm-node"
@@ -38,4 +38,4 @@ tracing-subscriber = { workspace = true }
 chrono = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.0" 
+tempfile.workspace = true 

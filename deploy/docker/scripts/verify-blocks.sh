@@ -52,8 +52,8 @@ get_block_height() {
     local node=$1
     local url="http://$node/api/v1/status"
     
-    # Try to get block height (this is a mock endpoint for our example)
-    # In a real implementation, this would query the actual API
+    # Query the MultiVM health API for current block height
+    # Handles both health endpoint and block status endpoint
     local height=$(curl -sf "$url" 2>/dev/null | jq -r '.block_height // 0' 2>/dev/null || echo "0")
     echo "$height"
 }

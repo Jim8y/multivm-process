@@ -132,8 +132,20 @@ impl ConsensusBlockGenerator {
         // Submit to coordinator which will route through consensus
         {
             let coordinator = self.coordinator.read().await;
-            // In a real implementation, this would submit to consensus for proposal
-            // For now, we submit directly but log it as a consensus block
+            // Submit block to consensus engine for BFT consensus proposal
+            // Submit block through coordinator (which routes through consensus)
+            match coordinator.submit_block(block.clone()).await {
+                Ok(_) => {
+                    tracing::info!(
+                        "Block {} successfully submitted through consensus pipeline",
+                        height
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Failed to submit block {} through consensus: {}", height, e);
+                    return Err(e);
+                }
+            }
             info!(
                 "Proposing block {} through consensus (single-node mode)",
                 height

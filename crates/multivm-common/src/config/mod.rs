@@ -4,16 +4,24 @@ pub mod logging;
 pub mod main;
 pub mod rpc;
 pub mod system;
+pub mod unified;
 
 use serde::{Deserialize, Serialize};
 
 // Re-export all config types for convenience
 pub use blockchain::*;
-pub use ipc::*;
-pub use logging::*;
 pub use main::*;
 pub use rpc::RpcConfig;
-pub use system::*;
+
+// Legacy config types (to maintain backward compatibility)
+pub use ipc::IpcConfig as LegacyIpcConfig;
+pub use ipc::IpcTransportConfig;
+pub use logging::LogLevel;
+pub use logging::LoggingConfig as LegacyLoggingConfig;
+pub use system::SystemConfig as LegacySystemConfig;
+
+// Unified config types (new schema)
+pub use unified::*;
 
 /// Blockchain configuration for a specific VM
 #[derive(Debug, Clone, Serialize, Deserialize)]

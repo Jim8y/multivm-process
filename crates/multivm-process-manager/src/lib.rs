@@ -7,6 +7,7 @@ pub mod coordinator;
 pub mod health;
 pub mod ipc;
 pub mod ipc_transport;
+pub mod lock_ordering;
 pub mod manager;
 pub mod process;
 pub mod resource_monitor;

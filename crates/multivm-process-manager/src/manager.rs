@@ -229,24 +229,23 @@ impl MultivmProcessManager {
     pub async fn restart_process(&self, process_id: ProcessId) -> MultivmResult<()> {
         tracing::info!("Restarting process: {}", process_id);
 
-        // Get the current process handle
-        let processes = self.inner.processes.read().await;
-        let handle = processes
-            .get(&process_id)
-            .cloned()
-            .ok_or_else(|| MultivmError::Process(format!("Process not found: {}", process_id)))?;
-        drop(processes);
+        // Use a transactional update to avoid race conditions
+        // Hold the write lock for the entire operation
+        let mut processes = self.inner.processes.write().await;
 
-        // Stop the current process
+        // Get and remove the current process handle atomically
+        let handle = processes
+            .remove(&process_id)
+            .ok_or_else(|| MultivmError::Process(format!("Process not found: {}", process_id)))?;
+
+        // Stop the current process (outside of the critical section if possible)
+        // But we need to maintain the lock to prevent concurrent modifications
         if let Err(e) = self
             .stop_process_internal(&handle, true, Some(Duration::from_secs(10)))
             .await
         {
             tracing::warn!("Failed to gracefully stop process {}: {}", process_id, e);
         }
-
-        // Remove the old handle
-        self.inner.processes.write().await.remove(&process_id);
 
         // Start a new instance
         let new_handle = match process_id {
@@ -267,6 +266,8 @@ impl MultivmProcessManager {
                 .await?
             }
             _ => {
+                // Re-insert the old handle on error
+                processes.insert(process_id, handle);
                 return Err(MultivmError::UnsupportedOperation(format!(
                     "Cannot restart process type: {}",
                     process_id
@@ -275,11 +276,10 @@ impl MultivmProcessManager {
         };
 
         // Store the new handle
-        self.inner
-            .processes
-            .write()
-            .await
-            .insert(process_id, new_handle);
+        processes.insert(process_id, new_handle);
+
+        // Release the lock before sending events
+        drop(processes);
 
         // Notify about successful restart
         if let Some(event_sender) = &self.inner.event_sender {
@@ -303,17 +303,21 @@ impl MultivmProcessManager {
             Some(Duration::from_secs(5))
         };
 
-        // Stop IPC server
+        // Stop IPC server first to prevent new connections
         if let Some(handle) = self.inner.ipc_server.lock().await.take() {
             handle.abort();
             let _ = handle.await;
         }
 
+        // Take ownership of all processes to prevent new registrations during shutdown
+        let mut processes = self.inner.processes.write().await;
+        let process_handles: Vec<(ProcessId, ProcessHandle)> = processes.drain().collect();
+        drop(processes); // Release lock early
+
         // Stop all engine processes
-        let processes = self.inner.processes.read().await;
-        for (process_id, handle) in processes.iter() {
+        for (process_id, handle) in process_handles {
             tracing::info!("Stopping {} process", process_id);
-            if let Err(e) = self.stop_process_internal(handle, graceful, timeout).await {
+            if let Err(e) = self.stop_process_internal(&handle, graceful, timeout).await {
                 tracing::error!("Failed to stop {} process: {}", process_id, e);
             }
         }

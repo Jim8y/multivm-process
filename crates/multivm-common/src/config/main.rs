@@ -1,14 +1,15 @@
-use crate::{EthereumConfig, IpcConfig, LoggingConfig, MultivmError, SolanaConfig, SystemConfig};
+use crate::config::{EthereumConfig, LegacyIpcConfig, LegacyLoggingConfig, LegacySystemConfig};
+use crate::{MultivmError, SolanaConfig};
 use serde::{Deserialize, Serialize};
 
 /// Main configuration for the multi-VM system
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MultivmConfig {
-    pub system: SystemConfig,
+    pub system: LegacySystemConfig,
     pub solana: SolanaConfig,
     pub ethereum: EthereumConfig,
-    pub ipc: IpcConfig,
-    pub logging: LoggingConfig,
+    pub ipc: LegacyIpcConfig,
+    pub logging: LegacyLoggingConfig,
 }
 
 impl MultivmConfig {

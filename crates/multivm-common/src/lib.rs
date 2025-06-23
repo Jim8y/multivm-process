@@ -19,8 +19,9 @@ pub use ipc::*;
 
 // Re-export config
 pub use config::{
-    EthereumConfig, IpcConfig, IpcTransportConfig, LogLevel, LoggingConfig, MultivmConfig,
-    RpcConfig, SolanaConfig, SystemConfig,
+    EthereumConfig, IpcTransportConfig, LegacyIpcConfig as IpcConfig,
+    LegacyLoggingConfig as LoggingConfig, LegacySystemConfig as SystemConfig, LogLevel,
+    MultivmConfig, MultivmUnifiedConfig, RpcConfig, SolanaConfig,
 };
 
 // Re-export errors

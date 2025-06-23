@@ -21,6 +21,19 @@ pub struct SolanaAddress(pub [u8; 32]);
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EthereumAddress(pub [u8; 20]);
 
+// Implement AsRef<[u8]> for address types
+impl AsRef<[u8]> for SolanaAddress {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for EthereumAddress {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// MultiVM account identifier (generated from initial account)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MultivmAccountId(pub [u8; 32]);
@@ -122,6 +135,11 @@ impl MultivmAccountId {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// Create from byte array
+    pub fn new(bytes: [u8; 32]) -> Self {
+        MultivmAccountId(bytes)
+    }
 }
 
 /// Virtual machine type
@@ -129,6 +147,7 @@ impl MultivmAccountId {
 pub enum VmType {
     Svm,
     Evm,
+    MultiVm,
 }
 
 // Display implementations

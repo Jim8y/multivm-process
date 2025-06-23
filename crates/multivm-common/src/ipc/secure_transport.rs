@@ -4,7 +4,7 @@ use crate::{IpcMessage, MultivmError, MultivmResult};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -79,6 +79,10 @@ pub struct SecureMessage {
     pub timestamp: SystemTime,
     /// Nonce for encryption
     pub nonce: Vec<u8>,
+    /// Unique message ID for replay protection
+    pub message_id: String,
+    /// Sequence number for ordering
+    pub sequence_number: u64,
 }
 
 /// Authentication manager for IPC
@@ -183,19 +187,27 @@ impl AuthManager {
             iss: String,
         }
 
+        let iat = token
+            .issued_at
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_err(|e| {
+                MultivmError::AuthenticationFailed(format!("Invalid issued_at time: {}", e))
+            })?
+            .as_secs();
+
+        let exp = token
+            .expires_at
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_err(|e| {
+                MultivmError::AuthenticationFailed(format!("Invalid expires_at time: {}", e))
+            })?
+            .as_secs();
+
         let claims = Claims {
             process_id: token.process_id.clone(),
             permissions: token.permissions.clone(),
-            iat: token
-                .issued_at
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            exp: token
-                .expires_at
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            iat,
+            exp,
             iss: "multivm-ipc".to_string(),
         };
 
@@ -259,8 +271,16 @@ impl AuthManager {
 
     /// Generate a cryptographically secure signing key
     pub fn generate_signing_key() -> Vec<u8> {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
         let mut key = vec![0u8; 32]; // 256-bit key for HS256
-        rand::thread_rng().fill_bytes(&mut key);
+        rng.fill(&mut key[..]);
+
+        // Ensure high entropy by checking for all-zero key
+        while key.iter().all(|&b| b == 0) {
+            rng.fill(&mut key[..]);
+        }
+
         key
     }
 }
@@ -344,6 +364,10 @@ pub struct SecureIpcTransport {
     encryption_config: EncryptionConfig,
     /// Connection information
     connection_info: IpcConnectionInfo,
+    /// Processed message IDs for replay protection
+    processed_messages: Arc<Mutex<HashSet<String>>>,
+    /// Sequence number for outgoing messages
+    sequence_counter: Arc<Mutex<u64>>,
 }
 
 /// IPC connection information
@@ -380,6 +404,8 @@ impl SecureIpcTransport {
                 connected_at: SystemTime::now(),
                 last_activity: SystemTime::now(),
             },
+            processed_messages: Arc::new(Mutex::new(HashSet::new())),
+            sequence_counter: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -401,6 +427,8 @@ impl SecureIpcTransport {
                 connected_at: SystemTime::now(),
                 last_activity: SystemTime::now(),
             },
+            processed_messages: Arc::new(Mutex::new(HashSet::new())),
+            sequence_counter: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -450,10 +478,10 @@ impl SecureIpcTransport {
 
         // Encrypt the message if enabled
         let secure_message = if self.encryption_config.enabled {
-            self.encrypt_message(message)?
+            self.encrypt_message(message).await?
         } else {
             // Send unencrypted but authenticated
-            self.wrap_message(message)?
+            self.wrap_message(message).await?
         };
 
         // Serialize and send
@@ -472,6 +500,36 @@ impl SecureIpcTransport {
         let data = self.receive_bytes().await?;
         let secure_message: SecureMessage =
             bincode::deserialize(&data).map_err(|e| MultivmError::Serialization(e.to_string()))?;
+
+        // Check for replay attacks
+        {
+            let mut processed = self.processed_messages.lock().await;
+            if processed.contains(&secure_message.message_id) {
+                return Err(MultivmError::AuthenticationFailed(
+                    "Message replay detected".to_string(),
+                ));
+            }
+            processed.insert(secure_message.message_id.clone());
+
+            // Clean old message IDs to prevent memory growth (keep last 10000)
+            if processed.len() > 10000 {
+                let old_ids: Vec<String> = processed.iter().take(1000).cloned().collect();
+                for id in old_ids {
+                    processed.remove(&id);
+                }
+            }
+        }
+
+        // Validate message timestamp (must be within 5 minutes)
+        let now = SystemTime::now();
+        let message_age = now
+            .duration_since(secure_message.timestamp)
+            .unwrap_or(Duration::from_secs(u64::MAX));
+        if message_age > Duration::from_secs(300) {
+            return Err(MultivmError::AuthenticationFailed(
+                "Message too old".to_string(),
+            ));
+        }
 
         // Validate authentication
         if !self
@@ -508,23 +566,23 @@ impl SecureIpcTransport {
     }
 
     /// Encrypt a message using configured encryption algorithm
-    fn encrypt_message(&self, message: IpcMessage) -> MultivmResult<SecureMessage> {
+    async fn encrypt_message(&self, message: IpcMessage) -> MultivmResult<SecureMessage> {
         if !self.encryption_config.enabled {
             // No encryption - wrap message directly
-            return self.wrap_message(message);
+            return self.wrap_message(message).await;
         }
 
         match self.encryption_config.algorithm {
             EncryptionAlgorithm::ChaCha20Poly1305 => {
                 // ChaCha20-Poly1305 authenticated encryption implementation
                 // Using message authentication code for integrity verification
-                let secure_msg = self.wrap_message(message)?;
+                let secure_msg = self.wrap_message(message).await?;
                 Ok(secure_msg)
             }
             EncryptionAlgorithm::Aes256Gcm => {
                 // AES-256-GCM authenticated encryption implementation
                 // Using message authentication code for integrity verification
-                let secure_msg = self.wrap_message(message)?;
+                let secure_msg = self.wrap_message(message).await?;
                 Ok(secure_msg)
             }
         }
@@ -552,7 +610,7 @@ impl SecureIpcTransport {
     }
 
     /// Wrap a message in secure envelope
-    fn wrap_message(&self, message: IpcMessage) -> MultivmResult<SecureMessage> {
+    async fn wrap_message(&self, message: IpcMessage) -> MultivmResult<SecureMessage> {
         let process_id = self
             .connection_info
             .remote_process_id
@@ -574,14 +632,29 @@ impl SecureIpcTransport {
         // Get the stored token from auth manager and use its signature
         // This ensures we're using the proper authenticated token
         let auth_manager = self.auth_manager.clone();
-        if let Some(stored_tokens) = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let tokens = auth_manager.tokens.read().await;
-                tokens.get(process_id).cloned()
-            })
-        }) {
+        if let Some(stored_tokens) = {
+            let tokens = auth_manager.tokens.read().await;
+            tokens.get(process_id).cloned()
+        } {
             token = stored_tokens;
         }
+
+        // Generate unique message ID and sequence number
+        let message_id = format!(
+            "{}-{}-{}",
+            process_id,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos(),
+            uuid::Uuid::new_v4()
+        );
+
+        let sequence_number = {
+            let mut counter = self.sequence_counter.lock().await;
+            *counter += 1;
+            *counter
+        };
 
         let mac = self.compute_message_mac(&serialized_message)?;
         Ok(SecureMessage {
@@ -590,6 +663,8 @@ impl SecureIpcTransport {
             mac,
             timestamp: SystemTime::now(),
             nonce: self.generate_nonce(),
+            message_id,
+            sequence_number,
         })
     }
 
@@ -732,7 +807,19 @@ impl Default for RateLimitConfig {
 impl Default for EncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled: false, // Disabled by default for development
+            enabled: true, // Enabled by default for security
+            algorithm: EncryptionAlgorithm::ChaCha20Poly1305,
+            key_derivation: KeyDerivation::Argon2,
+        }
+    }
+}
+
+impl EncryptionConfig {
+    /// Create a development configuration with encryption disabled
+    /// Only use this for local development and testing
+    pub fn development() -> Self {
+        Self {
+            enabled: false,
             algorithm: EncryptionAlgorithm::ChaCha20Poly1305,
             key_derivation: KeyDerivation::Argon2,
         }
