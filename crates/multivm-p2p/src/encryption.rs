@@ -112,9 +112,9 @@ impl EncryptionManager {
         // For now, we'll return an error if decryption fails with mismatched ephemeral keys
         // In a full implementation, this would require protocol changes to share the necessary
         // ephemeral secret or use a different key agreement protocol
-        return Err(P2PError::security_error(
+        Err(P2PError::security_error(
             "Decryption requires matching ephemeral keys. This implementation needs protocol redesign for proper forward secrecy."
-        ));
+        ))
     }
 
     /// Sign a message with Ed25519
