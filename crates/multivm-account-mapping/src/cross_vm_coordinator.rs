@@ -477,20 +477,22 @@ impl CrossVmCoordinator {
         // Find the first supported VM for each account
         let source_vm = from_addresses
             .iter()
-            .find_map(|addr| match addr {
-                AccountAddress::Ethereum(_) => Some(VmType::Evm),
-                AccountAddress::Solana(_) => Some(VmType::Svm),
+            .map(|addr| match addr {
+                AccountAddress::Ethereum(_) => VmType::Evm,
+                AccountAddress::Solana(_) => VmType::Svm,
             })
+            .next()
             .ok_or_else(|| {
                 MultivmError::Configuration("Source account has no valid VM bindings".to_string())
             })?;
 
         let target_vm = to_addresses
             .iter()
-            .find_map(|addr| match addr {
-                AccountAddress::Ethereum(_) => Some(VmType::Evm),
-                AccountAddress::Solana(_) => Some(VmType::Svm),
+            .map(|addr| match addr {
+                AccountAddress::Ethereum(_) => VmType::Evm,
+                AccountAddress::Solana(_) => VmType::Svm,
             })
+            .next()
             .ok_or_else(|| {
                 MultivmError::Configuration("Target account has no valid VM bindings".to_string())
             })?;
