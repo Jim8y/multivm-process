@@ -159,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Validate block interval for security
     let validated_interval =
-        validation::validate_block_interval(block_gen_config.block_interval_ms as u64)?;
+        validation::validate_block_interval(block_gen_config.block_interval_ms)?;
     let block_interval = validated_interval;
 
     let block_generator =
