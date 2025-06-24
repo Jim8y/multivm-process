@@ -1254,7 +1254,10 @@ impl MultivmCoordinator {
             .any(|addr| matches!(addr, AccountAddress::Ethereum(_)));
 
         // For a proper cross-VM transfer, accounts should have addresses on different VMs
-        if !(from_has_solana && to_has_ethereum || from_has_solana && to_has_solana || from_has_ethereum && to_has_solana || from_has_ethereum && to_has_ethereum)
+        if !(from_has_solana && to_has_ethereum
+            || from_has_solana && to_has_solana
+            || from_has_ethereum && to_has_solana
+            || from_has_ethereum && to_has_ethereum)
         {
             return Err(MultivmError::AccountMapping(
                 "Invalid cross-VM transfer: accounts must have compatible VM addresses".to_string(),
