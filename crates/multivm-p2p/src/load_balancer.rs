@@ -432,9 +432,7 @@ impl LoadBalancer {
         let local_peers: Vec<PeerId> = peers
             .iter()
             .filter(|&peer_id| {
-                peer_metrics
-                    .get(peer_id)
-                    .and_then(|m| m.region.as_ref()) == Some(local_region)
+                peer_metrics.get(peer_id).and_then(|m| m.region.as_ref()) == Some(local_region)
             })
             .cloned()
             .collect();

@@ -1267,11 +1267,7 @@ impl BlockRouter {
     }
 
     /// Sort EVM transactions by nonce and dependencies within priority group
-    fn sort_evm_by_nonce_and_deps(
-        &self,
-        indices: &mut [usize],
-        transactions: &[EvmTransaction],
-    ) {
+    fn sort_evm_by_nonce_and_deps(&self, indices: &mut [usize], transactions: &[EvmTransaction]) {
         indices.sort_by(|&a, &b| {
             let tx_a = &transactions[a];
             let tx_b = &transactions[b];
