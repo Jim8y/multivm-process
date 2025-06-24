@@ -253,8 +253,8 @@ async fn test_secure_message_wrapper() {
     )
     .unwrap();
 
-    assert!(secure_wrapper.encrypted_payload.len() > 0);
-    assert!(secure_wrapper.signature.len() > 0);
+    assert!(!secure_wrapper.encrypted_payload.is_empty());
+    assert!(!secure_wrapper.signature.is_empty());
     assert_eq!(
         secure_wrapper.sender_public_key,
         signing_keypair.verifying_key().as_bytes()
@@ -323,7 +323,6 @@ enum BadBehavior {
 use crate::messages::*;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use x25519_dalek;
 
 // Mock implementations for testing
 struct PeerReputationSystem {

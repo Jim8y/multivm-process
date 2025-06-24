@@ -47,12 +47,9 @@ impl TestNode {
                 &mut self,
                 event: NetworkEvent,
             ) -> multivm_common::MultivmResult<()> {
-                match event {
-                    NetworkEvent::MessageReceived { message, .. } => {
-                        self.received_messages.write().await.push(*message.clone());
-                        let _ = self.message_sender.send(*message).await;
-                    }
-                    _ => {}
+                if let NetworkEvent::MessageReceived { message, .. } = event {
+                    self.received_messages.write().await.push(*message.clone());
+                    let _ = self.message_sender.send(*message).await;
                 }
                 Ok(())
             }
@@ -211,7 +208,7 @@ async fn test_multi_node_broadcast() {
 
     // Create 4 nodes
     let mut nodes = Vec::new();
-    for i in 0..4 {
+    for _i in 0..4 {
         let mut node = TestNode::new(0).await;
         node.start().await.unwrap();
         node.subscribe_to_topic("broadcast-test").await.unwrap();
@@ -247,8 +244,8 @@ async fn test_multi_node_broadcast() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Check all other nodes received the message
-    for i in 1..nodes.len() {
-        let messages = nodes[i].get_received_messages().await;
+    for (i, node) in nodes.iter().enumerate().skip(1) {
+        let messages = node.get_received_messages().await;
         assert!(
             messages.iter().any(|m| m.id == broadcast_msg.id),
             "Node {} should have received the broadcast message",
@@ -404,8 +401,8 @@ async fn test_network_resilience() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // All nodes should receive the message
-    for i in 1..3 {
-        let messages = nodes[i].get_received_messages().await;
+    for (i, node) in nodes.iter().enumerate().take(3).skip(1) {
+        let messages = node.get_received_messages().await;
         assert!(
             messages.iter().any(|m| m.id == test_msg.id),
             "Node {} should have received the message",
@@ -583,7 +580,7 @@ async fn test_network_performance() {
 }
 
 // Helper function to extract peer ID from multiaddr
-fn extract_peer_id(addr: &Multiaddr) -> Option<libp2p::PeerId> {
+fn _extract_peer_id(addr: &Multiaddr) -> Option<libp2p::PeerId> {
     use libp2p::multiaddr::Protocol;
 
     for protocol in addr.iter() {

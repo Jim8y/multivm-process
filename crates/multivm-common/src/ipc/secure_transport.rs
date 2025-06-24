@@ -896,7 +896,7 @@ impl SecureIpcTransport {
         let mut hasher = Sha256::new();
         hasher.update(&base_key);
         hasher.update(b"MultiVM-IPC-Encryption");
-        hasher.update(&(key_length as u32).to_be_bytes());
+        hasher.update((key_length as u32).to_be_bytes());
 
         let derived_key = hasher.finalize();
 

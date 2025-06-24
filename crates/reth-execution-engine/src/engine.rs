@@ -162,24 +162,24 @@ impl Block {
         //  timestamp, extra_data, mix_hash, nonce, base_fee_per_gas?, withdrawals_root?,
         //  blob_gas_used?, excess_blob_gas?, parent_beacon_block_root?]
 
-        let mut rlp_items = Vec::new();
-
         // Required fields (present in all Ethereum blocks)
-        rlp_items.push(self.encode_bytes(&self.header.parent_hash));
-        rlp_items.push(self.encode_bytes(&self.header.ommers_hash));
-        rlp_items.push(self.encode_bytes(&self.header.beneficiary));
-        rlp_items.push(self.encode_bytes(&self.header.state_root));
-        rlp_items.push(self.encode_bytes(&self.header.transactions_root));
-        rlp_items.push(self.encode_bytes(&self.header.receipts_root));
-        rlp_items.push(self.encode_bytes(&self.header.logs_bloom));
-        rlp_items.push(self.encode_u256(&self.header.difficulty));
-        rlp_items.push(self.encode_u64(self.header.number));
-        rlp_items.push(self.encode_u64(self.header.gas_limit));
-        rlp_items.push(self.encode_u64(self.header.gas_used));
-        rlp_items.push(self.encode_u64(self.header.timestamp));
-        rlp_items.push(self.encode_bytes(&self.header.extra_data));
-        rlp_items.push(self.encode_bytes(&self.header.mix_hash));
-        rlp_items.push(self.encode_u64(self.header.nonce));
+        let mut rlp_items = vec![
+            self.encode_bytes(&self.header.parent_hash),
+            self.encode_bytes(&self.header.ommers_hash),
+            self.encode_bytes(&self.header.beneficiary),
+            self.encode_bytes(&self.header.state_root),
+            self.encode_bytes(&self.header.transactions_root),
+            self.encode_bytes(&self.header.receipts_root),
+            self.encode_bytes(&self.header.logs_bloom),
+            self.encode_u256(&self.header.difficulty),
+            self.encode_u64(self.header.number),
+            self.encode_u64(self.header.gas_limit),
+            self.encode_u64(self.header.gas_used),
+            self.encode_u64(self.header.timestamp),
+            self.encode_bytes(&self.header.extra_data),
+            self.encode_bytes(&self.header.mix_hash),
+            self.encode_u64(self.header.nonce),
+        ];
 
         // EIP-1559 fields (present since London fork)
         if let Some(base_fee) = self.header.base_fee_per_gas {

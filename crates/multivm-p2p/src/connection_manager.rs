@@ -127,7 +127,7 @@ impl ConnectionInfo {
             && self.failed_attempts < max_attempts
             && self
                 .next_retry
-                .map_or(true, |retry_time| Instant::now() >= retry_time)
+                .is_none_or(|retry_time| Instant::now() >= retry_time)
     }
 
     /// Calculate priority score based on performance metrics
@@ -549,8 +549,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_connection_pool_limits() {
-        let mut config = ConnectionPoolConfig::default();
-        config.max_connections_per_peer = 2;
+        let config = ConnectionPoolConfig {
+            max_connections_per_peer: 2,
+            ..Default::default()
+        };
         let pool = ConnectionPoolManager::new(config);
 
         let keypair = Keypair::generate_ed25519();

@@ -1269,7 +1269,7 @@ impl BlockRouter {
     /// Sort EVM transactions by nonce and dependencies within priority group
     fn sort_evm_by_nonce_and_deps(
         &self,
-        indices: &mut Vec<usize>,
+        indices: &mut [usize],
         transactions: &[EvmTransaction],
     ) {
         indices.sort_by(|&a, &b| {
@@ -1290,7 +1290,7 @@ impl BlockRouter {
     /// Sort SVM transactions by account usage and dependencies
     fn sort_svm_by_accounts_and_deps(
         &self,
-        indices: &mut Vec<usize>,
+        indices: &mut [usize],
         transactions: &[SvmTransaction],
     ) {
         indices.sort_by(|&a, &b| {

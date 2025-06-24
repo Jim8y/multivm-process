@@ -69,14 +69,14 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
             message = message.with_timeout(timeout);
         }
 
-        let message_id = message.id.clone();
+        let message_id = message.id;
         let (tx, rx) = oneshot::channel();
 
         // Register pending request
         {
             let mut pending = self.pending_requests.lock().await;
             pending.insert(
-                message_id.clone(),
+                message_id,
                 PendingRequest {
                     sender: tx,
                     sent_at: Instant::now(),

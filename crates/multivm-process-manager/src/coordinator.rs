@@ -919,13 +919,11 @@ impl MultivmCoordinator {
             .get_bound_addresses(&target_multivm_id)
             .await
         {
-            if !existing_addresses.is_empty() {
-                if !existing_addresses.contains(source_account) {
-                    return Err(MultivmError::AccountMapping(format!(
-                        "Target account {:?} is already bound to different accounts",
-                        target_account
-                    )));
-                }
+            if !existing_addresses.is_empty() && !existing_addresses.contains(source_account) {
+                return Err(MultivmError::AccountMapping(format!(
+                    "Target account {:?} is already bound to different accounts",
+                    target_account
+                )));
             }
         }
 
@@ -1254,10 +1252,7 @@ impl MultivmCoordinator {
             .any(|addr| matches!(addr, AccountAddress::Ethereum(_)));
 
         // For a proper cross-VM transfer, accounts should have addresses on different VMs
-        if !(from_has_solana && to_has_ethereum
-            || from_has_solana && to_has_solana
-            || from_has_ethereum && to_has_solana
-            || from_has_ethereum && to_has_ethereum)
+        if !(from_has_ethereum || from_has_solana) || !(to_has_solana || to_has_ethereum)
         {
             return Err(MultivmError::AccountMapping(
                 "Invalid cross-VM transfer: accounts must have compatible VM addresses".to_string(),

@@ -364,12 +364,14 @@ async fn test_network_health_check() {
 
 #[tokio::test]
 async fn test_network_self_heal() {
-    let mut config = NetworkConfig::default();
-    config.bootstrap_peers = vec![
-        "/ip4/127.0.0.1/tcp/8000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
-            .parse()
-            .unwrap(),
-    ];
+    let config = NetworkConfig {
+        bootstrap_peers: vec![
+            "/ip4/127.0.0.1/tcp/8000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+                .parse()
+                .unwrap(),
+        ],
+        ..Default::default()
+    };
 
     let mut network = P2PNetwork::new(config).await.unwrap();
 

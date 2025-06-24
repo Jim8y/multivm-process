@@ -434,8 +434,7 @@ impl LoadBalancer {
             .filter(|&peer_id| {
                 peer_metrics
                     .get(peer_id)
-                    .and_then(|m| m.region.as_ref())
-                    .map_or(false, |region| region == local_region)
+                    .and_then(|m| m.region.as_ref()) == Some(local_region)
             })
             .cloned()
             .collect();

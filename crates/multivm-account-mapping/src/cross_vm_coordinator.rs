@@ -522,11 +522,7 @@ impl CrossVmCoordinator {
         // Find the appropriate address for source VM
         let source_address = source_addresses
             .iter()
-            .find(|addr| match (addr, source_vm) {
-                (AccountAddress::Ethereum(_), VmType::Evm) => true,
-                (AccountAddress::Solana(_), VmType::Svm) => true,
-                _ => false,
-            })
+            .find(|addr| matches!((addr, source_vm), (AccountAddress::Ethereum(_), VmType::Evm) | (AccountAddress::Solana(_), VmType::Svm)))
             .ok_or_else(|| {
                 MultivmError::Configuration(format!(
                     "No {:?} address found for source account",
@@ -538,11 +534,7 @@ impl CrossVmCoordinator {
         // Find the appropriate address for target VM
         let target_address = target_addresses
             .iter()
-            .find(|addr| match (addr, target_vm) {
-                (AccountAddress::Ethereum(_), VmType::Evm) => true,
-                (AccountAddress::Solana(_), VmType::Svm) => true,
-                _ => false,
-            })
+            .find(|addr| matches!((addr, target_vm), (AccountAddress::Ethereum(_), VmType::Evm) | (AccountAddress::Solana(_), VmType::Svm)))
             .ok_or_else(|| {
                 MultivmError::Configuration(format!(
                     "No {:?} address found for target account",
@@ -641,11 +633,7 @@ impl CrossVmCoordinator {
         // Find appropriate addresses
         let party_a_addr_for_asset_a = party_a_addresses
             .iter()
-            .find(|addr| match (addr, asset_a_vm) {
-                (AccountAddress::Ethereum(_), VmType::Evm) => true,
-                (AccountAddress::Solana(_), VmType::Svm) => true,
-                _ => false,
-            })
+            .find(|addr| matches!((addr, asset_a_vm), (AccountAddress::Ethereum(_), VmType::Evm) | (AccountAddress::Solana(_), VmType::Svm)))
             .ok_or_else(|| {
                 MultivmError::Configuration(format!(
                     "Party A has no {:?} address for asset A",
@@ -656,11 +644,7 @@ impl CrossVmCoordinator {
 
         let party_b_addr_for_asset_a = party_b_addresses
             .iter()
-            .find(|addr| match (addr, asset_a_vm) {
-                (AccountAddress::Ethereum(_), VmType::Evm) => true,
-                (AccountAddress::Solana(_), VmType::Svm) => true,
-                _ => false,
-            })
+            .find(|addr| matches!((addr, asset_a_vm), (AccountAddress::Ethereum(_), VmType::Evm) | (AccountAddress::Solana(_), VmType::Svm)))
             .ok_or_else(|| {
                 MultivmError::Configuration(format!(
                     "Party B has no {:?} address for asset A",
@@ -671,11 +655,7 @@ impl CrossVmCoordinator {
 
         let party_a_addr_for_asset_b = party_a_addresses
             .iter()
-            .find(|addr| match (addr, asset_b_vm) {
-                (AccountAddress::Ethereum(_), VmType::Evm) => true,
-                (AccountAddress::Solana(_), VmType::Svm) => true,
-                _ => false,
-            })
+            .find(|addr| matches!((addr, asset_b_vm), (AccountAddress::Ethereum(_), VmType::Evm) | (AccountAddress::Solana(_), VmType::Svm)))
             .ok_or_else(|| {
                 MultivmError::Configuration(format!(
                     "Party A has no {:?} address for asset B",
@@ -686,11 +666,7 @@ impl CrossVmCoordinator {
 
         let party_b_addr_for_asset_b = party_b_addresses
             .iter()
-            .find(|addr| match (addr, asset_b_vm) {
-                (AccountAddress::Ethereum(_), VmType::Evm) => true,
-                (AccountAddress::Solana(_), VmType::Svm) => true,
-                _ => false,
-            })
+            .find(|addr| matches!((addr, asset_b_vm), (AccountAddress::Ethereum(_), VmType::Evm) | (AccountAddress::Solana(_), VmType::Svm)))
             .ok_or_else(|| {
                 MultivmError::Configuration(format!(
                     "Party B has no {:?} address for asset B",
