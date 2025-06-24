@@ -3,6 +3,8 @@
 //! Integrates all security features for P2P networking including authentication,
 //! rate limiting, message validation, and firewall rules.
 
+pub use crate::encryption::{AuthenticationManager, EncryptionManager};
+
 use crate::{
     config::{AuthConfig, P2PConfig, SecurityConfig as P2PSecurityConfig},
     error::{P2PError, P2PResult},
@@ -124,7 +126,7 @@ impl SecureNetworkManager {
             global_burst: (config.rate_limiting.burst_size * 10) as u32,
             enabled: config.rate_limiting.enabled,
         };
-        let rate_limiter = RateLimiter::new(rate_limiter_config);
+        let rate_limiter = RateLimiter::from_config(rate_limiter_config);
 
         // Initialize security manager
         let security_config = SecurityConfig {

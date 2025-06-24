@@ -1228,7 +1228,7 @@ impl P2PNetwork {
 }
 
 /// Extract peer ID from multiaddr if present
-fn extract_peer_id(addr: &Multiaddr) -> Option<PeerId> {
+pub fn extract_peer_id(addr: &Multiaddr) -> Option<PeerId> {
     use libp2p::multiaddr::Protocol;
 
     for protocol in addr.iter() {

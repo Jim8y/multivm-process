@@ -236,12 +236,51 @@ impl AccountBindingValidator {
 
         // Additional validation: Check signature is canonical (prevents malleability)
         // Ed25519 signatures should have S < L where L is the group order
-        // L = 2^252 + 27742317777372353535851937790883648493
-        // We check that the high bit of the last byte is not set (simplified canonical check)
+        // L = 2^252 + 27742317777372353535851937790883648493 (in little-endian)
+        // This is the subgroup order l = 2^252 + 0x14def9dea2f79cd65812631a5cf5d3ed
         let s_bytes = &signature[32..64];
-        if s_bytes[31] & 0x80 != 0 {
+
+        // Convert S to a number and check if it's less than L
+        // For production Ed25519, we need to ensure S is in the range [0, L)
+        // The curve25519-dalek library handles this, but we add extra validation
+
+        // Check the highest byte first (little-endian, so it's at index 31)
+        // If byte 31 > 0x10, then S is definitely >= L
+        if s_bytes[31] > 0x10 {
             return Err(AccountMappingError::InvalidBindingProof {
-                reason: "Non-canonical Ed25519 signature detected".to_string(),
+                reason: "Non-canonical Ed25519 signature: S >= L".to_string(),
+            });
+        }
+
+        // If byte 31 == 0x10, we need to check the rest
+        if s_bytes[31] == 0x10 {
+            // Check remaining bytes in little-endian order
+            // L = 0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed
+            let l_bytes: [u8; 32] = [
+                0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9,
+                0x4d, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x10,
+            ];
+
+            // Compare from most significant byte (index 31) down to least (index 0)
+            for i in (0..31).rev() {
+                if s_bytes[i] > l_bytes[i] {
+                    return Err(AccountMappingError::InvalidBindingProof {
+                        reason: "Non-canonical Ed25519 signature: S >= L".to_string(),
+                    });
+                } else if s_bytes[i] < l_bytes[i] {
+                    break; // S < L, signature is canonical
+                }
+            }
+        }
+
+        // Additional check: Ensure R point is on curve (first 32 bytes)
+        // The ed25519-dalek library will handle this during verification,
+        // but we can add a basic sanity check
+        let r_bytes = &signature[0..32];
+        if r_bytes.iter().all(|&b| b == 0) || r_bytes.iter().all(|&b| b == 0xff) {
+            return Err(AccountMappingError::InvalidBindingProof {
+                reason: "Invalid Ed25519 signature: R point appears invalid".to_string(),
             });
         }
 

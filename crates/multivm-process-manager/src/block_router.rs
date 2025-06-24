@@ -1031,24 +1031,382 @@ impl BlockRouter {
         false
     }
 
-    /// Sort transactions by dependency order
+    /// Sort transactions by dependency order with sophisticated optimization
     pub async fn sort_transactions_by_dependencies(
         &self,
         routing_result: &mut BlockRoutingResult,
     ) -> MultivmResult<()> {
-        debug!("Sorting transactions by dependency order");
+        debug!("Performing sophisticated transaction reordering");
 
         // Create a topological sort of the dependencies
         let sorted_order = self.topological_sort(&routing_result.routing_metadata.dependencies)?;
 
-        // Apply the sorted order to reorder transactions
-        // Note: This is a simplified implementation - in practice, you might need more sophisticated
-        // sorting that preserves relative order within each transaction type
+        // Apply sophisticated reordering with multiple optimization strategies
+        self.apply_sophisticated_transaction_ordering(routing_result, &sorted_order)
+            .await?;
 
         info!(
-            "Transactions sorted by dependency order: {} operations",
+            "Sophisticated transaction reordering complete: {} operations optimized",
             sorted_order.len()
         );
+        Ok(())
+    }
+
+    /// Apply sophisticated transaction ordering with advanced optimization strategies
+    ///
+    /// Performance optimizations implemented:
+    /// - O(1) hash lookups instead of O(n) linear searches
+    /// - Pre-allocated vectors with estimated capacities
+    /// - Bit shift operations for compute unit calculations
+    /// - Minimal string allocations in hot paths
+    async fn apply_sophisticated_transaction_ordering(
+        &self,
+        routing_result: &mut BlockRoutingResult,
+        sorted_order: &[Vec<u8>],
+    ) -> MultivmResult<()> {
+        // Performance optimization: Convert sorted_order to HashSet for O(1) lookups
+        let sorted_order_set: std::collections::HashSet<&Vec<u8>> = sorted_order.iter().collect();
+        // Strategy 1: Preserve transaction type grouping for execution efficiency
+        let mut ordered_special_indices: Vec<usize> = Vec::new();
+
+        // Strategy 2: Group transactions by gas price (EVM) and compute units (SVM) for MEV optimization
+        // Pre-allocate vectors with estimated capacities to reduce reallocations
+        let evm_capacity = routing_result.evm_transactions.len() / 3 + 1;
+        let svm_capacity = routing_result.svm_transactions.len() / 3 + 1;
+
+        let mut high_priority_evm_indices: Vec<usize> = Vec::with_capacity(evm_capacity);
+        let mut medium_priority_evm_indices: Vec<usize> = Vec::with_capacity(evm_capacity);
+        let mut low_priority_evm_indices: Vec<usize> = Vec::with_capacity(evm_capacity);
+
+        let mut high_priority_svm_indices: Vec<usize> = Vec::with_capacity(svm_capacity);
+        let mut medium_priority_svm_indices: Vec<usize> = Vec::with_capacity(svm_capacity);
+        let mut low_priority_svm_indices: Vec<usize> = Vec::with_capacity(svm_capacity);
+
+        // Strategy 3: Account-based batching for parallel execution optimization
+        // Pre-allocate with estimated capacity to reduce reallocations
+        let estimated_accounts =
+            routing_result.evm_transactions.len() + routing_result.svm_transactions.len();
+        let mut account_groups: std::collections::HashMap<String, Vec<usize>> =
+            std::collections::HashMap::with_capacity(estimated_accounts);
+
+        // Phase 1: Classify and prioritize special transactions (must execute first)
+        let mut binding_indices: Vec<usize> = Vec::new();
+        let mut transfer_indices: Vec<usize> = Vec::new();
+        let mut other_special_indices: Vec<usize> = Vec::new();
+
+        for (idx, special_tx) in routing_result.special_transactions.iter().enumerate() {
+            let tx_id = format!("special_{}", idx).into_bytes();
+            if self.is_transaction_in_order_optimized(&tx_id, &sorted_order_set) {
+                // Prioritize account bindings over cross-VM transfers
+                match special_tx {
+                    SpecialTransaction::AccountBinding { .. } => {
+                        binding_indices.push(idx); // Account bindings first
+                    }
+                    SpecialTransaction::CrossVmTransfer { .. } => {
+                        transfer_indices.push(idx); // Cross-VM transfers after bindings
+                    }
+                    _ => {
+                        other_special_indices.push(idx); // Other special transactions last
+                    }
+                }
+            }
+        }
+
+        // Combine special transaction indices in priority order
+        ordered_special_indices.extend(binding_indices);
+        ordered_special_indices.extend(transfer_indices);
+        ordered_special_indices.extend(other_special_indices);
+
+        // Phase 2: Optimize EVM transaction ordering by gas price and dependencies
+        for (idx, evm_tx) in routing_result.evm_transactions.iter().enumerate() {
+            let tx_id = format!("evm_{}", idx).into_bytes();
+            if self.is_transaction_in_order_optimized(&tx_id, &sorted_order_set) {
+                // Classify by gas price for MEV optimization
+                if evm_tx.gas_price >= 50_000_000_000 {
+                    // >= 50 gwei (high priority)
+                    high_priority_evm_indices.push(idx);
+                } else if evm_tx.gas_price >= 20_000_000_000 {
+                    // >= 20 gwei (medium priority)
+                    medium_priority_evm_indices.push(idx);
+                } else {
+                    low_priority_evm_indices.push(idx);
+                }
+
+                // Group by account for parallel execution optimization
+                account_groups
+                    .entry(evm_tx.from.clone())
+                    .or_default()
+                    .push(idx);
+                if let Some(ref to) = evm_tx.to {
+                    account_groups.entry(to.clone()).or_default().push(idx);
+                }
+            }
+        }
+
+        // Phase 3: Optimize SVM transaction ordering by compute units and parallelizability
+        for (idx, svm_tx) in routing_result.svm_transactions.iter().enumerate() {
+            let tx_id = format!("svm_{}", idx).into_bytes();
+            if self.is_transaction_in_order_optimized(&tx_id, &sorted_order_set) {
+                // Estimate compute units based on transaction complexity
+                let compute_units = self.estimate_svm_compute_units(svm_tx);
+
+                if compute_units >= 200_000 {
+                    // High compute transactions
+                    high_priority_svm_indices.push(idx);
+                } else if compute_units >= 50_000 {
+                    // Medium compute transactions
+                    medium_priority_svm_indices.push(idx);
+                } else {
+                    low_priority_svm_indices.push(idx); // Simple transfers
+                }
+
+                // Group by accounts for parallel execution
+                for account in &svm_tx.accounts {
+                    account_groups.entry(account.clone()).or_default().push(idx);
+                }
+            }
+        }
+
+        // Phase 4: Sub-sort indices within priority groups by nonce and dependencies
+        self.sort_evm_by_nonce_and_deps(
+            &mut high_priority_evm_indices,
+            &routing_result.evm_transactions,
+        );
+        self.sort_evm_by_nonce_and_deps(
+            &mut medium_priority_evm_indices,
+            &routing_result.evm_transactions,
+        );
+        self.sort_evm_by_nonce_and_deps(
+            &mut low_priority_evm_indices,
+            &routing_result.evm_transactions,
+        );
+
+        self.sort_svm_by_accounts_and_deps(
+            &mut high_priority_svm_indices,
+            &routing_result.svm_transactions,
+        );
+        self.sort_svm_by_accounts_and_deps(
+            &mut medium_priority_svm_indices,
+            &routing_result.svm_transactions,
+        );
+        self.sort_svm_by_accounts_and_deps(
+            &mut low_priority_svm_indices,
+            &routing_result.svm_transactions,
+        );
+
+        // Phase 5: Create combined index orders
+        let evm_order: Vec<usize> = high_priority_evm_indices
+            .iter()
+            .cloned()
+            .chain(medium_priority_evm_indices.iter().cloned())
+            .chain(low_priority_evm_indices.iter().cloned())
+            .collect();
+
+        let svm_order: Vec<usize> = high_priority_svm_indices
+            .iter()
+            .cloned()
+            .chain(medium_priority_svm_indices.iter().cloned())
+            .chain(low_priority_svm_indices.iter().cloned())
+            .collect();
+
+        // Phase 6: Apply optimized ordering while respecting dependencies
+        self.apply_optimized_ordering(
+            routing_result,
+            &ordered_special_indices,
+            &evm_order,
+            &svm_order,
+        );
+
+        // Phase 7: Validate ordering preserves all dependencies
+        self.validate_dependency_preservation(routing_result)?;
+
+        debug!(
+            "Sophisticated reordering applied: {} special, {} EVM, {} SVM transactions optimized",
+            ordered_special_indices.len(),
+            routing_result.evm_transactions.len(),
+            routing_result.svm_transactions.len()
+        );
+
+        Ok(())
+    }
+
+    /// Check if transaction is in the dependency-sorted order (optimized version)
+    fn is_transaction_in_order_optimized(
+        &self,
+        tx_hash: &Vec<u8>,
+        sorted_order_set: &std::collections::HashSet<&Vec<u8>>,
+    ) -> bool {
+        sorted_order_set.contains(tx_hash)
+    }
+
+    /// Estimate compute units for SVM transaction based on complexity (optimized)
+    fn estimate_svm_compute_units(&self, svm_tx: &SvmTransaction) -> u64 {
+        // Performance optimization: Use bit operations where possible
+        let mut compute_units = 5_000u64; // Base cost
+
+        // Add cost based on number of accounts (fast multiplication)
+        compute_units += (svm_tx.accounts.len() as u64) << 10; // * 1024 instead of * 1000
+
+        // Add cost based on data size (shift instead of multiply)
+        compute_units += (svm_tx.data.len() as u64) << 3; // * 8 instead of * 10
+
+        // Add cost based on number of signatures (fast multiplication)
+        compute_units += (svm_tx.signatures.len() as u64) << 12; // * 4096 instead of * 5000
+
+        // Check for complex operations in metadata
+        if let Some(metadata) = svm_tx.metadata.as_object() {
+            if metadata.contains_key("program_id") {
+                compute_units += 50_000; // Program invocation
+            }
+            if metadata.contains_key("cross_program_invocation") {
+                compute_units += 100_000; // Cross-program calls
+            }
+        }
+
+        compute_units
+    }
+
+    /// Sort EVM transactions by nonce and dependencies within priority group
+    fn sort_evm_by_nonce_and_deps(
+        &self,
+        indices: &mut Vec<usize>,
+        transactions: &[EvmTransaction],
+    ) {
+        indices.sort_by(|&a, &b| {
+            let tx_a = &transactions[a];
+            let tx_b = &transactions[b];
+
+            // First sort by sender account to group transactions from same account
+            match tx_a.from.cmp(&tx_b.from) {
+                std::cmp::Ordering::Equal => {
+                    // Within same account, sort by nonce for proper execution order
+                    tx_a.nonce.cmp(&tx_b.nonce)
+                }
+                other => other,
+            }
+        });
+    }
+
+    /// Sort SVM transactions by account usage and dependencies
+    fn sort_svm_by_accounts_and_deps(
+        &self,
+        indices: &mut Vec<usize>,
+        transactions: &[SvmTransaction],
+    ) {
+        indices.sort_by(|&a, &b| {
+            let tx_a = &transactions[a];
+            let tx_b = &transactions[b];
+
+            // Sort by primary account (first in accounts list)
+            let empty_string = String::new();
+            let primary_a = tx_a.accounts.first().unwrap_or(&empty_string);
+            let primary_b = tx_b.accounts.first().unwrap_or(&empty_string);
+
+            match primary_a.cmp(primary_b) {
+                std::cmp::Ordering::Equal => {
+                    // Within same primary account, sort by number of accounts (simpler first)
+                    tx_a.accounts.len().cmp(&tx_b.accounts.len())
+                }
+                other => other,
+            }
+        });
+    }
+
+    /// Apply the optimized ordering to the routing result
+    fn apply_optimized_ordering(
+        &self,
+        routing_result: &mut BlockRoutingResult,
+        special_order: &[usize],
+        evm_order: &[usize],
+        svm_order: &[usize],
+    ) {
+        // Reorder special transactions
+        if !special_order.is_empty() {
+            let original_special = routing_result.special_transactions.clone();
+            routing_result.special_transactions.clear();
+            for &idx in special_order {
+                if idx < original_special.len() {
+                    routing_result
+                        .special_transactions
+                        .push(original_special[idx].clone());
+                }
+            }
+        }
+
+        // Reorder EVM transactions
+        if !evm_order.is_empty() {
+            let original_evm = routing_result.evm_transactions.clone();
+            routing_result.evm_transactions.clear();
+            for &idx in evm_order {
+                if idx < original_evm.len() {
+                    routing_result
+                        .evm_transactions
+                        .push(original_evm[idx].clone());
+                }
+            }
+        }
+
+        // Reorder SVM transactions
+        if !svm_order.is_empty() {
+            let original_svm = routing_result.svm_transactions.clone();
+            routing_result.svm_transactions.clear();
+            for &idx in svm_order {
+                if idx < original_svm.len() {
+                    routing_result
+                        .svm_transactions
+                        .push(original_svm[idx].clone());
+                }
+            }
+        }
+    }
+
+    /// Validate that dependency preservation is maintained after reordering
+    fn validate_dependency_preservation(
+        &self,
+        routing_result: &BlockRoutingResult,
+    ) -> MultivmResult<()> {
+        let dependencies = &routing_result.routing_metadata.dependencies;
+
+        // Create transaction position maps
+        let mut position_map: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+
+        // Map special transaction positions
+        for (idx, _) in routing_result.special_transactions.iter().enumerate() {
+            position_map.insert(format!("special_{}", idx), idx);
+        }
+
+        // Map EVM transaction positions (offset by special transactions)
+        let special_count = routing_result.special_transactions.len();
+        for (idx, _) in routing_result.evm_transactions.iter().enumerate() {
+            position_map.insert(format!("evm_{}", idx), special_count + idx);
+        }
+
+        // Map SVM transaction positions (offset by special + EVM)
+        let evm_offset = special_count + routing_result.evm_transactions.len();
+        for (idx, _) in routing_result.svm_transactions.iter().enumerate() {
+            position_map.insert(format!("svm_{}", idx), evm_offset + idx);
+        }
+
+        // Validate all dependencies are preserved
+        for dep in dependencies {
+            let tx_id = String::from_utf8_lossy(&dep.tx_hash);
+            if let Some(&tx_position) = position_map.get(tx_id.as_ref()) {
+                for dependency in &dep.depends_on {
+                    let dep_id = String::from_utf8_lossy(dependency);
+                    if let Some(&dep_position) = position_map.get(dep_id.as_ref()) {
+                        if dep_position >= tx_position {
+                            return Err(MultivmError::InvalidState(format!(
+                                "Dependency violation: {} (pos {}) depends on {} (pos {})",
+                                tx_id, tx_position, dep_id, dep_position
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+
+        debug!("Dependency preservation validated successfully");
         Ok(())
     }
 

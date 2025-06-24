@@ -145,9 +145,12 @@ mod tests {
     async fn test_connection_info() {
         let info = IpcConnectionInfo {
             remote_process_id: Some("test-process".to_string()),
+            local_process_id: None,
             authenticated: true,
             connected_at: SystemTime::now(),
             last_activity: SystemTime::now(),
+            sequence_number: 0,
+            shared_secret: None,
         };
 
         assert_eq!(info.remote_process_id.as_ref().unwrap(), "test-process");

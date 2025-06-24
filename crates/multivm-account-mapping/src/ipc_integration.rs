@@ -287,19 +287,92 @@ impl IntegratedCrossVmManager {
     
     /// Determine VMs required for transfer
     async fn determine_transfer_vms(&self, transfer: &SimpleCrossVmTransfer) -> MultivmResult<(VmType, VmType)> {
-        // For now, use simplified logic
-        // In practice, this would query account bindings to determine actual VMs
-        Ok((VmType::Evm, VmType::Svm))
+        // Query account bindings to determine actual VMs
+        let source_addresses = self.account_mapping
+            .get_bound_addresses(&transfer.from)
+            .await?;
+        
+        let target_addresses = self.account_mapping
+            .get_bound_addresses(&transfer.to)
+            .await?;
+        
+        // Find the first supported VM for each account based on the asset
+        let asset_registry = self.asset_registry.read().await;
+        let asset = asset_registry.assets.get(&transfer.asset_id)
+            .ok_or_else(|| MultivmError::Configuration(
+                format!("Asset {} not found", transfer.asset_id)
+            ))?;
+        
+        let source_vm = source_addresses.iter()
+            .find_map(|addr| {
+                let vm = match addr {
+                    AccountAddress::Ethereum(_) => VmType::Evm,
+                    AccountAddress::Solana(_) => VmType::Svm,
+                };
+                if asset.supported_vms.contains(&vm) {
+                    Some(vm)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| MultivmError::Configuration(
+                "Source account has no address on VMs that support this asset".to_string()
+            ))?;
+        
+        let target_vm = target_addresses.iter()
+            .find_map(|addr| {
+                let vm = match addr {
+                    AccountAddress::Ethereum(_) => VmType::Evm,
+                    AccountAddress::Solana(_) => VmType::Svm,
+                };
+                if asset.supported_vms.contains(&vm) {
+                    Some(vm)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| MultivmError::Configuration(
+                "Target account has no address on VMs that support this asset".to_string()
+            ))?;
+        
+        Ok((source_vm, target_vm))
     }
     
     /// Get account balance via IPC
     async fn get_account_balance(&self, account: &MultivmAccountId, asset_id: &str) -> MultivmResult<u64> {
-        // Determine which VM this account belongs to
-        let vm_type = VmType::Evm; // Simplified
+        // Determine which VM this account belongs to based on the asset
+        let addresses = self.account_mapping
+            .get_bound_addresses(account)
+            .await?;
+        
+        let asset_registry = self.asset_registry.read().await;
+        let asset = asset_registry.assets.get(asset_id)
+            .ok_or_else(|| MultivmError::Configuration(
+                format!("Asset {} not found", asset_id)
+            ))?;
+        
+        // Find the VM that has this account's address and supports the asset
+        let (vm_type, _) = addresses.iter()
+            .find_map(|addr| {
+                let vm = match addr {
+                    AccountAddress::Ethereum(_) => VmType::Evm,
+                    AccountAddress::Solana(_) => VmType::Svm,
+                };
+                if asset.supported_vms.contains(&vm) {
+                    Some((vm, addr))
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| MultivmError::Configuration(
+                "Account has no address on VMs that support this asset".to_string()
+            ))?;
         
         let clients = self.ipc_clients.read().await;
         let client = clients.get(&vm_type)
-            .ok_or_else(|| MultivmError::Configuration("IPC client not found".to_string()))?;
+            .ok_or_else(|| MultivmError::Configuration(
+                format!("IPC client not found for VM {:?}", vm_type)
+            ))?;
         
         let request = CrossVmIpcRequest::GetBalance {
             account: account.to_string(),

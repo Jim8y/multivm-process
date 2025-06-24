@@ -137,21 +137,169 @@ impl Block {
         }
     }
 
-    /// Calculate block hash (simplified implementation)
+    /// Calculate block hash using proper Ethereum Keccak-256 and RLP encoding
     pub fn hash_slow(&self) -> B256 {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
+        use sha3::{Digest, Keccak256};
 
-        // Hash key block identifiers
-        hasher.update(self.header.parent_hash);
-        hasher.update(self.header.number.to_be_bytes());
-        hasher.update(self.header.timestamp.to_be_bytes());
-        hasher.update(self.header.state_root);
+        // RLP encode the block header in Ethereum specification order
+        let rlp_encoded = self.rlp_encode_header();
 
+        // Hash with Keccak-256 (Ethereum's hashing algorithm)
+        let mut hasher = Keccak256::new();
+        hasher.update(&rlp_encoded);
         let result = hasher.finalize();
+
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&result);
         hash
+    }
+
+    /// RLP encode the block header according to Ethereum specification
+    fn rlp_encode_header(&self) -> Vec<u8> {
+        // Ethereum block header RLP encoding follows this exact field order:
+        // [parent_hash, ommers_hash, beneficiary, state_root, transactions_root,
+        //  receipts_root, logs_bloom, difficulty, number, gas_limit, gas_used,
+        //  timestamp, extra_data, mix_hash, nonce, base_fee_per_gas?, withdrawals_root?,
+        //  blob_gas_used?, excess_blob_gas?, parent_beacon_block_root?]
+
+        let mut rlp_items = Vec::new();
+
+        // Required fields (present in all Ethereum blocks)
+        rlp_items.push(self.encode_bytes(&self.header.parent_hash));
+        rlp_items.push(self.encode_bytes(&self.header.ommers_hash));
+        rlp_items.push(self.encode_bytes(&self.header.beneficiary));
+        rlp_items.push(self.encode_bytes(&self.header.state_root));
+        rlp_items.push(self.encode_bytes(&self.header.transactions_root));
+        rlp_items.push(self.encode_bytes(&self.header.receipts_root));
+        rlp_items.push(self.encode_bytes(&self.header.logs_bloom));
+        rlp_items.push(self.encode_u256(&self.header.difficulty));
+        rlp_items.push(self.encode_u64(self.header.number));
+        rlp_items.push(self.encode_u64(self.header.gas_limit));
+        rlp_items.push(self.encode_u64(self.header.gas_used));
+        rlp_items.push(self.encode_u64(self.header.timestamp));
+        rlp_items.push(self.encode_bytes(&self.header.extra_data));
+        rlp_items.push(self.encode_bytes(&self.header.mix_hash));
+        rlp_items.push(self.encode_u64(self.header.nonce));
+
+        // EIP-1559 fields (present since London fork)
+        if let Some(base_fee) = self.header.base_fee_per_gas {
+            rlp_items.push(self.encode_u64(base_fee));
+        }
+
+        // EIP-4895 fields (present since Shanghai fork)
+        if let Some(withdrawals_root) = self.header.withdrawals_root {
+            rlp_items.push(self.encode_bytes(&withdrawals_root));
+        }
+
+        // EIP-4844 fields (present since Cancun fork)
+        if let Some(blob_gas_used) = self.header.blob_gas_used {
+            rlp_items.push(self.encode_u64(blob_gas_used));
+        }
+
+        if let Some(excess_blob_gas) = self.header.excess_blob_gas {
+            rlp_items.push(self.encode_u64(excess_blob_gas));
+        }
+
+        // EIP-4788 fields (present since Cancun fork)
+        if let Some(parent_beacon_block_root) = self.header.parent_beacon_block_root {
+            rlp_items.push(self.encode_bytes(&parent_beacon_block_root));
+        }
+
+        // RLP encode the list of items
+        self.encode_list(&rlp_items)
+    }
+
+    /// Encode bytes for RLP
+    fn encode_bytes(&self, data: &[u8]) -> Vec<u8> {
+        if data.is_empty() {
+            vec![0x80] // empty string
+        } else if data.len() == 1 && data[0] < 0x80 {
+            data.to_vec() // single byte < 0x80
+        } else if data.len() < 56 {
+            let mut result = vec![0x80 + data.len() as u8];
+            result.extend_from_slice(data);
+            result
+        } else {
+            // Long string
+            let len_bytes = self.encode_length(data.len());
+            let mut result = vec![0xb7 + len_bytes.len() as u8];
+            result.extend_from_slice(&len_bytes);
+            result.extend_from_slice(data);
+            result
+        }
+    }
+
+    /// Encode U256 for RLP (big-endian, minimal representation)
+    fn encode_u256(&self, value: &U256) -> Vec<u8> {
+        // Convert U256 to minimal big-endian bytes
+        let mut bytes = [0u8; 32];
+
+        // Convert from little-endian u64 array to big-endian bytes
+        for i in 0..4 {
+            let start = (3 - i) * 8;
+            bytes[start..start + 8].copy_from_slice(&value.0[i].to_be_bytes());
+        }
+
+        // Remove leading zeros for minimal representation
+        let first_non_zero = bytes.iter().position(|&b| b != 0).unwrap_or(31);
+        let minimal_bytes = &bytes[first_non_zero..];
+
+        if minimal_bytes.is_empty() {
+            vec![0x80] // RLP encoding of 0
+        } else {
+            self.encode_bytes(minimal_bytes)
+        }
+    }
+
+    /// Encode u64 for RLP (big-endian, minimal representation)
+    fn encode_u64(&self, value: u64) -> Vec<u8> {
+        if value == 0 {
+            vec![0x80] // RLP encoding of 0
+        } else {
+            let bytes = value.to_be_bytes();
+            let first_non_zero = bytes.iter().position(|&b| b != 0).unwrap_or(7);
+            let minimal_bytes = &bytes[first_non_zero..];
+            self.encode_bytes(minimal_bytes)
+        }
+    }
+
+    /// Encode RLP list
+    fn encode_list(&self, items: &[Vec<u8>]) -> Vec<u8> {
+        let mut payload = Vec::new();
+        for item in items {
+            payload.extend_from_slice(item);
+        }
+
+        if payload.len() < 56 {
+            let mut result = vec![0xc0 + payload.len() as u8];
+            result.extend_from_slice(&payload);
+            result
+        } else {
+            // Long list
+            let len_bytes = self.encode_length(payload.len());
+            let mut result = vec![0xf7 + len_bytes.len() as u8];
+            result.extend_from_slice(&len_bytes);
+            result.extend_from_slice(&payload);
+            result
+        }
+    }
+
+    /// Encode length for RLP
+    fn encode_length(&self, len: usize) -> Vec<u8> {
+        if len < 256 {
+            vec![len as u8]
+        } else if len < 65536 {
+            vec![(len >> 8) as u8, len as u8]
+        } else if len < 16777216 {
+            vec![(len >> 16) as u8, (len >> 8) as u8, len as u8]
+        } else {
+            vec![
+                (len >> 24) as u8,
+                (len >> 16) as u8,
+                (len >> 8) as u8,
+                len as u8,
+            ]
+        }
     }
 }
 use async_trait::async_trait;
@@ -598,13 +746,16 @@ impl RethExecutionEngine {
         &self,
         block: &Block,
     ) -> Result<ExecutionPayload, RethEngineError> {
-        // Convert transactions to hex strings for JSON-RPC
+        // Convert transactions to proper RLP-encoded hex strings for JSON-RPC
         let transactions: Vec<String> = block
             .body
             .transactions
             .iter()
-            .enumerate()
-            .map(|(i, _tx)| format!("0x{:064x}", i)) // Simplified transaction identifier
+            .map(|tx| {
+                // Build proper Ethereum transaction and compute hash
+                let rlp_encoded = self.rlp_encode_transaction(tx);
+                format!("0x{}", hex::encode(rlp_encoded))
+            })
             .collect();
 
         // Build execution payload using proper Reth types
@@ -822,6 +973,215 @@ impl RethExecutionEngine {
                 "RPC request failed with status: {}",
                 response.status()
             )))
+        }
+    }
+
+    /// RLP encode transaction for Ethereum compatibility
+    fn rlp_encode_transaction(&self, tx: &Transaction) -> Vec<u8> {
+        let mut stream = Vec::new();
+
+        // Determine transaction type
+        if tx.gas_price.is_some() {
+            // Legacy transaction (type 0)
+            self.encode_legacy_transaction(&mut stream, tx);
+        } else {
+            // EIP-1559 transaction (type 2) - assume this if no gas_price
+            self.encode_eip1559_transaction(&mut stream, tx);
+        }
+
+        stream
+    }
+
+    /// Encode legacy transaction (EIP-155)
+    fn encode_legacy_transaction(&self, stream: &mut Vec<u8>, tx: &Transaction) {
+        // Legacy transaction format: [nonce, gasPrice, gasLimit, to, value, data, v, r, s]
+
+        // Start RLP list
+        let mut items = Vec::new();
+
+        // 1. Nonce
+        self.encode_u64(&mut items, tx.nonce);
+
+        // 2. Gas price
+        let gas_price = tx.gas_price.unwrap_or(20_000_000_000); // 20 gwei default
+        self.encode_u64(&mut items, gas_price);
+
+        // 3. Gas limit
+        self.encode_u64(&mut items, tx.gas_limit);
+
+        // 4. To address (20 bytes or empty for contract creation)
+        if let Some(to_addr) = tx.to {
+            items.push(to_addr.to_vec());
+        } else {
+            items.push(vec![]); // Empty for contract creation
+        }
+
+        // 5. Value (convert U256 to bytes)
+        let value_bytes = self.u256_to_bytes(&tx.value);
+        items.push(value_bytes);
+
+        // 6. Data
+        items.push(tx.data.clone());
+
+        // 7. v (recovery ID + chain ID for EIP-155)
+        let v = tx.signature.v;
+        self.encode_u64(&mut items, v);
+
+        // 8. r (signature component)
+        let r_bytes = self.u256_to_bytes(&tx.signature.r);
+        items.push(r_bytes);
+
+        // 9. s (signature component)
+        let s_bytes = self.u256_to_bytes(&tx.signature.s);
+        items.push(s_bytes);
+
+        // Encode as RLP list
+        self.encode_rlp_list(stream, &items);
+    }
+
+    /// Encode EIP-1559 transaction
+    fn encode_eip1559_transaction(&self, stream: &mut Vec<u8>, tx: &Transaction) {
+        // EIP-1559 transaction type prefix
+        stream.push(0x02);
+
+        // Transaction format: [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList, v, r, s]
+        let mut items = Vec::new();
+
+        // 1. Chain ID
+        self.encode_u64(&mut items, self.chain_id);
+
+        // 2. Nonce
+        self.encode_u64(&mut items, tx.nonce);
+
+        // 3. Max priority fee per gas (tip)
+        self.encode_u64(&mut items, 1_500_000_000); // 1.5 gwei default
+
+        // 4. Max fee per gas (base fee + tip)
+        self.encode_u64(&mut items, 20_000_000_000); // 20 gwei default
+
+        // 5. Gas limit
+        self.encode_u64(&mut items, tx.gas_limit);
+
+        // 6. To address
+        if let Some(to_addr) = tx.to {
+            items.push(to_addr.to_vec());
+        } else {
+            items.push(vec![]); // Contract creation
+        }
+
+        // 7. Value
+        let value_bytes = self.u256_to_bytes(&tx.value);
+        items.push(value_bytes);
+
+        // 8. Data
+        items.push(tx.data.clone());
+
+        // 9. Access list (empty for now)
+        items.push(vec![]); // Empty access list
+
+        // 10. v (EIP-2930/1559 format)
+        let v = tx.signature.v;
+        self.encode_u64(&mut items, v);
+
+        // 11. r
+        let r_bytes = self.u256_to_bytes(&tx.signature.r);
+        items.push(r_bytes);
+
+        // 12. s
+        let s_bytes = self.u256_to_bytes(&tx.signature.s);
+        items.push(s_bytes);
+
+        // Encode as RLP list and append to stream
+        self.encode_rlp_list(stream, &items);
+    }
+
+    /// Helper: Encode u64 as minimal bytes
+    fn encode_u64(&self, items: &mut Vec<Vec<u8>>, value: u64) {
+        if value == 0 {
+            items.push(vec![]); // Empty bytes for zero
+        } else {
+            // Remove leading zeros
+            let bytes = value.to_be_bytes();
+            let start = bytes
+                .iter()
+                .position(|&b| b != 0)
+                .unwrap_or(bytes.len() - 1);
+            items.push(bytes[start..].to_vec());
+        }
+    }
+
+    /// Helper: Convert U256 to minimal bytes representation
+    fn u256_to_bytes(&self, value: &U256) -> Vec<u8> {
+        // For our simplified U256, just use the first u64
+        let val = value.0[0];
+        if val == 0 {
+            vec![] // Empty bytes for zero
+        } else {
+            let bytes = val.to_be_bytes();
+            let start = bytes
+                .iter()
+                .position(|&b| b != 0)
+                .unwrap_or(bytes.len() - 1);
+            bytes[start..].to_vec()
+        }
+    }
+
+    /// Helper: Encode RLP list
+    fn encode_rlp_list(&self, stream: &mut Vec<u8>, items: &[Vec<u8>]) {
+        // Calculate total length of items
+        let mut content = Vec::new();
+        for item in items {
+            self.encode_rlp_item(&mut content, item);
+        }
+
+        // Encode list header
+        if content.len() < 56 {
+            // Short list
+            stream.push(0xc0 + content.len() as u8);
+        } else {
+            // Long list
+            let length_bytes = self.encode_length(content.len());
+            stream.push(0xf7 + length_bytes.len() as u8);
+            stream.extend_from_slice(&length_bytes);
+        }
+
+        // Add content
+        stream.extend_from_slice(&content);
+    }
+
+    /// Helper: Encode single RLP item
+    fn encode_rlp_item(&self, stream: &mut Vec<u8>, item: &[u8]) {
+        if item.len() == 1 && item[0] < 0x80 {
+            // Single byte less than 0x80
+            stream.push(item[0]);
+        } else if item.len() < 56 {
+            // Short string
+            stream.push(0x80 + item.len() as u8);
+            stream.extend_from_slice(item);
+        } else {
+            // Long string
+            let length_bytes = self.encode_length(item.len());
+            stream.push(0xb7 + length_bytes.len() as u8);
+            stream.extend_from_slice(&length_bytes);
+            stream.extend_from_slice(item);
+        }
+    }
+
+    /// Helper: Encode length for long RLP items
+    fn encode_length(&self, length: usize) -> Vec<u8> {
+        if length < 256 {
+            vec![length as u8]
+        } else if length < 65536 {
+            vec![(length >> 8) as u8, length as u8]
+        } else if length < 16777216 {
+            vec![(length >> 16) as u8, (length >> 8) as u8, length as u8]
+        } else {
+            vec![
+                (length >> 24) as u8,
+                (length >> 16) as u8,
+                (length >> 8) as u8,
+                length as u8,
+            ]
         }
     }
 }

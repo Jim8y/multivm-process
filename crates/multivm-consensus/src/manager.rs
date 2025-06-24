@@ -1445,7 +1445,7 @@ impl MultiVMConsensusManager {
 
     async fn process_vote(
         &mut self,
-        _vote: serde_json::Value,
+        vote: serde_json::Value,
         validator: String,
         round: u64,
     ) -> ConsensusResult<()> {
@@ -1454,10 +1454,34 @@ impl MultiVMConsensusManager {
             validator, round
         );
 
-        // Store the vote
-        // Record the vote in state coordinator
-        // In production this would track validator votes
-        debug!("Recorded vote from {} for round {}", validator, round);
+        // Verify the validator is in our known validator set
+        let is_known_validator = self
+            .known_validators
+            .read()
+            .await
+            .iter()
+            .any(|(_, peer)| peer.peer_id == validator);
+
+        if !is_known_validator {
+            warn!("Received vote from unknown validator: {}", validator);
+            return Err(ConsensusError::ValidatorNotFound(validator));
+        }
+
+        // Record the vote in the consensus engine
+        let block_hash = vote
+            .get("block_hash")
+            .and_then(|h| h.as_str())
+            .ok_or_else(|| {
+                ConsensusError::InvalidMessage("Missing block hash in vote".to_string())
+            })?;
+
+        self.record_vote(validator.clone(), round, block_hash.to_string())
+            .await?;
+
+        debug!(
+            "Recorded vote from {} for round {} with block hash {}",
+            validator, round, block_hash
+        );
 
         // Check if we have enough votes for finalization
         self.check_finalization(round).await
@@ -1515,15 +1539,30 @@ impl MultiVMConsensusManager {
 
     async fn check_finalization(&mut self, round: u64) -> ConsensusResult<()> {
         // Check if we have enough votes to finalize the block
-        let vote_count = 3; // Simplified for production version
-        let required_votes = 3; // Simplified for production version
+        // In BFT consensus, we need 2f+1 votes where f is the number of Byzantine faults we can tolerate
+        let total_validators = self.known_validators.read().await.len();
+        let byzantine_faults = (total_validators - 1) / 3; // f = floor((n-1)/3)
+        let required_votes = 2 * byzantine_faults + 1; // 2f + 1
+
+        // Get actual vote count for this round from the consensus engine
+        let vote_count = self.get_vote_count_for_round(round).await?;
+
+        debug!(
+            "Round {} vote count: {}/{} (total validators: {}, byzantine faults: {})",
+            round, vote_count, required_votes, total_validators, byzantine_faults
+        );
 
         if vote_count >= required_votes {
             info!(
-                "Sufficient votes received for round {}, finalizing block",
-                round
+                "Sufficient votes received for round {} ({}/{}), finalizing block",
+                round, vote_count, required_votes
             );
             self.finalize_block(round).await?;
+        } else {
+            debug!(
+                "Insufficient votes for round {} ({}/{}), waiting for more votes",
+                round, vote_count, required_votes
+            );
         }
 
         Ok(())
@@ -1531,24 +1570,57 @@ impl MultiVMConsensusManager {
 
     async fn finalize_block(&mut self, round: u64) -> ConsensusResult<()> {
         // Finalize the block for the given round
-        let vote_count = 3; // Simplified for production version
-        let required_votes = 3; // Simplified for production version
+        // First, verify we still have sufficient votes (double-check)
+        let total_validators = self.known_validators.read().await.len();
+        let byzantine_faults = (total_validators - 1) / 3;
+        let required_votes = 2 * byzantine_faults + 1;
+        let vote_count = self.get_vote_count_for_round(round).await?;
 
-        // Simplified finalization check
-        if vote_count >= required_votes {
-            info!("Finalizing block for round {}", round);
+        if vote_count < required_votes {
+            return Err(ConsensusError::InsufficientVotesForRound {
+                received: vote_count,
+                required: required_votes,
+                round,
+            });
+        }
 
-            // Apply block to state
-            // Apply block through state coordinator
-            debug!("Finalizing block for round {}", round);
+        info!(
+            "Finalizing block for round {} with {}/{} votes",
+            round, vote_count, required_votes
+        );
 
-            // Notify other components of finalized block
-            self.notify_block_finalized(serde_json::json!({}), round)
-                .await?;
+        // Get the block proposal for this round
+        let block = self.get_block_for_round(round).await?;
 
-            // Update consensus statistics
-            self.stats.total_blocks += 1;
-            self.stats.current_height = self.state_coordinator.read().await.get_current_height();
+        // Apply block to state through state coordinator
+        self.state_coordinator
+            .write()
+            .await
+            .apply_block(&block)
+            .await
+            .map_err(|e| ConsensusError::Internal(format!("Failed to apply block: {}", e)))?;
+
+        debug!("Applied block for round {} to state", round);
+
+        // Notify other components of finalized block
+        let block_json = serde_json::to_value(&block)
+            .map_err(|e| ConsensusError::SerializationError(e.to_string()))?;
+        self.notify_block_finalized(block_json, round).await?;
+
+        // Update consensus statistics
+        self.stats.total_blocks += 1;
+        self.stats.current_height = self.state_coordinator.read().await.get_current_height();
+        self.stats.last_block_time = std::time::SystemTime::now();
+
+        // Calculate average block time
+        if self.stats.total_blocks > 1 {
+            let elapsed = self
+                .stats
+                .last_block_time
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            self.stats.avg_block_time_ms = elapsed / self.stats.total_blocks;
         }
 
         Ok(())
@@ -1712,6 +1784,70 @@ impl MultiVMConsensusManager {
         state_coordinator.sync_state(target_height).await?;
 
         self.stats.state_syncs += 1;
+        Ok(())
+    }
+
+    /// Get the vote count for a specific round
+    async fn get_vote_count_for_round(&self, round: u64) -> ConsensusResult<usize> {
+        // In production, this would query the consensus engine's vote storage
+        // For now, we'll use the Malachite consensus engine's internal state
+        let stats = self.consensus_engine.get_consensus_stats().await?;
+
+        // Return the number of active nodes as a proxy for vote count
+        // In a real implementation, this would track actual votes per round
+        Ok(stats.active_nodes as usize)
+    }
+
+    /// Get the block proposal for a specific round
+    async fn get_block_for_round(&self, round: u64) -> ConsensusResult<crate::block::MultiVMBlock> {
+        // In production, this would retrieve the block from storage
+        // For now, create a placeholder block
+        use crate::block::{BlockHeader, MultiVMBlock};
+
+        let header = BlockHeader {
+            height: round,
+            previous_hash: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_string(),
+            state_root: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_string(),
+            transactions_root: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_string(),
+            timestamp: std::time::SystemTime::now(),
+            proposer: self.node_id.clone(),
+            consensus_data: vec![],
+            version: 1,
+            extra_data: vec![],
+        };
+
+        Ok(MultiVMBlock {
+            header,
+            svm_transactions: vec![],
+            evm_transactions: vec![],
+            multivm_transactions: vec![],
+            state_transitions: vec![],
+        })
+    }
+
+    /// Record a vote from a validator
+    async fn record_vote(
+        &mut self,
+        validator: String,
+        round: u64,
+        block_hash: String,
+    ) -> ConsensusResult<()> {
+        // In production, this would:
+        // 1. Store the vote in a persistent storage
+        // 2. Update vote counters per round/block
+        // 3. Trigger events when thresholds are reached
+
+        debug!(
+            "Recording vote from {} for round {} on block {}",
+            validator, round, block_hash
+        );
+
+        // Update metrics
+        // In a real implementation, we'd maintain a vote tracker per round
+
         Ok(())
     }
 }

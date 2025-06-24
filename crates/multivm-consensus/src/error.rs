@@ -49,6 +49,14 @@ pub enum ConsensusError {
     #[error("Insufficient votes: required {required}, got {actual}")]
     InsufficientVotes { required: usize, actual: usize },
 
+    /// Insufficient votes for finalization with round info
+    #[error("Insufficient votes for round {round}: received {received}, required {required}")]
+    InsufficientVotesForRound {
+        received: usize,
+        required: usize,
+        round: u64,
+    },
+
     /// Fork detected in the blockchain
     #[error("Fork detected at height {height}")]
     ForkDetected { height: u64 },
@@ -142,6 +150,7 @@ impl ConsensusError {
             ConsensusError::NetworkError(_) => true,
             ConsensusError::SerializationError(_) => false,
             ConsensusError::ValidatorNotFound(_) => true,
+            ConsensusError::InsufficientVotesForRound { .. } => true,
         }
     }
 
@@ -184,6 +193,7 @@ impl ConsensusError {
             ConsensusError::NetworkError(_) => "network",
             ConsensusError::SerializationError(_) => "serialization",
             ConsensusError::ValidatorNotFound(_) => "validation",
+            ConsensusError::InsufficientVotesForRound { .. } => "consensus",
         }
     }
 }

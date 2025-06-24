@@ -25,9 +25,13 @@
 
 #![allow(dead_code, unused_variables, unused_imports)]
 
+pub mod circuit_breaker;
 pub mod config;
+pub mod connection_manager;
 pub mod discovery;
+pub mod encryption;
 pub mod error;
+pub mod load_balancer;
 pub mod messages;
 pub mod network;
 pub mod protocol;
@@ -50,12 +54,17 @@ mod protocol_tests;
 #[cfg(test)]
 mod routing_tests;
 #[cfg(test)]
+mod secure_network_tests;
+#[cfg(test)]
 mod transport_tests;
 
 // Re-exports for public API
+pub use circuit_breaker::*;
 pub use config::P2PConfig as P2PNetworkConfig;
+pub use connection_manager::*;
 pub use discovery::*;
 pub use error::*;
+pub use load_balancer::*;
 pub use messages::*;
 pub use network::{NetworkManager, P2PNetwork};
 pub use protocol::*;

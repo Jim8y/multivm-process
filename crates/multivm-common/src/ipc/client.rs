@@ -1,20 +1,59 @@
 use crate::{
-    HealthStatus, IpcCommand, IpcMessage, IpcResponse, IpcTransport, MultivmError, MultivmResult,
-    ProcessId,
+    HealthStatus, IpcCommand, IpcMessage, IpcResponse, IpcTransport, MessageId, MultivmError,
+    MultivmResult, ProcessId,
 };
-use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::{oneshot, Mutex};
 
 /// IPC client for sending commands and receiving responses
 pub struct IpcClient<T: IpcTransport> {
-    transport: T,
+    transport: Arc<T>,
     process_id: ProcessId,
+    /// Pending requests waiting for responses
+    pending_requests: Arc<Mutex<HashMap<MessageId, PendingRequest>>>,
 }
 
-impl<T: IpcTransport> IpcClient<T> {
+/// A pending request waiting for a response
+struct PendingRequest {
+    /// Channel to send the response
+    sender: oneshot::Sender<IpcResponse>,
+    /// When the request was sent
+    sent_at: Instant,
+    /// Request timeout
+    timeout: Option<Duration>,
+}
+
+impl<T: IpcTransport + 'static> IpcClient<T> {
     pub fn new(transport: T, process_id: ProcessId) -> Self {
+        let transport = Arc::new(transport);
+        let pending_requests = Arc::new(Mutex::new(HashMap::new()));
+
+        // Start background task to handle incoming responses
+        let pending_clone = pending_requests.clone();
+        let transport_clone = transport.clone();
+        tokio::spawn(async move {
+            loop {
+                match transport_clone.receive().await {
+                    Ok(message) => {
+                        // Check if this is a response to a pending request
+                        if let Some(response) = Self::try_extract_response(&message) {
+                            Self::handle_response(message.id, response, &pending_clone).await;
+                        }
+                    }
+                    Err(_) => {
+                        // Log error and continue
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                }
+            }
+        });
+
         Self {
             transport,
             process_id,
+            pending_requests,
         }
     }
 
@@ -30,11 +69,42 @@ impl<T: IpcTransport> IpcClient<T> {
             message = message.with_timeout(timeout);
         }
 
+        let message_id = message.id.clone();
+        let (tx, rx) = oneshot::channel();
+
+        // Register pending request
+        {
+            let mut pending = self.pending_requests.lock().await;
+            pending.insert(
+                message_id.clone(),
+                PendingRequest {
+                    sender: tx,
+                    sent_at: Instant::now(),
+                    timeout,
+                },
+            );
+        }
+
+        // Send the message
         self.transport.send(message).await?;
 
-        // Wait for response (simplified - in production you'd handle response matching)
-        let response_msg = self.transport.receive().await?;
-        Ok(response_msg.into_response())
+        // Wait for response with timeout
+        let timeout_duration = timeout.unwrap_or(Duration::from_secs(30));
+        match tokio::time::timeout(timeout_duration, rx).await {
+            Ok(Ok(response)) => Ok(response),
+            Ok(Err(_)) => {
+                // Channel closed without response
+                self.pending_requests.lock().await.remove(&message_id);
+                Err(MultivmError::Ipc("Response channel closed".to_string()))
+            }
+            Err(_) => {
+                // Timeout
+                self.pending_requests.lock().await.remove(&message_id);
+                Err(MultivmError::Timeout {
+                    timeout: timeout_duration,
+                })
+            }
+        }
     }
 
     /// Send a command without waiting for response
@@ -142,6 +212,44 @@ impl<T: IpcTransport> IpcClient<T> {
     ) -> MultivmResult<()> {
         let command = IpcCommand::Shutdown { graceful, timeout };
         self.send_command_async(destination, command).await
+    }
+
+    /// Try to extract a response from a message
+    fn try_extract_response(message: &IpcMessage) -> Option<IpcResponse> {
+        // Check if this message is a response by looking at the command type
+        // In a real implementation, we'd have a proper way to distinguish requests from responses
+        match &message.command {
+            IpcCommand::Ping => Some(IpcResponse::Pong),
+            IpcCommand::GetHealth => Some(message.clone().into_response()),
+            IpcCommand::GetState => Some(message.clone().into_response()),
+            IpcCommand::ProcessBlock { .. } => Some(message.clone().into_response()),
+            IpcCommand::RpcCall { .. } => Some(message.clone().into_response()),
+            _ => None,
+        }
+    }
+
+    /// Handle incoming response messages
+    async fn handle_response(
+        message_id: MessageId,
+        response: IpcResponse,
+        pending_requests: &Arc<Mutex<HashMap<MessageId, PendingRequest>>>,
+    ) {
+        let mut pending = pending_requests.lock().await;
+
+        // Clean up expired requests
+        let now = Instant::now();
+        pending.retain(|_, req| {
+            if let Some(timeout) = req.timeout {
+                now.duration_since(req.sent_at) < timeout
+            } else {
+                true
+            }
+        });
+
+        // Send response to waiting request
+        if let Some(request) = pending.remove(&message_id) {
+            let _ = request.sender.send(response);
+        }
     }
 }
 

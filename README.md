@@ -4,6 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](LICENSE)
 [![CI Status](https://github.com/vm-multiverse/multivm/actions/workflows/ci.yml/badge.svg)](https://github.com/vm-multiverse/multivm/actions)
 [![Status](https://img.shields.io/badge/status-production--ready-green.svg)](#production-ready)
+[![Documentation](https://img.shields.io/badge/docs-comprehensive-blue.svg)](./docs)
 
 **MultiVM Process** is a production-ready blockchain execution coordinator that orchestrates Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM) processes under a single consensus mechanism using [Malachite consensus](https://github.com/informalsystems/malachite). MultiVM acts as a coordinator, delegating actual transaction execution to external Reth (Ethereum) and Solana validator processes.
 

@@ -1,9 +1,15 @@
 //! Secure IPC transport with authentication, encryption, and rate limiting
 
 use crate::{IpcMessage, MultivmError, MultivmResult};
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Key as AesKey, Nonce as AesNonce,
+};
+use chacha20poly1305::{ChaCha20Poly1305, Key as ChaChaKey, Nonce as ChaChaNonce};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::RngCore;
+use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
@@ -374,9 +380,12 @@ pub struct SecureIpcTransport {
 #[derive(Debug, Clone)]
 pub struct IpcConnectionInfo {
     pub remote_process_id: Option<String>,
+    pub local_process_id: Option<String>,
     pub authenticated: bool,
     pub connected_at: SystemTime,
     pub last_activity: SystemTime,
+    pub sequence_number: u64,
+    pub shared_secret: Option<Vec<u8>>,
 }
 
 /// Transport stream abstraction
@@ -400,9 +409,12 @@ impl SecureIpcTransport {
             encryption_config,
             connection_info: IpcConnectionInfo {
                 remote_process_id: None,
+                local_process_id: None,
                 authenticated: false,
                 connected_at: SystemTime::now(),
                 last_activity: SystemTime::now(),
+                sequence_number: 0,
+                shared_secret: None,
             },
             processed_messages: Arc::new(Mutex::new(HashSet::new())),
             sequence_counter: Arc::new(Mutex::new(0)),
@@ -423,9 +435,12 @@ impl SecureIpcTransport {
             encryption_config,
             connection_info: IpcConnectionInfo {
                 remote_process_id: None,
+                local_process_id: None,
                 authenticated: false,
                 connected_at: SystemTime::now(),
                 last_activity: SystemTime::now(),
+                sequence_number: 0,
+                shared_secret: None,
             },
             processed_messages: Arc::new(Mutex::new(HashSet::new())),
             sequence_counter: Arc::new(Mutex::new(0)),
@@ -575,15 +590,11 @@ impl SecureIpcTransport {
         match self.encryption_config.algorithm {
             EncryptionAlgorithm::ChaCha20Poly1305 => {
                 // ChaCha20-Poly1305 authenticated encryption implementation
-                // Using message authentication code for integrity verification
-                let secure_msg = self.wrap_message(message).await?;
-                Ok(secure_msg)
+                self.encrypt_with_chacha20poly1305(message).await
             }
             EncryptionAlgorithm::Aes256Gcm => {
                 // AES-256-GCM authenticated encryption implementation
-                // Using message authentication code for integrity verification
-                let secure_msg = self.wrap_message(message).await?;
-                Ok(secure_msg)
+                self.encrypt_with_aes256gcm(message).await
             }
         }
     }
@@ -598,13 +609,11 @@ impl SecureIpcTransport {
         match self.encryption_config.algorithm {
             EncryptionAlgorithm::ChaCha20Poly1305 => {
                 // ChaCha20-Poly1305 authenticated decryption implementation
-                // Validates MAC and unwraps the authenticated message
-                self.unwrap_message(secure_message)
+                self.decrypt_with_chacha20poly1305(secure_message)
             }
             EncryptionAlgorithm::Aes256Gcm => {
                 // AES-256-GCM authenticated decryption implementation
-                // Validates MAC and unwraps the authenticated message
-                self.unwrap_message(secure_message)
+                self.decrypt_with_aes256gcm(secure_message)
             }
         }
     }
@@ -690,7 +699,7 @@ impl SecureIpcTransport {
 
         type HmacSha256 = Hmac<Sha256>;
 
-        let mut mac = HmacSha256::new_from_slice(&self.auth_manager.signing_key)
+        let mut mac = <HmacSha256 as Mac>::new_from_slice(&self.auth_manager.signing_key)
             .map_err(|e| MultivmError::AuthenticationFailed(format!("MAC key error: {}", e)))?;
 
         mac.update(message);
@@ -702,6 +711,232 @@ impl SecureIpcTransport {
         let mut nonce = vec![0u8; 12]; // 96-bit nonce for AES-GCM
         rand::thread_rng().fill_bytes(&mut nonce);
         nonce
+    }
+
+    /// Encrypt message with ChaCha20Poly1305
+    async fn encrypt_with_chacha20poly1305(
+        &self,
+        message: IpcMessage,
+    ) -> MultivmResult<SecureMessage> {
+        // Serialize the message
+        let plaintext =
+            serde_json::to_vec(&message).map_err(|e| MultivmError::Serialization(e.to_string()))?;
+
+        // Derive encryption key
+        let key = self.derive_encryption_key(32)?; // 32 bytes for ChaCha20
+        let cipher_key = ChaChaKey::from_slice(&key);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Generate nonce (12 bytes for ChaCha20Poly1305)
+        let mut nonce_bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = ChaChaNonce::from_slice(&nonce_bytes);
+
+        // Encrypt
+        let ciphertext = cipher.encrypt(nonce, plaintext.as_ref()).map_err(|e| {
+            MultivmError::EncryptionFailed(format!("ChaCha20Poly1305 encryption failed: {}", e))
+        })?;
+
+        // Generate auth token
+        let auth_token = self.generate_auth_token().await?;
+
+        // Create secure message
+        let secure_message = SecureMessage {
+            auth_token,
+            encrypted_payload: ciphertext,
+            mac: vec![], // MAC is included in AEAD ciphertext
+            timestamp: SystemTime::now(),
+            nonce: nonce_bytes.to_vec(),
+            message_id: uuid::Uuid::new_v4().to_string(),
+            sequence_number: self.connection_info.sequence_number,
+        };
+
+        Ok(secure_message)
+    }
+
+    /// Decrypt message with ChaCha20Poly1305
+    fn decrypt_with_chacha20poly1305(
+        &self,
+        secure_message: SecureMessage,
+    ) -> MultivmResult<IpcMessage> {
+        // Validate message age
+        if let Ok(age) = secure_message.timestamp.elapsed() {
+            if age > Duration::from_secs(300) {
+                // 5 minutes max age
+                return Err(MultivmError::AuthenticationFailed(
+                    "Message too old".to_string(),
+                ));
+            }
+        }
+
+        // Derive decryption key
+        let key = self.derive_encryption_key(32)?;
+        let cipher_key = ChaChaKey::from_slice(&key);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Parse nonce
+        if secure_message.nonce.len() != 12 {
+            return Err(MultivmError::EncryptionFailed(
+                "Invalid nonce length".to_string(),
+            ));
+        }
+        let nonce = ChaChaNonce::from_slice(&secure_message.nonce);
+
+        // Decrypt
+        let plaintext = cipher
+            .decrypt(nonce, secure_message.encrypted_payload.as_ref())
+            .map_err(|e| {
+                MultivmError::EncryptionFailed(format!("ChaCha20Poly1305 decryption failed: {}", e))
+            })?;
+
+        // Deserialize message
+        let message: IpcMessage = serde_json::from_slice(&plaintext)
+            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+
+        Ok(message)
+    }
+
+    /// Encrypt message with AES-256-GCM
+    async fn encrypt_with_aes256gcm(&self, message: IpcMessage) -> MultivmResult<SecureMessage> {
+        // Serialize the message
+        let plaintext =
+            serde_json::to_vec(&message).map_err(|e| MultivmError::Serialization(e.to_string()))?;
+
+        // Derive encryption key
+        let key = self.derive_encryption_key(32)?; // 32 bytes for AES-256
+        let cipher_key = AesKey::<Aes256Gcm>::from_slice(&key);
+        let cipher = Aes256Gcm::new(cipher_key);
+
+        // Generate nonce (12 bytes for AES-GCM)
+        let mut nonce_bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = AesNonce::from_slice(&nonce_bytes);
+
+        // Encrypt
+        let ciphertext = cipher.encrypt(nonce, plaintext.as_ref()).map_err(|e| {
+            MultivmError::EncryptionFailed(format!("AES-256-GCM encryption failed: {}", e))
+        })?;
+
+        // Generate auth token
+        let auth_token = self.generate_auth_token().await?;
+
+        // Create secure message
+        let secure_message = SecureMessage {
+            auth_token,
+            encrypted_payload: ciphertext,
+            mac: vec![], // MAC is included in AEAD ciphertext
+            timestamp: SystemTime::now(),
+            nonce: nonce_bytes.to_vec(),
+            message_id: uuid::Uuid::new_v4().to_string(),
+            sequence_number: self.connection_info.sequence_number,
+        };
+
+        Ok(secure_message)
+    }
+
+    /// Decrypt message with AES-256-GCM
+    fn decrypt_with_aes256gcm(&self, secure_message: SecureMessage) -> MultivmResult<IpcMessage> {
+        // Validate message age
+        if let Ok(age) = secure_message.timestamp.elapsed() {
+            if age > Duration::from_secs(300) {
+                // 5 minutes max age
+                return Err(MultivmError::AuthenticationFailed(
+                    "Message too old".to_string(),
+                ));
+            }
+        }
+
+        // Derive decryption key
+        let key = self.derive_encryption_key(32)?;
+        let cipher_key = AesKey::<Aes256Gcm>::from_slice(&key);
+        let cipher = Aes256Gcm::new(cipher_key);
+
+        // Parse nonce
+        if secure_message.nonce.len() != 12 {
+            return Err(MultivmError::EncryptionFailed(
+                "Invalid nonce length".to_string(),
+            ));
+        }
+        let nonce = AesNonce::from_slice(&secure_message.nonce);
+
+        // Decrypt
+        let plaintext = cipher
+            .decrypt(nonce, secure_message.encrypted_payload.as_ref())
+            .map_err(|e| {
+                MultivmError::EncryptionFailed(format!("AES-256-GCM decryption failed: {}", e))
+            })?;
+
+        // Deserialize message
+        let message: IpcMessage = serde_json::from_slice(&plaintext)
+            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+
+        Ok(message)
+    }
+
+    /// Derive encryption key from shared secret
+    fn derive_encryption_key(&self, key_length: usize) -> MultivmResult<Vec<u8>> {
+        // Get base key material from connection info
+        let base_key = match &self.connection_info.shared_secret {
+            Some(secret) => secret.clone(),
+            None => {
+                // Fallback to deriving from process IDs
+                let mut hasher = Sha256::new();
+                if let Some(local_id) = &self.connection_info.local_process_id {
+                    hasher.update(local_id.as_bytes());
+                }
+                if let Some(remote_id) = &self.connection_info.remote_process_id {
+                    hasher.update(remote_id.as_bytes());
+                }
+                hasher.update(b"IPC-ENCRYPTION-KEY");
+                hasher.finalize().to_vec()
+            }
+        };
+
+        // Use HKDF-like key derivation
+        let mut hasher = Sha256::new();
+        hasher.update(&base_key);
+        hasher.update(b"MultiVM-IPC-Encryption");
+        hasher.update(&(key_length as u32).to_be_bytes());
+
+        let derived_key = hasher.finalize();
+
+        // Truncate or extend to desired length
+        if key_length <= 32 {
+            Ok(derived_key[..key_length].to_vec())
+        } else {
+            // For longer keys, chain hash multiple times
+            let mut extended_key = derived_key.to_vec();
+            while extended_key.len() < key_length {
+                let mut hasher = Sha256::new();
+                hasher.update(&extended_key);
+                hasher.update(b"EXTEND");
+                extended_key.extend_from_slice(&hasher.finalize());
+            }
+            Ok(extended_key[..key_length].to_vec())
+        }
+    }
+
+    /// Generate authentication token for current connection
+    async fn generate_auth_token(&self) -> MultivmResult<AuthToken> {
+        let process_id = self
+            .connection_info
+            .local_process_id
+            .as_ref()
+            .ok_or_else(|| MultivmError::AuthenticationFailed("No local process ID".to_string()))?
+            .clone();
+
+        let now = SystemTime::now();
+        let expires_at = now + Duration::from_secs(3600); // 1 hour
+
+        let token = AuthToken {
+            process_id: process_id.clone(),
+            issued_at: now,
+            expires_at,
+            permissions: vec!["ipc:send".to_string(), "ipc:receive".to_string()],
+            signature: vec![], // Will be filled by token signing
+        };
+
+        Ok(token)
     }
 
     /// Send raw bytes over the transport

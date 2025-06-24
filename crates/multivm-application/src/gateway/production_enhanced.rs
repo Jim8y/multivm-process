@@ -844,6 +844,111 @@ impl EnhancedProductionGateway {
 }
 
 impl QueryProcessor {
+    /// Parse account address for query with automatic chain detection
+    fn parse_account_for_query(&self, address: &str) -> MultivmResult<multivm_common::AccountAddress> {
+        // Trim whitespace and normalize
+        let address = address.trim();
+        
+        // Detect chain type based on address format
+        if address.starts_with("0x") && address.len() == 42 {
+            // Ethereum address format: 0x + 40 hex characters
+            self.parse_ethereum_address(address)
+        } else if address.len() >= 32 && address.len() <= 44 && self.is_base58(address) {
+            // Solana address format: Base58 encoded, typically 32-44 characters
+            self.parse_solana_address(address)
+        } else if address.len() == 40 && self.is_hex(address) {
+            // Ethereum address without 0x prefix
+            self.parse_ethereum_address(&format!("0x{}", address))
+        } else if address.contains(":") {
+            // Format like "ethereum:0x..." or "solana:..."
+            self.parse_prefixed_address(address)
+        } else {
+            Err(ApplicationError::InvalidInput(
+                format!("Unable to detect address format for: {}", address)
+            ).into())
+        }
+    }
+    
+    /// Parse Ethereum address
+    fn parse_ethereum_address(&self, address: &str) -> MultivmResult<multivm_common::AccountAddress> {
+        let addr_str = address.trim_start_matches("0x");
+        let addr_bytes = hex::decode(addr_str)
+            .map_err(|_| ApplicationError::InvalidInput("Invalid Ethereum address hex".to_string()))?;
+        
+        if addr_bytes.len() != 20 {
+            return Err(ApplicationError::InvalidInput(
+                format!("Invalid Ethereum address length: expected 20 bytes, got {}", addr_bytes.len())
+            ).into());
+        }
+        
+        let mut eth_addr = [0u8; 20];
+        eth_addr.copy_from_slice(&addr_bytes);
+        
+        Ok(multivm_common::AccountAddress::Ethereum(
+            multivm_common::EthereumAddress(eth_addr)
+        ))
+    }
+    
+    /// Parse Solana address
+    fn parse_solana_address(&self, address: &str) -> MultivmResult<multivm_common::AccountAddress> {
+        let addr_bytes = bs58::decode(address)
+            .into_vec()
+            .map_err(|e| ApplicationError::InvalidInput(
+                format!("Invalid Solana address Base58: {}", e)
+            ))?;
+        
+        if addr_bytes.len() != 32 {
+            return Err(ApplicationError::InvalidInput(
+                format!("Invalid Solana address length: expected 32 bytes, got {}", addr_bytes.len())
+            ).into());
+        }
+        
+        let mut sol_addr = [0u8; 32];
+        sol_addr.copy_from_slice(&addr_bytes);
+        
+        Ok(multivm_common::AccountAddress::Solana(
+            multivm_common::SolanaAddress(sol_addr)
+        ))
+    }
+    
+    /// Parse address with chain prefix (e.g., "ethereum:0x..." or "solana:...")
+    fn parse_prefixed_address(&self, address: &str) -> MultivmResult<multivm_common::AccountAddress> {
+        let parts: Vec<&str> = address.splitn(2, ':').collect();
+        if parts.len() != 2 {
+            return Err(ApplicationError::InvalidInput(
+                "Invalid prefixed address format, expected 'chain:address'".to_string()
+            ).into());
+        }
+        
+        let chain = parts[0].to_lowercase();
+        let addr = parts[1];
+        
+        match chain.as_str() {
+            "ethereum" | "eth" | "evm" => self.parse_ethereum_address(addr),
+            "solana" | "sol" | "svm" => self.parse_solana_address(addr),
+            _ => Err(ApplicationError::InvalidInput(
+                format!("Unsupported chain prefix: {}", chain)
+            ).into()),
+        }
+    }
+    
+    /// Check if string is valid hexadecimal
+    fn is_hex(&self, s: &str) -> bool {
+        s.chars().all(|c| c.is_ascii_hexdigit())
+    }
+    
+    /// Check if string is valid Base58
+    fn is_base58(&self, s: &str) -> bool {
+        // Base58 alphabet: 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+        // (no 0, O, I, l to avoid confusion)
+        s.chars().all(|c| {
+            matches!(c, 
+                '1'..='9' | 'A'..='H' | 'J'..='N' | 'P'..='Z' | 
+                'a'..='k' | 'm'..='z'
+            )
+        })
+    }
+
     /// Build internal query from API query
     fn build_internal_query(
         &self,
@@ -859,8 +964,8 @@ impl QueryProcessor {
         
         Ok(TransactionQuery {
             account: query.account.and_then(|addr| {
-                // Parse account address - simplified for now
-                None
+                // Parse account address with proper chain detection and validation
+                self.parse_account_for_query(&addr).ok()
             }),
             status: query.status.map(|s| match s {
                 TransactionStatus::Pending => SpecialTxStatus::Pending,

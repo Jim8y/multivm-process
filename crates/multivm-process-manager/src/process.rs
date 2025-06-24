@@ -20,6 +20,10 @@ pub struct ProcessHandle {
     pub restart_attempts: Arc<Mutex<VecDeque<RestartAttempt>>>,
     pub last_health_check: Arc<Mutex<Option<Instant>>>,
     pub is_recovering: Arc<Mutex<bool>>,
+    // Process lifecycle tracking
+    pub start_time: Arc<Mutex<Option<Instant>>>,
+    pub total_uptime: Arc<Mutex<Duration>>,
+    pub downtime_periods: Arc<Mutex<VecDeque<DowntimePeriod>>>,
 }
 
 impl Clone for ProcessHandle {
@@ -34,6 +38,9 @@ impl Clone for ProcessHandle {
             restart_attempts: self.restart_attempts.clone(),
             last_health_check: self.last_health_check.clone(),
             is_recovering: self.is_recovering.clone(),
+            start_time: self.start_time.clone(),
+            total_uptime: self.total_uptime.clone(),
+            downtime_periods: self.downtime_periods.clone(),
         }
     }
 }
@@ -80,6 +87,9 @@ impl ProcessHandle {
             restart_attempts: Arc::new(Mutex::new(VecDeque::new())),
             last_health_check: Arc::new(Mutex::new(None)),
             is_recovering: Arc::new(Mutex::new(false)),
+            start_time: Arc::new(Mutex::new(None)),
+            total_uptime: Arc::new(Mutex::new(Duration::from_secs(0))),
+            downtime_periods: Arc::new(Mutex::new(VecDeque::new())),
         };
 
         handle.start().await?;
@@ -127,6 +137,9 @@ impl ProcessHandle {
             restart_attempts: Arc::new(Mutex::new(VecDeque::new())),
             last_health_check: Arc::new(Mutex::new(None)),
             is_recovering: Arc::new(Mutex::new(false)),
+            start_time: Arc::new(Mutex::new(None)),
+            total_uptime: Arc::new(Mutex::new(Duration::from_secs(0))),
+            downtime_periods: Arc::new(Mutex::new(VecDeque::new())),
         };
 
         handle.start().await?;
@@ -157,6 +170,12 @@ impl ProcessHandle {
         let pid = child.id();
         *self.child.write().await = Some(child);
 
+        // Record the start time for accurate uptime calculation
+        *self.start_time.lock().await = Some(Instant::now());
+
+        // Mark the end of any ongoing downtime period
+        self.mark_downtime_ended().await;
+
         tracing::info!("Started {} process with PID: {:?}", self.process_id, pid);
         Ok(())
     }
@@ -167,7 +186,8 @@ impl ProcessHandle {
         if let Some(child) = child_guard.as_mut() {
             match child.try_wait() {
                 Ok(Some(_exit_status)) => {
-                    // Process has exited
+                    // Process has exited - record downtime period
+                    self.record_process_stopped().await;
                     *child_guard = None;
                     false
                 }
@@ -177,6 +197,7 @@ impl ProcessHandle {
                 }
                 Err(_) => {
                     // Error checking status, assume not running
+                    self.record_process_stopped().await;
                     *child_guard = None;
                     false
                 }
@@ -291,7 +312,7 @@ impl ProcessHandle {
 
     /// Perform health check on the process
     pub async fn health_check(&self) -> HealthStatus {
-        use std::time::{Duration, SystemTime};
+        use std::time::SystemTime;
 
         // Update last health check time
         *self.last_health_check.lock().await = Some(Instant::now());
@@ -303,13 +324,8 @@ impl ProcessHandle {
             false
         };
 
-        // Calculate uptime (simplified)
-        let uptime = self
-            .last_health_check
-            .lock()
-            .await
-            .map(|t| t.elapsed())
-            .unwrap_or(Duration::from_secs(0));
+        // Calculate proper uptime using comprehensive tracking
+        let uptime = self.calculate_total_uptime().await;
 
         HealthStatus {
             process_id: self.process_id,
@@ -488,6 +504,99 @@ impl ProcessHandle {
         let health = self.health_check().await;
         !health.is_healthy
     }
+
+    /// Record when the process stopped for downtime tracking
+    async fn record_process_stopped(&self) {
+        let start_time_guard = self.start_time.lock().await;
+        if let Some(start_time) = *start_time_guard {
+            // Update total uptime with the current session
+            let current_session_uptime = start_time.elapsed();
+            let mut total_uptime = self.total_uptime.lock().await;
+            *total_uptime += current_session_uptime;
+
+            // Record the downtime period
+            let mut downtime_periods = self.downtime_periods.lock().await;
+            downtime_periods.push_back(DowntimePeriod {
+                start_time: Instant::now(),
+                end_time: None,
+                reason: Some("Process stopped".to_string()),
+            });
+
+            // Limit downtime history to last 100 periods
+            while downtime_periods.len() > 100 {
+                downtime_periods.pop_front();
+            }
+        }
+    }
+
+    /// Calculate comprehensive uptime including current session and historical data
+    async fn calculate_total_uptime(&self) -> Duration {
+        let start_time_guard = self.start_time.lock().await;
+        let total_uptime_guard = self.total_uptime.lock().await;
+
+        if let Some(start_time) = *start_time_guard {
+            // Process is currently running - add current session uptime
+            *total_uptime_guard + start_time.elapsed()
+        } else {
+            // Process is not running - return accumulated uptime only
+            *total_uptime_guard
+        }
+    }
+
+    /// Get detailed uptime statistics
+    pub async fn get_uptime_stats(&self) -> UptimeStats {
+        let total_uptime = self.calculate_total_uptime().await;
+        let downtime_periods = self.downtime_periods.lock().await;
+
+        // Calculate total downtime from completed downtime periods
+        let total_downtime: Duration = downtime_periods
+            .iter()
+            .filter_map(|period| {
+                period
+                    .end_time
+                    .map(|end| end.duration_since(period.start_time))
+            })
+            .sum();
+
+        // Calculate availability percentage
+        let total_time = total_uptime + total_downtime;
+        let availability_percent = if total_time.as_secs() > 0 {
+            (total_uptime.as_secs_f64() / total_time.as_secs_f64()) * 100.0
+        } else {
+            100.0
+        };
+
+        // Get current status
+        let current_status = if self.start_time.lock().await.is_some() {
+            ProcessStatus::Running
+        } else {
+            ProcessStatus::Stopped
+        };
+
+        UptimeStats {
+            total_uptime,
+            total_downtime,
+            availability_percent,
+            restart_count: self.restart_attempts.lock().await.len(),
+            current_status,
+            last_restart: self
+                .restart_attempts
+                .lock()
+                .await
+                .back()
+                .map(|attempt| attempt.timestamp),
+        }
+    }
+
+    /// Mark the end of a downtime period (called when process starts again)
+    async fn mark_downtime_ended(&self) {
+        let mut downtime_periods = self.downtime_periods.lock().await;
+        if let Some(last_period) = downtime_periods.back_mut() {
+            if last_period.end_time.is_none() {
+                last_period.end_time = Some(Instant::now());
+            }
+        }
+    }
 }
 
 /// Get the path to an engine binary
@@ -591,4 +700,32 @@ pub struct RestartAttempt {
     pub timestamp: Instant,
     pub reason: String,
     pub successful: bool,
+}
+
+/// Represents a period when the process was down
+#[derive(Debug, Clone)]
+pub struct DowntimePeriod {
+    pub start_time: Instant,
+    pub end_time: Option<Instant>,
+    pub reason: Option<String>,
+}
+
+/// Comprehensive uptime statistics
+#[derive(Debug, Clone)]
+pub struct UptimeStats {
+    pub total_uptime: Duration,
+    pub total_downtime: Duration,
+    pub availability_percent: f64,
+    pub restart_count: usize,
+    pub current_status: ProcessStatus,
+    pub last_restart: Option<Instant>,
+}
+
+/// Current process status
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProcessStatus {
+    Running,
+    Stopped,
+    Starting,
+    Stopping,
 }

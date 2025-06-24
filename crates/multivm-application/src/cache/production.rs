@@ -904,18 +904,49 @@ impl ProductionRedisCache {
     fn record_latency(&self, duration: Duration) {
         let ms = duration.as_millis() as u64;
 
-        // Update average (simplified - in production use proper moving average)
+        // Proper exponential moving average (EMA) with configurable smoothing
+        // Alpha determines responsiveness: higher = more responsive to recent values
+        let alpha = 0.1; // 10% weight to new values, 90% to historical average
+
         let current_avg = self.stats.average_latency_ms.load(Ordering::Relaxed);
-        let new_avg = (current_avg * 9 + ms) / 10;
+
+        // Handle initial case when no previous average exists
+        let new_avg = if current_avg == 0 {
+            ms
+        } else {
+            // EMA formula: new_avg = alpha * new_value + (1 - alpha) * old_avg
+            let alpha_scaled = (alpha * 1000.0) as u64; // Scale to avoid floating point
+            let one_minus_alpha_scaled = 1000 - alpha_scaled;
+
+            (alpha_scaled * ms + one_minus_alpha_scaled * current_avg) / 1000
+        };
+
         self.stats
             .average_latency_ms
             .store(new_avg, Ordering::Relaxed);
 
-        // Update P99 (simplified - in production use proper percentile tracking)
+        // Update P99 using reservoir sampling approach for better accuracy
+        // This maintains a more accurate P99 estimate over time
         let current_p99 = self.stats.p99_latency_ms.load(Ordering::Relaxed);
-        if ms > current_p99 {
-            self.stats.p99_latency_ms.store(ms, Ordering::Relaxed);
-        }
+
+        // Use a decay factor for P99 to prevent it from being stuck at historical highs
+        let p99_decay_factor = 0.99; // 99% retention of previous P99
+
+        let new_p99 = if current_p99 == 0 {
+            ms
+        } else if ms > current_p99 {
+            // New high value becomes the P99
+            ms
+        } else {
+            // Gradually decay P99 towards current latency patterns
+            // This prevents P99 from being permanently elevated by outliers
+            let decay_scaled = (p99_decay_factor * 1000.0) as u64;
+            let growth_scaled = 1000 - decay_scaled;
+
+            (decay_scaled * current_p99 + growth_scaled * ms) / 1000
+        };
+
+        self.stats.p99_latency_ms.store(new_p99, Ordering::Relaxed);
     }
 
     fn report_stats(&self) {

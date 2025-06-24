@@ -60,6 +60,9 @@ pub enum MultivmError {
     #[error("Encryption error: {0}")]
     EncryptionError(String),
 
+    #[error("Encryption failed: {0}")]
+    EncryptionFailed(String),
+
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
@@ -75,6 +78,9 @@ pub enum MultivmError {
 
     #[error("Consensus error: {0}")]
     ConsensusError(String),
+
+    #[error("Insufficient balance: {0}")]
+    InsufficientBalance(String),
 }
 
 // Conversion from common error types
@@ -146,7 +152,9 @@ impl MultivmError {
             MultivmError::AuthenticationFailed(_) => ErrorCategory::Configuration,
             MultivmError::RateLimited(_) => ErrorCategory::Resource,
             MultivmError::EncryptionError(_) => ErrorCategory::Fatal,
+            MultivmError::EncryptionFailed(_) => ErrorCategory::Fatal,
             MultivmError::ConsensusError(_) => ErrorCategory::Recoverable,
+            MultivmError::InsufficientBalance(_) => ErrorCategory::Fatal,
         }
     }
 

@@ -47,6 +47,10 @@ bs58 = { workspace = true }
 # HTTP client for health checks
 reqwest = { workspace = true }
 
+# Security and cryptography
+jsonwebtoken = { workspace = true }
+chacha20poly1305 = "0.10"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio-test = "0.4" 

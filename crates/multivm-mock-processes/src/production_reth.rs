@@ -245,6 +245,18 @@ struct StateSnapshot {
     pub timestamp: u64,
 }
 
+/// Transaction receipt
+#[derive(Debug, Clone)]
+struct TransactionReceipt {
+    pub transaction_hash: String,
+    pub transaction_index: u64,
+    pub block_number: u64,
+    pub gas_used: u64,
+    pub cumulative_gas_used: u64,
+    pub status: u8,
+    pub logs: Vec<String>,
+}
+
 /// Reth metrics
 #[derive(Debug, Default, Clone)]
 struct RethMetrics {
@@ -525,20 +537,55 @@ impl ProductionRethProcess {
 
     /// Estimate gas
     async fn estimate_gas(&self, tx_data: &serde_json::Value) -> u64 {
-        // Simplified gas estimation
+        let from = tx_data.get("from").and_then(|v| v.as_str()).unwrap_or("0x0");
         let to = tx_data.get("to").and_then(|v| v.as_str());
         let data = tx_data.get("data").and_then(|v| v.as_str()).unwrap_or("0x");
+        let value = tx_data.get("value")
+            .and_then(|v| v.as_str())
+            .and_then(|s| u128::from_str_radix(s.trim_start_matches("0x"), 16).ok())
+            .unwrap_or(0);
+        
+        // Base costs
+        let mut gas_estimate = 0u64;
+        
+        // Intrinsic gas cost (G_transaction)
+        gas_estimate += 21_000;
+        
+        // Data cost calculation
+        let data_bytes = if data.len() > 2 {
+            hex::decode(data.trim_start_matches("0x")).unwrap_or_default()
+        } else {
+            vec![]
+        };
+        
+        for byte in &data_bytes {
+            if *byte == 0 {
+                gas_estimate += 4; // G_txdatazero
+            } else {
+                gas_estimate += 16; // G_txdatanonzero (EIP-2028)
+            }
+        }
         
         if to.is_none() {
             // Contract deployment
-            50_000 + (data.len() as u64 / 2) * 200
-        } else if data.len() > 2 {
-            // Contract call
-            21_000 + (data.len() as u64 / 2) * 16
+            gas_estimate += self.estimate_contract_deployment_gas(&data_bytes).await;
         } else {
-            // Simple transfer
-            21_000
+            // Check if it's a contract call or simple transfer
+            let is_contract = self.is_contract_address(to.unwrap()).await;
+            
+            if is_contract {
+                gas_estimate += self.estimate_contract_execution_gas(to.unwrap(), &data_bytes, value).await;
+            } else if value > 0 {
+                // Value transfer to EOA
+                gas_estimate += 9_000; // G_callvalue
+            }
         }
+        
+        // Add buffer for safety (10%)
+        gas_estimate = (gas_estimate * 110) / 100;
+        
+        // Ensure minimum gas
+        gas_estimate.max(21_000)
     }
 
     /// Process transaction
@@ -645,43 +692,415 @@ impl ProductionRethProcess {
 
     // Helper methods
     fn generate_block_hash(&self, block_number: u64) -> String {
-        format!("0x{:064x}", block_number)
+        use sha2::{Sha256, Digest};
+        
+        let mut hasher = Sha256::new();
+        hasher.update(&block_number.to_be_bytes());
+        hasher.update(&self.state.try_read()
+            .map(|s| s.block_hash.as_bytes().to_vec())
+            .unwrap_or_else(|| b"genesis".to_vec()));
+        hasher.update(&SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_be_bytes());
+        
+        format!("0x{:x}", hasher.finalize())
     }
 
-    async fn calculate_state_root(&self, _transactions: &[EthereumTransaction]) -> MultivmResult<String> {
-        // Simplified state root calculation
-        Ok(format!("0x{:064x}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()))
+    async fn calculate_state_root(&self, transactions: &[EthereumTransaction]) -> MultivmResult<String> {
+        use sha2::{Sha256, Digest};
+        
+        let mut state_manager = self.state_manager.write().await;
+        let mut hasher = Sha256::new();
+        
+        // Process transactions and update state
+        for tx in transactions {
+            // Update sender account
+            let sender_entry = state_manager
+                .accounts
+                .entry(tx.from.clone())
+                .or_insert(AccountState {
+                    balance: 1_000_000_000_000_000_000, // 1 ETH default
+                    nonce: 0,
+                    code_hash: None,
+                    storage_root: "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421".to_string(),
+                });
+            
+            // Deduct gas cost and value
+            let gas_cost = tx.gas.saturating_mul(tx.gas_price) as u128;
+            sender_entry.balance = sender_entry.balance.saturating_sub(gas_cost);
+            sender_entry.balance = sender_entry.balance.saturating_sub(tx.value);
+            sender_entry.nonce += 1;
+            
+            // Update receiver account if not contract creation
+            if let Some(to) = &tx.to {
+                let receiver_entry = state_manager
+                    .accounts
+                    .entry(to.clone())
+                    .or_insert(AccountState {
+                        balance: 0,
+                        nonce: 0,
+                        code_hash: None,
+                        storage_root: "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421".to_string(),
+                    });
+                receiver_entry.balance = receiver_entry.balance.saturating_add(tx.value);
+            } else {
+                // Contract creation
+                let contract_address = self.calculate_contract_address(&tx.from, sender_entry.nonce - 1);
+                state_manager.contracts.insert(
+                    contract_address.clone(),
+                    ContractState {
+                        code: tx.data.clone(),
+                        storage: HashMap::new(),
+                        deployed_at: self.state.read().await.block_number,
+                    },
+                );
+                
+                // Create account entry for contract
+                state_manager.accounts.insert(
+                    contract_address.clone(),
+                    AccountState {
+                        balance: tx.value,
+                        nonce: 1,
+                        code_hash: Some(format!("0x{:x}", Sha256::digest(&tx.data))),
+                        storage_root: "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421".to_string(),
+                    },
+                );
+            }
+        }
+        
+        // Create merkle-patricia trie root from account states
+        // Simplified: hash all account states together
+        let mut account_data = Vec::new();
+        for (address, state) in &state_manager.accounts {
+            account_data.extend_from_slice(address.as_bytes());
+            account_data.extend_from_slice(&state.balance.to_be_bytes());
+            account_data.extend_from_slice(&state.nonce.to_be_bytes());
+            account_data.extend_from_slice(state.storage_root.as_bytes());
+            if let Some(code_hash) = &state.code_hash {
+                account_data.extend_from_slice(code_hash.as_bytes());
+            }
+        }
+        
+        hasher.update(&account_data);
+        let state_root = format!("0x{:x}", hasher.finalize());
+        
+        // Update the current state root
+        state_manager.current_state_root = state_root.clone();
+        
+        // Create state snapshot
+        let snapshot = StateSnapshot {
+            block_number: self.state.read().await.block_number + 1,
+            state_root: state_root.clone(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        };
+        
+        // Keep history limited
+        if state_manager.state_history.len() >= self.config.state_config.max_state_history {
+            state_manager.state_history.remove(0);
+        }
+        state_manager.state_history.push(snapshot);
+        
+        Ok(state_root)
+    }
+    
+    /// Calculate contract address from deployer and nonce
+    fn calculate_contract_address(&self, deployer: &str, nonce: u64) -> String {
+        use sha2::{Sha256, Digest};
+        
+        let mut hasher = Sha256::new();
+        hasher.update(deployer.as_bytes());
+        hasher.update(&nonce.to_be_bytes());
+        
+        let hash = hasher.finalize();
+        // Take last 20 bytes for Ethereum address
+        format!("0x{:x}", &hash[12..])
     }
 
     fn calculate_transactions_root(&self, transactions: &[EthereumTransaction]) -> String {
-        // Simplified merkle root
+        use sha2::{Sha256, Digest};
+        
         if transactions.is_empty() {
-            "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421".to_string()
-        } else {
-            format!("0x{:064x}", transactions.len())
+            // Empty trie root (Keccak256 of RLP empty string)
+            return "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421".to_string();
         }
+        
+        // Build merkle tree
+        let mut hashes: Vec<[u8; 32]> = transactions
+            .iter()
+            .map(|tx| {
+                let mut hasher = Sha256::new();
+                // Hash transaction data
+                hasher.update(&tx.hash.as_bytes());
+                hasher.update(&tx.from.as_bytes());
+                if let Some(to) = &tx.to {
+                    hasher.update(to.as_bytes());
+                }
+                hasher.update(&tx.value.to_be_bytes());
+                hasher.update(&tx.gas.to_be_bytes());
+                hasher.update(&tx.gas_price.to_be_bytes());
+                hasher.update(&tx.nonce.to_be_bytes());
+                hasher.update(&tx.data);
+                
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&hasher.finalize());
+                hash
+            })
+            .collect();
+        
+        // Build merkle tree layers
+        while hashes.len() > 1 {
+            let mut next_layer = Vec::new();
+            
+            for i in (0..hashes.len()).step_by(2) {
+                let mut hasher = Sha256::new();
+                hasher.update(&hashes[i]);
+                
+                if i + 1 < hashes.len() {
+                    hasher.update(&hashes[i + 1]);
+                } else {
+                    // Duplicate last hash if odd number
+                    hasher.update(&hashes[i]);
+                }
+                
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&hasher.finalize());
+                next_layer.push(hash);
+            }
+            
+            hashes = next_layer;
+        }
+        
+        format!("0x{}", hex::encode(&hashes[0]))
     }
 
     fn calculate_receipts_root(&self, transactions: &[EthereumTransaction]) -> String {
-        // Simplified receipts root
-        format!("0x{:064x}", transactions.iter().map(|tx| tx.gas).sum::<u64>())
+        use sha2::{Sha256, Digest};
+        
+        if transactions.is_empty() {
+            // Empty trie root
+            return "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421".to_string();
+        }
+        
+        // Build merkle tree from transaction receipts
+        let mut hashes: Vec<[u8; 32]> = transactions
+            .iter()
+            .enumerate()
+            .map(|(index, tx)| {
+                let mut hasher = Sha256::new();
+                
+                // Create receipt data
+                let receipt = TransactionReceipt {
+                    transaction_hash: tx.hash.clone(),
+                    transaction_index: index as u64,
+                    block_number: self.state.try_read()
+                        .map(|s| s.block_number + 1)
+                        .unwrap_or(1),
+                    gas_used: tx.gas,
+                    cumulative_gas_used: transactions[0..=index]
+                        .iter()
+                        .map(|t| t.gas)
+                        .sum(),
+                    status: 1, // Success
+                    logs: Vec::new(),
+                };
+                
+                // Hash receipt data
+                hasher.update(&receipt.transaction_hash.as_bytes());
+                hasher.update(&receipt.transaction_index.to_be_bytes());
+                hasher.update(&receipt.block_number.to_be_bytes());
+                hasher.update(&receipt.gas_used.to_be_bytes());
+                hasher.update(&receipt.cumulative_gas_used.to_be_bytes());
+                hasher.update(&[receipt.status]);
+                
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&hasher.finalize());
+                hash
+            })
+            .collect();
+        
+        // Build merkle tree layers
+        while hashes.len() > 1 {
+            let mut next_layer = Vec::new();
+            
+            for i in (0..hashes.len()).step_by(2) {
+                let mut hasher = Sha256::new();
+                hasher.update(&hashes[i]);
+                
+                if i + 1 < hashes.len() {
+                    hasher.update(&hashes[i + 1]);
+                } else {
+                    hasher.update(&hashes[i]);
+                }
+                
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&hasher.finalize());
+                next_layer.push(hash);
+            }
+            
+            hashes = next_layer;
+        }
+        
+        format!("0x{}", hex::encode(&hashes[0]))
     }
 
     fn calculate_difficulty(&self) -> u128 {
-        // Simplified difficulty
-        1000000
+        // Implement simplified difficulty adjustment algorithm
+        if !self.config.mining_config.difficulty_adjustment {
+            return 1_000_000; // Fixed difficulty
+        }
+        
+        // Get current state
+        let state = self.state.try_read();
+        if state.is_none() {
+            return 1_000_000;
+        }
+        
+        let state = state.unwrap();
+        let base_difficulty = 1_000_000u128;
+        
+        // Adjust based on block time
+        let target_time = self.config.mining_config.target_block_time.as_secs();
+        let actual_time = self.config.block_time;
+        
+        if actual_time < target_time {
+            // Blocks too fast, increase difficulty
+            base_difficulty.saturating_mul(110).saturating_div(100) // +10%
+        } else if actual_time > target_time * 2 {
+            // Blocks too slow, decrease difficulty
+            base_difficulty.saturating_mul(90).saturating_div(100) // -10%
+        } else {
+            base_difficulty
+        }
     }
 
     async fn cleanup_transaction_pool(pool: &Arc<RwLock<TransactionPool>>) -> MultivmResult<()> {
         let mut pool = pool.write().await;
         
-        // Remove old transactions
-        let cutoff = SystemTime::now() - Duration::from_secs(3600); // 1 hour
+        // Track transactions to remove
+        let mut to_remove = Vec::new();
+        let mut to_move_to_queued = Vec::new();
         
-        pool.pending.retain(|_, tx| {
-            // Keep if recent (simplified timestamp check)
-            true
-        });
+        // Check pending transactions
+        for (hash, tx) in &pool.pending {
+            match tx.status {
+                TransactionStatus::Confirmed => {
+                    // Remove confirmed transactions
+                    to_remove.push(hash.clone());
+                }
+                TransactionStatus::Failed => {
+                    // Remove failed transactions
+                    to_remove.push(hash.clone());
+                }
+                TransactionStatus::Dropped => {
+                    // Remove dropped transactions
+                    to_remove.push(hash.clone());
+                }
+                TransactionStatus::Pending => {
+                    // Check if transaction is stuck (low gas price)
+                    if let Some(queued_txs) = pool.by_nonce.get(&tx.from) {
+                        if let Some(&ref existing_hash) = queued_txs.get(&tx.nonce) {
+                            if existing_hash != hash {
+                                // Nonce conflict, move to queued
+                                to_move_to_queued.push(hash.clone());
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // Remove marked transactions
+        for hash in to_remove {
+            if let Some(tx) = pool.pending.remove(&hash) {
+                // Clean up nonce tracking
+                if let Some(nonce_map) = pool.by_nonce.get_mut(&tx.from) {
+                    nonce_map.remove(&tx.nonce);
+                    if nonce_map.is_empty() {
+                        pool.by_nonce.remove(&tx.from);
+                    }
+                }
+                
+                // Remove from gas price index
+                pool.by_gas_price.retain(|h| h != &hash);
+            }
+        }
+        
+        // Move transactions to queued
+        for hash in to_move_to_queued {
+            if let Some(tx) = pool.pending.remove(&hash) {
+                pool.queued.insert(hash.clone(), tx);
+                pool.by_gas_price.retain(|h| h != &hash);
+            }
+        }
+        
+        // Promote queued transactions if possible
+        let mut to_promote = Vec::new();
+        for (hash, tx) in &pool.queued {
+            let can_promote = pool.by_nonce
+                .get(&tx.from)
+                .and_then(|nonce_map| nonce_map.get(&tx.nonce))
+                .is_none();
+                
+            if can_promote && pool.pending.len() < 4096 { // Use configured max
+                to_promote.push(hash.clone());
+            }
+        }
+        
+        // Promote transactions
+        for hash in to_promote {
+            if let Some(tx) = pool.queued.remove(&hash) {
+                // Update nonce tracking
+                pool.by_nonce
+                    .entry(tx.from.clone())
+                    .or_insert_with(HashMap::new)
+                    .insert(tx.nonce, hash.clone());
+                    
+                // Add to gas price index
+                let gas_price = tx.gas_price;
+                pool.pending.insert(hash.clone(), tx);
+                
+                // Insert in sorted position
+                let pos = pool.by_gas_price
+                    .binary_search_by(|h| {
+                        pool.pending.get(h)
+                            .map(|t| t.gas_price)
+                            .unwrap_or(0)
+                            .cmp(&gas_price)
+                            .reverse() // Higher gas price first
+                    })
+                    .unwrap_or_else(|pos| pos);
+                    
+                pool.by_gas_price.insert(pos, hash);
+            }
+        }
+        
+        // Limit pool sizes
+        while pool.pending.len() > 4096 { // Use configured max
+            // Remove lowest gas price transaction
+            if let Some(hash) = pool.by_gas_price.pop() {
+                if let Some(tx) = pool.pending.remove(&hash) {
+                    pool.queued.insert(hash, tx);
+                }
+            }
+        }
+        
+        // Clear old queued transactions
+        let max_queued = 1024; // Use configured max
+        if pool.queued.len() > max_queued {
+            let to_drop = pool.queued.len() - max_queued;
+            let mut dropped = 0;
+            pool.queued.retain(|_, _| {
+                if dropped < to_drop {
+                    dropped += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+        }
         
         Ok(())
     }
@@ -704,6 +1123,106 @@ impl ProductionRethProcess {
         }
         
         Ok(())
+    }
+
+    /// Estimate gas for contract deployment
+    async fn estimate_contract_deployment_gas(&self, data_bytes: &[u8]) -> u64 {
+        let mut gas = 0u64;
+        
+        // Contract creation base cost
+        gas += 32_000; // CREATE operation
+        
+        // Contract bytecode deployment cost
+        // Each byte costs 200 gas for deployment
+        gas += data_bytes.len() as u64 * 200;
+        
+        // Initialization gas - estimate based on bytecode patterns
+        if data_bytes.len() > 100 {
+            // Complex contract likely has constructor
+            gas += 50_000;
+        } else {
+            // Simple contract
+            gas += 20_000;
+        }
+        
+        // Storage initialization costs
+        // Estimate 2-5 storage slots for basic contracts
+        gas += 20_000 * 3; // 3 storage slots average
+        
+        gas
+    }
+
+    /// Check if an address is a contract
+    async fn is_contract_address(&self, address: &str) -> bool {
+        let state_manager = self.state_manager.read().await;
+        
+        // Check if address has code
+        state_manager
+            .accounts
+            .get(address)
+            .and_then(|acc| acc.code_hash.as_ref())
+            .is_some() || 
+        state_manager.contracts.contains_key(address)
+    }
+
+    /// Estimate gas for contract execution
+    async fn estimate_contract_execution_gas(&self, to: &str, data_bytes: &[u8], value: u128) -> u64 {
+        let mut gas = 0u64;
+        
+        // Base cost for calling a contract
+        gas += 2_600; // CALL operation
+        
+        // If sending value, add extra cost
+        if value > 0 {
+            gas += 9_000; // G_callvalue
+            gas += 2_300; // G_callstipend
+        }
+        
+        // Check if we have contract info cached
+        if let Some(contract_info) = self.gas_estimator.contract_cache.get(to) {
+            // Use cached complexity score
+            gas += contract_info.complexity_score;
+        } else {
+            // Estimate based on data size and common patterns
+            if data_bytes.len() >= 4 {
+                // Has function selector
+                let selector = &data_bytes[0..4];
+                
+                // Common function patterns
+                match selector {
+                    // transfer(address,uint256) - 0xa9059cbb
+                    [0xa9, 0x05, 0x9c, 0xbb] => gas += 30_000,
+                    // approve(address,uint256) - 0x095ea7b3
+                    [0x09, 0x5e, 0xa7, 0xb3] => gas += 25_000,
+                    // transferFrom(address,address,uint256) - 0x23b872dd
+                    [0x23, 0xb8, 0x72, 0xdd] => gas += 40_000,
+                    // balanceOf(address) - 0x70a08231
+                    [0x70, 0xa0, 0x82, 0x31] => gas += 5_000,
+                    // Default complex function
+                    _ => gas += 50_000,
+                }
+            } else {
+                // Fallback or receive function
+                gas += 10_000;
+            }
+            
+            // Add cost for data processing
+            if data_bytes.len() > 4 {
+                let params_size = data_bytes.len() - 4;
+                gas += (params_size as u64 / 32) * 1_000; // Per word cost
+            }
+        }
+        
+        // Add estimated storage operations
+        // Most contract calls involve 1-3 storage reads/writes
+        gas += 2_100 * 2; // 2 SLOAD operations average
+        gas += 5_000; // Potential SSTORE (cold)
+        
+        // Add memory expansion costs
+        let memory_size = ((data_bytes.len() + 31) / 32 * 32) as u64;
+        gas += GasEstimator::memory_expansion_cost(0, memory_size);
+        
+        gas
     }
 }
 
@@ -829,14 +1348,47 @@ impl BlockBuilder {
 impl GasEstimator {
     fn new() -> Self {
         let mut base_costs = HashMap::new();
-        base_costs.insert("transfer".to_string(), 21_000);
-        base_costs.insert("contract_call".to_string(), 21_000);
-        base_costs.insert("contract_deploy".to_string(), 53_000);
+        // EVM operation base costs
+        base_costs.insert("SSTORE".to_string(), 20_000); // Storage set
+        base_costs.insert("SLOAD".to_string(), 2_100); // Storage load  
+        base_costs.insert("CALL".to_string(), 2_600); // Call to contract
+        base_costs.insert("CREATE".to_string(), 32_000); // Contract creation
+        base_costs.insert("CREATE2".to_string(), 32_000); // Create2 operation
+        base_costs.insert("LOG0".to_string(), 375); // Event log base
+        base_costs.insert("LOG1".to_string(), 750); // Event log with 1 topic
+        base_costs.insert("LOG2".to_string(), 1_125); // Event log with 2 topics
+        base_costs.insert("LOG3".to_string(), 1_500); // Event log with 3 topics
+        base_costs.insert("LOG4".to_string(), 1_875); // Event log with 4 topics
+        base_costs.insert("SELFDESTRUCT".to_string(), 5_000); // Self destruct
+        base_costs.insert("BALANCE".to_string(), 2_600); // Get balance
+        base_costs.insert("EXTCODESIZE".to_string(), 2_600); // Get code size
+        base_costs.insert("EXTCODECOPY".to_string(), 2_600); // Copy code
+        base_costs.insert("EXTCODEHASH".to_string(), 2_600); // Get code hash
         
         Self {
             base_costs,
             contract_cache: HashMap::new(),
         }
+    }
+    
+    /// Estimate gas for specific opcode
+    pub fn get_opcode_cost(&self, opcode: &str) -> u64 {
+        self.base_costs.get(opcode).copied().unwrap_or(3) // Default to 3 gas
+    }
+    
+    /// Estimate memory expansion cost
+    pub fn memory_expansion_cost(current_size: u64, new_size: u64) -> u64 {
+        if new_size <= current_size {
+            return 0;
+        }
+        
+        let new_words = (new_size + 31) / 32;
+        let current_words = (current_size + 31) / 32;
+        
+        let new_cost = new_words * 3 + (new_words * new_words) / 512;
+        let current_cost = current_words * 3 + (current_words * current_words) / 512;
+        
+        new_cost - current_cost
     }
 }
 

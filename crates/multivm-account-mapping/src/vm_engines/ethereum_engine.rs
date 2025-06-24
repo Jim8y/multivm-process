@@ -22,20 +22,43 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, OnceCell, RwLock};
 use tracing::info;
 use uuid::Uuid;
+// RLP encoding will be handled manually for now
 
 /// Ethereum Process Engine implementation (communicates with external Reth)
 pub struct EthereumProcessEngine {
     /// Connection to Ethereum RPC
-    rpc_client: Arc<EthereumRpcClient>,
+    rpc_client: Arc<OnceCell<EthereumRpcClient>>,
     /// Active locks for prepare phase
     active_locks: Arc<RwLock<HashMap<String, EthereumLock>>>,
+    /// Pending transactions
+    pending_transactions: Arc<RwLock<HashMap<String, PendingTransaction>>>,
+    /// Nonce cache for accounts
+    nonce_cache: Arc<RwLock<HashMap<String, u64>>>,
     /// Configuration
     config: EthereumEngineConfig,
     /// Metrics
     metrics: Arc<Mutex<EthereumEngineMetrics>>,
+}
+
+/// Pending transaction information
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct PendingTransaction {
+    hash: String,
+    submitted_at: SystemTime,
+    confirmations: u64,
+    builder: EthereumTransactionBuilder,
+}
+
+/// Ethereum signature components
+#[derive(Debug, Clone)]
+struct EthSignature {
+    v: u64,
+    r: [u8; 32],
+    s: [u8; 32],
 }
 
 /// Configuration for Ethereum VM engine
@@ -51,6 +74,10 @@ pub struct EthereumEngineConfig {
     pub gas_limit: u64,
     /// Gas price (in wei)
     pub gas_price: u64,
+    /// Use EIP-1559 pricing
+    pub use_eip1559: bool,
+    /// Priority fee per gas for EIP-1559
+    pub priority_fee_per_gas: u64,
     /// Confirmation blocks required
     pub confirmation_blocks: u64,
     /// Maximum wait time for confirmations
@@ -117,17 +144,20 @@ pub struct EthereumEngineMetrics {
 }
 
 /// Ethereum transaction builder
+#[derive(Debug, Clone)]
 pub struct EthereumTransactionBuilder {
+    /// From address
+    pub from: String,
     /// Target contract address
-    pub to: Option<String>,
+    pub to: String,
     /// Call data
     pub data: Vec<u8>,
     /// Value to send (in wei)
     pub value: u64,
     /// Gas limit
-    pub gas: u64,
-    /// Gas price
-    pub gas_price: u64,
+    pub gas_limit: u64,
+    /// Gas price (optional, will be estimated if not provided)
+    pub gas_price: Option<u64>,
     /// Nonce
     pub nonce: Option<u64>,
 }
@@ -176,11 +206,11 @@ pub enum CrossVmContractCall {
 impl EthereumProcessEngine {
     /// Create new Ethereum VM engine
     pub fn new(config: EthereumEngineConfig) -> Self {
-        let rpc_client = Arc::new(EthereumRpcClient::new(config.rpc_url.clone()));
-
         Self {
-            rpc_client,
+            rpc_client: Arc::new(OnceCell::new()),
             active_locks: Arc::new(RwLock::new(HashMap::new())),
+            pending_transactions: Arc::new(RwLock::new(HashMap::new())),
+            nonce_cache: Arc::new(RwLock::new(HashMap::new())),
             config,
             metrics: Arc::new(Mutex::new(EthereumEngineMetrics::default())),
         }
@@ -196,30 +226,46 @@ impl EthereumProcessEngine {
     ) -> MultivmResult<Vec<u8>> {
         let mut data = Vec::new();
 
-        // Function selector
+        // Function selector (4 bytes)
         data.extend_from_slice(&CrossVmContractAbi::LOCK_FUNDS);
 
-        // Encode parameters (simplified ABI encoding)
-        data.extend_from_slice(&amount.to_be_bytes());
+        // Proper ABI encoding following Ethereum standard
+        // Parameters are encoded as:
+        // 1. uint256 amount (32 bytes)
+        // 2. bytes32 lockId (32 bytes)
+        // 3. uint8 targetVm (32 bytes, padded)
+        // 4. uint256 expiryTime (32 bytes)
 
-        // Lock ID (32 bytes, padded)
+        // 1. Encode amount as uint256 (32 bytes, big-endian)
+        let mut amount_bytes = [0u8; 32];
+        amount_bytes[24..32].copy_from_slice(&amount.to_be_bytes());
+        data.extend_from_slice(&amount_bytes);
+
+        // 2. Encode lock ID as bytes32 (32 bytes, left-padded with zeros)
         let lock_id_bytes = lock_id.as_bytes();
+        if lock_id_bytes.len() > 32 {
+            return Err(MultivmError::Configuration(
+                "Lock ID too long for bytes32".to_string(),
+            ));
+        }
         let mut lock_id_padded = [0u8; 32];
-        let copy_len = std::cmp::min(lock_id_bytes.len(), 32);
-        lock_id_padded[..copy_len].copy_from_slice(&lock_id_bytes[..copy_len]);
+        lock_id_padded[..lock_id_bytes.len()].copy_from_slice(lock_id_bytes);
         data.extend_from_slice(&lock_id_padded);
 
-        // Target VM (as u8)
+        // 3. Encode target VM as uint8 (32 bytes, padded)
         let vm_id = match target_vm {
             VmType::Svm => 1u8,
             VmType::Evm => 2u8,
             VmType::MultiVm => 3u8,
         };
-        data.extend_from_slice(&[0u8; 31]); // Padding
-        data.push(vm_id);
+        let mut vm_bytes = [0u8; 32];
+        vm_bytes[31] = vm_id;
+        data.extend_from_slice(&vm_bytes);
 
-        // Expiry time
-        data.extend_from_slice(&expiry_time.to_be_bytes());
+        // 4. Encode expiry time as uint256 (32 bytes, big-endian)
+        let mut expiry_bytes = [0u8; 32];
+        expiry_bytes[24..32].copy_from_slice(&expiry_time.to_be_bytes());
+        data.extend_from_slice(&expiry_bytes);
 
         Ok(data)
     }
@@ -228,14 +274,20 @@ impl EthereumProcessEngine {
     fn build_unlock_call_data(&self, lock_id: &str) -> MultivmResult<Vec<u8>> {
         let mut data = Vec::new();
 
-        // Function selector
+        // Function selector (4 bytes)
         data.extend_from_slice(&CrossVmContractAbi::UNLOCK_FUNDS);
 
-        // Lock ID (32 bytes, padded)
+        // Proper ABI encoding for unlock(bytes32 lockId)
+        // Parameter: bytes32 lockId (32 bytes)
+
         let lock_id_bytes = lock_id.as_bytes();
+        if lock_id_bytes.len() > 32 {
+            return Err(MultivmError::Configuration(
+                "Lock ID too long for bytes32".to_string(),
+            ));
+        }
         let mut lock_id_padded = [0u8; 32];
-        let copy_len = std::cmp::min(lock_id_bytes.len(), 32);
-        lock_id_padded[..copy_len].copy_from_slice(&lock_id_bytes[..copy_len]);
+        lock_id_padded[..lock_id_bytes.len()].copy_from_slice(lock_id_bytes);
         data.extend_from_slice(&lock_id_padded);
 
         Ok(data)
@@ -283,18 +335,107 @@ impl EthereumProcessEngine {
     /// Submit transaction to Ethereum
     async fn submit_transaction(
         &self,
-        _builder: EthereumTransactionBuilder,
+        builder: EthereumTransactionBuilder,
     ) -> MultivmResult<String> {
-        // This is a simplified implementation
-        // In production, this would use a proper Ethereum client library
+        // Create RPC client for Ethereum node
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { EthereumRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
 
-        let tx_hash = format!("0x{}", hex::encode(Uuid::new_v4().as_bytes()));
+        // Build raw transaction
+        let raw_tx = self.build_raw_transaction(builder.clone()).await?;
 
-        // Simulate transaction submission
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        // Send transaction via JSON-RPC
+        let tx_hash = client
+            .send_raw_transaction(&raw_tx)
+            .await
+            .map_err(|e| MultivmError::Ethereum(format!("Failed to submit transaction: {}", e)))?;
 
         info!("Submitted Ethereum transaction: {}", tx_hash);
+
+        // Track pending transaction
+        let mut pending_txs = self.pending_transactions.write().await;
+        pending_txs.insert(
+            tx_hash.clone(),
+            PendingTransaction {
+                hash: tx_hash.clone(),
+                submitted_at: SystemTime::now(),
+                confirmations: 0,
+                builder,
+            },
+        );
+
         Ok(tx_hash)
+    }
+
+    /// Build raw transaction from builder
+    async fn build_raw_transaction(
+        &self,
+        builder: EthereumTransactionBuilder,
+    ) -> MultivmResult<Vec<u8>> {
+        // Build transaction manually for now
+        // TODO: Use proper RLP encoding
+
+        // Get current nonce
+        let nonce = self.get_nonce(&builder.from).await?;
+
+        // Get current gas price if not set
+        let gas_price = builder.gas_price.unwrap_or(self.get_gas_price().await?);
+
+        // For now, create a simple transaction structure
+        // In production, this would use proper RLP encoding
+        let mut tx_data = Vec::new();
+
+        // Add nonce (8 bytes)
+        tx_data.extend_from_slice(&nonce.to_be_bytes());
+
+        // Add gas price (8 bytes)
+        tx_data.extend_from_slice(&gas_price.to_be_bytes());
+
+        // Add gas limit (8 bytes)
+        tx_data.extend_from_slice(&builder.gas_limit.to_be_bytes());
+
+        // Add to address (20 bytes)
+        let to_addr = hex::decode(builder.to.trim_start_matches("0x"))
+            .map_err(|e| MultivmError::Configuration(format!("Invalid to address: {}", e)))?;
+        if to_addr.len() != 20 {
+            return Err(MultivmError::Configuration(
+                "Invalid address length".to_string(),
+            ));
+        }
+        tx_data.extend_from_slice(&to_addr);
+
+        // Add value (8 bytes)
+        tx_data.extend_from_slice(&builder.value.to_be_bytes());
+
+        // Add data length (4 bytes) and data
+        tx_data.extend_from_slice(&(builder.data.len() as u32).to_be_bytes());
+        tx_data.extend_from_slice(&builder.data);
+
+        // Add chain ID for EIP-155 (8 bytes)
+        tx_data.extend_from_slice(&self.config.chain_id.to_be_bytes());
+
+        // Sign transaction (placeholder)
+        let signature = self.sign_transaction(&tx_data).await?;
+
+        // Add signature (v, r, s)
+        tx_data.extend_from_slice(&signature.v.to_be_bytes());
+        tx_data.extend_from_slice(&signature.r);
+        tx_data.extend_from_slice(&signature.s);
+
+        Ok(tx_data)
+    }
+
+    /// Sign transaction (placeholder - in production use secure key management)
+    async fn sign_transaction(&self, _tx_bytes: &[u8]) -> MultivmResult<EthSignature> {
+        // In production, this would use secure key management
+        // For now, return a dummy signature
+        Ok(EthSignature {
+            v: 27 + (self.config.chain_id * 2 + 35),
+            r: [0u8; 32],
+            s: [0u8; 32],
+        })
     }
 
     /// Wait for transaction confirmation from Reth process
@@ -344,14 +485,61 @@ impl EthereumProcessEngine {
 
     /// Get current gas price
     async fn get_gas_price(&self) -> MultivmResult<u64> {
-        // Simplified gas price estimation
-        Ok(self.config.gas_price)
+        // Dynamic gas price estimation from Ethereum node
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { EthereumRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
+
+        // Get current base fee and priority fee
+        let base_fee = client
+            .get_base_fee()
+            .await
+            .map_err(|e| MultivmError::Ethereum(format!("Failed to get base fee: {}", e)))?;
+
+        // Calculate gas price based on network conditions
+        // Use EIP-1559 pricing if available
+        if self.config.use_eip1559 {
+            // Base fee + priority fee
+            let priority_fee = self.config.priority_fee_per_gas;
+            Ok(base_fee + priority_fee)
+        } else {
+            // Legacy gas price - use higher of base fee or configured price
+            Ok(std::cmp::max(base_fee, self.config.gas_price))
+        }
     }
 
     /// Get next nonce for account
-    async fn get_nonce(&self, _account: &str) -> MultivmResult<u64> {
-        // Simplified nonce management
-        Ok(1)
+    async fn get_nonce(&self, account: &str) -> MultivmResult<u64> {
+        // Proper nonce management with caching and pending transaction tracking
+        let mut nonce_cache = self.nonce_cache.write().await;
+
+        // Check if we have a cached nonce
+        if let Some(&cached_nonce) = nonce_cache.get(account) {
+            // Check pending transactions to see if we need to increment
+            let pending_txs = self.pending_transactions.read().await;
+            let pending_count = pending_txs
+                .values()
+                .filter(|tx| tx.builder.from == account)
+                .count() as u64;
+
+            return Ok(cached_nonce + pending_count);
+        }
+
+        // Fetch nonce from Ethereum node
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { EthereumRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
+        let network_nonce = client
+            .get_transaction_count(account)
+            .await
+            .map_err(|e| MultivmError::Ethereum(format!("Failed to get nonce: {}", e)))?;
+
+        // Cache the nonce
+        nonce_cache.insert(account.to_string(), network_nonce);
+
+        Ok(network_nonce)
     }
 }
 
@@ -360,8 +548,13 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
     async fn prepare(&self, operations: Vec<VmOperation>) -> MultivmResult<PrepareResult> {
         info!("Preparing {} Ethereum operations", operations.len());
 
-        // Check RPC connection health
-        if let Err(e) = self.rpc_client.check_connection().await {
+        // Check RPC connection health by initializing the client
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { EthereumRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
+
+        if let Err(e) = client.check_connection().await {
             return Ok(PrepareResult {
                 success: false,
                 lock_ids: vec![],
@@ -399,14 +592,15 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
 
                     // Build transaction
                     let builder = EthereumTransactionBuilder {
-                        to: Some(self.config.cross_vm_contract.clone()),
+                        from: account_addr.clone(),
+                        to: self.config.cross_vm_contract.clone(),
                         data: call_data.clone(),
                         value: match asset {
                             AssetType::Native => *amount,
                             _ => 0, // For tokens, value is 0
                         },
-                        gas: self.config.gas_limit,
-                        gas_price: self.get_gas_price().await?,
+                        gas_limit: self.config.gas_limit,
+                        gas_price: Some(self.get_gas_price().await?),
                         nonce: Some(self.get_nonce(&account_addr).await?),
                     };
 
@@ -474,13 +668,22 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 )?;
 
                 // Build transaction
+                let from_addr = match &lock.account {
+                    AccountAddress::Ethereum(eth) => format!("0x{}", hex::encode(eth.0)),
+                    _ => {
+                        return Err(MultivmError::Configuration(
+                            "Expected Ethereum address".to_string(),
+                        ))
+                    }
+                };
                 let builder = EthereumTransactionBuilder {
-                    to: Some(self.config.cross_vm_contract.clone()),
+                    from: from_addr,
+                    to: self.config.cross_vm_contract.clone(),
                     data: call_data,
                     value: 0, // No value for completion call
-                    gas: self.config.gas_limit,
-                    gas_price: self.get_gas_price().await?,
-                    nonce: Some(1), // Simplified nonce
+                    gas_limit: self.config.gas_limit,
+                    gas_price: Some(self.get_gas_price().await?),
+                    nonce: None, // Will be determined in submit_transaction
                 };
 
                 // Submit transaction
@@ -522,13 +725,22 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 let call_data = self.build_unlock_call_data(lock_id)?;
 
                 // Build transaction
+                let from_addr = match &_lock.account {
+                    AccountAddress::Ethereum(eth) => format!("0x{}", hex::encode(eth.0)),
+                    _ => {
+                        return Err(MultivmError::Configuration(
+                            "Expected Ethereum address".to_string(),
+                        ))
+                    }
+                };
                 let builder = EthereumTransactionBuilder {
-                    to: Some(self.config.cross_vm_contract.clone()),
+                    from: from_addr,
+                    to: self.config.cross_vm_contract.clone(),
                     data: call_data,
                     value: 0,
-                    gas: self.config.gas_limit,
-                    gas_price: self.get_gas_price().await?,
-                    nonce: Some(1), // Simplified nonce
+                    gas_limit: self.config.gas_limit,
+                    gas_price: Some(self.get_gas_price().await?),
+                    nonce: None, // Will be determined in submit_transaction
                 };
 
                 // Submit transaction
@@ -590,6 +802,95 @@ impl EthereumRpcClient {
     }
 }
 
+impl EthereumRpcClient {
+    /// Send raw transaction
+    pub async fn send_raw_transaction(
+        &self,
+        raw_tx: &[u8],
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([format!("0x{}", hex::encode(raw_tx))]);
+        let response = self
+            .json_rpc_request("eth_sendRawTransaction", params)
+            .await?;
+
+        if let Some(result) = response.get("result").and_then(|v| v.as_str()) {
+            Ok(result.to_string())
+        } else {
+            Err("Invalid response from eth_sendRawTransaction".into())
+        }
+    }
+
+    /// Get current base fee
+    pub async fn get_base_fee(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let response = self
+            .json_rpc_request("eth_getBlockByNumber", serde_json::json!(["latest", false]))
+            .await?;
+
+        if let Some(base_fee) = response
+            .get("result")
+            .and_then(|v| v.get("baseFeePerGas"))
+            .and_then(|v| v.as_str())
+        {
+            let fee = u64::from_str_radix(base_fee.trim_start_matches("0x"), 16)?;
+            Ok(fee)
+        } else {
+            // Fallback for pre-EIP-1559 chains
+            self.get_gas_price_legacy().await
+        }
+    }
+
+    /// Get legacy gas price
+    async fn get_gas_price_legacy(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let response = self
+            .json_rpc_request("eth_gasPrice", serde_json::json!([]))
+            .await?;
+
+        if let Some(price) = response.get("result").and_then(|v| v.as_str()) {
+            let gas_price = u64::from_str_radix(price.trim_start_matches("0x"), 16)?;
+            Ok(gas_price)
+        } else {
+            Err("Failed to get gas price".into())
+        }
+    }
+
+    /// Get transaction count (nonce)
+    pub async fn get_transaction_count(
+        &self,
+        address: &str,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([address, "pending"]);
+        let response = self
+            .json_rpc_request("eth_getTransactionCount", params)
+            .await?;
+
+        if let Some(count) = response.get("result").and_then(|v| v.as_str()) {
+            let nonce = u64::from_str_radix(count.trim_start_matches("0x"), 16)?;
+            Ok(nonce)
+        } else {
+            Err("Failed to get transaction count".into())
+        }
+    }
+
+    /// Make JSON-RPC request
+    async fn json_rpc_request(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": 1
+        });
+
+        let response = self.client.post(&self.url).json(&request).send().await?;
+
+        let json: serde_json::Value = response.json().await?;
+        Ok(json)
+    }
+}
+
 impl Default for EthereumEngineConfig {
     fn default() -> Self {
         Self {
@@ -598,6 +899,8 @@ impl Default for EthereumEngineConfig {
             cross_vm_contract: "0x1234567890123456789012345678901234567890".to_string(),
             gas_limit: 21_000,
             gas_price: 20_000_000_000, // 20 gwei
+            use_eip1559: true,
+            priority_fee_per_gas: 1_500_000_000, // 1.5 gwei
             confirmation_blocks: 1,
             confirmation_timeout: Duration::from_secs(60),
         }

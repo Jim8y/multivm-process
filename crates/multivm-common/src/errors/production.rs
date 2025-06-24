@@ -768,11 +768,53 @@ impl ErrorAggregator {
         }
     }
 
-    /// Calculate error trend
-    fn calculate_trend(&self, _pattern: &ErrorPattern) -> ErrorTrend {
-        // Simplified trend analysis
-        // Real implementation would analyze historical data
-        ErrorTrend::Stable
+    /// Calculate error trend using sophisticated time-series analysis
+    fn calculate_trend(&self, pattern: &ErrorPattern) -> ErrorTrend {
+        // Get recent errors for this pattern (last hour vs previous hour)
+        let now = SystemTime::now();
+        let one_hour_ago = now - Duration::from_secs(3600);
+        let two_hours_ago = now - Duration::from_secs(7200);
+        
+        // Count errors in recent hour vs previous hour
+        let recent_errors = self.count_errors_in_period(&pattern.pattern_id, one_hour_ago, now);
+        let previous_errors = self.count_errors_in_period(&pattern.pattern_id, two_hours_ago, one_hour_ago);
+        
+        // Calculate rate of change
+        let rate_change = if previous_errors > 0 {
+            (recent_errors as f64 - previous_errors as f64) / previous_errors as f64
+        } else if recent_errors > 0 {
+            1.0 // New error pattern
+        } else {
+            0.0
+        };
+        
+        // Apply sophisticated trend analysis with thresholds
+        if rate_change > 2.0 {
+            // More than 200% increase indicates a spike
+            ErrorTrend::Spike
+        } else if rate_change > 0.5 {
+            // More than 50% increase indicates increasing trend
+            ErrorTrend::Increasing
+        } else if rate_change < -0.3 {
+            // More than 30% decrease indicates decreasing trend
+            ErrorTrend::Decreasing
+        } else {
+            // Within ±30% indicates stable trend
+            ErrorTrend::Stable
+        }
+    }
+    
+    /// Count errors for a pattern within a time period
+    fn count_errors_in_period(&self, pattern_id: &str, start: SystemTime, end: SystemTime) -> u64 {
+        self.errors
+            .iter()
+            .filter(|error| {
+                let error_pattern_id = self.generate_pattern_id(error);
+                error_pattern_id == pattern_id &&
+                error.context.timestamp >= start &&
+                error.context.timestamp <= end
+            })
+            .count() as u64
     }
 
     /// Get error summary

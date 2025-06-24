@@ -339,3 +339,224 @@ fn test_network_behaviour_creation() {
     // Test basic behaviour creation (simplified)
     assert!(!local_peer_id.to_string().is_empty());
 }
+
+#[tokio::test]
+async fn test_network_health_check() {
+    let config = NetworkConfig::default();
+    let network = P2PNetwork::new(config).await.unwrap();
+
+    let health_result = network.health_check().await;
+    assert!(health_result.is_ok(), "Health check should succeed");
+
+    let health = health_result.unwrap();
+    assert_eq!(
+        health.status,
+        NetworkHealthStatus::Critical,
+        "No peers should result in critical status"
+    );
+    assert_eq!(health.connected_peers, 0, "Should have no connected peers");
+    assert!(!health.issues.is_empty(), "Should report issues");
+    assert!(health
+        .issues
+        .iter()
+        .any(|issue| issue.contains("No active peer connections")));
+}
+
+#[tokio::test]
+async fn test_network_self_heal() {
+    let mut config = NetworkConfig::default();
+    config.bootstrap_peers = vec![
+        "/ip4/127.0.0.1/tcp/8000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+            .parse()
+            .unwrap(),
+    ];
+
+    let mut network = P2PNetwork::new(config).await.unwrap();
+
+    let heal_result = network.self_heal().await;
+    assert!(heal_result.is_ok(), "Self-heal should succeed");
+
+    let healing_actions = heal_result.unwrap();
+    // Should attempt to reconnect to bootstrap peers when no connections
+    assert!(!healing_actions.is_empty(), "Should have healing actions");
+}
+
+#[tokio::test]
+async fn test_health_monitoring_start() {
+    let config = NetworkConfig::default();
+    let mut network = P2PNetwork::new(config).await.unwrap();
+
+    let result = network.start_health_monitoring().await;
+    assert!(
+        result.is_ok(),
+        "Health monitoring should start successfully"
+    );
+}
+
+#[tokio::test]
+async fn test_p2p_network_layer_aliases() {
+    let config = NetworkConfig::default();
+    let mut network = P2PNetwork::new(config).await.unwrap();
+
+    // Test alias methods from P2PNetworkLayer trait
+    let test_message = NetworkMessage::new(
+        MessagePayload::Control(ControlMessage::StatusRequest),
+        MessageSource::NetworkLayer,
+        MessageTarget::Broadcast,
+    );
+
+    // Test send_message (alias for send_to_peer)
+    let send_result = network
+        .send_message(
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN".to_string(),
+            test_message.clone(),
+        )
+        .await;
+
+    // The network is not started, so it should fail
+    assert!(
+        send_result.is_err(),
+        "Send should fail when network is not started"
+    );
+
+    // Test broadcast_message with topic
+    let broadcast_result = network
+        .broadcast_message(test_message, Some("special-topic".to_string()))
+        .await;
+
+    // The network is not started, so it should fail
+    assert!(
+        broadcast_result.is_err(),
+        "Broadcast should fail when network is not started"
+    );
+
+    // Test subscribe_to_topic (alias for subscribe)
+    assert!(network.subscribe_to_topic("alias-topic").await.is_ok());
+}
+
+#[tokio::test]
+async fn test_peer_info_conversion() {
+    let config = NetworkConfig::default();
+    let network = P2PNetwork::new(config).await.unwrap();
+
+    // Test the P2PNetworkLayer trait method instead
+    let trait_peers = P2PNetworkLayer::get_connected_peers(&network)
+        .await
+        .unwrap();
+    assert_eq!(trait_peers.len(), 0, "Should have no peers initially");
+}
+
+#[tokio::test]
+async fn test_extract_peer_id() {
+    // Test the extract_peer_id helper function
+    let peer_id_str = "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN";
+    let addr_with_peer: Multiaddr = format!("/ip4/127.0.0.1/tcp/8000/p2p/{}", peer_id_str)
+        .parse()
+        .unwrap();
+    let addr_without_peer: Multiaddr = "/ip4/127.0.0.1/tcp/8000".parse().unwrap();
+
+    assert!(crate::network::extract_peer_id(&addr_with_peer).is_some());
+    assert!(crate::network::extract_peer_id(&addr_without_peer).is_none());
+}
+
+#[tokio::test]
+async fn test_message_metadata() {
+    let config = NetworkConfig::default();
+    let mut network = P2PNetwork::new(config).await.unwrap();
+
+    let mut test_message = NetworkMessage::new(
+        MessagePayload::Control(ControlMessage::StatusRequest),
+        MessageSource::NetworkLayer,
+        MessageTarget::Broadcast,
+    );
+
+    // Add metadata
+    test_message
+        .metadata
+        .insert("custom_key".to_string(), "custom_value".to_string());
+
+    // Test that metadata is preserved through broadcast_message
+    let result = network
+        .broadcast_message(test_message.clone(), Some("test-topic".to_string()))
+        .await;
+
+    // Verify metadata would include topic if successful
+    if result.is_ok() {
+        assert!(test_message.metadata.contains_key("custom_key"));
+    }
+}
+
+#[tokio::test]
+async fn test_network_event_handler() {
+    use std::sync::Arc;
+
+    // Mock event handler
+    struct TestEventHandler;
+
+    #[async_trait::async_trait]
+    impl crate::NetworkEventHandler for TestEventHandler {
+        async fn handle_event(
+            &mut self,
+            _event: crate::NetworkEvent,
+        ) -> multivm_common::MultivmResult<()> {
+            Ok(())
+        }
+
+        async fn on_peer_connected(
+            &self,
+            _peer_info: &crate::PeerInfo,
+        ) -> multivm_common::MultivmResult<()> {
+            Ok(())
+        }
+
+        async fn on_peer_disconnected(&self, _peer_id: &str) -> multivm_common::MultivmResult<()> {
+            Ok(())
+        }
+    }
+
+    let config = NetworkConfig::default();
+    let mut network = P2PNetwork::new(config).await.unwrap();
+
+    let handler = Arc::new(TestEventHandler);
+    network.set_event_handler(handler);
+
+    // Event handler is set but private, just verify the network is functional
+    assert!(network.get_network_stats().await.is_ok());
+}
+
+#[tokio::test]
+async fn test_connection_status_transitions() {
+    // Test PeerConnectionStatus transitions
+    let discovered = PeerConnectionStatus::Discovered;
+    let connecting = PeerConnectionStatus::Connecting;
+    let connected = PeerConnectionStatus::Connected;
+    let disconnected = PeerConnectionStatus::Disconnected;
+    let failed = PeerConnectionStatus::Failed;
+
+    // All statuses should be distinct
+    assert_ne!(discovered, connecting);
+    assert_ne!(connecting, connected);
+    assert_ne!(connected, disconnected);
+    assert_ne!(disconnected, failed);
+}
+
+#[tokio::test]
+async fn test_network_health_report_serialization() {
+    let report = NetworkHealthReport {
+        status: NetworkHealthStatus::Healthy,
+        connected_peers: 5,
+        failed_peers: 1,
+        subscribed_topics: 3,
+        message_throughput: 100,
+        issues: vec!["Test issue".to_string()],
+        timestamp: std::time::SystemTime::now(),
+    };
+
+    // Should be serializable
+    let serialized = serde_json::to_string(&report).unwrap();
+    let deserialized: NetworkHealthReport = serde_json::from_str(&serialized).unwrap();
+
+    assert_eq!(report.status, deserialized.status);
+    assert_eq!(report.connected_peers, deserialized.connected_peers);
+    assert_eq!(report.issues, deserialized.issues);
+}

@@ -223,6 +223,18 @@ impl P2PError {
             P2PError::UnauthorizedPeer(_) => "security",
         }
     }
+
+    /// Create a security error
+    pub fn security_error<S: Into<String>>(msg: S) -> Self {
+        Self::InvalidMessage(format!("Security error: {}", msg.into()))
+    }
+
+    /// Create an authentication error
+    pub fn auth_error<S: Into<String>>(msg: S) -> Self {
+        Self::AuthenticationFailed {
+            peer_id: msg.into(),
+        }
+    }
 }
 
 #[cfg(test)]

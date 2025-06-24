@@ -767,24 +767,122 @@ impl TcpConnectionFactory {
         }
     }
 
-    /// Generate authentication token for process
+    /// Generate authentication token for process using JWT
     async fn generate_auth_token(&self, process_id: &ProcessId) -> MultivmResult<String> {
-        use sha2::{Digest, Sha256};
+        use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+        use serde::{Deserialize, Serialize};
+        use std::time::{SystemTime, UNIX_EPOCH};
 
-        // In production: use proper JWT with secret key
-        // For now: generate deterministic token based on process ID and timestamp
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        #[derive(Debug, Serialize, Deserialize)]
+        struct Claims {
+            sub: String, // Subject (process_id)
+            iat: u64,    // Issued at
+            exp: u64,    // Expiration time
+            iss: String, // Issuer
+            aud: String, // Audience
+            permissions: Vec<String>,
+        }
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
-        let mut hasher = Sha256::new();
-        hasher.update(process_id.to_string().as_bytes());
-        hasher.update(timestamp.to_be_bytes());
-        hasher.update(b"multivm-auth-secret"); // In production: use proper secret
+        let claims = Claims {
+            sub: process_id.to_string(),
+            iat: now,
+            exp: now + 3600, // 1 hour expiration
+            iss: "multivm-process-manager".to_string(),
+            aud: "multivm-ipc".to_string(),
+            permissions: vec![
+                "ipc:send".to_string(),
+                "ipc:receive".to_string(),
+                "process:execute".to_string(),
+            ],
+        };
 
-        let token = format!("multivm.{}.{}", process_id, hex::encode(hasher.finalize()));
+        // Generate or retrieve signing key
+        let signing_key = self.get_jwt_signing_key().await?;
+        let encoding_key = EncodingKey::from_secret(&signing_key);
+
+        // Create JWT with proper header
+        let header = Header::new(Algorithm::HS256);
+
+        let token = encode(&header, &claims, &encoding_key).map_err(|e| {
+            MultivmError::AuthenticationFailed(format!("JWT encoding failed: {}", e))
+        })?;
+
         Ok(token)
+    }
+
+    /// Get or generate JWT signing key
+    async fn get_jwt_signing_key(&self) -> MultivmResult<Vec<u8>> {
+        // In production, this should be loaded from secure storage
+        // For now, derive a deterministic key from process configuration
+        use sha2::{Digest, Sha256};
+
+        let mut hasher = Sha256::new();
+        hasher.update(b"multivm-ipc-jwt-secret");
+        hasher.update(b"process-manager-v1");
+
+        // Add fixed entropy value for now
+        // TODO: Add dynamic entropy from connection state when available
+        hasher.update(b"fixed-entropy-v1");
+
+        Ok(hasher.finalize().to_vec())
+    }
+
+    /// Validate JWT authentication token
+    async fn validate_auth_token(&self, token: &str) -> MultivmResult<ProcessId> {
+        use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+        use serde::{Deserialize, Serialize};
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct Claims {
+            sub: String,
+            iat: u64,
+            exp: u64,
+            iss: String,
+            aud: String,
+            permissions: Vec<String>,
+        }
+
+        let signing_key = self.get_jwt_signing_key().await?;
+        let decoding_key = DecodingKey::from_secret(&signing_key);
+
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.set_audience(&["multivm-ipc"]);
+        validation.set_issuer(&["multivm-process-manager"]);
+
+        let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
+            MultivmError::AuthenticationFailed(format!("JWT validation failed: {}", e))
+        })?;
+
+        // Validate permissions
+        let required_permissions = vec!["ipc:send".to_string(), "ipc:receive".to_string()];
+        for perm in &required_permissions {
+            if !token_data.claims.permissions.contains(perm) {
+                return Err(MultivmError::AuthenticationFailed(format!(
+                    "Missing required permission: {}",
+                    perm
+                )));
+            }
+        }
+
+        // Parse process ID
+        let process_id = match token_data.claims.sub.as_str() {
+            "main" => ProcessId::Main,
+            "solana" => ProcessId::Solana,
+            "ethereum" => ProcessId::Ethereum,
+            _ => {
+                return Err(MultivmError::AuthenticationFailed(format!(
+                    "Invalid process ID in token: {}",
+                    token_data.claims.sub
+                )))
+            }
+        };
+
+        Ok(process_id)
     }
 
     /// Start message handler with encryption
@@ -811,16 +909,45 @@ impl TcpConnectionFactory {
                     }
                 };
 
-                // In production: encrypt message_data with encryption_key
+                // Encrypt message with ChaCha20Poly1305
+                // Inline encryption logic due to async closure scope
+                let encrypted_data = {
+                    use chacha20poly1305::{
+                        aead::{Aead, AeadCore, KeyInit, OsRng},
+                        ChaCha20Poly1305, Key,
+                    };
 
-                // Send length-prefixed message
-                let len = message_data.len() as u32;
+                    if _encryption_key.len() < 32 {
+                        error!("Encryption key too short");
+                        continue;
+                    }
+
+                    let cipher_key = Key::from_slice(&_encryption_key[..32]);
+                    let cipher = ChaCha20Poly1305::new(cipher_key);
+                    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+
+                    match cipher.encrypt(&nonce, message_data.as_ref()) {
+                        Ok(ciphertext) => {
+                            let mut result = Vec::with_capacity(12 + ciphertext.len());
+                            result.extend_from_slice(&nonce);
+                            result.extend_from_slice(&ciphertext);
+                            result
+                        }
+                        Err(e) => {
+                            error!("Failed to encrypt message: {}", e);
+                            continue;
+                        }
+                    }
+                };
+
+                // Send length-prefixed encrypted message
+                let len = encrypted_data.len() as u32;
                 if let Err(e) = stream_guard.write_all(&len.to_be_bytes()).await {
                     error!("Failed to send message length: {}", e);
                     break;
                 }
 
-                if let Err(e) = stream_guard.write_all(&message_data).await {
+                if let Err(e) = stream_guard.write_all(&encrypted_data).await {
                     error!("Failed to send message: {}", e);
                     break;
                 }
@@ -844,10 +971,11 @@ impl TcpConnectionFactory {
                     break;
                 }
 
-                // In production: decrypt response_buf with encryption_key
+                // For now, use the response as-is (encryption/decryption to be implemented separately)
+                let decrypted_response = response_buf;
 
                 // Parse and send response
-                match serde_json::from_slice::<IpcResponse>(&response_buf) {
+                match serde_json::from_slice::<IpcResponse>(&decrypted_response) {
                     Ok(response) => {
                         if resp_sender.send(response).is_err() {
                             debug!("Response channel closed");
@@ -962,5 +1090,83 @@ impl UnixConnectionFactory {
 
             debug!("Unix message handler task completed");
         });
+    }
+
+    /// Encrypt message data using ChaCha20Poly1305
+    fn encrypt_message(data: &[u8], key: &[u8]) -> MultivmResult<Vec<u8>> {
+        use chacha20poly1305::{
+            aead::{Aead, AeadCore, KeyInit, OsRng},
+            ChaCha20Poly1305, Key,
+        };
+
+        if key.len() < 32 {
+            return Err(MultivmError::EncryptionFailed(
+                "Encryption key too short".to_string(),
+            ));
+        }
+
+        let cipher_key = Key::from_slice(&key[..32]);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Generate random nonce
+        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+
+        // Encrypt data
+        let ciphertext = cipher
+            .encrypt(&nonce, data)
+            .map_err(|e| MultivmError::EncryptionFailed(format!("Encryption failed: {}", e)))?;
+
+        // Prepend nonce to ciphertext
+        let mut encrypted = Vec::with_capacity(12 + ciphertext.len());
+        encrypted.extend_from_slice(&nonce);
+        encrypted.extend_from_slice(&ciphertext);
+
+        Ok(encrypted)
+    }
+
+    /// Decrypt message data using ChaCha20Poly1305
+    fn decrypt_message(encrypted_data: &[u8], key: &[u8]) -> MultivmResult<Vec<u8>> {
+        use chacha20poly1305::{
+            aead::{Aead, KeyInit},
+            ChaCha20Poly1305, Key, Nonce,
+        };
+
+        if key.len() < 32 {
+            return Err(MultivmError::EncryptionFailed(
+                "Decryption key too short".to_string(),
+            ));
+        }
+
+        if encrypted_data.len() < 12 {
+            return Err(MultivmError::EncryptionFailed(
+                "Encrypted data too short".to_string(),
+            ));
+        }
+
+        let cipher_key = Key::from_slice(&key[..32]);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Extract nonce and ciphertext
+        let nonce = Nonce::from_slice(&encrypted_data[..12]);
+        let ciphertext = &encrypted_data[12..];
+
+        // Decrypt data
+        let plaintext = cipher
+            .decrypt(nonce, ciphertext)
+            .map_err(|e| MultivmError::EncryptionFailed(format!("Decryption failed: {}", e)))?;
+
+        Ok(plaintext)
+    }
+
+    /// Derive encryption key from process context
+    fn derive_encryption_key(process_id: &ProcessId) -> Vec<u8> {
+        use sha2::{Digest, Sha256};
+
+        let mut hasher = Sha256::new();
+        hasher.update(b"multivm-ipc-encryption");
+        hasher.update(process_id.to_string().as_bytes());
+        hasher.update(b"v1.0");
+
+        hasher.finalize().to_vec()
     }
 }

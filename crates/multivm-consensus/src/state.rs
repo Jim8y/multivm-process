@@ -250,6 +250,69 @@ impl CrossVMStateManager {
         Ok(())
     }
 
+    /// Apply a finalized block to the state
+    pub async fn apply_block(&mut self, block: &crate::block::MultiVMBlock) -> ConsensusResult<()> {
+        let height = block.header.height;
+
+        // Update state with block information
+        {
+            let mut state = self.state.write();
+            state.height = height;
+            state.global_nonce += 1;
+            state.timestamp = block.header.timestamp;
+            state.svm_state_root = block.header.state_root.clone();
+            // For EVM, we'd update evm_state_root from EVM transactions
+        }
+
+        // Process state transitions from the block
+        for transition in &block.state_transitions {
+            self.apply_state_transition(transition).await?;
+        }
+
+        // Create automatic checkpoint based on interval
+        if height % self.config.checkpoint_interval == 0 {
+            self.create_automatic_checkpoint(height)?;
+        }
+
+        info!("Applied block at height {} to state", height);
+        Ok(())
+    }
+
+    /// Apply a state transition from a block
+    async fn apply_state_transition(
+        &mut self,
+        transition: &crate::block::StateTransition,
+    ) -> ConsensusResult<()> {
+        use crate::block::StateTransitionType;
+
+        // Process each state change in the transition
+        for change in &transition.changes {
+            let state_change = StateChange {
+                target: transition.target.clone(),
+                change_type: match &transition.transition_type {
+                    StateTransitionType::BalanceChange => {
+                        crate::traits::StateChangeType::BalanceUpdate
+                    }
+                    StateTransitionType::AccountBinding => {
+                        crate::traits::StateChangeType::BindingCreated
+                    }
+                    _ => crate::traits::StateChangeType::BalanceUpdate,
+                },
+                previous_value: change.previous_value.clone(),
+                new_value: change.new_value.clone(),
+                metadata: serde_json::json!({
+                    "transition_type": format!("{:?}", transition.transition_type),
+                    "field": change.field,
+                    "tx_id": transition.caused_by.to_string(),
+                }),
+            };
+
+            self.apply_single_change(state_change)?;
+        }
+
+        Ok(())
+    }
+
     /// Get current state statistics
     pub fn get_state_statistics(&self) -> StateStatistics {
         let state = self.state.read();

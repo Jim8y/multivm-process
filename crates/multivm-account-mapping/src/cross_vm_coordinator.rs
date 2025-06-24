@@ -364,10 +364,72 @@ impl CrossVmCoordinator {
             ));
         }
 
-        // Validate accounts exist - for now skip actual validation
-        // TODO: Implement proper account binding validation with actual account addresses
-        // let _source_binding = self.account_mapping.get_account_binding(&source_account).await?;
-        // let _target_binding = self.account_mapping.get_account_binding(&target_account).await?;
+        // Get bound addresses for source and target accounts
+        let source_addresses = self
+            ._account_mapping
+            .get_bound_addresses(&transfer.from)
+            .await
+            .map_err(|_| {
+                MultivmError::Configuration(format!("Source account {} not found", transfer.from))
+            })?;
+
+        let target_addresses = self
+            ._account_mapping
+            .get_bound_addresses(&transfer.to)
+            .await
+            .map_err(|_| {
+                MultivmError::Configuration(format!("Target account {} not found", transfer.to))
+            })?;
+
+        // Verify accounts have bindings
+        if source_addresses.is_empty() {
+            return Err(MultivmError::Configuration(format!(
+                "Source account {} has no bound addresses",
+                transfer.from
+            )));
+        }
+
+        if target_addresses.is_empty() {
+            return Err(MultivmError::Configuration(format!(
+                "Target account {} has no bound addresses",
+                transfer.to
+            )));
+        }
+
+        // Additional validation: check if accounts have necessary VM support
+        let asset = self.get_asset(&transfer.asset_id).await?;
+
+        // Check if source has an address on a VM that supports the asset
+        let has_source_vm_support = source_addresses.iter().any(|addr| {
+            let vm = match addr {
+                AccountAddress::Ethereum(_) => VmType::Evm,
+                AccountAddress::Solana(_) => VmType::Svm,
+            };
+            asset.supported_vms.contains(&vm)
+        });
+
+        // Check if target has an address on a VM that supports the asset
+        let has_target_vm_support = target_addresses.iter().any(|addr| {
+            let vm = match addr {
+                AccountAddress::Ethereum(_) => VmType::Evm,
+                AccountAddress::Solana(_) => VmType::Svm,
+            };
+            asset.supported_vms.contains(&vm)
+        });
+
+        if !has_source_vm_support {
+            return Err(MultivmError::Configuration(format!(
+                "Source account {} does not support asset {} on any bound VM",
+                transfer.from, transfer.asset_id
+            )));
+        }
+
+        if !has_target_vm_support {
+            return Err(MultivmError::Configuration(format!(
+                "Target account {} does not support asset {} on any bound VM",
+                transfer.to, transfer.asset_id
+            )));
+        }
 
         Ok(())
     }
@@ -392,12 +454,48 @@ impl CrossVmCoordinator {
     /// Determine VMs for accounts
     async fn determine_vms(
         &self,
-        _from: &MultivmAccountId,
-        _to: &MultivmAccountId,
+        from: &MultivmAccountId,
+        to: &MultivmAccountId,
     ) -> MultivmResult<(VmType, VmType)> {
-        // This is simplified - in practice, we'd look up the actual account bindings
-        // to determine which VMs the accounts are bound to
-        Ok((VmType::Evm, VmType::Svm))
+        // Get bound addresses to determine which VMs are involved
+        let from_addresses = self
+            ._account_mapping
+            .get_bound_addresses(from)
+            .await
+            .map_err(|_| {
+                MultivmError::Configuration(format!("Failed to get addresses for account {}", from))
+            })?;
+
+        let to_addresses = self
+            ._account_mapping
+            .get_bound_addresses(to)
+            .await
+            .map_err(|_| {
+                MultivmError::Configuration(format!("Failed to get addresses for account {}", to))
+            })?;
+
+        // Find the first supported VM for each account
+        let source_vm = from_addresses
+            .iter()
+            .find_map(|addr| match addr {
+                AccountAddress::Ethereum(_) => Some(VmType::Evm),
+                AccountAddress::Solana(_) => Some(VmType::Svm),
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration("Source account has no valid VM bindings".to_string())
+            })?;
+
+        let target_vm = to_addresses
+            .iter()
+            .find_map(|addr| match addr {
+                AccountAddress::Ethereum(_) => Some(VmType::Evm),
+                AccountAddress::Solana(_) => Some(VmType::Svm),
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration("Target account has no valid VM bindings".to_string())
+            })?;
+
+        Ok((source_vm, target_vm))
     }
 
     /// Build transfer transaction
@@ -408,11 +506,54 @@ impl CrossVmCoordinator {
         source_vm: VmType,
         target_vm: VmType,
     ) -> MultivmResult<CrossVmTransaction> {
+        // Get actual addresses for the accounts
+        let source_addresses = self
+            ._account_mapping
+            .get_bound_addresses(&transfer.from)
+            .await?;
+
+        let target_addresses = self
+            ._account_mapping
+            .get_bound_addresses(&transfer.to)
+            .await?;
+
+        // Find the appropriate address for source VM
+        let source_address = source_addresses
+            .iter()
+            .find(|addr| match (addr, source_vm) {
+                (AccountAddress::Ethereum(_), VmType::Evm) => true,
+                (AccountAddress::Solana(_), VmType::Svm) => true,
+                _ => false,
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration(format!(
+                    "No {:?} address found for source account",
+                    source_vm
+                ))
+            })?
+            .clone();
+
+        // Find the appropriate address for target VM
+        let target_address = target_addresses
+            .iter()
+            .find(|addr| match (addr, target_vm) {
+                (AccountAddress::Ethereum(_), VmType::Evm) => true,
+                (AccountAddress::Solana(_), VmType::Svm) => true,
+                _ => false,
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration(format!(
+                    "No {:?} address found for target account",
+                    target_vm
+                ))
+            })?
+            .clone();
+
         // Create source operation (lock funds)
         let source_op = VmOperation {
             vm: source_vm,
             operation: OperationType::Lock {
-                account: AccountAddress::Ethereum(crate::EthereumAddress([0u8; 20])), // Simplified
+                account: source_address,
                 amount: transfer.amount,
                 asset: asset.asset_type.clone(),
             },
@@ -428,7 +569,7 @@ impl CrossVmCoordinator {
         let target_op = VmOperation {
             vm: target_vm,
             operation: OperationType::Mint {
-                to: AccountAddress::Solana(crate::SolanaAddress([0u8; 32])), // Simplified
+                to: target_address,
                 amount: transfer.amount,
                 asset: asset.asset_type.clone(),
             },
@@ -471,15 +612,210 @@ impl CrossVmCoordinator {
     /// Build swap transaction
     async fn build_swap_transaction(
         &self,
-        _swap: &CrossVmSwapRequest,
-        _asset_a: &RegisteredAsset,
-        _asset_b: &RegisteredAsset,
+        swap: &CrossVmSwapRequest,
+        asset_a: &RegisteredAsset,
+        asset_b: &RegisteredAsset,
     ) -> MultivmResult<CrossVmTransaction> {
-        // Simplified implementation
-        // In practice, this would build complex atomic swap operations
-        Err(MultivmError::UnsupportedOperation(
-            "Atomic swaps not yet implemented".to_string(),
-        ))
+        // Get addresses for both parties
+        let party_a_addresses = self
+            ._account_mapping
+            .get_bound_addresses(&swap.party_a)
+            .await?;
+        let party_b_addresses = self
+            ._account_mapping
+            .get_bound_addresses(&swap.party_b)
+            .await?;
+
+        // Determine VMs for each asset
+        let (asset_a_vm, asset_b_vm) = (
+            asset_a.supported_vms.first().ok_or_else(|| {
+                MultivmError::Configuration("Asset A has no supported VMs".to_string())
+            })?,
+            asset_b.supported_vms.first().ok_or_else(|| {
+                MultivmError::Configuration("Asset B has no supported VMs".to_string())
+            })?,
+        );
+
+        // Find appropriate addresses
+        let party_a_addr_for_asset_a = party_a_addresses
+            .iter()
+            .find(|addr| match (addr, asset_a_vm) {
+                (AccountAddress::Ethereum(_), VmType::Evm) => true,
+                (AccountAddress::Solana(_), VmType::Svm) => true,
+                _ => false,
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration(format!(
+                    "Party A has no {:?} address for asset A",
+                    asset_a_vm
+                ))
+            })?
+            .clone();
+
+        let party_b_addr_for_asset_a = party_b_addresses
+            .iter()
+            .find(|addr| match (addr, asset_a_vm) {
+                (AccountAddress::Ethereum(_), VmType::Evm) => true,
+                (AccountAddress::Solana(_), VmType::Svm) => true,
+                _ => false,
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration(format!(
+                    "Party B has no {:?} address for asset A",
+                    asset_a_vm
+                ))
+            })?
+            .clone();
+
+        let party_a_addr_for_asset_b = party_a_addresses
+            .iter()
+            .find(|addr| match (addr, asset_b_vm) {
+                (AccountAddress::Ethereum(_), VmType::Evm) => true,
+                (AccountAddress::Solana(_), VmType::Svm) => true,
+                _ => false,
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration(format!(
+                    "Party A has no {:?} address for asset B",
+                    asset_b_vm
+                ))
+            })?
+            .clone();
+
+        let party_b_addr_for_asset_b = party_b_addresses
+            .iter()
+            .find(|addr| match (addr, asset_b_vm) {
+                (AccountAddress::Ethereum(_), VmType::Evm) => true,
+                (AccountAddress::Solana(_), VmType::Svm) => true,
+                _ => false,
+            })
+            .ok_or_else(|| {
+                MultivmError::Configuration(format!(
+                    "Party B has no {:?} address for asset B",
+                    asset_b_vm
+                ))
+            })?
+            .clone();
+
+        // Create atomic swap operations
+        let operations = vec![
+            // Lock A's asset A
+            VmOperation {
+                vm: *asset_a_vm,
+                operation: OperationType::Lock {
+                    account: party_a_addr_for_asset_a.clone(),
+                    amount: swap.amount_a,
+                    asset: asset_a.asset_type.clone(),
+                },
+                resources: OperationResources {
+                    compute_units: 15000,
+                    fee_estimate: asset_a.limits.transfer_fee,
+                    required_balance: swap.amount_a,
+                },
+                dependencies: vec![],
+            },
+            // Lock B's asset B
+            VmOperation {
+                vm: *asset_b_vm,
+                operation: OperationType::Lock {
+                    account: party_b_addr_for_asset_b.clone(),
+                    amount: swap.amount_b,
+                    asset: asset_b.asset_type.clone(),
+                },
+                resources: OperationResources {
+                    compute_units: 15000,
+                    fee_estimate: asset_b.limits.transfer_fee,
+                    required_balance: swap.amount_b,
+                },
+                dependencies: vec![],
+            },
+            // Transfer asset A from A to B
+            VmOperation {
+                vm: *asset_a_vm,
+                operation: OperationType::Transfer {
+                    from: party_a_addr_for_asset_a,
+                    to: party_b_addr_for_asset_a,
+                    amount: swap.amount_a,
+                    asset: asset_a.asset_type.clone(),
+                },
+                resources: OperationResources {
+                    compute_units: 10000,
+                    fee_estimate: asset_a.limits.transfer_fee,
+                    required_balance: 0,
+                },
+                dependencies: vec![],
+            },
+            // Transfer asset B from B to A
+            VmOperation {
+                vm: *asset_b_vm,
+                operation: OperationType::Transfer {
+                    from: party_b_addr_for_asset_b,
+                    to: party_a_addr_for_asset_b,
+                    amount: swap.amount_b,
+                    asset: asset_b.asset_type.clone(),
+                },
+                resources: OperationResources {
+                    compute_units: 10000,
+                    fee_estimate: asset_b.limits.transfer_fee,
+                    required_balance: 0,
+                },
+                dependencies: vec![],
+            },
+        ];
+
+        Ok(CrossVmTransaction {
+            tx_type: CrossVmTxType::AtomicSwap {
+                party_a: swap.party_a.clone(),
+                party_b: swap.party_b.clone(),
+                asset_a: asset_a.asset_type.clone(),
+                amount_a: swap.amount_a,
+                asset_b: asset_b.asset_type.clone(),
+                amount_b: swap.amount_b,
+            },
+            source_ops: operations
+                .iter()
+                .filter(|op| matches!(op.operation, OperationType::Lock { .. }))
+                .cloned()
+                .collect(),
+            target_ops: operations
+                .iter()
+                .filter(|op| matches!(op.operation, OperationType::Transfer { .. }))
+                .cloned()
+                .collect(),
+            constraints: AtomicConstraints {
+                max_execution_time: swap
+                    .expires_at
+                    .duration_since(SystemTime::now())
+                    .unwrap_or(self.config.default_timeout),
+                confirmations: {
+                    let mut confirmations = HashMap::new();
+                    confirmations.insert(*asset_a_vm, asset_a.limits.min_amount as u32);
+                    confirmations.insert(*asset_b_vm, asset_b.limits.min_amount as u32);
+                    confirmations
+                },
+                max_slippage: Some(swap.max_slippage),
+                deadline: Some(swap.expires_at),
+            },
+            metadata: TransactionMetadata {
+                memo: Some(format!(
+                    "Atomic swap: {} {} for {} {}",
+                    swap.amount_a, asset_a.name, swap.amount_b, asset_b.name
+                )),
+                tags: vec!["atomic_swap".to_string()],
+                priority: TransactionPriority::High,
+                fee_config: FeeConfiguration {
+                    max_total_fee: asset_a.limits.transfer_fee * 2
+                        + asset_b.limits.transfer_fee * 2,
+                    fee_distribution: {
+                        let mut distribution = HashMap::new();
+                        distribution.insert(*asset_a_vm, asset_a.limits.transfer_fee);
+                        distribution.insert(*asset_b_vm, asset_b.limits.transfer_fee);
+                        distribution
+                    },
+                    fee_asset: AssetType::Native,
+                },
+            },
+        })
     }
 
     /// Get asset by ID

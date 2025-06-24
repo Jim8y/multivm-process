@@ -8,6 +8,7 @@ use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Maximum message size to prevent memory exhaustion
@@ -304,6 +305,10 @@ impl SecurityManager {
         hasher.update(&message.payload);
         hasher.update(message.timestamp.to_be_bytes());
         hasher.update(message.nonce.to_be_bytes());
+        // Parse sender PeerId from string to get the same bytes used in secure_message
+        if let Ok(sender_peer_id) = PeerId::from_str(&message.sender) {
+            hasher.update(sender_peer_id.to_bytes());
+        }
 
         let calculated_hash = hasher.finalize().to_vec();
 
