@@ -6,18 +6,16 @@ description = "Malachite consensus integration for MultiVM"
 edition = "2021"
 license = "MIT"
 
-[workspace]
-# Empty workspace to prevent workspace inheritance
+# Removed workspace section to allow inheritance from root
 
 [dependencies]
-multivm-common = { path = "../multivm-common" }
-# multivm-account-mapping = { path = "../multivm-account-mapping" }  # Temporarily disabled
-multivm-p2p = { path = "../multivm-p2p" }
+multivm-common = { workspace = true }
+multivm-p2p = { workspace = true }
 
 # Core dependencies
-tokio = { version = "1.45", features = ["full"] }
-async-trait = "0.1"
-serde = { version = "1.0", features = ["derive"] }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
 serde_json = "1.0"
 bincode = "1.3"
 tracing = "0.1"

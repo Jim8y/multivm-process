@@ -1,16 +1,16 @@
 [workspace]
 members = [
-    "crates/multivm-common",
-    "crates/multivm-account-mapping",
-    "crates/multivm-mock-processes",
-    # Temporarily disabled for cleanup
-    # "crates/multivm-p2p",
-    # "crates/multivm-process-manager", 
-    # "crates/multivm-application",
-    # "crates/multivm-cli",
-    # "crates/reth-execution-engine",
-    # "crates/multivm-consensus",
-    # "crates/solana-execution-engine",
+    "multivm-common",
+    "multivm-account-mapping",
+    "multivm-mock-processes",
+    # Temporarily disabled due to dependency conflicts
+    # "multivm-p2p",
+    # "multivm-process-manager", 
+    # "multivm-application",
+    # "multivm-cli",
+    # "reth-execution-engine",
+    # "multivm-consensus",
+    # "solana-execution-engine",
 ]
 resolver = "2"
 
@@ -27,6 +27,7 @@ rust-version = "1.70"
 tokio = { version = "1.35", features = ["full"] }
 async-trait = "0.1"
 futures = "0.3"
+futures-util = "0.3"
 async-stream = "0.3"
 
 # Serialization
@@ -46,11 +47,13 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Networking
 reqwest = { version = "0.11", features = ["json", "stream"] }
 libp2p = { version = "0.53", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify"] }
+tokio-tungstenite = "0.20"
 
 # Web framework
 axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "limit", "timeout"] }
+warp = "0.3"
 
 # GraphQL
 async-graphql = { version = "7.0", features = ["chrono", "uuid"] }
@@ -103,16 +106,16 @@ wiremock = "0.5"
 proptest = "1.4"
 
 # Internal crates
-multivm-common = { path = "crates/multivm-common" }
-multivm-account-mapping = { path = "crates/multivm-account-mapping" }
-multivm-p2p = { path = "crates/multivm-p2p" }
-# multivm-consensus = { path = "crates/multivm-consensus" }
-multivm-process-manager = { path = "crates/multivm-process-manager" }
-multivm-application = { path = "crates/multivm-application" }
-multivm-mock-processes = { path = "crates/multivm-mock-processes" }
-multivm-cli = { path = "crates/multivm-cli" }
-reth-execution-engine = { path = "crates/reth-execution-engine" }
-# solana-execution-engine = { path = "crates/solana-execution-engine" }
+multivm-common = { path = "multivm-common" }
+multivm-account-mapping = { path = "multivm-account-mapping" }
+multivm-p2p = { path = "multivm-p2p" }
+multivm-consensus = { path = "multivm-consensus" }
+multivm-process-manager = { path = "multivm-process-manager" }
+multivm-application = { path = "multivm-application" }
+multivm-mock-processes = { path = "multivm-mock-processes" }
+multivm-cli = { path = "multivm-cli" }
+reth-execution-engine = { path = "reth-execution-engine" }
+solana-execution-engine = { path = "solana-execution-engine" }
 
 # Additional dependencies needed for various features
 jsonrpsee-types = "0.21"
