@@ -1,7 +1,7 @@
 //! Block data structures for the MultiVM consensus layer
 
 use crate::traits::NodeId;
-// use multivm_account_mapping::special_tx::SpecialTransaction;
+use multivm_account_mapping::special_tx::SpecialTransaction;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::SystemTime;
@@ -17,7 +17,7 @@ pub struct MultiVMBlock {
     /// EVM (Ethereum) transactions
     pub evm_transactions: Vec<EvmTransaction>,
     /// Cross-VM special transactions
-    // pub multivm_transactions: Vec<SpecialTransaction>,
+    pub multivm_transactions: Vec<SpecialTransaction>,
     /// State transitions resulting from this block
     pub state_transitions: Vec<StateTransition>,
 }
@@ -174,7 +174,7 @@ impl MultiVMBlock {
             header,
             svm_transactions: Vec::new(),
             evm_transactions: Vec::new(),
-            // multivm_transactions: Vec::new(),
+            multivm_transactions: Vec::new(),
             state_transitions: Vec::new(),
         }
     }
@@ -193,7 +193,6 @@ impl MultiVMBlock {
     // pub fn add_multivm_transaction(&mut self, transaction: SpecialTransaction) {
     //     self.multivm_transactions.push(transaction);
     // }
-
     /// Get total number of transactions in this block
     pub fn transaction_count(&self) -> usize {
         self.svm_transactions.len() + self.evm_transactions.len() // + self.multivm_transactions.len()
@@ -356,4 +355,3 @@ impl EvmTransaction {
         self.to.is_none()
     }
 }
-

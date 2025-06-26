@@ -19,7 +19,7 @@ use libp2p::{
     noise,
     ping::{self},
     swarm::SwarmEvent,
-    tcp, yamux, Multiaddr, PeerId, Swarm, Transport,
+    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder, Transport,
 };
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
@@ -186,21 +186,18 @@ impl SecureNetworkManager {
         // Configure network behaviour
         let behaviour = self.create_behaviour(&keypair, peer_id).await?;
 
-        // Create swarm with simplified API
-        let transport = tcp::Config::default()
-            .upgrade(libp2p::core::upgrade::Version::V1)
-            .authenticate(noise::Config::new(&keypair).unwrap())
-            .multiplex(yamux::Config::default())
-            .boxed();
-
-        let mut swarm = Swarm::new(
-            transport,
-            behaviour,
-            peer_id,
-            libp2p::swarm::Config::with_executor(Box::new(|fut| {
-                tokio::spawn(fut);
-            }))
-        );
+        // Create swarm using SwarmBuilder
+        let mut swarm = SwarmBuilder::with_existing_identity(keypair.clone())
+            .with_tokio()
+            .with_tcp(
+                tcp::Config::default().nodelay(true),
+                noise::Config::new,
+                yamux::Config::default,
+            )
+            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {}", e)))?
+            .with_behaviour(|_| behaviour)
+            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {}", e)))?
+            .build();
 
         // Listen on configured addresses
         for addr in &self.config.network.listen_addresses {
@@ -373,7 +370,7 @@ impl SecureNetworkManager {
     pub async fn add_trusted_peer(
         &mut self,
         peer_id: PeerId,
-        public_key: ed25519_dalek::VerifyingKey,
+        public_key: ed25519_dalek::PublicKey,
     ) {
         self.security_manager.add_trusted_peer(peer_id, public_key);
         self.trusted_peers.write().await.insert(peer_id);

@@ -11,16 +11,24 @@ use thiserror::Error;
 use tokio::process::Command;
 use tracing::{debug, error, info, warn};
 
-// Solana imports (simplified)
-use solana_sdk::{hash::Hash, slot_history::Slot};
-
 // Common types
-use multivm_common::{
-    traits::execution::ExecutionEngine, BlockchainType, EngineState, HealthStatus, MultivmError,
+use crate::common::{
+    ExecutionEngine, BlockchainType, EngineState, HealthStatus, MultivmError,
     ProcessingMetrics, RpcConfig,
 };
 
-// Import the real engine module
+// Solana imports (only when real-validator feature is enabled)
+#[cfg(feature = "real-validator")]
+use solana_sdk::{hash::Hash, slot_history::Slot};
+
+// Mock types for default feature
+#[cfg(not(feature = "real-validator"))]
+type Hash = [u8; 32];
+#[cfg(not(feature = "real-validator"))]
+type Slot = u64;
+
+// Import the real engine module (only when real-validator feature is enabled)
+#[cfg(feature = "real-validator")]
 use crate::real_engine::RealSolanaEngine;
 
 /// Solana execution engine error types
@@ -534,7 +542,8 @@ impl SolanaExecutionEngine {
     fn deserialize_solana_transaction(
         &self,
         tx_data: &[u8],
-    ) -> Result<solana_sdk::transaction::Transaction, MultivmError> {
+    ) -> Result<Vec<u8>, MultivmError> {
+        #[cfg(feature = "real-validator")]
         use solana_sdk::transaction::Transaction;
 
         // Try to deserialize as a Transaction
@@ -611,6 +620,7 @@ impl SolanaExecutionEngine {
         tx_bytes: &[u8],
         tx_index: usize,
     ) -> Result<String, MultivmError> {
+        #[cfg(feature = "real-validator")]
         use solana_sdk::transaction::Transaction;
 
         // Attempt to deserialize as a Solana transaction
@@ -1060,6 +1070,7 @@ fn get_cpu_usage_standard() -> f64 {
 /// Generate mock Solana block data for testing
 #[allow(dead_code)]
 pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> SolanaBlockData {
+    #[cfg(feature = "real-validator")]
     use solana_sdk::hash::Hash;
 
     let mut transactions = Vec::new();

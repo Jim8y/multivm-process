@@ -123,7 +123,7 @@ pub struct SpecialTransactionResult {
     /// Gas or compute units consumed
     pub compute_units_used: u64,
     /// Any data returned by the operation
-    pub return_data: Option<Vec<u8>>,
+    pub return_data: Option<Box<Vec<u8>>>,
     /// Events emitted during processing
     pub events: Vec<SpecialTransactionEvent>,
     /// Error details if unsuccessful
@@ -317,7 +317,7 @@ impl SpecialTransactionProcessor {
                 success: true,
                 multivm_account: Some(source_multivm_account.clone()),
                 compute_units_used: 1500,
-                return_data: Some("Account binding processed".as_bytes().to_vec()),
+                return_data: Some(Box::new("Account binding processed".as_bytes().to_vec())),
                 events: vec![],
                 error: None,
             }
@@ -590,7 +590,7 @@ impl SpecialTransactionProcessor {
                     success: true,
                     multivm_account: Some(from),
                     compute_units_used: compute_units,
-                    return_data: Some(execution_result.transaction_hash.into_bytes()),
+                    return_data: Some(Box::new(execution_result.transaction_hash.into_bytes())),
                     events,
                     error: None,
                 })
@@ -754,7 +754,7 @@ impl SpecialTransactionProcessor {
                     success: true,
                     multivm_account: Some(multivm_account),
                     compute_units_used: compute_units,
-                    return_data: Some("Configuration updated successfully".as_bytes().to_vec()),
+                    return_data: Some(Box::new("Configuration updated successfully".as_bytes().to_vec())),
                     events,
                     error: None,
                 })
@@ -933,9 +933,9 @@ impl SpecialTransactionProcessor {
                     success: true,
                     multivm_account: Some(multivm_account),
                     compute_units_used: compute_units,
-                    return_data: Some(
+                    return_data: Some(Box::new(
                         format!("Account {} successfully unbound", account).into_bytes(),
-                    ),
+                    )),
                     events,
                     error: None,
                 })

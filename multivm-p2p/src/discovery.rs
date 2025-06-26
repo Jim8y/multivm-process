@@ -124,7 +124,7 @@ pub struct DiscoveryBehaviour {
     /// Kademlia DHT
     kademlia: kad::Behaviour<kad::store::MemoryStore>,
     /// mDNS discovery
-    mdns: Mdns,
+    mdns: Mdns<libp2p::mdns::tokio::Tokio>,
 }
 
 /// Node discovery service
@@ -215,7 +215,7 @@ impl DiscoveryService {
     pub async fn create_behaviour(&self) -> Result<DiscoveryBehaviour> {
         // Create Kademlia DHT
         let protocol_name = libp2p::StreamProtocol::new("/multivm/1.0.0");
-        let mut kademlia_config = kad::Config::new(protocol_name);
+        let mut kademlia_config = kad::Config::default();
         kademlia_config.set_replication_factor(
             std::num::NonZeroUsize::new(self.config.replication_factor)
                 .unwrap_or(std::num::NonZeroUsize::new(20).unwrap()),

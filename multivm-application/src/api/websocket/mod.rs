@@ -325,9 +325,9 @@ impl WebSocketServer {
                 // Serialize the event
                 if let Ok(serialized_event) = serde_json::to_string(&event) {
                     // Send the event to the connection
-                    if let Err(_) = connection
+                    if connection
                         .sender
-                        .send(Message::Text(serialized_event.into()))
+                        .send(Message::Text(serialized_event.into())).is_err()
                     {
                         // Connection is closed or sender failed
                         failed_connections.push(connection_id.clone());
@@ -360,9 +360,9 @@ impl WebSocketServer {
 
         if let Some(connection) = connections.get(connection_id) {
             if let Ok(serialized_event) = serde_json::to_string(&event) {
-                if let Err(_) = connection
+                if connection
                     .sender
-                    .send(Message::Text(serialized_event.into()))
+                    .send(Message::Text(serialized_event.into())).is_err()
                 {
                     warn!("Failed to send event to connection {}", connection_id);
                     return Err(crate::error::ApplicationError::WebSocketError {
@@ -384,7 +384,7 @@ impl WebSocketServer {
     async fn cleanup_connections(&self, failed_connection_ids: Vec<String>) {
         let mut connections = self.connections.write().await;
         for connection_id in failed_connection_ids {
-            if let Some(_) = connections.remove(&connection_id) {
+            if connections.remove(&connection_id).is_some() {
                 info!("Cleaned up failed connection: {}", connection_id);
             }
         }
@@ -508,7 +508,7 @@ async fn handle_websocket_connection(
                 msg = socket.recv() => {
                     match msg {
                         Some(Ok(message)) => {
-                            if let Err(_) = incoming_tx.send(message) {
+                            if incoming_tx.send(message).is_err() {
                                 break;
                             }
                         }
@@ -648,7 +648,7 @@ async fn handle_text_message(
 
 /// Handle subscription/unsubscription requests
 async fn handle_subscription(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
     connection_id: &str,
     events: Vec<EventType>,
     subscribe: bool,
@@ -686,7 +686,7 @@ async fn handle_subscription(
 
 /// Handle authentication requests
 async fn handle_authentication(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
     connection_id: &str,
     token: String,
 ) -> ApplicationResult<WebSocketResponse> {
@@ -724,7 +724,7 @@ async fn handle_authentication(
 
 /// Get connection statistics
 async fn get_connection_stats(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
     connection_id: &str,
 ) -> ApplicationResult<WebSocketResponse> {
     let connections = get_global_connections().read().await;
@@ -747,7 +747,7 @@ async fn get_connection_stats(
 
 /// Send response to a specific connection
 async fn send_response_to_connection(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
     connection_id: &str,
     response: WebSocketResponse,
 ) -> ApplicationResult<()> {

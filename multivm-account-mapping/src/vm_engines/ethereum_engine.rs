@@ -155,7 +155,7 @@ pub struct EthereumTransactionBuilder {
     /// Target contract address
     pub to: String,
     /// Call data
-    pub data: Vec<u8>,
+    pub data: Box<Vec<u8>>,
     /// Value to send (in wei)
     pub value: u64,
     /// Gas limit
@@ -634,7 +634,7 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                     let builder = EthereumTransactionBuilder {
                         from: account_addr.clone(),
                         to: self.config.cross_vm_contract.clone(),
-                        data: call_data.clone(),
+                        data: Box::new(call_data.clone()),
                         value: match asset {
                             AssetType::Native => *amount,
                             _ => 0, // For tokens, value is 0
@@ -722,7 +722,7 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 let builder = EthereumTransactionBuilder {
                     from: from_addr,
                     to: self.config.cross_vm_contract.clone(),
-                    data: call_data,
+                    data: Box::new(call_data),
                     value: 0, // No value for completion call
                     gas_limit: self.config.gas_limit,
                     gas_price: Some(self.get_gas_price().await?),
@@ -781,7 +781,7 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 let builder = EthereumTransactionBuilder {
                     from: from_addr,
                     to: self.config.cross_vm_contract.clone(),
-                    data: call_data,
+                    data: Box::new(call_data),
                     value: 0,
                     gas_limit: self.config.gas_limit,
                     gas_price: Some(self.get_gas_price().await?),

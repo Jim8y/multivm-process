@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 // use informalsystems_malachitebft_core_types::{Address, Height, Value};
-use crate::block::MultiVMBlock;
 
 /// Consensus phases for state machine
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +103,6 @@ impl Display for ValidatorAddress {
         write!(f, "{}", self.0)
     }
 }
-
 /// Implement Value trait for MultiVMBlock
 // impl Value for MultiVMBlock {
 //     type Id = BlockId;

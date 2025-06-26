@@ -122,10 +122,10 @@ impl QueryResolver {
         ctx: &Context<'_>,
         query: TransactionSearchInput,
     ) -> GraphQLResult<TransactionSearchResult> {
-        let state = get_app_state(ctx)?;
+        let _state = get_app_state(ctx)?;
 
         // Apply pagination limits
-        let (limit, offset) = utils::apply_pagination_limits(query.limit, query.offset);
+        let (limit, _offset) = utils::apply_pagination_limits(query.limit, query.offset);
 
         // Validate VM type if provided
         if let Some(ref vm_type) = query.vm_type {
@@ -141,8 +141,8 @@ impl QueryResolver {
         let mut total_found = 0;
 
         // Search SVM transactions if no VM type specified or SVM specified
-        if query.vm_type.as_ref().map_or(true, |vm| vm == "svm") {
-            if let Some(account) = &query.account {
+        if query.vm_type.as_ref().map(|vm| vm == "svm").unwrap_or(true) {
+            if let Some(_account) = &query.account {
                 // For now, return empty transactions as this would need specific implementation
                 // Mock SVM transaction data for search
                 for i in 0..limit.min(10) {
@@ -208,8 +208,8 @@ impl QueryResolver {
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> GraphQLResult<TransactionSearchResult> {
-        let state = get_app_state(ctx)?;
-        let (limit, offset) = utils::apply_pagination_limits(limit, offset);
+        let _state = get_app_state(ctx)?;
+        let (limit, _offset) = utils::apply_pagination_limits(limit, offset);
 
         // Try to get transactions from both SVM and EVM
         let mut all_transactions = Vec::new();

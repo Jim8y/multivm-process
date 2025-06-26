@@ -86,7 +86,7 @@ impl TracingService {
 
         if self.should_sample() {
             // Send span to the configured tracing backend
-            if let Some(_) = &self.config.prometheus_endpoint {
+            if self.config.prometheus_endpoint.is_some() {
                 // Span will be automatically exported via OpenTelemetry
                 tracing::debug!("Span sent to tracing backend: {}", span.name);
             }

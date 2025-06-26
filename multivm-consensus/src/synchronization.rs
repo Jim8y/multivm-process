@@ -916,4 +916,3 @@ impl BlockSynchronizer for BlockSyncManager {
         self.get_metrics().await
     }
 }
-

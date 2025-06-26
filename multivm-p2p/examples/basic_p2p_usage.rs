@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 3: Create an SVM transaction message
     let svm_message = NetworkMessage::new(
         MessagePayload::Svm(SvmMessage::Transaction {
-            transaction_data: vec![1, 2, 3, 4],
+            transaction_data: Box::new(vec![1, 2, 3, 4]),
             signature: "svm_tx_sig".to_string(),
         }),
         MessageSource::SvmExecution,
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 4: Create an EVM transaction message
     let evm_message = NetworkMessage::new(
         MessagePayload::Evm(EvmMessage::Transaction {
-            transaction_data: vec![5, 6, 7, 8],
+            transaction_data: Box::new(vec![5, 6, 7, 8]),
             tx_hash: "0xevm_tx_hash".to_string(),
         }),
         MessageSource::EvmExecution,

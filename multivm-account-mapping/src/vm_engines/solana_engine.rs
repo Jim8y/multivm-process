@@ -138,7 +138,7 @@ pub struct SolanaInstruction {
     /// Accounts involved
     pub accounts: Vec<SolanaAccountMeta>,
     /// Instruction data
-    pub data: Vec<u8>,
+    pub data: Box<Vec<u8>>,
 }
 
 /// Solana account metadata
@@ -227,7 +227,7 @@ impl SolanaProcessEngine {
         Ok(SolanaInstruction {
             program_id: self.config.cross_vm_program_id.clone(),
             accounts,
-            data,
+            data: Box::new(data),
         })
     }
 
@@ -425,7 +425,7 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
                         is_signer: true,
                         is_writable: true,
                     }],
-                    data,
+                    data: Box::new(data),
                 };
 
                 // Build and submit transaction
@@ -481,7 +481,7 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
                 let instruction = SolanaInstruction {
                     program_id: self.config.cross_vm_program_id.clone(),
                     accounts: vec![], // Add required accounts
-                    data,
+                    data: Box::new(data),
                 };
 
                 // Build and submit transaction

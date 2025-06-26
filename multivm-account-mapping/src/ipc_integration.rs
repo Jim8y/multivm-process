@@ -368,10 +368,10 @@ mod tests {
         let proof = BindingProof {
             account: source_account.clone(),
             proof_type: ProofType::Signature {
-                message: b"test message".to_vec(),
-                signature: vec![1, 2, 3, 4],
+                message: Box::new(b"test message".to_vec()),
+                signature: Box::new(vec![1, 2, 3, 4]),
             },
-            proof_data: vec![5, 6, 7, 8],
+            proof_data: Box::new(vec![5, 6, 7, 8]),
             timestamp: std::time::SystemTime::now(),
         };
 

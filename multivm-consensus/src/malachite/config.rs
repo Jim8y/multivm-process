@@ -1,7 +1,7 @@
 //! Configuration types for Malachite consensus
 
-use serde::{Deserialize, Serialize};
 use super::types::ValidatorInfo;
+use serde::{Deserialize, Serialize};
 
 /// Configuration for Malachite consensus
 #[derive(Debug, Clone, Serialize, Deserialize)]

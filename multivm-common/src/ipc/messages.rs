@@ -48,7 +48,7 @@ impl IpcMessage {
 pub enum IpcCommand {
     /// Process a block (using byte array for serialized transmission)
     ProcessBlock {
-        block_data_bytes: Vec<u8>, // Serialized block data
+        block_data_bytes: Box<Vec<u8>>, // Serialized block data - boxed to reduce enum size
         blockchain_type: BlockchainType,
         expect_response: bool,
     },
@@ -82,7 +82,7 @@ pub enum IpcCommand {
 
     /// Update configuration
     UpdateConfig {
-        config_data: Vec<u8>, // Serialized configuration
+        config_data: Box<Vec<u8>>, // Serialized configuration - boxed to reduce enum size
     },
 
     /// Health check command
@@ -97,7 +97,7 @@ pub enum IpcResponse {
 
     /// Block processing result (using byte array for serialized result)
     BlockProcessed {
-        result_bytes: Vec<u8>, // Serialized processing result
+        result_bytes: Box<Vec<u8>>, // Serialized processing result - boxed to reduce enum size
         blockchain_type: BlockchainType,
         success: bool,
     },
@@ -116,7 +116,7 @@ pub enum IpcResponse {
 
     /// Next block response (using byte array for serialization)
     NextBlock {
-        block_data_bytes: Option<Vec<u8>>, // Serialized block data
+        block_data_bytes: Option<Box<Vec<u8>>>, // Serialized block data - boxed to reduce enum size
         blockchain_type: Option<BlockchainType>,
     },
 

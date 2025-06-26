@@ -4,38 +4,37 @@
 //! from all consensus components for monitoring and observability.
 
 use crate::fork_detection::ForkDetectionMetrics;
-use crate::malachite::ConsensusParams;
 
 /// Consensus-specific metrics for monitoring and performance tracking
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ConsensusMetrics {
     /// Current block height
     pub current_height: u64,
-    
+
     /// Average block time in milliseconds
     pub avg_block_time_ms: f64,
-    
+
     /// Total transactions processed
     pub transactions_processed: u64,
-    
+
     /// Number of consensus errors
     pub consensus_errors: u64,
-    
+
     /// Number of validation errors
     pub validation_errors: u64,
-    
+
     /// Total rounds processed
     pub rounds_processed: u64,
-    
+
     /// Average round time in milliseconds
     pub avg_round_time_ms: f64,
-    
+
     /// Number of timeouts
     pub timeouts: u64,
-    
+
     /// Number of successful commits
     pub successful_commits: u64,
-    
+
     /// Number of failed commits
     pub failed_commits: u64,
 }
@@ -45,11 +44,11 @@ impl ConsensusMetrics {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Update block metrics
     pub fn update_block_metrics(&mut self, height: u64, block_time_ms: f64) {
         self.current_height = height;
-        
+
         // Calculate rolling average
         if self.avg_block_time_ms == 0.0 {
             self.avg_block_time_ms = block_time_ms;
@@ -57,26 +56,26 @@ impl ConsensusMetrics {
             self.avg_block_time_ms = (self.avg_block_time_ms * 0.9) + (block_time_ms * 0.1);
         }
     }
-    
+
     /// Increment transaction count
     pub fn increment_transactions(&mut self, count: u64) {
         self.transactions_processed += count;
     }
-    
+
     /// Increment error counts
     pub fn increment_consensus_errors(&mut self) {
         self.consensus_errors += 1;
     }
-    
+
     /// Increment validation errors
     pub fn increment_validation_errors(&mut self) {
         self.validation_errors += 1;
     }
-    
+
     /// Update round metrics
     pub fn update_round_metrics(&mut self, round_time_ms: f64) {
         self.rounds_processed += 1;
-        
+
         // Calculate rolling average
         if self.avg_round_time_ms == 0.0 {
             self.avg_round_time_ms = round_time_ms;
@@ -84,22 +83,22 @@ impl ConsensusMetrics {
             self.avg_round_time_ms = (self.avg_round_time_ms * 0.9) + (round_time_ms * 0.1);
         }
     }
-    
+
     /// Increment timeout count
     pub fn increment_timeouts(&mut self) {
         self.timeouts += 1;
     }
-    
+
     /// Increment successful commits
     pub fn increment_successful_commits(&mut self) {
         self.successful_commits += 1;
     }
-    
+
     /// Increment failed commits
     pub fn increment_failed_commits(&mut self) {
         self.failed_commits += 1;
     }
-    
+
     /// Reset all metrics
     pub fn reset(&mut self) {
         *self = Self::default();
@@ -517,4 +516,3 @@ impl MetricsExporter for PrometheusExporter {
         Ok(output)
     }
 }
-

@@ -108,6 +108,13 @@ impl From<P2PError> for MultivmError {
     }
 }
 
+// Conversion from MultivmError
+impl From<MultivmError> for P2PError {
+    fn from(err: MultivmError) -> Self {
+        P2PError::Internal(err.to_string())
+    }
+}
+
 // Conversion from common serialization errors
 impl From<serde_json::Error> for P2PError {
     fn from(err: serde_json::Error) -> Self {
@@ -132,6 +139,12 @@ impl From<std::io::Error> for P2PError {
         P2PError::Io {
             message: err.to_string(),
         }
+    }
+}
+
+impl From<anyhow::Error> for P2PError {
+    fn from(err: anyhow::Error) -> Self {
+        P2PError::Internal(err.to_string())
     }
 }
 

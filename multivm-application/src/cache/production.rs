@@ -49,15 +49,20 @@ pub struct ProductionRedisCache {
 #[derive(Debug, Clone)]
 struct CircuitState {
     state: CircuitBreakerState,
+    #[allow(dead_code)]
     failure_count: u32,
+    #[allow(dead_code)]
     last_failure: Option<Instant>,
+    #[allow(dead_code)]
     last_success: Option<Instant>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum CircuitBreakerState {
     Closed,
+    #[allow(dead_code)]
     Open,
+    #[allow(dead_code)]
     HalfOpen,
 }
 
@@ -154,6 +159,7 @@ impl ProductionRedisCache {
     }
 
     /// Start background maintenance tasks
+    #[allow(dead_code)]
     async fn start_background_tasks(&self) {
         let cache_weak = Arc::downgrade(&(Arc::new(self.clone())));
 
@@ -256,19 +262,19 @@ impl ProductionRedisCache {
     }
 
     /// Set value with circuit breaker
-    pub async fn set<T>(&self, key: &str, value: &T, ttl: Option<Duration>) -> ApplicationResult<()>
+    pub async fn set<T>(&self, key: &str, value: &T, _ttl: Option<Duration>) -> ApplicationResult<()>
     where
         T: Serialize,
     {
-        let full_key = format!("{}{}", self.config.key_prefix, key);
-        let start = Instant::now();
+        let _full_key = format!("{}{}", self.config.key_prefix, key);
+        let _start = Instant::now();
 
         // Check circuit breaker
         if !self.is_circuit_closed().await {
             return Ok(());
         }
 
-        let serialized =
+        let _serialized =
             serde_json::to_string(value).map_err(|e| ApplicationError::CacheError {
                 operation: "serialize".to_string(),
                 message: format!("Serialization error: {}", e),
@@ -425,7 +431,7 @@ impl ProductionRedisCache {
     pub async fn mset<T>(
         &self,
         items: &[(&str, &T)],
-        ttl: Option<Duration>,
+        _ttl: Option<Duration>,
     ) -> ApplicationResult<()>
     where
         T: Serialize,
@@ -473,7 +479,7 @@ impl ProductionRedisCache {
 
     /// Increment counter with atomic operation
     pub async fn incr(&self, key: &str, delta: i64) -> ApplicationResult<i64> {
-        let full_key = format!("{}{}", self.config.key_prefix, key);
+        let _full_key = format!("{}{}", self.config.key_prefix, key);
 
         if !self.is_circuit_closed().await {
             return Ok(0);
@@ -499,14 +505,14 @@ impl ProductionRedisCache {
     pub async fn get_with_lease<T>(
         &self,
         key: &str,
-        lease_duration: Duration,
+        _lease_duration: Duration,
     ) -> ApplicationResult<Option<(T, String)>>
     where
         T: for<'de> Deserialize<'de>,
     {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        let lease_key = format!("{}_lease", full_key);
-        let lease_id = uuid::Uuid::new_v4().to_string();
+        let _lease_key = format!("{}_lease", full_key);
+        let _lease_id = uuid::Uuid::new_v4().to_string();
 
         if !self.is_circuit_closed().await {
             return Ok(None);
@@ -546,9 +552,9 @@ impl ProductionRedisCache {
     }
 
     /// Release lease
-    pub async fn release_lease(&self, key: &str, lease_id: &str) -> ApplicationResult<bool> {
+    pub async fn release_lease(&self, key: &str, _lease_id: &str) -> ApplicationResult<bool> {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        let lease_key = format!("{}_lease", full_key);
+        let _lease_key = format!("{}_lease", full_key);
 
         if !self.is_circuit_closed().await {
             return Ok(false);
@@ -781,6 +787,7 @@ impl ProductionRedisCache {
         )
     }
 
+    #[allow(dead_code)]
     async fn record_success(&self) {
         let mut state = self.circuit_state.write().await;
         state.failure_count = 0;
@@ -792,6 +799,7 @@ impl ProductionRedisCache {
         }
     }
 
+    #[allow(dead_code)]
     async fn record_failure(&self) {
         let mut state = self.circuit_state.write().await;
         state.failure_count += 1;
@@ -845,6 +853,7 @@ impl ProductionRedisCache {
         }
     }
 
+    #[allow(dead_code)]
     async fn maybe_store_in_hot_cache(&self, key: &str, data: &[u8]) {
         let current_size = self.hot_cache_size.load(Ordering::Relaxed);
 
@@ -866,6 +875,7 @@ impl ProductionRedisCache {
             .fetch_add(data.len() as u64, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     async fn cleanup_hot_cache(&self) {
         let now = Instant::now();
         let mut removed_size = 0u64;
@@ -949,6 +959,7 @@ impl ProductionRedisCache {
         self.stats.p99_latency_ms.store(new_p99, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     fn report_stats(&self) {
         let hits = self.stats.hits.load(Ordering::Relaxed);
         let misses = self.stats.misses.load(Ordering::Relaxed);
@@ -1041,7 +1052,7 @@ pub struct CacheStats {
 
 /// Publish cache invalidation event
 impl ProductionRedisCache {
-    pub async fn publish_invalidation(&self, key: &str) -> ApplicationResult<()> {
+    pub async fn publish_invalidation(&self, _key: &str) -> ApplicationResult<()> {
         if !self.is_circuit_closed().await {
             return Ok(());
         }

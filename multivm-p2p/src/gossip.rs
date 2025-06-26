@@ -119,6 +119,29 @@ struct CacheEntry {
     propagation_count: u32,
 }
 
+/// Command processing task context
+struct CommandProcessingContext {
+    running: Arc<RwLock<bool>>,
+    message_cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
+    peer_states: Arc<RwLock<HashMap<PeerId, PeerGossipState>>>,
+    pending_messages: Arc<RwLock<VecDeque<GossipMessage>>>,
+    stats: Arc<RwLock<GossipStats>>,
+    event_sender: Option<mpsc::Sender<GossipEvent>>,
+    config: GossipConfig,
+    local_peer_id: PeerId,
+}
+
+/// Message processing context
+struct MessageProcessingContext<'a> {
+    message_cache: &'a Arc<RwLock<HashMap<String, CacheEntry>>>,
+    peer_states: &'a Arc<RwLock<HashMap<PeerId, PeerGossipState>>>,
+    pending_messages: &'a Arc<RwLock<VecDeque<GossipMessage>>>,
+    stats: &'a Arc<RwLock<GossipStats>>,
+    event_sender: &'a Option<mpsc::Sender<GossipEvent>>,
+    config: &'a GossipConfig,
+    local_peer_id: PeerId,
+}
+
 /// Gossip protocol manager
 pub struct GossipProtocol {
     /// Configuration
@@ -242,17 +265,17 @@ impl GossipProtocol {
         let local_peer_id = self.local_peer_id;
 
         tokio::spawn(async move {
-            Self::command_processing_task(
-                command_receiver,
-                running.clone(),
-                message_cache.clone(),
-                peer_states.clone(),
-                pending_messages.clone(),
-                stats.clone(),
-                event_sender.clone(),
-                config.clone(),
+            let ctx = CommandProcessingContext {
+                running: running.clone(),
+                message_cache: message_cache.clone(),
+                peer_states: peer_states.clone(),
+                pending_messages: pending_messages.clone(),
+                stats: stats.clone(),
+                event_sender: event_sender.clone(),
+                config: config.clone(),
                 local_peer_id,
-            ).await;
+            };
+            Self::command_processing_task(command_receiver, ctx).await;
         });
 
         // Start gossip propagation task
@@ -379,17 +402,10 @@ impl GossipProtocol {
     /// Command processing task
     async fn command_processing_task(
         mut command_receiver: mpsc::Receiver<GossipCommand>,
-        running: Arc<RwLock<bool>>,
-        message_cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
-        peer_states: Arc<RwLock<HashMap<PeerId, PeerGossipState>>>,
-        pending_messages: Arc<RwLock<VecDeque<GossipMessage>>>,
-        stats: Arc<RwLock<GossipStats>>,
-        event_sender: Option<mpsc::Sender<GossipEvent>>,
-        config: GossipConfig,
-        local_peer_id: PeerId,
+        ctx: CommandProcessingContext,
     ) {
         while let Some(command) = command_receiver.recv().await {
-            if !*running.read().await {
+            if !*ctx.running.read().await {
                 break;
             }
 
@@ -398,38 +414,37 @@ impl GossipProtocol {
                     let result = Self::handle_broadcast(
                         message,
                         priority,
-                        &message_cache,
-                        &pending_messages,
-                        &stats,
-                        &config,
-                        local_peer_id,
+                        &ctx.message_cache,
+                        &ctx.pending_messages,
+                        &ctx.stats,
+                        &ctx.config,
+                        ctx.local_peer_id,
                     ).await;
                     let _ = response.send(result);
                 }
                 GossipCommand::AddPeer { peer_id, response } => {
-                    let result = Self::handle_add_peer(peer_id, &peer_states).await;
+                    let result = Self::handle_add_peer(peer_id, &ctx.peer_states).await;
                     let _ = response.send(result);
                 }
                 GossipCommand::RemovePeer { peer_id, response } => {
-                    let result = Self::handle_remove_peer(peer_id, &peer_states).await;
+                    let result = Self::handle_remove_peer(peer_id, &ctx.peer_states).await;
                     let _ = response.send(result);
                 }
                 GossipCommand::ProcessMessage { message, from_peer, response } => {
-                    let result = Self::handle_process_message(
-                        message,
-                        from_peer,
-                        &message_cache,
-                        &peer_states,
-                        &pending_messages,
-                        &stats,
-                        &event_sender,
-                        &config,
-                        local_peer_id,
-                    ).await;
+                    let msg_ctx = MessageProcessingContext {
+                        message_cache: &ctx.message_cache,
+                        peer_states: &ctx.peer_states,
+                        pending_messages: &ctx.pending_messages,
+                        stats: &ctx.stats,
+                        event_sender: &ctx.event_sender,
+                        config: &ctx.config,
+                        local_peer_id: ctx.local_peer_id,
+                    };
+                    let result = Self::handle_process_message(message, from_peer, msg_ctx).await;
                     let _ = response.send(result);
                 }
                 GossipCommand::GetStats { response } => {
-                    let current_stats = stats.read().await.clone();
+                    let current_stats = ctx.stats.read().await.clone();
                     let _ = response.send(current_stats);
                 }
             }
@@ -529,28 +544,22 @@ impl GossipProtocol {
     async fn handle_process_message(
         message: GossipMessage,
         from_peer: PeerId,
-        message_cache: &Arc<RwLock<HashMap<String, CacheEntry>>>,
-        peer_states: &Arc<RwLock<HashMap<PeerId, PeerGossipState>>>,
-        pending_messages: &Arc<RwLock<VecDeque<GossipMessage>>>,
-        stats: &Arc<RwLock<GossipStats>>,
-        event_sender: &Option<mpsc::Sender<GossipEvent>>,
-        config: &GossipConfig,
-        local_peer_id: PeerId,
+        ctx: MessageProcessingContext<'_>,
     ) -> P2PResult<()> {
         // Check if message is expired
         if let Ok(age) = message.timestamp.elapsed() {
-            if age > config.message_ttl {
-                stats.write().await.messages_expired += 1;
+            if age > ctx.config.message_ttl {
+                ctx.stats.write().await.messages_expired += 1;
                 return Ok(());
             }
         }
 
         // Check for duplicates
         {
-            let cache = message_cache.read().await;
+            let cache = ctx.message_cache.read().await;
             if cache.contains_key(&message.id) {
-                stats.write().await.duplicates_filtered += 1;
-                if let Some(sender) = event_sender {
+                ctx.stats.write().await.duplicates_filtered += 1;
+                if let Some(sender) = ctx.event_sender {
                     let _ = sender.send(GossipEvent::DuplicateDetected {
                         message_id: message.id,
                         from_peer,
@@ -561,14 +570,14 @@ impl GossipProtocol {
         }
 
         // Check if we're in the propagation path (loop detection)
-        if message.path.contains(&local_peer_id.to_string()) {
+        if message.path.contains(&ctx.local_peer_id.to_string()) {
             debug!("Loop detected in gossip message, dropping");
             return Ok(());
         }
 
         // Update peer state
         {
-            let mut states = peer_states.write().await;
+            let mut states = ctx.peer_states.write().await;
             if let Some(state) = states.get_mut(&from_peer) {
                 state.messages_received += 1;
                 state.last_heartbeat = Instant::now();
@@ -577,7 +586,7 @@ impl GossipProtocol {
 
         // Add to cache
         {
-            let mut cache = message_cache.write().await;
+            let mut cache = ctx.message_cache.write().await;
             cache.insert(message.id.clone(), CacheEntry {
                 message: message.clone(),
                 first_seen: Instant::now(),
@@ -590,20 +599,20 @@ impl GossipProtocol {
         if message.ttl > 0 {
             let mut forwarded_message = message.clone();
             forwarded_message.ttl -= 1;
-            forwarded_message.path.push(local_peer_id.to_string());
+            forwarded_message.path.push(ctx.local_peer_id.to_string());
 
-            let mut pending = pending_messages.write().await;
+            let mut pending = ctx.pending_messages.write().await;
             pending.push_back(forwarded_message);
         }
 
         // Update statistics
         {
-            let mut stats = stats.write().await;
+            let mut stats = ctx.stats.write().await;
             stats.messages_received += 1;
         }
 
         // Send event
-        if let Some(sender) = event_sender {
+        if let Some(sender) = ctx.event_sender {
             let _ = sender.send(GossipEvent::MessageReceived {
                 message: message.payload,
                 from_peer,

@@ -244,4 +244,3 @@ impl From<MultivmError> for ConsensusError {
         }
     }
 }
-

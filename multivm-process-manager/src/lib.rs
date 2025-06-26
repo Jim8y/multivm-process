@@ -5,7 +5,7 @@ use multivm_common::{MultivmError, MultivmResult, config::LoggingConfig};
 // pub mod block_generator;  // Temporarily disabled due to dependency conflicts
 // pub mod block_router;  // Temporarily disabled due to dependency conflicts
 // pub mod consensus_block_generator;  // Temporarily disabled due to dependency conflicts  
-// pub mod coordinator;  // Temporarily disabled due to dependency conflicts
+pub mod coordinator;
 pub mod health;
 pub mod ipc;
 pub mod ipc_transport;
@@ -13,6 +13,10 @@ pub mod lock_ordering;
 pub mod manager;
 pub mod process;
 pub mod resource_monitor;
+pub mod transaction_batcher;
+
+#[cfg(test)]
+mod tests;
 
 // Re-export key types
 pub use manager::MultivmProcessManager;

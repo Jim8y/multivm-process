@@ -1,6 +1,6 @@
 use jsonrpc_core::{Error as JsonRpcError, IoHandler, Params, Value};
 use jsonrpc_http_server::{RestApi, ServerBuilder};
-use multivm_common::*;
+use crate::common::*;
 use std::net::SocketAddr;
 use tokio::task::JoinHandle;
 

@@ -5,7 +5,7 @@ use futures::StreamExt;
 use libp2p::{
     identity, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId, Swarm, Transport,
+    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -164,21 +164,18 @@ impl TransportLayer {
         // In production, this would integrate with routing and discovery
         let behaviour = libp2p::ping::Behaviour::new(libp2p::ping::Config::new());
 
-        // Create transport with libp2p 0.53 API - simplified approach
-        let transport = libp2p::tcp::Config::default()
-            .upgrade(libp2p::core::upgrade::Version::V1)
-            .authenticate(noise::Config::new(&local_key).unwrap())
-            .multiplex(yamux::Config::default())
-            .boxed();
-
-        let mut swarm = Swarm::new(
-            transport,
-            behaviour,
-            self.local_peer_id,
-            libp2p::swarm::Config::with_executor(Box::new(|fut| {
-                tokio::spawn(fut);
-            }))
-        );
+        // Create swarm using SwarmBuilder
+        let mut swarm = SwarmBuilder::with_existing_identity(local_key.clone())
+            .with_tokio()
+            .with_tcp(
+                libp2p::tcp::Config::default().nodelay(true),
+                noise::Config::new,
+                yamux::Config::default,
+            )
+            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {}", e)))?
+            .with_behaviour(|_| behaviour)
+            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {}", e)))?
+            .build();
 
         // Start listening on configured addresses
         for addr_str in &self.config.tcp_addresses {

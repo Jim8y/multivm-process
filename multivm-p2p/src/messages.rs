@@ -99,14 +99,14 @@ pub enum SvmMessage {
     /// Transaction to be processed
     Transaction {
         /// Serialized Solana transaction
-        transaction_data: Vec<u8>,
+        transaction_data: Box<Vec<u8>>,
         /// Transaction signature
         signature: String,
     },
     /// Block data
     Block {
         /// Serialized block data
-        block_data: Vec<u8>,
+        block_data: Box<Vec<u8>>,
         /// Block hash
         block_hash: String,
         /// Block height
@@ -115,7 +115,7 @@ pub enum SvmMessage {
     /// Gossip message
     Gossip {
         /// Gossip data
-        data: Vec<u8>,
+        data: Box<Vec<u8>>,
         /// Gossip type
         gossip_type: String,
     },
@@ -127,14 +127,14 @@ pub enum EvmMessage {
     /// Transaction to be processed
     Transaction {
         /// RLP-encoded transaction
-        transaction_data: Vec<u8>,
+        transaction_data: Box<Vec<u8>>,
         /// Transaction hash
         tx_hash: String,
     },
     /// Block data
     Block {
         /// RLP-encoded block
-        block_data: Vec<u8>,
+        block_data: Box<Vec<u8>>,
         /// Block hash
         block_hash: String,
         /// Block number
@@ -145,7 +145,7 @@ pub enum EvmMessage {
         /// Engine API method
         method: String,
         /// Parameters
-        params: serde_json::Value,
+        params: Box<serde_json::Value>,
     },
 }
 
@@ -180,7 +180,7 @@ pub enum MultiVmMessage {
     /// Consensus message
     Consensus {
         /// Consensus data
-        consensus_data: Vec<u8>,
+        consensus_data: Box<Vec<u8>>,
         /// Round number
         round: u64,
         /// View number

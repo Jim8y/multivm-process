@@ -71,6 +71,7 @@ pub fn validate_file_path(path: &str, purpose: &str) -> MultivmResult<PathBuf> {
 }
 
 /// Validate a node ID to ensure it's safe and follows expected patterns
+#[allow(dead_code)]
 pub fn validate_node_id(node_id: &str) -> MultivmResult<String> {
     if node_id.is_empty() {
         return Err(MultivmError::Configuration {
@@ -167,6 +168,7 @@ pub fn validate_validator_count(count: usize) -> MultivmResult<usize> {
 }
 
 /// Validate environment variables to prevent injection attacks
+#[allow(dead_code)]
 pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String> {
     // Check for suspicious characters that could be used for injection
     let suspicious_chars = ['$', '`', ';', '|', '&', '>', '<', '\n', '\r'];

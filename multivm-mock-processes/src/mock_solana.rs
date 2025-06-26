@@ -192,7 +192,7 @@ async fn process_command(command: IpcCommand, state: &Arc<RwLock<MockSolanaState
             );
 
             IpcResponse::BlockProcessed {
-                result_bytes,
+                result_bytes: Box::new(result_bytes),
                 blockchain_type: BlockchainType::Solana,
                 success: true,
             }

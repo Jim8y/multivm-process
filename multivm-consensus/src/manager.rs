@@ -244,19 +244,22 @@ impl MultiVMConsensusManager {
         let consensus_engine = MalachiteConsensus::new(malachite_config.into());
 
         // Initialize persistent state coordinator with RocksDB
-        let db_path = config.state_manager_config.rocksdb_path
-            .as_ref()
-            .map(|p| p.as_str())
+        let db_path = config
+            .state_manager_config
+            .rocksdb_path
+            .as_deref()
             .unwrap_or("/opt/multivm/data/consensus_state.db");
-        
-        std::fs::create_dir_all(std::path::Path::new(db_path).parent().unwrap())
-            .map_err(|e| ConsensusError::Storage(format!("Failed to create data directory: {}", e)))?;
-        
+
+        std::fs::create_dir_all(std::path::Path::new(db_path).parent().unwrap()).map_err(|e| {
+            ConsensusError::Storage(format!("Failed to create data directory: {}", e))
+        })?;
+
         let state_coordinator = Arc::new(RwLock::new(
             PersistentCrossVMStateManager::new_with_rocksdb(
                 config.state_manager_config.clone(),
                 db_path,
-            ).await?
+            )
+            .await?,
         ));
 
         let algorithm_name = match config.algorithm {
@@ -358,7 +361,7 @@ impl MultiVMConsensusManager {
             .map_err(|e| ConsensusError::SerializationError(e.to_string()))?;
 
         let payload = MessagePayload::MultiVm(MultiVmMessage::Consensus {
-            consensus_data,
+            consensus_data: Box::new(consensus_data),
             round: self.extract_round_from_message(&message),
             view: self.extract_view_from_message(&message),
         });
@@ -412,7 +415,7 @@ impl MultiVMConsensusManager {
             .map_err(|e| ConsensusError::SerializationError(e.to_string()))?;
 
         let payload = MessagePayload::MultiVm(MultiVmMessage::Consensus {
-            consensus_data,
+            consensus_data: Box::new(consensus_data),
             round: self.extract_round_from_message(&message),
             view: self.extract_view_from_message(&message),
         });
@@ -620,7 +623,7 @@ impl MultiVMConsensusManager {
                 round,
                 view,
             }) => {
-                self.handle_consensus_message(consensus_data.clone(), *round, *view, peer_id)
+                self.handle_consensus_message((**consensus_data).clone(), *round, *view, peer_id)
                     .await
             }
             MessagePayload::MultiVm(MultiVmMessage::StateSync {
@@ -1864,4 +1867,3 @@ impl MultiVMConsensusManager {
         Ok(())
     }
 }
-

@@ -95,6 +95,7 @@ impl<T> ApiResponse<T> {
 
 /// Unified API server that manages all API interfaces
 pub struct UnifiedApiServer {
+    #[allow(dead_code)]
     state: Arc<ApplicationState>,
 }
 

@@ -188,10 +188,9 @@ pub fn generate_test_validator_key(seed: &[u8]) -> ProductionSigningScheme {
     let mut hasher = Sha3_256::new();
     hasher.update(seed);
     let hash = hasher.finalize();
-    
+
     // Use first 32 bytes as private key
     let private_key = &hash[..32];
     ProductionSigningScheme::from_private_key_bytes(private_key)
         .expect("Generated key should be valid")
 }
-

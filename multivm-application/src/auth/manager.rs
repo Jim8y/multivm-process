@@ -12,6 +12,7 @@ use tokio::sync::RwLock;
 pub struct AuthManager {
     jwt_auth: Arc<JwtAuth>,
     api_key_manager: Arc<RwLock<ApiKeyManager>>,
+    #[allow(dead_code)]
     config: AuthConfig,
 }
 

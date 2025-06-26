@@ -3,14 +3,14 @@ members = [
     "multivm-common",
     "multivm-account-mapping",
     "multivm-mock-processes",
-    # Temporarily disabled due to dependency conflicts
-    # "multivm-p2p",
-    # "multivm-process-manager", 
-    # "multivm-application",
-    # "multivm-cli",
-    # "reth-execution-engine",
-    # "multivm-consensus",
-    # "solana-execution-engine",
+    "multivm-p2p",
+    "multivm-process-manager", 
+    "multivm-application",
+    "multivm-consensus",
+    "multivm-cli",
+    # Re-enabling execution engines with feature-based compilation
+    "reth-execution-engine",
+    # "solana-execution-engine",  # Build separately due to ed25519-dalek conflict
 ]
 resolver = "2"
 
@@ -46,7 +46,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Networking
 reqwest = { version = "0.11", features = ["json", "stream"] }
-libp2p = { version = "0.53", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify"] }
+libp2p = { version = "0.53", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify", "kad", "ping", "request-response", "websocket", "serde", "macros", "tokio", "dns"] }
 tokio-tungstenite = "0.20"
 
 # Web framework

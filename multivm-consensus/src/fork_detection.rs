@@ -827,4 +827,3 @@ impl ForkDetector for ForkDetectionManager {
         self.get_metrics().await
     }
 }
-

@@ -202,7 +202,7 @@ async fn process_command(command: IpcCommand, state: &Arc<RwLock<MockRethState>>
             );
 
             IpcResponse::BlockProcessed {
-                result_bytes,
+                result_bytes: Box::new(result_bytes),
                 blockchain_type: BlockchainType::Ethereum,
                 success: true,
             }

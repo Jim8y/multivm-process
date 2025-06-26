@@ -95,7 +95,7 @@ pub mod utils {
 
     /// Apply pagination limits
     pub fn apply_pagination_limits(limit: Option<i32>, offset: Option<i32>) -> (usize, usize) {
-        let limit = limit.unwrap_or(50).max(1).min(1000) as usize;
+        let limit = limit.unwrap_or(50).clamp(1, 1000) as usize;
         let offset = offset.unwrap_or(0).max(0) as usize;
         (limit, offset)
     }

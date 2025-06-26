@@ -95,7 +95,7 @@ pub async fn create_app(state: Arc<ApplicationState>) -> ApplicationResult<Route
 
 /// Create the Axum application with custom configuration
 pub fn create_app_with_config(state: Arc<ApplicationState>, config: RestApiConfig) -> Router {
-    let cors = CorsLayer::new()
+    let _cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
@@ -112,7 +112,7 @@ pub fn create_app_with_config(state: Arc<ApplicationState>, config: RestApiConfi
 }
 
 /// Create v1 API routes
-fn create_v1_routes(state: Arc<ApplicationState>) -> Router<Arc<ApplicationState>> {
+fn create_v1_routes(_state: Arc<ApplicationState>) -> Router<Arc<ApplicationState>> {
     Router::new()
         // SVM (Solana) endpoints
         .nest("/svm", create_svm_routes())

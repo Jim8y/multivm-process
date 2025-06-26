@@ -143,7 +143,7 @@ impl MutationResolver {
         ctx: &Context<'_>,
         binding_id: String,
     ) -> GraphQLResult<UnbindResult> {
-        let state = get_app_state(ctx)?;
+        let _state = get_app_state(ctx)?;
 
         // Validate binding ID is not empty
         if binding_id.trim().is_empty() {
@@ -205,7 +205,7 @@ impl MutationResolver {
         // Parse the transaction data to extract cross-VM transaction components
         let cross_vm_data: Result<serde_json::Value, _> =
             serde_json::from_str(&input.transaction_data);
-        let (svm_tx, evm_tx) = match cross_vm_data {
+        let (_svm_tx, _evm_tx) = match cross_vm_data {
             Ok(data) => {
                 // Extract source and target transaction data
                 let svm_part = data
@@ -315,7 +315,7 @@ impl MutationResolver {
                     Ok(response) => {
                         let result = &response.data;
                         Ok(SimulationResult {
-                            success: result.get("err").map_or(true, |e| e.is_null()),
+                            success: result.get("err").map(|e| e.is_null()).unwrap_or(true),
                             logs: result
                                 .get("logs")
                                 .and_then(|l| l.as_array())
@@ -358,7 +358,7 @@ impl MutationResolver {
                     .await
                 {
                     Ok(simulation_result) => {
-                        let result_data = &simulation_result.data;
+                        let _result_data = &simulation_result.data;
                         Ok(SimulationResult {
                             success: true,
                             logs: vec!["EVM simulation log".to_string()],

@@ -11,6 +11,7 @@ license = "MIT"
 [dependencies]
 multivm-common = { workspace = true }
 multivm-p2p = { workspace = true }
+multivm-account-mapping = { workspace = true }
 
 # Core dependencies
 tokio = { workspace = true }

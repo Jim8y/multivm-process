@@ -188,7 +188,7 @@ impl MemoryCache {
         let mut stats = self.stats.write();
 
         let initial_count = data.len();
-        let initial_size = stats.size;
+        let _initial_size = stats.size;
 
         data.retain(|_, item| !item.is_expired());
 
@@ -260,7 +260,7 @@ impl MemoryCache {
                 let mut stats_guard = stats.write();
 
                 let initial_count = data_guard.len();
-                let initial_size = stats_guard.size;
+                let _initial_size = stats_guard.size;
 
                 data_guard.retain(|_, item| !item.is_expired());
 
@@ -287,6 +287,7 @@ impl CacheItem {
     }
 
     /// Get remaining TTL
+    #[allow(dead_code)]
     fn remaining_ttl(&self) -> Duration {
         let elapsed = self.created_at.elapsed().unwrap_or(Duration::ZERO);
         if elapsed >= self.ttl {

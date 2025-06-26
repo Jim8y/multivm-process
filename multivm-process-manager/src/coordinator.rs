@@ -6,7 +6,7 @@
 //! - Account mapping
 //! - IPC communication with execution engines
 
-use crate::{BlockRouter, HealthMonitor, MultivmProcessManager, ProcessHandle};
+use crate::{HealthMonitor, MultivmProcessManager, ProcessHandle};
 use crate::lock_ordering::{
     acquire_read_lock_safe, acquire_write_lock_safe, LockLevel, LockTimeoutConfig,
     init_lock_config, get_lock_config
@@ -18,10 +18,9 @@ use multivm_account_mapping::{
     special_tx::{AssetType, SpecialTransaction, SimpleBindingMetadata},
 };
 use multivm_common::{
-    config::{IpcTransportConfig, SystemConfig, BlockchainConfig, IpcConfig, LoggingConfig},
     error::{MultivmError, MultivmResult},
-    types::ProcessId,
-    *,
+    types::{ProcessId, health::HealthStatus},
+    config::MultivmConfig,
 };
 use multivm_consensus::{MalachiteConfig, MalachiteConsensus, MultiVMBlock};
 use std::sync::Arc;
@@ -29,6 +28,22 @@ use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::interval;
 use tracing::{debug, error, info, warn};
+
+/// Routing metadata for metrics
+#[derive(Debug, Clone)]
+struct RoutingMetadata {
+    total_transactions: usize,
+}
+
+/// Routing result for block decomposition (temporary replacement for BlockRouter)
+#[derive(Debug, Clone)]
+struct RoutingResult {
+    svm_txs: Vec<multivm_consensus::block::SvmTransaction>,
+    evm_txs: Vec<multivm_consensus::block::EvmTransaction>,
+    multivm_txs: Vec<SpecialTransaction>,
+    special_transactions: Vec<SpecialTransaction>,
+    routing_metadata: RoutingMetadata,
+}
 
 /// Configuration for the MultiVM coordinator
 #[derive(Debug, Clone)]
@@ -129,8 +144,8 @@ pub enum TransferStatus {
 pub struct MultivmCoordinator {
     /// Process manager for execution engines
     process_manager: Arc<MultivmProcessManager>,
-    /// Block router for decomposition and routing
-    block_router: Arc<BlockRouter>,
+    // /// Block router for decomposition and routing
+    // block_router: Arc<BlockRouter>,
     /// Consensus engine
     consensus: Arc<RwLock<MalachiteConsensus>>,
     /// Account mapping layer (handles special transactions)
@@ -160,7 +175,7 @@ pub struct MultivmCoordinator {
 
 impl MultivmCoordinator {
     /// Create MultivmConfig from CoordinatorConfig
-    fn create_multivm_config_from_coordinator(config: &CoordinatorConfig) -> MultivmConfig {
+    fn create_multivm_config_from_coordinator(_config: &CoordinatorConfig) -> MultivmConfig {
         MultivmConfig::default()
     }
 
@@ -179,8 +194,7 @@ impl MultivmCoordinator {
         init_lock_config(lock_config);
 
         // Initialize account mapping layer with RocksDB
-        let db_path_str = config.db_path.as_ref()
-            .map(|s| s.as_str())
+        let db_path_str = config.db_path.as_deref()
             .unwrap_or("/opt/multivm/data/account_mapping.db");
         
         let db_path = std::path::Path::new(db_path_str);
@@ -202,7 +216,7 @@ impl MultivmCoordinator {
         );
 
         // Initialize block router
-        let block_router = Arc::new(BlockRouter::new(Arc::clone(&account_mapping)));
+        // let block_router = Arc::new(BlockRouter::new(Arc::clone(&account_mapping)));
 
         // Initialize process manager
         let multivm_config = Self::create_multivm_config_from_coordinator(&config);
@@ -239,7 +253,7 @@ impl MultivmCoordinator {
 
         Ok(Self {
             process_manager,
-            block_router,
+            // block_router,
             consensus,
             account_mapping,
             health_monitor,
@@ -424,7 +438,7 @@ impl MultivmCoordinator {
         self.shutdown_sender = Some(shutdown_sender);
 
         // Clone necessary components for the processing loop
-        let block_router = Arc::clone(&self.block_router);
+        // let block_router = Arc::clone(&self.block_router);
         let account_mapping = Arc::clone(&self.account_mapping);
         let state = Arc::clone(&self.state);
         let config = self.config.clone();
@@ -441,7 +455,7 @@ impl MultivmCoordinator {
                     Some(block) = block_receiver.recv() => {
                         debug!("Block received in processing loop: height {}", block.header.height);
                         if let Err(e) = Self::process_block_internal(
-                            &block_router,
+                            // &block_router,
                             &account_mapping,
                             &state,
                             &config,
@@ -518,10 +532,10 @@ impl MultivmCoordinator {
 
     /// Internal block processing logic
     async fn process_block_internal(
-        block_router: &Arc<BlockRouter>,
+        // block_router: &Arc<BlockRouter>,
         account_mapping: &Arc<dyn AccountMappingLayer>,
         state: &Arc<RwLock<CoordinatorState>>,
-        config: &CoordinatorConfig,
+        _config: &CoordinatorConfig,
         block: MultiVMBlock,
         account_mappings: &Arc<
             RwLock<
@@ -540,21 +554,19 @@ impl MultivmCoordinator {
             block.evm_transactions.len(), 
             block.multivm_transactions.len());
 
-        // Step 1: Decompose the block
-        let routing_result = tokio::time::timeout(
-            config.block_timeout,
-            block_router.decompose_block(block.clone()),
-        )
-        .await
-        .map_err(|_| MultivmError::Timeout {
-            operation: "block_decomposition".to_string(),
-            timeout: config.block_timeout,
-            partial_result: None,
-        })?
-        .map_err(|e| MultivmError::BlockProcessing {
-            message: format!("Block decomposition failed: {}", e),
-            block_number: Some(block.header.height),
-        })?;
+        // Step 1: Decompose the block (simplified since BlockRouter is disabled)
+        let total_transactions = block.svm_transactions.len() + 
+                                block.evm_transactions.len() + 
+                                block.multivm_transactions.len();
+        let routing_result = RoutingResult {
+            svm_txs: block.svm_transactions.clone(),
+            evm_txs: block.evm_transactions.clone(), 
+            multivm_txs: block.multivm_transactions.clone(),
+            special_transactions: block.multivm_transactions.clone(),
+            routing_metadata: RoutingMetadata {
+                total_transactions,
+            },
+        };
 
         // Step 2: Process special transactions first
         for special_tx in &routing_result.special_transactions {
@@ -582,7 +594,7 @@ impl MultivmCoordinator {
                         metadata: metadata.clone(),
                     };
 
-                    let tx_result = account_mapping
+                    account_mapping
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
@@ -599,7 +611,7 @@ impl MultivmCoordinator {
                         .await
                         .insert(source_account.clone(), target_account.clone());
 
-                    info!("Account binding created successfully: {:?}", tx_result);
+                    info!("Account binding created successfully");
                 }
                 SpecialTransaction::CrossVmTransfer {
                     from,
@@ -621,7 +633,7 @@ impl MultivmCoordinator {
                         memo: memo.clone(),
                     };
 
-                    let tx_result = account_mapping
+                    account_mapping
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
@@ -664,7 +676,7 @@ impl MultivmCoordinator {
                         config: config.clone(),
                     };
 
-                    let tx_result = account_mapping
+                    account_mapping
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
@@ -675,7 +687,7 @@ impl MultivmCoordinator {
                             }
                         })?;
 
-                    info!("Binding configuration updated: {:?}", tx_result);
+                    info!("Binding configuration updated");
                 }
                 SpecialTransaction::UnbindAccount {
                     multivm_account,
@@ -693,7 +705,7 @@ impl MultivmCoordinator {
                         auth_proof: auth_proof.clone(),
                     };
 
-                    let tx_result = account_mapping
+                    account_mapping
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
@@ -711,22 +723,22 @@ impl MultivmCoordinator {
                             LockLevel::AccountMappings,
                             Some(get_lock_config().default_timeout)
                         ).await?;
-                        mappings.retain(|k, _| k != account);
+                        mappings.retain(|k, _| k != &account.clone());
                     }
 
-                    info!("Account unbinding completed: {:?}", tx_result);
+                    info!("Account unbinding completed");
                 }
             }
         }
 
         // Step 3: Route VM-specific transactions to execution engines
-        block_router
-            .route_decomposed_block(routing_result.clone())
-            .await
-            .map_err(|e| MultivmError::BlockProcessing {
-                message: format!("Block routing failed: {}", e),
-                block_number: Some(block.header.height),
-            })?;
+        // block_router
+        //     .route_decomposed_block(routing_result.clone())
+        //     .await
+        //     .map_err(|e| MultivmError::BlockProcessing {
+        //         message: format!("Block routing failed: {}", e),
+        //         block_number: Some(block.header.height),
+        //     })?;
 
         // Step 4: Update system state and metrics
         let processing_time = start_time.elapsed();
@@ -839,7 +851,7 @@ impl MultivmCoordinator {
 
         // Register with block router
         let process_id = handle.process_id;
-        self.block_router.register_process(handle).await;
+        // self.block_router.register_process(handle).await;
 
         // Update state
         {
@@ -864,7 +876,7 @@ impl MultivmCoordinator {
         self.process_manager.unregister_process(process_id).await?;
 
         // Unregister from block router
-        self.block_router.unregister_process(process_id).await;
+        // self.block_router.unregister_process(process_id).await;
 
         // Update state
         {
@@ -952,7 +964,7 @@ impl MultivmCoordinator {
         // Step 5: Process the binding through account mapping layer
         let binding_id = uuid::Uuid::new_v4().to_string();
 
-        let tx_result = self
+        self
             .account_mapping
             .process_special_transaction(SpecialTransaction::AccountBinding {
                 source_account: source_account.clone(),
@@ -1268,7 +1280,7 @@ impl MultivmCoordinator {
         // Step 5: Process the transfer through account mapping layer
         let transfer_id = uuid::Uuid::new_v4().to_string();
 
-        let tx_result = self
+        self
             .account_mapping
             .process_special_transaction(SpecialTransaction::CrossVmTransfer {
                 from: from.clone(),
@@ -1599,7 +1611,7 @@ impl MultivmCoordinator {
         // Use the multivm account ID directly
 
         // Process the update through account mapping layer
-        let _tx_result = self
+        self
             .account_mapping
             .process_special_transaction(SpecialTransaction::UpdateBinding {
                 multivm_account: multivm_account.clone(),
@@ -1652,7 +1664,7 @@ impl MultivmCoordinator {
         );
 
         // Process the unbinding directly (validation happens internally)
-        let _tx_result = self
+        self
             .account_mapping
             .process_special_transaction(SpecialTransaction::UnbindAccount {
                 multivm_account: multivm_account.clone(),

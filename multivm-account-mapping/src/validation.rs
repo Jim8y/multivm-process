@@ -265,12 +265,18 @@ impl AccountBindingValidator {
 
             // Compare from most significant byte (index 31) down to least (index 0)
             for i in (0..31).rev() {
-                if s_bytes[i] > l_bytes[i] {
-                    return Err(AccountMappingError::InvalidBindingProof {
-                        reason: "Non-canonical Ed25519 signature: S >= L".to_string(),
-                    });
-                } else if s_bytes[i] < l_bytes[i] {
-                    break; // S < L, signature is canonical
+                match s_bytes[i].cmp(&l_bytes[i]) {
+                    std::cmp::Ordering::Greater => {
+                        return Err(AccountMappingError::InvalidBindingProof {
+                            reason: "Non-canonical Ed25519 signature: S >= L".to_string(),
+                        });
+                    }
+                    std::cmp::Ordering::Less => {
+                        break; // S < L, signature is canonical
+                    }
+                    std::cmp::Ordering::Equal => {
+                        // Continue to next byte
+                    }
                 }
             }
         }
@@ -915,10 +921,10 @@ impl ProofGenerator {
         BindingProof {
             account,
             proof_type: ProofType::Signature {
-                message,
-                signature: Vec::new(), // To be filled by user
+                message: Box::new(message),
+                signature: Box::new(Vec::new()), // To be filled by user
             },
-            proof_data: Vec::new(),
+            proof_data: Box::new(Vec::new()),
             timestamp: SystemTime::now(),
         }
     }
@@ -928,10 +934,10 @@ impl ProofGenerator {
         BindingProof {
             account,
             proof_type: ProofType::Transaction {
-                tx_hash: Vec::new(),    // To be filled by user
-                block_hash: Vec::new(), // To be filled by user
+                tx_hash: Box::new(Vec::new()),    // To be filled by user
+                block_hash: Box::new(Vec::new()), // To be filled by user
             },
-            proof_data: Vec::new(),
+            proof_data: Box::new(Vec::new()),
             timestamp: SystemTime::now(),
         }
     }

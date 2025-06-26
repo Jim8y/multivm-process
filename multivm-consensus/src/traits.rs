@@ -2,10 +2,7 @@
 
 use crate::ConsensusResult;
 use async_trait::async_trait;
-// use multivm_account_mapping::{
-//     address::MultivmAccountId,
-//     special_tx::SpecialTransaction
-// };
+use multivm_account_mapping::{address::MultivmAccountId, special_tx::SpecialTransaction};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::time::SystemTime;
@@ -63,16 +60,16 @@ pub trait ConsensusEngine: Send + Sync + Debug {
 #[async_trait]
 pub trait CrossVMStateCoordinator: Send + Sync + Debug {
     /// Apply a cross-VM transaction and return the resulting state changes
-    // async fn apply_cross_vm_transaction(
-    //     &mut self,
-    //     transaction: &SpecialTransaction,
-    // ) -> ConsensusResult<Vec<StateChange>>;
+    async fn apply_cross_vm_transaction(
+        &mut self,
+        transaction: &SpecialTransaction,
+    ) -> ConsensusResult<Vec<StateChange>>;
 
     /// Validate a cross-VM transaction before applying it
-    // async fn validate_cross_vm_transaction(
-    //     &self,
-    //     transaction: &SpecialTransaction,
-    // ) -> ConsensusResult<ValidationResult>;
+    async fn validate_cross_vm_transaction(
+        &self,
+        transaction: &SpecialTransaction,
+    ) -> ConsensusResult<ValidationResult>;
 
     /// Get the current cross-VM state snapshot
     async fn get_cross_vm_state(&self) -> ConsensusResult<CrossVMState>;
@@ -200,7 +197,7 @@ pub struct CrossVMState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusAccountBinding {
     /// MultiVM account identifier
-    // pub multivm_account: MultivmAccountId,
+    pub multivm_account: MultivmAccountId,
     /// Associated VM addresses
     pub bound_addresses: Vec<String>,
     /// Binding metadata
@@ -305,4 +302,3 @@ impl ValidationResult {
         }
     }
 }
-

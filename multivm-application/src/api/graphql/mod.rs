@@ -45,7 +45,9 @@ impl Default for GraphQLConfig {
 
 /// GraphQL server
 pub struct GraphQLServer {
+    #[allow(dead_code)]
     state: Arc<ApplicationState>,
+    #[allow(dead_code)]
     config: GraphQLConfig,
     schema: Schema<QueryRoot, MutationRoot, EmptySubscription>,
 }
@@ -175,7 +177,7 @@ impl QueryRoot {
     async fn search_transactions(
         &self,
         ctx: &Context<'_>,
-        query: TransactionSearchInput,
+        _query: TransactionSearchInput,
     ) -> GraphQLResult<TransactionSearchResult> {
         let _state = ctx.data::<Arc<ApplicationState>>()?;
 
@@ -296,7 +298,7 @@ pub async fn create_app(state: Arc<ApplicationState>) -> ApplicationResult<Route
 
 /// GraphQL request handler
 async fn graphql_handler(
-    State((state, schema)): State<(Arc<ApplicationState>, MultivmSchema)>,
+    State((_state, schema)): State<(Arc<ApplicationState>, MultivmSchema)>,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()

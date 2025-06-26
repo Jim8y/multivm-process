@@ -128,9 +128,9 @@ pub fn error_response(
 /// Generic error response that can be converted to any type
 pub fn error_response_typed<T>(
     code: &str,
-    message: &str,
-    request_id: String,
-    response_time: u64,
+    _message: &str,
+    _request_id: String,
+    _response_time: u64,
 ) -> Result<Json<ApiResponse<T>>, StatusCode> {
     Err(match code {
         "NOT_FOUND" => StatusCode::NOT_FOUND,

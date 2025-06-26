@@ -34,7 +34,7 @@ pub struct BindingProof {
     /// Type of proof provided
     pub proof_type: ProofType,
     /// The actual proof data
-    pub proof_data: Vec<u8>,
+    pub proof_data: Box<Vec<u8>>,
     /// When this proof was created
     pub timestamp: SystemTime,
 }
@@ -45,16 +45,16 @@ pub enum ProofType {
     /// Signature proving control of the account
     Signature {
         /// The message that was signed
-        message: Vec<u8>,
+        message: Box<Vec<u8>>,
         /// The signature
-        signature: Vec<u8>,
+        signature: Box<Vec<u8>>,
     },
     /// Transaction proving control (sent from the account)
     Transaction {
         /// Transaction hash
-        tx_hash: Vec<u8>,
+        tx_hash: Box<Vec<u8>>,
         /// Block where transaction was included
-        block_hash: Vec<u8>,
+        block_hash: Box<Vec<u8>>,
     },
 }
 

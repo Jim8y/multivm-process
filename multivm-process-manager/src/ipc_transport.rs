@@ -426,7 +426,7 @@ async fn process_secure_ipc_message(message: IpcMessage) -> IpcResponse {
             // Route to appropriate execution engine
             match route_block_to_execution_engine(&block_data_bytes, blockchain_type).await {
                 Ok(result_bytes) => IpcResponse::BlockProcessed {
-                    result_bytes,
+                    result_bytes: Box::new(result_bytes),
                     blockchain_type,
                     success: true,
                 },
@@ -637,7 +637,7 @@ impl TcpSocketTransport {
                 // Process the block through the appropriate execution engine
                 match Self::route_block_data_to_engine(&block_data_bytes, blockchain_type).await {
                     Ok(result_bytes) => IpcResponse::BlockProcessed {
-                        result_bytes,
+                        result_bytes: Box::new(result_bytes),
                         blockchain_type,
                         success: true,
                     },

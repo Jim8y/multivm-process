@@ -6,10 +6,10 @@
 
 use multivm_common::{MultivmError, MultivmResult};
 use multivm_consensus::block::{MultiVMBlock, SvmTransaction, EvmTransaction};
-use multivm_account_mapping::SpecialTransaction;
-use std::collections::{BinaryHeap, HashMap, VecDeque};
+use multivm_account_mapping::special_tx::SpecialTransaction;
+use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock, Mutex};
 use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -192,7 +192,13 @@ impl PrioritizedTransaction {
         match &self.transaction {
             Transaction::Svm(svm_tx) => svm_tx.id.to_string(),
             Transaction::Evm(evm_tx) => evm_tx.hash.clone(),
-            Transaction::MultiVm(mv_tx) => format!("multivm_{}", mv_tx.id),
+            Transaction::MultiVm(mv_tx) => {
+                use sha2::{Sha256, Digest};
+                let serialized = serde_json::to_string(mv_tx).unwrap_or_default();
+                let mut hasher = Sha256::new();
+                hasher.update(serialized.as_bytes());
+                format!("multivm_{:x}", hasher.finalize())
+            },
         }
     }
 
@@ -271,7 +277,11 @@ impl TransactionBatcher {
         {
             let mut running = self.is_running.write().await;
             if *running {
-                return Err(MultivmError::InvalidState("Batcher already running".to_string()));
+                return Err(MultivmError::InvalidState {
+                    message: "Batcher already running".to_string(),
+                    current_state: None,
+                    expected_state: None,
+                });
             }
             *running = true;
         }
@@ -466,6 +476,10 @@ impl TransactionBatcher {
                 continue;
             }
 
+            // Extract needed values before moving transaction
+            let tx_size = prioritized_tx.get_size();
+            let tx_hash = prioritized_tx.get_hash();
+            
             // Add transaction to block
             match prioritized_tx.transaction {
                 Transaction::Svm(svm_tx) => {
@@ -475,7 +489,7 @@ impl TransactionBatcher {
                     block.add_evm_transaction(evm_tx);
                 }
                 Transaction::MultiVm(mv_tx) => {
-                    block.add_multivm_transaction(mv_tx);
+                    block.multivm_transactions.push(mv_tx);
                 }
             }
 
@@ -483,7 +497,6 @@ impl TransactionBatcher {
             *current_size += tx_size;
 
             // Remove from index
-            let tx_hash = prioritized_tx.get_hash();
             self.transaction_index.write().await.remove(&tx_hash);
         }
 
@@ -662,7 +675,11 @@ impl TransactionBatcherHandle {
     /// Submit new transaction
     pub async fn submit_transaction(&self, transaction: Transaction) -> MultivmResult<()> {
         self.transaction_sender.send(transaction).await
-            .map_err(|_| MultivmError::Communication("Failed to send transaction".to_string()))
+            .map_err(|_| MultivmError::Network {
+                message: "Failed to send transaction".to_string(),
+                endpoint: None,
+                retry_after: None,
+            })
     }
 
     /// Request batch construction
@@ -677,10 +694,18 @@ impl TransactionBatcherHandle {
         };
 
         self.batch_sender.send(request).await
-            .map_err(|_| MultivmError::Communication("Failed to send batch request".to_string()))?;
+            .map_err(|_| MultivmError::Network {
+                message: "Failed to send batch request".to_string(),
+                endpoint: None,
+                retry_after: None,
+            })?;
 
         response_receiver.await
-            .map_err(|_| MultivmError::Communication("Failed to receive batch response".to_string()))?
+            .map_err(|_| MultivmError::Network {
+                message: "Failed to receive batch response".to_string(),
+                endpoint: None,
+                retry_after: None,
+            })?
     }
 
     /// Get memory pool statistics

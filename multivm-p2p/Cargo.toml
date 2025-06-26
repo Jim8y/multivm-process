@@ -9,7 +9,7 @@ description = "P2P networking service for the MultiVM platform"
 
 [dependencies]
 # Internal dependencies
-multivm-common = { path = "../multivm-common" }
+multivm-common = { workspace = true }
 
 # Core async runtime
 tokio = { workspace = true }
@@ -43,7 +43,7 @@ governor = { workspace = true }
 nonzero_ext = { workspace = true }
 
 # Internal dependencies
-multivm-account-mapping = { path = "../multivm-account-mapping" }
+multivm-account-mapping = { workspace = true }
 
 # Time and UUID
 chrono = { workspace = true }
@@ -51,6 +51,10 @@ uuid = { workspace = true }
 
 # Concurrency utilities
 parking_lot = { workspace = true }
+
+# Optional metrics dependencies
+lazy_static = { version = "1.4", optional = true }
+prometheus = { version = "0.13", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -61,3 +65,4 @@ tracing-subscriber = { workspace = true }
 [features]
 default = []
 testing = []
+metrics = ["lazy_static", "prometheus"]

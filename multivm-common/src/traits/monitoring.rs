@@ -82,7 +82,7 @@ pub trait HealthChecker: Send + Sync {
 }
 
 /// Comprehensive network statistics
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct NetworkStats {
     // Connection metrics
     pub connected_peers: usize,

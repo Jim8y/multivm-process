@@ -1,11 +1,11 @@
-use solana_execution_engine::engine::SolanaExecutionEngine;
+use solana_execution_engine::simple_engine::SimpleSolanaEngine;
 
 fn main() {
-    println!("Solana Execution Engine");
+    println!("Solana Execution Engine (Simple)");
     // Main function placeholder - this binary is primarily used as a library
     
-    // Example usage (commented out to avoid runtime dependencies)
-    // let config = solana_execution_engine::engine::SolanaConfig::default();
-    // let _engine = SolanaExecutionEngine::new(config);
+    // Example usage
+    let _engine = SimpleSolanaEngine::new();
+    println!("Simple Solana engine created successfully");
 }
 

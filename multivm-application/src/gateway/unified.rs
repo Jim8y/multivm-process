@@ -106,6 +106,7 @@ pub struct GatewayStats {
 pub struct UnifiedGateway {
     pub config: UnifiedGatewayConfig,
     cache: Arc<CacheLayer>,
+    #[allow(dead_code)]
     http_client: reqwest::Client,
     stats: Arc<tokio::sync::RwLock<GatewayStats>>,
     start_time: Instant,
@@ -462,7 +463,7 @@ impl UnifiedGateway {
     }
 
     /// Simulate SVM transaction (mock implementation)
-    pub async fn simulate_svm_transaction(&self, transaction_data: &str) -> ApplicationResult<GatewayResponse<serde_json::Value>> {
+    pub async fn simulate_svm_transaction(&self, _transaction_data: &str) -> ApplicationResult<GatewayResponse<serde_json::Value>> {
         let start_time = Instant::now();
         let request_id = uuid::Uuid::new_v4().to_string();
         

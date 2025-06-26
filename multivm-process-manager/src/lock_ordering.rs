@@ -319,6 +319,12 @@ pub struct DeadlockDetector {
     active_locks: Arc<Mutex<HashMap<thread::ThreadId, Vec<LockLevel>>>>,
 }
 
+impl Default for DeadlockDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DeadlockDetector {
     pub fn new() -> Self {
         Self {

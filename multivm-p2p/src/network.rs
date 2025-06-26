@@ -3,7 +3,7 @@
 //! This module provides a complete peer-to-peer networking layer for the MultiVM system,
 //! enabling secure, decentralized communication between nodes in the network.
 
-use crate::NetworkStats;
+use crate::{NetworkStats, error::P2PError};
 use multivm_common::MultivmResult;
 
 use libp2p::{
@@ -368,12 +368,15 @@ impl P2PNetwork {
 
         // Build the swarm using the SwarmBuilder API
         let mut swarm = SwarmBuilder::with_existing_identity(local_key.clone())
+            .with_tokio()
             .with_tcp(
                 tcp::Config::default().nodelay(true),
                 noise::Config::new,
                 yamux::Config::default,
-            )?
-            .with_behaviour(|_| behaviour)?
+            )
+            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {}", e)))?
+            .with_behaviour(|_| behaviour)
+            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {}", e)))?
             .with_swarm_config(|c| c.with_idle_connection_timeout(config.connection_timeout))
             .build();
 

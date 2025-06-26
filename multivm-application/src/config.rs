@@ -515,9 +515,13 @@ pub mod utils {
         }
         
         // Type aliases for compatibility with existing code
+        #[allow(dead_code)]
         pub type RedisConfig = RedisCacheConfig;
+        #[allow(dead_code)]
         pub type HealthCheckConfig = MonitoringConfig;
+        #[allow(dead_code)]
         pub type MetricsConfig = MonitoringConfig;
+        #[allow(dead_code)]
         pub type TracingConfig = MonitoringConfig;
         
         /// Rate limiting configuration

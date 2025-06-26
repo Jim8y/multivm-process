@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // SVM message
         NetworkMessage::new(
             MessagePayload::Svm(SvmMessage::Block {
-                block_data: vec![1, 2, 3],
+                block_data: Box::new(vec![1, 2, 3]),
                 block_hash: "svm_block_hash".to_string(),
                 height: 100,
             }),
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // EVM message
         NetworkMessage::new(
             MessagePayload::Evm(EvmMessage::Block {
-                block_data: vec![4, 5, 6],
+                block_data: Box::new(vec![4, 5, 6]),
                 block_hash: "0xevm_block_hash".to_string(),
                 block_number: 200,
             }),
@@ -110,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let local_message = NetworkMessage::new(
         MessagePayload::Svm(SvmMessage::Transaction {
-            transaction_data: vec![9, 10, 11],
+            transaction_data: Box::new(vec![9, 10, 11]),
             signature: "local_tx_sig".to_string(),
         }),
         MessageSource::NetworkLayer,

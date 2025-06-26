@@ -1,4 +1,4 @@
-//! Prometheus metrics for P2P networking layer
+//! Metrics for P2P networking layer
 
 use lazy_static::lazy_static;
 use prometheus::{

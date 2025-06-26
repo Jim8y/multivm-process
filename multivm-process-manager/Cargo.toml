@@ -10,8 +10,8 @@ description = "Process management service for the MultiVM platform"
 [dependencies]
 # Internal dependencies
 multivm-common = { path = "../multivm-common" }
-# multivm-account-mapping = { path = "../multivm-account-mapping" }  # Temporarily disabled
-# multivm-consensus = { path = "../multivm-consensus" }  # Temporarily disabled
+multivm-account-mapping = { path = "../multivm-account-mapping" }
+multivm-consensus = { path = "../multivm-consensus" }
 
 # Core async runtime
 tokio = { workspace = true }

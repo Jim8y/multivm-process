@@ -14,6 +14,7 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub struct ApiKeyManager {
     keys: HashMap<String, ApiKeyInfo>,
+    #[allow(dead_code)]
     storage_backend: ApiKeyStorage,
     environment_manager: Option<super::environment::EnvironmentApiKeyManager>,
     /// Rate limiting tracker

@@ -28,21 +28,29 @@ MultiVM provides a clean, modular architecture for multi-blockchain operations:
 - **Secure IPC Communication**: Inter-process messaging with authentication
 - **Health Monitoring**: System status tracking and metrics
 - **Mock Testing Infrastructure**: Full testing environment for development
+- **P2P Networking**: libp2p-based networking with Gossipsub, Kademlia DHT, and mDNS
+- **Process Management**: Coordinated VM process lifecycle and health monitoring
+- **REST/GraphQL APIs**: Full-featured APIs with authentication and rate limiting
+- **Consensus Integration**: Malachite BFT consensus for cross-VM coordination
+- **CLI Interface**: Command-line tools for node management and operations
 
-### 🔄 Extended Features (Planned)
-- P2P Networking with libp2p
-- Process Management and Coordination  
-- REST/GraphQL APIs
-- Consensus Integration
-- Full Execution Engines
+### ⚠️ Limited Features (Dependency Conflicts)
+- **Full Execution Engines**: Currently using mock processes due to ed25519-dalek version conflict between Solana SDK and libp2p
 
 ## 📦 Project Structure
 
 ```
-crates/
+.
 ├── multivm-common/          # Shared types, IPC protocols, configuration
 ├── multivm-account-mapping/ # Cross-VM account binding and coordination
-└── multivm-mock-processes/  # Testing infrastructure for VM processes
+├── multivm-mock-processes/  # Testing infrastructure for VM processes
+├── multivm-p2p/            # P2P networking with libp2p
+├── multivm-process-manager/ # Process coordination and management
+├── multivm-application/     # REST/GraphQL APIs and web services
+├── multivm-consensus/       # Malachite BFT consensus integration
+├── multivm-cli/            # Command-line interface
+├── reth-execution-engine/   # Ethereum execution (disabled - dependency conflict)
+└── solana-execution-engine/ # Solana execution (disabled - dependency conflict)
 ```
 
 ## 🛠️ Development

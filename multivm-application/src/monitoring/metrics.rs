@@ -59,7 +59,7 @@ impl MetricsService {
     }
 
     /// Record HTTP request
-    pub fn record_http_request(&self, method: &str, path: &str, status: u16, duration_ms: f64) {
+    pub fn record_http_request(&self, _method: &str, _path: &str, status: u16, duration_ms: f64) {
         let mut registry = self.registry.write();
         registry.http_requests_total += 1;
         registry.http_request_duration_sum += duration_ms;
@@ -85,7 +85,7 @@ impl MetricsService {
     }
 
     /// Record GraphQL query
-    pub fn record_graphql_query(&self, operation: &str, duration_ms: f64, success: bool) {
+    pub fn record_graphql_query(&self, _operation: &str, duration_ms: f64, success: bool) {
         let mut registry = self.registry.write();
         registry.graphql_queries_total += 1;
         if success {
@@ -95,7 +95,7 @@ impl MetricsService {
     }
 
     /// Record cache operation
-    pub fn record_cache_operation(&self, operation: &str, hit: bool, duration_ms: f64) {
+    pub fn record_cache_operation(&self, operation: &str, hit: bool, _duration_ms: f64) {
         let mut registry = self.registry.write();
         match operation {
             "get" => {
@@ -114,9 +114,9 @@ impl MetricsService {
     pub fn record_vm_operation(
         &self,
         vm_type: &str,
-        operation: &str,
+        _operation: &str,
         success: bool,
-        duration_ms: f64,
+        _duration_ms: f64,
     ) {
         let mut registry = self.registry.write();
         match vm_type {

@@ -133,27 +133,12 @@ pub enum ApplicationError {
 impl ApplicationError {
     /// Determine if the error is recoverable
     pub fn is_recoverable(&self) -> bool {
-        match self {
-            ApplicationError::RateLimitExceeded { .. } => true,
-            ApplicationError::TimeoutError { .. } => true,
-            ApplicationError::NetworkError { .. } => true,
-            ApplicationError::ServiceUnavailable { .. } => true,
-            ApplicationError::CacheError { .. } => true,
-            ApplicationError::PerformanceDegraded { .. } => true,
-            _ => false,
-        }
+        matches!(self, ApplicationError::RateLimitExceeded { .. } | ApplicationError::TimeoutError { .. } | ApplicationError::NetworkError { .. } | ApplicationError::ServiceUnavailable { .. } | ApplicationError::CacheError { .. } | ApplicationError::PerformanceDegraded { .. })
     }
 
     /// Determine if the error is critical (requires immediate attention)
     pub fn is_critical(&self) -> bool {
-        match self {
-            ApplicationError::StartupError { .. } => true,
-            ApplicationError::ConfigurationError { .. } => true,
-            ApplicationError::ResourceExhausted { .. } => true,
-            ApplicationError::DatabaseError { .. } => true,
-            ApplicationError::InternalError { .. } => true,
-            _ => false,
-        }
+        matches!(self, ApplicationError::StartupError { .. } | ApplicationError::ConfigurationError { .. } | ApplicationError::ResourceExhausted { .. } | ApplicationError::DatabaseError { .. } | ApplicationError::InternalError { .. })
     }
 
     /// Get error category for metrics and monitoring

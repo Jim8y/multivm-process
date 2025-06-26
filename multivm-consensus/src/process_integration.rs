@@ -217,7 +217,7 @@ impl ProcessConsensusCoordinator {
 
         // Create Malachite consensus engine
         let consensus_engine = MalachiteConsensus::new(config.consensus_config.clone().into());
-        
+
         // Create channels for block processing
         let (block_sender, _block_receiver) = mpsc::channel(100);
         let (_commit_sender, commit_receiver) = mpsc::channel(100);
@@ -632,4 +632,3 @@ pub struct ExecutionStats {
     pub success_rate: f64,
     pub avg_block_execution_time_ms: u64,
 }
-

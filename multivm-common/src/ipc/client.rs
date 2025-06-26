@@ -143,7 +143,7 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
             })?;
 
         let command = IpcCommand::ProcessBlock {
-            block_data_bytes,
+            block_data_bytes: Box::new(block_data_bytes),
             blockchain_type,
             expect_response: true,
         };
@@ -162,7 +162,7 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
                 ..
             } => {
                 if success {
-                    Ok(result_bytes)
+                    Ok(*result_bytes)
                 } else {
                     Err(MultivmError::BlockProcessing {
                         message: "Block processing failed".to_string(),
@@ -201,7 +201,7 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
             })?;
 
         let command = IpcCommand::ProcessBlock {
-            block_data_bytes,
+            block_data_bytes: Box::new(block_data_bytes),
             blockchain_type,
             expect_response: false,
         };
@@ -321,7 +321,7 @@ impl IntoResponse for IpcMessage {
             } => {
                 // Process block with validation and state updates
                 use sha2::{Digest, Sha256};
-                let hash = format!("{:x}", Sha256::digest(&block_data_bytes));
+                let hash = format!("{:x}", Sha256::digest(&*block_data_bytes));
 
                 let result_data = serde_json::json!({
                     "processed": true,
@@ -331,7 +331,7 @@ impl IntoResponse for IpcMessage {
                 });
 
                 IpcResponse::BlockProcessed {
-                    result_bytes: serde_json::to_vec(&result_data).unwrap_or_default(),
+                    result_bytes: Box::new(serde_json::to_vec(&result_data).unwrap_or_default()),
                     blockchain_type,
                     success: true,
                 }

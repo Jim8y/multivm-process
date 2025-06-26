@@ -97,4 +97,3 @@ pub const DEFAULT_CONSENSUS_TIMEOUT: u64 = 5000;
 
 /// Default heartbeat interval in milliseconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 1000;
-

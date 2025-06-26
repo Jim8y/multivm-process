@@ -43,7 +43,9 @@ impl Default for AdminConfig {
 
 /// Admin server
 pub struct AdminServer {
+    #[allow(dead_code)]
     state: Arc<ApplicationState>,
+    #[allow(dead_code)]
     config: AdminConfig,
 }
 
@@ -253,7 +255,7 @@ async fn api_nodes_status(
 
 /// Restart a node
 async fn api_restart_node(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Json(request): Json<RestartNodeRequest>,
 ) -> Result<Json<OperationResult>, StatusCode> {
     tracing::info!("Restart requested for node: {}", request.node_name);
@@ -361,11 +363,11 @@ async fn api_update_config(
             server_config.websocket_port,
             server_config.admin_port,
         ] {
-            if port < 1024 || port > 65535 {
+            if port < 1024 {
                 return Ok(Json(OperationResult {
                     success: false,
                     message: format!(
-                        "Invalid port number: {}. Must be between 1024 and 65535",
+                        "Invalid port number: {}. Must be 1024 or higher",
                         port
                     ),
                     operation_id,
@@ -488,7 +490,7 @@ async fn api_get_logs(
 
 /// Create backup
 async fn api_create_backup(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
 ) -> Result<Json<BackupResult>, StatusCode> {
     let backup_id = uuid::Uuid::new_v4().to_string();
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
@@ -539,7 +541,7 @@ async fn api_create_backup(
 
 /// Restore backup
 async fn api_restore_backup(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Json(request): Json<RestoreBackupRequest>,
 ) -> Result<Json<OperationResult>, StatusCode> {
     tracing::info!("Restore requested for backup: {}", request.backup_id);

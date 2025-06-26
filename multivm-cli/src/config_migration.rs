@@ -14,6 +14,7 @@ pub struct MigrationResult {
 }
 
 /// Migrate legacy configuration to unified schema
+#[allow(dead_code)]
 pub fn migrate_legacy_config(legacy_config: MultivmConfig) -> MigrationResult {
     let mut warnings = Vec::new();
     let unified_config = legacy_config;
@@ -35,6 +36,7 @@ pub fn migrate_legacy_config(legacy_config: MultivmConfig) -> MigrationResult {
 }
 
 /// Check if a configuration file needs migration
+#[allow(dead_code)]
 pub fn needs_migration(config_path: &Path) -> Result<bool, std::io::Error> {
     if !config_path.exists() {
         return Ok(false);

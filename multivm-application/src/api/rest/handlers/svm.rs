@@ -123,8 +123,8 @@ pub async fn get_balance(
 
 /// Get account transaction history
 pub async fn get_account_transactions(
-    State(state): State<Arc<ApplicationState>>,
-    Path(address): Path<String>,
+    State(_state): State<Arc<ApplicationState>>,
+    Path(_address): Path<String>,
     Query(params): Query<PaginationQuery>,
     headers: HeaderMap,
 ) -> Response {
@@ -153,7 +153,7 @@ pub async fn get_account_transactions(
 
     let transactions = gateway_response.data;
     let transaction_list = SvmTransactionList {
-        transactions: transactions.iter().map(|tx| SvmTransactionInfo {
+        transactions: transactions.iter().map(|_tx| SvmTransactionInfo {
             signature: "mock_signature".to_string(),
             slot: 0,
             block_time: None,
@@ -243,7 +243,7 @@ pub async fn simulate_transaction(
     let request_id = crate::api::utils::extract_request_id(&headers);
     let start_time = start_request_timer();
 
-    let result = match state
+    let _result = match state
         .gateway
         .send_raw_transaction(&request.transaction_data)
         .await
@@ -321,8 +321,8 @@ pub async fn get_block(
 
 /// Get block transactions
 pub async fn get_block_transactions(
-    State(state): State<Arc<ApplicationState>>,
-    Path(slot): Path<u64>,
+    State(_state): State<Arc<ApplicationState>>,
+    Path(_slot): Path<u64>,
     headers: HeaderMap,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
@@ -350,7 +350,7 @@ pub async fn get_block_transactions(
 
     let tx_data = transactions.data;
     let transaction_list = SvmTransactionList {
-        transactions: tx_data.iter().map(|tx| SvmTransactionInfo {
+        transactions: tx_data.iter().map(|_tx| SvmTransactionInfo {
             signature: "mock_signature".to_string(),
             slot: 0,
             block_time: None,
@@ -368,8 +368,8 @@ pub async fn get_block_transactions(
 
 /// Get program accounts
 pub async fn get_program_accounts(
-    State(state): State<Arc<ApplicationState>>,
-    Path(program_id): Path<String>,
+    State(_state): State<Arc<ApplicationState>>,
+    Path(_program_id): Path<String>,
     headers: HeaderMap,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
@@ -401,8 +401,8 @@ pub async fn get_program_accounts(
 
 /// Get token accounts
 pub async fn get_token_accounts(
-    State(state): State<Arc<ApplicationState>>,
-    Path(mint): Path<String>,
+    State(_state): State<Arc<ApplicationState>>,
+    Path(_mint): Path<String>,
     headers: HeaderMap,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
@@ -456,8 +456,8 @@ pub async fn get_token_accounts(
 
 /// Get token supply
 pub async fn get_token_supply(
-    State(state): State<Arc<ApplicationState>>,
-    Path(mint): Path<String>,
+    State(_state): State<Arc<ApplicationState>>,
+    Path(_mint): Path<String>,
     headers: HeaderMap,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
