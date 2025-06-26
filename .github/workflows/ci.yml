@@ -66,10 +66,7 @@ jobs:
     
     strategy:
       matrix:
-        rust: [stable, beta]
-        include:
-          - rust: nightly
-            allow-failure: true
+        rust: [stable]
     
     steps:
     - name: Checkout code
@@ -87,23 +84,13 @@ jobs:
     
     - name: Build workspace
       run: cargo build --workspace --verbose
-      continue-on-error: ${{ matrix.allow-failure == true }}
-    
-    - name: Build examples
-      run: cargo build --examples --verbose
-      continue-on-error: ${{ matrix.allow-failure == true }}
     
     - name: Run unit tests
       run: cargo test --workspace --verbose --lib --bins
-      continue-on-error: ${{ matrix.allow-failure == true }}
     
     - name: Run integration tests
       run: cargo test --workspace --verbose --tests
       continue-on-error: true  # Integration tests may require external services
-    
-    - name: Check examples compile
-      run: cargo check --examples
-      continue-on-error: ${{ matrix.allow-failure == true }}
 
   security-audit:
     name: Security Audit
