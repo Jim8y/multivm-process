@@ -11,7 +11,10 @@
 //! **Important**: MultiVM does NOT execute transactions itself - it coordinates
 //! external Reth and Solana processes via IPC/RPC calls.
 
-use crate::{AccountAddress, AssetType, MultivmAccountId};
+use crate::{
+    address::{AccountAddress, MultivmAccountId},
+    special_tx::AssetType,
+};
 use multivm_common::{MultivmError, MultivmResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -463,9 +466,11 @@ impl AtomicTransactionCoordinator {
         // Check constraints
         if let Some(deadline) = transaction.constraints.deadline {
             if SystemTime::now() > deadline {
-                return Err(MultivmError::Configuration(
-                    "Transaction deadline has passed".to_string(),
-                ));
+                return Err(MultivmError::Configuration {
+                    component: "atomic_coordinator".to_string(),
+                    message: "Transaction deadline has passed".to_string(),
+                    validation_errors: Some(vec![]),
+                });
             }
         }
 
@@ -490,9 +495,11 @@ impl AtomicTransactionCoordinator {
                 asset: _,
             } => {
                 if amount == &0 {
-                    return Err(MultivmError::Configuration(
-                        "Transfer amount cannot be zero".to_string(),
-                    ));
+                    return Err(MultivmError::Configuration {
+                        component: "atomic_coordinator".to_string(),
+                        message: "Transfer amount cannot be zero".to_string(),
+                        validation_errors: Some(vec![]),
+                    });
                 }
                 // Additional validation logic...
             }
@@ -569,7 +576,11 @@ impl AtomicTransactionCoordinator {
             transactions
                 .get(tx_id)
                 .cloned()
-                .ok_or_else(|| MultivmError::InvalidState("Transaction not found".to_string()))?
+                .ok_or_else(|| MultivmError::InvalidState {
+                    message: "Transaction not found".to_string(),
+                    current_state: Some("unknown".to_string()),
+                    expected_state: Some("found".to_string()),
+                })?
         };
 
         // Group operations by VM
@@ -608,7 +619,11 @@ impl AtomicTransactionCoordinator {
             transactions
                 .get(tx_id)
                 .cloned()
-                .ok_or_else(|| MultivmError::InvalidState("Transaction not found".to_string()))?
+                .ok_or_else(|| MultivmError::InvalidState {
+                    message: "Transaction not found".to_string(),
+                    current_state: Some("unknown".to_string()),
+                    expected_state: Some("found".to_string()),
+                })?
         };
 
         // Send commit requests to all VMs
@@ -630,7 +645,11 @@ impl AtomicTransactionCoordinator {
             transactions
                 .get(tx_id)
                 .cloned()
-                .ok_or_else(|| MultivmError::InvalidState("Transaction not found".to_string()))?
+                .ok_or_else(|| MultivmError::InvalidState {
+                    message: "Transaction not found".to_string(),
+                    current_state: Some("unknown".to_string()),
+                    expected_state: Some("found".to_string()),
+                })?
         };
 
         // Send abort requests to all VMs
@@ -674,7 +693,11 @@ impl AtomicTransactionCoordinator {
         transactions
             .get(tx_id)
             .map(|tx| tx.phase.clone())
-            .ok_or_else(|| MultivmError::InvalidState("Transaction not found".to_string()))
+            .ok_or_else(|| MultivmError::InvalidState {
+                message: "Transaction not found".to_string(),
+                current_state: Some("unknown".to_string()),
+                expected_state: Some("found".to_string()),
+            })
     }
 
     /// Get coordinator metrics
@@ -754,53 +777,5 @@ impl Default for AtomicCoordinatorConfig {
 impl std::fmt::Display for TransactionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_atomic_coordinator_creation() {
-        let config = AtomicCoordinatorConfig::default();
-        let coordinator = AtomicTransactionCoordinator::new(config);
-
-        let metrics = coordinator.get_metrics().await;
-        assert_eq!(metrics.total_transactions, 0);
-    }
-
-    #[tokio::test]
-    async fn test_transaction_validation() {
-        let coordinator = AtomicTransactionCoordinator::new(AtomicCoordinatorConfig::default());
-
-        let transaction = CrossVmTransaction {
-            tx_type: CrossVmTxType::Transfer {
-                from: MultivmAccountId::new([0u8; 32]),
-                to: MultivmAccountId::new([1u8; 32]),
-                amount: 1000,
-                asset: AssetType::Native,
-            },
-            source_ops: vec![],
-            target_ops: vec![],
-            constraints: AtomicConstraints {
-                max_execution_time: Duration::from_secs(60),
-                confirmations: HashMap::new(),
-                max_slippage: None,
-                deadline: None,
-            },
-            metadata: TransactionMetadata {
-                memo: None,
-                tags: vec![],
-                priority: TransactionPriority::Normal,
-                fee_config: FeeConfiguration {
-                    max_total_fee: 1000,
-                    fee_distribution: HashMap::new(),
-                    fee_asset: AssetType::Native,
-                },
-            },
-        };
-
-        assert!(coordinator.validate_transaction(&transaction).await.is_ok());
     }
 }

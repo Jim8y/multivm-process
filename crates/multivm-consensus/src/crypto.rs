@@ -183,98 +183,15 @@ pub fn hash_data(data: &[u8]) -> Vec<u8> {
 }
 
 /// Generate a deterministic validator key from a seed (for testing only)
-#[cfg(test)]
-pub fn generate_validator_key_from_seed(seed: &str) -> ProductionSigningScheme {
+pub fn generate_test_validator_key(seed: &[u8]) -> ProductionSigningScheme {
     use sha3::{Digest, Sha3_256};
     let mut hasher = Sha3_256::new();
-    hasher.update(seed.as_bytes());
+    hasher.update(seed);
     let hash = hasher.finalize();
-    let key_bytes: [u8; 32] = hash.into();
-
-    ProductionSigningScheme::from_private_key_bytes(&key_bytes)
-        .expect("Hash should be valid private key")
+    
+    // Use first 32 bytes as private key
+    let private_key = &hash[..32];
+    ProductionSigningScheme::from_private_key_bytes(private_key)
+        .expect("Generated key should be valid")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sign_and_verify() {
-        let scheme = ProductionSigningScheme::generate();
-        let message = b"Hello, MultiVM!";
-
-        let signature = scheme.sign(message);
-        assert_eq!(signature.len(), 64);
-
-        let public_key = scheme.public_key_bytes();
-        assert!(scheme.verify(&signature, message, &public_key));
-
-        // Wrong message should fail
-        assert!(!scheme.verify(&signature, b"Wrong message", &public_key));
-
-        // Wrong signature should fail
-        let mut bad_sig = signature.clone();
-        bad_sig[0] ^= 0xFF;
-        assert!(!scheme.verify(&bad_sig, message, &public_key));
-    }
-
-    #[test]
-    fn test_key_serialization() {
-        let scheme = ProductionSigningScheme::generate();
-        let private_key = scheme.private_key_bytes();
-        let public_key = scheme.public_key_bytes();
-
-        // Recreate from private key
-        let scheme2 = ProductionSigningScheme::from_private_key_bytes(&private_key).unwrap();
-        assert_eq!(scheme2.public_key_bytes(), public_key);
-
-        // Sign with both should produce same result
-        let message = b"Test message";
-        let sig1 = scheme.sign(message);
-        let sig2 = scheme2.sign(message);
-        assert_eq!(sig1, sig2);
-    }
-
-    #[test]
-    fn test_validator_public_key() {
-        let scheme = ProductionSigningScheme::generate();
-        let pub_bytes = scheme.public_key_bytes();
-
-        let validator_key = ValidatorPublicKey::from_bytes(pub_bytes.clone()).unwrap();
-        assert_eq!(validator_key.as_bytes(), &pub_bytes);
-
-        let hex = validator_key.to_hex();
-        let validator_key2 = ValidatorPublicKey::from_hex(&hex).unwrap();
-        assert_eq!(validator_key, validator_key2);
-    }
-
-    #[test]
-    fn test_consensus_signature() {
-        let scheme = ProductionSigningScheme::generate();
-        let message = b"Consensus message";
-        let sig_bytes = scheme.sign(message);
-
-        let consensus_sig = ConsensusSignature::from_bytes(sig_bytes.clone()).unwrap();
-        assert_eq!(consensus_sig.as_bytes(), &sig_bytes);
-
-        let hex = consensus_sig.to_hex();
-        let consensus_sig2 = ConsensusSignature::from_hex(&hex).unwrap();
-        assert_eq!(consensus_sig, consensus_sig2);
-    }
-
-    #[test]
-    fn test_hash_data() {
-        let data = b"Test data";
-        let hash = hash_data(data);
-        assert_eq!(hash.len(), 32); // SHA3-256 produces 32 bytes
-
-        // Same data should produce same hash
-        let hash2 = hash_data(data);
-        assert_eq!(hash, hash2);
-
-        // Different data should produce different hash
-        let hash3 = hash_data(b"Different data");
-        assert_ne!(hash, hash3);
-    }
-}

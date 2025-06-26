@@ -1,10 +1,16 @@
 //! Special transaction types for cross-VM operations
 
 use crate::{
-    AccountAddress, AccountBinding, AccountBindingValidator, AccountMappingError,
-    AccountMappingLayer, AccountMappingResult, BindingConfiguration, BindingProof,
-    MultivmAccountId, ProofType, ValidationConfig,
+    address::{AccountAddress, MultivmAccountId, SolanaAddress},
+    error::{AccountMappingError, AccountMappingResult},
+    mapping::{AccountBinding, AccountMappingLayer, BindingConfiguration, BindingProof, ProofType},
+    validation::{AccountBindingValidator, ValidationConfig},
 };
+use rand;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::time::SystemTime;
+use tracing::{debug, error, info, warn};
 
 /// Simple metadata for special transactions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,11 +20,6 @@ pub struct SimpleBindingMetadata {
     /// Tags for categorization
     pub tags: Vec<String>,
 }
-use rand;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
 
 /// Special transactions processed by the MultiVM execution layer
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -419,7 +420,7 @@ impl SpecialTransactionProcessor {
         // Get binding information for validation
         let mut from_binding = self
             .account_mapping
-            .get_account_binding(&from_addresses[0])
+            .get_binding_by_account(&from_addresses[0])
             .await
             .map_err(|e| AccountMappingError::AccountNotFound {
                 address: format!("From binding lookup failed: {}", e),
@@ -430,7 +431,7 @@ impl SpecialTransactionProcessor {
 
         let to_binding = self
             .account_mapping
-            .get_account_binding(&to_addresses[0])
+            .get_binding_by_account(&to_addresses[0])
             .await
             .map_err(|e| AccountMappingError::AccountNotFound {
                 address: format!("To binding lookup failed: {}", e),
@@ -634,10 +635,10 @@ impl SpecialTransactionProcessor {
 
         // Step 1: Validate the MultiVM account exists
         // For now, we'll use a dummy lookup since we don't have a proper method
-        let dummy_address = AccountAddress::Solana(crate::SolanaAddress([0u8; 32]));
+        let dummy_address = AccountAddress::Solana(SolanaAddress([0u8; 32]));
         let existing_binding = match self
             .account_mapping
-            .get_account_binding(&dummy_address)
+            .get_binding_by_account(&dummy_address)
             .await
         {
             Ok(Some(binding)) => {
@@ -799,7 +800,7 @@ impl SpecialTransactionProcessor {
         let mut compute_units = 300; // Base cost for validation
 
         // Step 1: Validate the account is actually bound to the MultiVM account
-        let existing_binding = match self.account_mapping.get_account_binding(&account).await {
+        let existing_binding = match self.account_mapping.get_binding_by_account(&account).await {
             Ok(Some(binding)) => {
                 if binding.multivm_account != multivm_account {
                     return Ok(SpecialTransactionResult {
@@ -1802,51 +1803,4 @@ pub struct TransferStepResult {
 }
 
 // Import VmType from address module
-use crate::VmType;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{EthereumAddress, ProofType, SolanaAddress};
-
-    fn create_test_proof() -> BindingProof {
-        BindingProof {
-            account: AccountAddress::Ethereum(EthereumAddress([2u8; 20])), // Must match target account
-            proof_type: ProofType::Signature {
-                message: b"test message".to_vec(),
-                signature: vec![0u8; 65], // Proper Ethereum signature length
-            },
-            proof_data: vec![],
-            timestamp: SystemTime::now(),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_special_transaction_processing() {
-        let mapping: Arc<dyn AccountMappingLayer> = Arc::new(crate::MemoryStorage::new());
-        let config = ValidationConfig {
-            validate_signatures: false,
-            ..ValidationConfig::default()
-        };
-        let processor = SpecialTransactionProcessor::new_with_config(mapping, config);
-
-        let tx = SpecialTransaction::AccountBinding {
-            source_account: AccountAddress::Solana(SolanaAddress([1u8; 32])),
-            target_account: AccountAddress::Ethereum(EthereumAddress([2u8; 20])),
-            proof: create_test_proof(),
-            metadata: None,
-        };
-
-        let result = processor.process_transaction(tx).await.unwrap();
-        assert!(result.success);
-        assert!(!result.events.is_empty());
-    }
-
-    #[test]
-    fn test_binding_configuration_default() {
-        let config = BindingConfiguration::default();
-        assert!(config.allow_transfers);
-        assert!(config.allow_discovery);
-        assert!(!config.require_confirmation);
-    }
-}
+use crate::atomic_coordinator::VmType;

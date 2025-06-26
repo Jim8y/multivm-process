@@ -4,7 +4,7 @@ use crate::ipc::connection_manager::{
 use multivm_common::ipc::secure_transport::{
     AuthManager, EncryptionConfig, RateLimitConfig, RateLimiter, SecureIpcTransport,
 };
-use multivm_common::*;
+use multivm_common::{*, config::{IpcConfig, IpcTransportConfig}, types_rpc::RpcResponse};
 use sha2::Digest;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -82,7 +82,11 @@ impl IpcTransportImpl {
             IpcTransportConfig::UnixSocket { path } => {
                 let socket_dir = path
                     .parent()
-                    .ok_or_else(|| MultivmError::Configuration("Invalid socket path".to_string()))?
+                    .ok_or_else(|| MultivmError::Configuration {
+                        component: "socket_path".to_string(),
+                        message: "Invalid socket path".to_string(),
+                        validation_errors: None,
+                    })?
                     .to_string_lossy()
                     .to_string();
 
@@ -125,9 +129,11 @@ impl IpcTransportImpl {
             let message = IpcMessage::new(ProcessId::Main, process_id, command);
             connection_manager.send_message(process_id, message).await
         } else {
-            Err(MultivmError::Ipc(
-                "Connection manager not initialized".to_string(),
-            ))
+            Err(MultivmError::Ipc {
+                endpoint: "connection_manager".to_string(),
+                message: "Connection manager not initialized".to_string(),
+                retry_count: None,
+            })
         }
     }
 
@@ -181,7 +187,11 @@ async fn run_secure_ipc_server(
             let addr = format!("{}:{}", host, port);
             let listener = TcpListener::bind(&addr)
                 .await
-                .map_err(|e| MultivmError::Ipc(format!("Failed to bind TCP socket: {}", e)))?;
+                .map_err(|e| MultivmError::Ipc {
+                    endpoint: addr.clone(),
+                    message: format!("Failed to bind TCP socket: {}", e),
+                    retry_count: None,
+                })?;
 
             tracing::info!("IPC server listening on TCP {}", addr);
 
@@ -218,7 +228,11 @@ async fn run_secure_ipc_server(
                 let _ = std::fs::remove_file(&path);
 
                 let listener = UnixListener::bind(&path)
-                    .map_err(|e| MultivmError::Ipc(format!("Failed to bind Unix socket: {}", e)))?;
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: path.to_string_lossy().to_string(),
+                        message: format!("Failed to bind Unix socket: {}", e),
+                        retry_count: None,
+                    })?;
 
                 tracing::info!("IPC server listening on Unix socket: {:?}", path);
 
@@ -250,9 +264,11 @@ async fn run_secure_ipc_server(
 
             #[cfg(not(unix))]
             {
-                Err(MultivmError::Ipc(
-                    "Unix sockets not supported on this platform".to_string(),
-                ))
+                Err(MultivmError::Ipc {
+                    endpoint: "unix_socket".to_string(),
+                    message: "Unix sockets not supported on this platform".to_string(),
+                    retry_count: None,
+                })
             }
         }
     }
@@ -427,21 +443,7 @@ async fn process_secure_ipc_message(message: IpcMessage) -> IpcResponse {
         IpcCommand::GetHealth => {
             debug!("Health check requested");
             IpcResponse::Health {
-                status: HealthStatus {
-                    process_id: ProcessId::Main,
-                    is_healthy: true,
-                    last_block_processed: None,
-                    blocks_processed_total: 0,
-                    uptime: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default(),
-                    memory_usage: 0,
-                    cpu_usage_percent: 0.0,
-                    rpc_active: true,
-                    errors_count: 0,
-                    last_error: None,
-                    timestamp: std::time::SystemTime::now(),
-                },
+                status: HealthStatus::Healthy,
             }
         }
         IpcCommand::GetState => {
@@ -537,7 +539,10 @@ async fn process_solana_block_secure(block_data_bytes: &[u8]) -> MultivmResult<V
     });
 
     serde_json::to_vec(&result)
-        .map_err(|e| MultivmError::Serialization(format!("Failed to serialize result: {}", e)))
+        .map_err(|e| MultivmError::Serialization {
+            message: format!("Failed to serialize Solana execution result: {}", e),
+            data_type: Some("solana_execution_result".to_string()),
+        })
 }
 
 /// Process Ethereum block with secure validation
@@ -568,14 +573,21 @@ async fn process_ethereum_block_secure(block_data_bytes: &[u8]) -> MultivmResult
     });
 
     serde_json::to_vec(&result)
-        .map_err(|e| MultivmError::Serialization(format!("Failed to serialize result: {}", e)))
+        .map_err(|e| MultivmError::Serialization {
+            message: format!("Failed to serialize Ethereum execution result: {}", e),
+            data_type: Some("ethereum_execution_result".to_string()),
+        })
 }
 
 impl TcpSocketTransport {
     /// Parse handshake message to identify process
     fn parse_handshake(data: &[u8]) -> Result<ProcessId, MultivmError> {
         let handshake_str = std::str::from_utf8(data)
-            .map_err(|e| MultivmError::Ipc(format!("Invalid handshake data: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: "handshake".to_string(),
+                message: format!("Invalid handshake data: {}", e),
+                retry_count: None,
+            })?;
 
         // Expected format: "MULTIVM_HANDSHAKE:<process_id>"
         if let Some(process_part) = handshake_str.strip_prefix("MULTIVM_HANDSHAKE:") {
@@ -583,13 +595,18 @@ impl TcpSocketTransport {
                 "solana" => Ok(ProcessId::Solana),
                 "ethereum" => Ok(ProcessId::Ethereum),
                 "main" => Ok(ProcessId::Main),
-                _ => Err(MultivmError::Ipc(format!(
-                    "Unknown process ID: {}",
-                    process_part
-                ))),
+                _ => Err(MultivmError::Ipc {
+                    endpoint: "handshake".to_string(),
+                    message: format!("Unknown process ID: {}", process_part),
+                    retry_count: None,
+                }),
             }
         } else {
-            Err(MultivmError::Ipc("Invalid handshake format".to_string()))
+            Err(MultivmError::Ipc {
+                endpoint: "handshake".to_string(),
+                message: "Invalid handshake format".to_string(),
+                retry_count: None,
+            })
         }
     }
 
@@ -602,7 +619,11 @@ impl TcpSocketTransport {
     fn parse_ipc_message(data: &[u8]) -> Result<IpcMessage, MultivmError> {
         // Use bincode for efficient binary serialization
         bincode::deserialize(data)
-            .map_err(|e| MultivmError::Ipc(format!("Failed to deserialize message: {}", e)))
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: "message_deserialize".to_string(),
+                message: format!("Failed to deserialize message: {}", e),
+                retry_count: None,
+            })
     }
 
     /// Process an IPC message and generate appropriate response
@@ -630,21 +651,7 @@ impl TcpSocketTransport {
             IpcCommand::GetHealth => {
                 // Return current health status
                 IpcResponse::Health {
-                    status: HealthStatus {
-                        process_id: ProcessId::Main,
-                        is_healthy: true,
-                        last_block_processed: None,
-                        blocks_processed_total: 0,
-                        uptime: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default(),
-                        memory_usage: 0,
-                        cpu_usage_percent: 0.0,
-                        rpc_active: true,
-                        errors_count: 0,
-                        last_error: None,
-                        timestamp: std::time::SystemTime::now(),
-                    },
+                    status: HealthStatus::Healthy,
                 }
             }
             IpcCommand::Shutdown { .. } => {
@@ -715,7 +722,10 @@ impl TcpSocketTransport {
                 });
 
                 serde_json::to_vec(&result)
-                    .map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
+                    .map_err(|e| MultivmError::Unknown {
+                        message: format!("Serialization error: {}", e),
+                        error_source: Some("ipc_transport".to_string()),
+                    })
             }
             Err(e) => {
                 tracing::error!("Solana transaction execution failed: {}", e);
@@ -761,7 +771,10 @@ impl TcpSocketTransport {
                 });
 
                 serde_json::to_vec(&result)
-                    .map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
+                    .map_err(|e| MultivmError::Unknown {
+                        message: format!("Serialization error: {}", e),
+                        error_source: Some("ipc_transport".to_string()),
+                    })
             }
             Err(e) => {
                 tracing::error!("Ethereum transaction execution failed: {}", e);
@@ -809,7 +822,10 @@ impl TcpSocketTransport {
                 });
 
                 serde_json::to_vec(&result)
-                    .map_err(|e| MultivmError::Unknown(format!("Serialization error: {}", e)))
+                    .map_err(|e| MultivmError::Unknown {
+                        message: format!("Serialization error: {}", e),
+                        error_source: Some("ipc_transport".to_string()),
+                    })
             }
             Err(e) => {
                 tracing::error!("MultiVM transaction execution failed: {}", e);
@@ -821,7 +837,10 @@ impl TcpSocketTransport {
     /// Serialize IPC response to bytes
     fn serialize_ipc_response(response: &IpcResponse) -> Result<Vec<u8>, MultivmError> {
         bincode::serialize(response)
-            .map_err(|e| MultivmError::Unknown(format!("Failed to serialize response: {}", e)))
+            .map_err(|e| MultivmError::Unknown {
+                message: format!("Failed to serialize response: {}", e),
+                error_source: Some("ipc_transport".to_string()),
+            })
     }
 
     /// Create error response
@@ -842,7 +861,10 @@ impl TcpSocketTransport {
         // Parse Solana block data using appropriate format detection
         // Production implementation would handle both JSON RPC and binary formats
         let block_data: SolanaBlockData = bincode::deserialize(block_data_bytes).map_err(|e| {
-            MultivmError::Serialization(format!("Failed to parse Solana block: {}", e))
+            MultivmError::Serialization {
+                message: format!("Failed to parse Solana block: {}", e),
+                data_type: Some("solana_block_data".to_string()),
+            }
         })?;
 
         tracing::debug!(
@@ -892,7 +914,10 @@ impl TcpSocketTransport {
         // Production implementation would handle JSON RPC and binary formats
         let block_data: EthereumBlockData =
             bincode::deserialize(block_data_bytes).map_err(|e| {
-                MultivmError::Serialization(format!("Failed to parse Ethereum block: {}", e))
+                MultivmError::Serialization {
+                    message: format!("Failed to parse Ethereum block: {}", e),
+                    data_type: Some("ethereum_block_data".to_string()),
+                }
             })?;
 
         tracing::debug!(
@@ -945,7 +970,10 @@ impl TcpSocketTransport {
         block_data_bytes: &[u8],
     ) -> Result<MultiVmBlockData, MultivmError> {
         let block_data: MultiVmBlockData = bincode::deserialize(block_data_bytes).map_err(|e| {
-            MultivmError::Serialization(format!("Failed to parse MultiVM block: {}", e))
+            MultivmError::Serialization {
+                message: format!("Failed to parse MultiVM block: {}", e),
+                data_type: Some("multivm_block_data".to_string()),
+            }
         })?;
 
         tracing::debug!(
@@ -1158,10 +1186,11 @@ impl IpcClient {
         // Verify socket exists
         let path = PathBuf::from(socket_path);
         if !path.exists() {
-            return Err(MultivmError::Ipc(format!(
-                "Unix socket does not exist: {}",
-                socket_path
-            )));
+            return Err(MultivmError::Ipc {
+                endpoint: socket_path.to_string(),
+                message: format!("Unix socket does not exist: {}", socket_path),
+                retry_count: None,
+            });
         }
 
         Ok(Self {
@@ -1185,7 +1214,11 @@ impl IpcClient {
         } else if let Some(ref address) = self.tcp_address {
             self.send_command_tcp(*address, command).await
         } else {
-            Err(MultivmError::Ipc("No connection configured".to_string()))
+            Err(MultivmError::Ipc {
+                endpoint: "unknown".to_string(),
+                message: "No connection configured".to_string(),
+                retry_count: None,
+            })
         }
     }
 
@@ -1198,46 +1231,76 @@ impl IpcClient {
     ) -> MultivmResult<IpcResponse> {
         let mut stream = UnixStream::connect(socket_path)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to connect to Unix socket: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Failed to connect to Unix socket: {}", e),
+                retry_count: None,
+            })?;
 
         // Send handshake
         stream
             .write_all(b"MULTIVM_HANDSHAKE:client")
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Handshake failed: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Handshake failed: {}", e),
+                retry_count: None,
+            })?;
 
         // Read handshake ack
         let mut ack_buffer = [0; 64];
         let n = stream
             .read(&mut ack_buffer)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to read handshake ack: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Failed to read handshake ack: {}", e),
+                retry_count: None,
+            })?;
 
         if &ack_buffer[..n] != b"MULTIVM_HANDSHAKE_ACK" {
-            return Err(MultivmError::Ipc(
-                "Invalid handshake acknowledgment".to_string(),
-            ));
+            return Err(MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: "Invalid handshake acknowledgment".to_string(),
+                retry_count: None,
+            });
         }
 
         // Create and send message
         let message = IpcMessage::new(ProcessId::Main, ProcessId::Main, command);
         let message_bytes = bincode::serialize(&message)
-            .map_err(|e| MultivmError::Ipc(format!("Failed to serialize message: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Failed to serialize message: {}", e),
+                retry_count: None,
+            })?;
 
         stream
             .write_all(&message_bytes)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to send message: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Failed to send message: {}", e),
+                retry_count: None,
+            })?;
 
         // Read response
         let mut response_buffer = vec![0; 4096];
         let n = stream
             .read(&mut response_buffer)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Failed to read response: {}", e),
+                retry_count: None,
+            })?;
 
         let response: IpcResponse = bincode::deserialize(&response_buffer[..n])
-            .map_err(|e| MultivmError::Ipc(format!("Failed to deserialize response: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string_lossy().to_string(),
+                message: format!("Failed to deserialize response: {}", e),
+                retry_count: None,
+            })?;
 
         Ok(response)
     }
@@ -1250,46 +1313,76 @@ impl IpcClient {
     ) -> MultivmResult<IpcResponse> {
         let mut stream = TcpStream::connect(address)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to connect to TCP socket: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Failed to connect to TCP socket: {}", e),
+                retry_count: None,
+            })?;
 
         // Send handshake
         stream
             .write_all(b"MULTIVM_HANDSHAKE:client")
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Handshake failed: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Handshake failed: {}", e),
+                retry_count: None,
+            })?;
 
         // Read handshake ack
         let mut ack_buffer = [0; 64];
         let n = stream
             .read(&mut ack_buffer)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to read handshake ack: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Failed to read handshake ack: {}", e),
+                retry_count: None,
+            })?;
 
         if &ack_buffer[..n] != b"MULTIVM_HANDSHAKE_ACK" {
-            return Err(MultivmError::Ipc(
-                "Invalid handshake acknowledgment".to_string(),
-            ));
+            return Err(MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: "Invalid handshake acknowledgment".to_string(),
+                retry_count: None,
+            });
         }
 
         // Create and send message
         let message = IpcMessage::new(ProcessId::Main, ProcessId::Main, command);
         let message_bytes = bincode::serialize(&message)
-            .map_err(|e| MultivmError::Ipc(format!("Failed to serialize message: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Failed to serialize message: {}", e),
+                retry_count: None,
+            })?;
 
         stream
             .write_all(&message_bytes)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to send message: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Failed to send message: {}", e),
+                retry_count: None,
+            })?;
 
         // Read response
         let mut response_buffer = vec![0; 4096];
         let n = stream
             .read(&mut response_buffer)
             .await
-            .map_err(|e| MultivmError::Ipc(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Failed to read response: {}", e),
+                retry_count: None,
+            })?;
 
         let response: IpcResponse = bincode::deserialize(&response_buffer[..n])
-            .map_err(|e| MultivmError::Ipc(format!("Failed to deserialize response: {}", e)))?;
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: address.to_string(),
+                message: format!("Failed to deserialize response: {}", e),
+                retry_count: None,
+            })?;
 
         Ok(response)
     }
@@ -1300,8 +1393,10 @@ impl IpcClient {
         _socket_path: &PathBuf,
         _command: IpcCommand,
     ) -> MultivmResult<IpcResponse> {
-        Err(MultivmError::Ipc(
-            "Unix sockets not supported on this platform".to_string(),
-        ))
+        Err(MultivmError::Ipc {
+            endpoint: "unix_socket".to_string(),
+            message: "Unix sockets not supported on this platform".to_string(),
+            retry_count: None,
+        })
     }
 }

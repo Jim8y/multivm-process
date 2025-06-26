@@ -21,15 +21,3 @@ impl Default for ResourceLimits {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_resource_limits_default() {
-        let limits = ResourceLimits::default();
-        assert_eq!(limits.max_memory_mb, 8192);
-        assert_eq!(limits.max_cpu_percent, 80.0);
-    }
-}

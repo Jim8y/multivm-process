@@ -99,19 +99,16 @@ impl QueryRoot {
     ) -> GraphQLResult<Option<SvmAccount>> {
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
-        match state.svm_gateway.get_account_info(&address).await {
+        match state.gateway.get_svm_account_info(&address).await {
             Ok(gateway_response) => {
-                if let Some(account_info) = gateway_response.data {
-                    Ok(Some(SvmAccount {
-                        address: address.clone(),
-                        lamports: account_info.lamports,
-                        owner: account_info.owner,
-                        executable: account_info.executable,
-                        rent_epoch: account_info.rent_epoch,
-                    }))
-                } else {
-                    Ok(None)
-                }
+                let account_info = gateway_response.data;
+                Ok(Some(SvmAccount {
+                    address: address.clone(),
+                    lamports: account_info.get("lamports").and_then(|v| v.as_u64()).unwrap_or(0),
+                    owner: account_info.get("owner").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    executable: account_info.get("executable").and_then(|v| v.as_bool()).unwrap_or(false),
+                    rent_epoch: account_info.get("rent_epoch").and_then(|v| v.as_u64()).unwrap_or(0),
+                }))
             }
             Err(_) => Ok(None),
         }
@@ -125,11 +122,11 @@ impl QueryRoot {
     ) -> GraphQLResult<Option<EvmAccount>> {
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
-        match state.evm_gateway.get_balance(&address).await {
-            Ok(balance) => Ok(Some(EvmAccount {
+        match state.gateway.get_evm_account(&address).await {
+            Ok(account_response) => Ok(Some(EvmAccount {
                 address: address.clone(),
-                balance: balance,
-                nonce: 0, // Mock value
+                balance: account_response.data.balance,
+                nonce: account_response.data.nonce.unwrap_or(0),
                 code_hash: "0x0000000000000000000000000000000000000000000000000000000000000000"
                     .to_string(),
             })),
@@ -146,31 +143,31 @@ impl QueryRoot {
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         // Parse the address and look up actual bindings from the MultiVM gateway
-        match multivm_account_mapping::AccountAddress::from_string(&address) {
-            Ok(account_address) => {
-                match state
-                    .multivm_gateway
-                    .get_account_binding(&account_address)
-                    .await
-                {
-                    Ok(Some(binding_info)) => Ok(Some(AccountBindings {
-                        multivm_account: binding_info.multivm_id,
-                        svm_account: binding_info.svm_address,
-                        evm_account: binding_info.evm_address,
+        match state
+            .gateway
+            .get_account_binding(&address)
+            .await
+        {
+            Ok(response) => {
+                let binding_data = response.data;
+                if let Some(multivm_account) = binding_data.get("multivm_account_id").and_then(|v| v.as_str()) {
+                    Ok(Some(AccountBindings {
+                        multivm_account: multivm_account.to_string(),
+                        svm_account: binding_data.get("bound_accounts")
+                            .and_then(|v| v.get("SVM"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        evm_account: binding_data.get("bound_accounts")
+                            .and_then(|v| v.get("EVM"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
                         binding_count: 1,
-                    })),
-                    Ok(None) => Ok(None),
-                    Err(_) => Ok(None),
+                    }))
+                } else {
+                    Ok(None)
                 }
             }
-            Err(_) => {
-                // Invalid address format
-                tracing::warn!(
-                    "Invalid address format for multivm_bindings query: {}",
-                    address
-                );
-                Ok(None)
-            }
+            Err(_) => Ok(None),
         }
     }
 
@@ -201,7 +198,7 @@ impl MutationRoot {
     ) -> GraphQLResult<TransactionResult> {
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
-        match state.svm_gateway.send_transaction(&transaction_data).await {
+        match state.gateway.send_svm_transaction(&transaction_data).await {
             Ok(response) => Ok(TransactionResult {
                 success: true,
                 transaction_id: response.data,
@@ -224,13 +221,13 @@ impl MutationRoot {
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         match state
-            .evm_gateway
-            .send_raw_transaction(&transaction_data)
+            .gateway
+            .send_evm_transaction(&transaction_data)
             .await
         {
-            Ok(hash) => Ok(TransactionResult {
+            Ok(response) => Ok(TransactionResult {
                 success: true,
-                transaction_id: hash,
+                transaction_id: response.data,
                 error: None,
             }),
             Err(e) => Ok(TransactionResult {
@@ -253,16 +250,24 @@ impl MutationRoot {
         let evm_addr = input.evm_account.clone().unwrap_or_default();
 
         match state
-            .multivm_gateway
-            .bind_accounts(svm_addr.clone(), evm_addr.clone())
+            .gateway
+            .bind_accounts(&svm_addr, &evm_addr, "graphql_binding_proof")
             .await
         {
-            Ok(binding_id) => Ok(AccountBindingResult {
-                success: true,
-                multivm_account: format!("{}:{}", svm_addr, evm_addr),
-                binding_id,
-                error: None,
-            }),
+            Ok(response) => {
+                let binding_data = response.data;
+                let binding_id = binding_data.get("binding_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                
+                Ok(AccountBindingResult {
+                    success: true,
+                    multivm_account: format!("{}:{}", svm_addr, evm_addr),
+                    binding_id,
+                    error: None,
+                })
+            },
             Err(e) => Ok(AccountBindingResult {
                 success: false,
                 multivm_account: String::new(),

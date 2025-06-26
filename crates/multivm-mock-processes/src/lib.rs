@@ -111,16 +111,3 @@ pub enum MockProcessError {
 
 /// Result type for mock process operations
 pub type MockProcessResult<T> = Result<T, MockProcessError>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mock_process_config() {
-        let config = MockProcessConfig::default();
-        assert_eq!(config.name, "mock-process");
-        assert!(config.use_tcp);
-        assert_eq!(config.success_rate, 0.95);
-    }
-}

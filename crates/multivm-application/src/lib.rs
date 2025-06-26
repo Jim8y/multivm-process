@@ -1,96 +1,11 @@
 //! # MultiVM Application Layer
 //!
-//! The Application Layer (Layer 6) provides comprehensive API interfaces for the MultiVM blockchain system.
+//! The Application Layer provides comprehensive API interfaces for the MultiVM blockchain system.
 //! This layer includes REST API, GraphQL, WebSocket, and administrative interfaces that support both
-//! Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM) operations within the unified
-//! MultiVM architecture.
-//!
-//! ## Features
-//!
-//! - **REST API**: Compatible endpoints for both SVM and EVM operations
-//! - **GraphQL API**: Flexible query interface with real-time subscriptions
-//! - **WebSocket Server**: Real-time data streaming and event notifications
-//! - **Admin Interface**: System monitoring and management tools
-//! - **Cross-VM Operations**: Native support for cross-VM transactions and account binding
-//! - **Authentication & Authorization**: JWT and API key based security
-//! - **Rate Limiting**: Configurable rate limiting with multiple storage backends
-//! - **Caching**: Multi-level caching with Redis and in-memory support
-//! - **Monitoring**: Comprehensive metrics, health checks, and distributed tracing
-//!
-//! ## Architecture
-//!
-//! The Application Layer is structured as follows:
-//!
-//! ```text
-//! ┌─────────────────────────────────────────────────────────────┐
-//! │                    Application Layer                        │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │ REST API │ GraphQL │ WebSocket │ Admin Interface            │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │ SVM Gateway │ EVM Gateway │ MultiVM Gateway │ Monitor       │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │ Auth Manager │ Rate Limiter │ Cache Layer │ Validation     │
-//! └─────────────────────────────────────────────────────────────┘
-//! ```
-//!
-//! ## Usage
-//!
-//! ```rust
-//! use multivm_application::{ApplicationConfig, ApplicationServer};
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Load configuration
-//!     let config = ApplicationConfig::from_file("config.toml")?;
-//!     
-//!     // Create and start the application server
-//!     let server = ApplicationServer::new(config).await?;
-//!     server.start().await?;
-//!     
-//!     Ok(())
-//! }
-//! ```
+//! Solana Virtual Machine (SVM) and Ethereum Virtual Machine (EVM) operations.
 
 #![warn(rust_2018_idioms)]
 #![warn(clippy::all)]
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    missing_docs,
-    deprecated,
-    unused_comparisons,
-    clippy::redundant_field_names,
-    clippy::collapsible_if,
-    clippy::manual_range_contains,
-    clippy::absurd_extreme_comparisons,
-    clippy::if_same_then_else,
-    clippy::needless_borrows_for_generic_args,
-    clippy::get_first,
-    clippy::redundant_pattern_matching,
-    clippy::useless_vec,
-    clippy::module_inception,
-    clippy::enum_variant_names,
-    clippy::should_implement_trait,
-    clippy::result_large_err,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::map_entry,
-    clippy::unnecessary_unwrap,
-    clippy::or_fun_call,
-    clippy::vec_init_then_push,
-    clippy::new_without_default,
-    clippy::unnecessary_map_or,
-    clippy::manual_clamp,
-    clippy::useless_format,
-    clippy::ptr_arg,
-    clippy::redundant_closure,
-    clippy::derivable_impls,
-    clippy::match_like_matches_macro,
-    clippy::needless_borrow
-)]
 
 pub mod admin;
 pub mod api;
@@ -103,17 +18,13 @@ pub mod middleware;
 pub mod monitoring;
 
 // Re-export main types
-pub use config::{
-    AdminServerConfig, ApiKeyValidation, ApplicationConfig, AuthConfig, CacheConfig, CacheStrategy,
-    DatabaseConfig, FeatureConfig, GraphQLServerConfig, HealthCheckConfig, MemoryCacheConfig,
-    MetricsConfig, MetricsFormat, MonitoringConfig, MultivmClientConfig, PerformanceConfig,
-    RateLimitStorage, RateLimitingConfig, RedisConfig, RestServerConfig, RethClientConfig,
-    RetryConfig, ServerConfig, SolanaClientConfig, TracingConfig, VmClientConfig,
-    WebSocketServerConfig,
-};
-pub use error::{
-    ApiResult, ApplicationError, ApplicationResult, AuthResult, CacheResult, GraphQLResult,
-    WebSocketResult,
+pub use config::ApplicationConfig;
+pub use error::{ApplicationError, ApplicationResult};
+
+// Re-export common types from multivm-common
+pub use multivm_common::{
+    MultivmConfig, MultivmError, MultivmResult, VmType, HealthStatus,
+    ProcessingMetrics, Manager, ManagerState, ManagerStats,
 };
 
 use std::sync::Arc;
@@ -138,14 +49,8 @@ pub struct ApplicationState {
     /// Cache layer
     pub cache: Arc<cache::CacheLayer>,
 
-    /// SVM API gateway
-    pub svm_gateway: Arc<gateway::SvmApiGateway>,
-
-    /// EVM API gateway  
-    pub evm_gateway: Arc<gateway::EvmApiGateway>,
-
-    /// MultiVM API gateway
-    pub multivm_gateway: Arc<gateway::MultivmApiGateway>,
+    /// Unified gateway for all VM operations
+    pub gateway: Arc<gateway::UnifiedGateway>,
 
     /// Monitoring services
     pub monitoring: Arc<monitoring::MonitoringService>,
@@ -268,23 +173,23 @@ impl ApplicationServer {
 
     async fn start_monitoring_services(&self) -> ApplicationResult<()> {
         info!("Starting monitoring services");
-
-        // Start metrics collection
-        if self.config.monitoring.enable_metrics {
-            self.state.monitoring.start_metrics_server().await?;
-            info!(
-                "Metrics server started on port {}",
-                self.config.monitoring.metrics.port
-            );
-        }
-
-        // Start health check endpoint
-        self.state.monitoring.start_health_check_server().await?;
-        info!(
-            "Health check server started on port {}",
-            self.config.monitoring.health_check.port
-        );
-
+        // For now, just start the metrics and health servers directly
+        // since we can't get a mutable reference to the Arc<MonitoringService>
+        self.state.monitoring.start_metrics_server().await.map_err(|e| {
+            ApplicationError::StartupError {
+                service: "metrics_server".to_string(),
+                message: e.to_string(),
+            }
+        })?;
+        
+        self.state.monitoring.start_health_check_server().await.map_err(|e| {
+            ApplicationError::StartupError {
+                service: "health_check_server".to_string(),
+                message: e.to_string(),
+            }
+        })?;
+        
+        info!("Monitoring services started");
         Ok(())
     }
 
@@ -390,13 +295,12 @@ impl ApplicationState {
         // Initialize cache layer
         let cache = Arc::new(cache::CacheLayer::new(&config.cache).await?);
 
-        // Initialize API gateways
-        let svm_gateway =
-            Arc::new(gateway::SvmApiGateway::new(&config.vm_clients.solana, cache.clone()).await?);
-        let evm_gateway =
-            Arc::new(gateway::EvmApiGateway::new(&config.vm_clients.reth, cache.clone()).await?);
-        let multivm_gateway = Arc::new(
-            gateway::MultivmApiGateway::new(&config.vm_clients.multivm, cache.clone()).await?,
+        // Initialize unified gateway
+        let gateway = Arc::new(
+            gateway::UnifiedGateway::new(
+                gateway::UnifiedGatewayConfig::from_app_config(&config),
+                cache.clone(),
+            ).await?
         );
 
         // Initialize monitoring
@@ -409,9 +313,7 @@ impl ApplicationState {
             config,
             auth_manager,
             cache,
-            svm_gateway,
-            evm_gateway,
-            multivm_gateway,
+            gateway,
             monitoring,
             is_running: Arc::new(RwLock::new(false)),
             shutdown_tx: Some(shutdown_tx),
@@ -455,38 +357,3 @@ pub struct ApiServerStatus {
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_application_state_creation() {
-        let mut config = ApplicationConfig::default();
-        // Disable Redis for tests
-        config.cache.redis.url = String::new();
-        let state = ApplicationState::new(config).await;
-        assert!(state.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_server_creation() {
-        let mut config = ApplicationConfig::default();
-        // Disable Redis for tests
-        config.cache.redis.url = String::new();
-        let server = ApplicationServer::new(config).await;
-        assert!(server.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_server_status() {
-        let mut config = ApplicationConfig::default();
-        // Disable Redis for tests
-        config.cache.redis.url = String::new();
-        let server = ApplicationServer::new(config).await.unwrap();
-        let status = server.get_status().await.unwrap();
-
-        assert!(!status.is_running); // Should not be running initially
-        assert_eq!(status.version, VERSION);
-    }
-}

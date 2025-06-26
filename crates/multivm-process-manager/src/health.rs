@@ -1,5 +1,5 @@
 use crate::ProcessHandle;
-use multivm_common::*;
+use multivm_common::{*, HealthInfo};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -23,16 +23,16 @@ impl HealthMonitor {
     pub async fn check_process_health(
         &self,
         handle: &ProcessHandle,
-    ) -> MultivmResult<HealthStatus> {
+    ) -> MultivmResult<HealthInfo> {
         let process_id = handle.process_id;
 
         // Check if process is still running
         let is_running = handle.is_running().await;
 
         if !is_running {
-            return Ok(HealthStatus {
+            return Ok(HealthInfo {
                 process_id,
-                is_healthy: false,
+                status: HealthStatus::Unhealthy,
                 last_block_processed: None,
                 blocks_processed_total: 0,
                 uptime: Duration::ZERO,
@@ -47,15 +47,29 @@ impl HealthMonitor {
 
         // Try to get health status from the process via IPC
         match handle.send_command(IpcCommand::GetHealth).await {
-            Ok(IpcResponse::Health { status }) => Ok(status),
-            Ok(_) => Err(MultivmError::Ipc(
-                "Unexpected response to health check".to_string(),
-            )),
+            Ok(IpcResponse::Health { status }) => Ok(HealthInfo {
+                process_id,
+                status,
+                last_block_processed: None,
+                blocks_processed_total: 0,
+                uptime: Duration::ZERO,
+                memory_usage: 0,
+                cpu_usage_percent: 0.0,
+                rpc_active: false,
+                errors_count: 0,
+                last_error: None,
+                timestamp: std::time::SystemTime::now(),
+            }),
+            Ok(_) => Err(MultivmError::Ipc {
+                endpoint: "health_check".to_string(),
+                message: "Unexpected response to health check".to_string(),
+                retry_count: None,
+            }),
             Err(e) => {
                 // If IPC fails, process might be unhealthy
-                Ok(HealthStatus {
+                Ok(HealthInfo {
                     process_id,
-                    is_healthy: false,
+                    status: HealthStatus::Unhealthy,
                     last_block_processed: None,
                     blocks_processed_total: 0,
                     uptime: Duration::ZERO,

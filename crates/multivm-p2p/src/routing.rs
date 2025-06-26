@@ -18,7 +18,7 @@ pub enum RoutingStrategy {
     /// Broadcast to all connected peers
     Broadcast,
     /// Route to specific peer
-    Direct(PeerId),
+    Direct(String), // PeerId as string to enable serialization
     /// Route using Kademlia DHT
     DHT(Vec<u8>), // Key for DHT lookup
     /// Route via GossipSub topic
@@ -324,7 +324,14 @@ impl MessageRouter {
 
         let result = match strategy {
             RoutingStrategy::Broadcast => self.broadcast_message(message).await,
-            RoutingStrategy::Direct(peer_id) => self.direct_message(message, peer_id).await,
+            RoutingStrategy::Direct(peer_id_str) => {
+                // Convert string back to PeerId
+                if let Ok(peer_id) = peer_id_str.parse() {
+                    self.direct_message(message, peer_id).await
+                } else {
+                    Err(P2PError::Internal(format!("Invalid peer ID: {}", peer_id_str)).into())
+                }
+            },
             RoutingStrategy::DHT(key) => self.dht_route_message(message, key).await,
             RoutingStrategy::Gossip(topic) => self.gossip_message(message, topic).await,
             RoutingStrategy::Random(count) => self.random_route_message(message, count).await,

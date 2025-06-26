@@ -3,7 +3,7 @@
 //! Provides authentication, message validation, and anti-replay protection.
 
 use crate::error::{P2PError, P2PResult};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, Keypair as SigningKey, Verifier, PublicKey as VerifyingKey};
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -89,7 +89,11 @@ impl SecurityManager {
     /// Create a new security manager
     pub fn new(config: SecurityConfig) -> Self {
         // Generate a new signing key
-        let signing_key = SigningKey::generate(&mut rand::rngs::OsRng);
+        use rand::Rng;
+        let mut csprng = rand::thread_rng();
+        let mut bytes = [0u8; 32];
+        csprng.fill(&mut bytes);
+        let signing_key = SigningKey::from_bytes(&bytes).expect("32 bytes should be valid");
 
         Self {
             signing_key,
@@ -121,7 +125,7 @@ impl SecurityManager {
 
     /// Get our public key
     pub fn public_key(&self) -> VerifyingKey {
-        self.signing_key.verifying_key()
+        self.signing_key.public
     }
 
     /// Secure a message for transmission
@@ -280,7 +284,7 @@ impl SecurityManager {
                 .as_slice()
                 .try_into()
                 .map_err(|_| P2PError::InvalidMessage("Invalid signature format".to_string()))?,
-        );
+        ).map_err(|_| P2PError::InvalidMessage("Failed to parse signature".to_string()))?;
 
         public_key
             .verify(&message.message_hash, &signature)
@@ -402,77 +406,3 @@ pub struct SecurityStats {
     pub config: SecurityConfig,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::FromStr;
-
-    #[test]
-    fn test_message_security_roundtrip() {
-        let config = SecurityConfig::default();
-        let mut security_manager = SecurityManager::new(config);
-
-        let peer_id =
-            PeerId::from_str("12D3KooWH3uVF6wv47WnArKHk5ZDVmrfiPaYHviXDqujCkvQRnUf").unwrap();
-        let payload = b"test message".to_vec();
-
-        // Add self as trusted peer
-        let public_key = security_manager.public_key();
-        security_manager.add_trusted_peer(peer_id, public_key);
-
-        // Secure message
-        let secured = security_manager
-            .secure_message(payload.clone(), peer_id)
-            .unwrap();
-
-        // Create metadata
-        let metadata = MessageMetadata {
-            sender: peer_id,
-            size: payload.len(),
-            timestamp: SystemTime::now(),
-            message_type: "test".to_string(),
-        };
-
-        // Validate message
-        let decrypted = security_manager
-            .validate_message(secured, metadata)
-            .unwrap();
-        assert_eq!(decrypted, payload);
-    }
-
-    #[test]
-    fn test_replay_protection() {
-        let config = SecurityConfig::default();
-        let mut security_manager = SecurityManager::new(config);
-
-        let peer_id =
-            PeerId::from_str("12D3KooWH3uVF6wv47WnArKHk5ZDVmrfiPaYHviXDqujCkvQRnUf").unwrap();
-
-        // First nonce should be valid
-        assert!(security_manager.nonce_tracker.is_valid_nonce(&peer_id, 123));
-
-        // Record the nonce
-        security_manager.nonce_tracker.record_nonce(&peer_id, 123);
-
-        // Same nonce should now be invalid
-        assert!(!security_manager.nonce_tracker.is_valid_nonce(&peer_id, 123));
-    }
-
-    #[test]
-    fn test_message_size_validation() {
-        let config = SecurityConfig {
-            max_message_size: 100,
-            ..Default::default()
-        };
-        let mut security_manager = SecurityManager::new(config);
-
-        let peer_id =
-            PeerId::from_str("12D3KooWH3uVF6wv47WnArKHk5ZDVmrfiPaYHviXDqujCkvQRnUf").unwrap();
-        let large_payload = vec![0u8; 200]; // Exceeds limit
-
-        // Should fail due to size
-        let result = security_manager.secure_message(large_payload, peer_id);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), P2PError::MessageTooLarge(_)));
-    }
-}

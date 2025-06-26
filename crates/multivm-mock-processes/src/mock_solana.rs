@@ -4,8 +4,8 @@
 //! for testing the MultiVM system.
 
 use multivm_common::{
-    ipc::{IpcCommand, IpcMessage, IpcResponse},
-    BlockchainType, EngineState, HealthStatus, ProcessId, RpcResponse,
+    types_rpc::RpcResponse,
+    BlockchainType, EngineState, HealthStatus, ProcessId, {IpcCommand, IpcMessage, IpcResponse},
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -19,6 +19,7 @@ struct MockSolanaState {
     blocks_processed: u64,
     transactions_processed: u64,
     latest_block_hash: String,
+    #[allow(dead_code)]
     start_time: std::time::Instant,
 }
 
@@ -153,20 +154,8 @@ async fn process_command(command: IpcCommand, state: &Arc<RwLock<MockSolanaState
             IpcResponse::Ack
         }
         IpcCommand::GetHealth => {
-            let state = state.read().await;
-            let health = HealthStatus {
-                process_id: ProcessId::Solana,
-                is_healthy: true,
-                last_block_processed: Some(state.blocks_processed),
-                blocks_processed_total: state.blocks_processed,
-                uptime: state.start_time.elapsed(),
-                memory_usage: 100_000_000, // 100MB mock
-                cpu_usage_percent: 5.0,
-                rpc_active: true,
-                errors_count: 0,
-                last_error: None,
-                timestamp: std::time::SystemTime::now(),
-            };
+            let _state = state.read().await;
+            let health = HealthStatus::Healthy; // Mock processes are always healthy
             IpcResponse::Health { status: health }
         }
         IpcCommand::ProcessBlock {

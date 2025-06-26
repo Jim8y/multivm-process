@@ -1,7 +1,7 @@
 //! Production-ready Redis cache implementation with connection pooling,
 //! circuit breaker pattern, and distributed caching features
 
-use crate::config::RedisConfig;
+use crate::config::RedisCacheConfig as RedisConfig;
 use crate::error::{ApplicationError, ApplicationResult};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 #[cfg(feature = "cache")]
 use redis::{
@@ -813,7 +813,7 @@ impl ProductionRedisCache {
         // Check if we should transition to half-open
         if state.state == CircuitBreakerState::Open {
             if let Some(last_failure) = state.last_failure {
-                if last_failure.elapsed() > self.config.circuit_breaker_timeout {
+                if last_failure.elapsed() > Duration::from_secs(self.config.circuit_breaker_timeout) {
                     state.state = CircuitBreakerState::HalfOpen;
                     info!("Circuit breaker half-open, allowing test request");
                 }
@@ -849,7 +849,7 @@ impl ProductionRedisCache {
         let current_size = self.hot_cache_size.load(Ordering::Relaxed);
 
         // Check if we have space
-        if current_size >= self.config.hot_cache_max_size {
+        if current_size >= self.config.hot_cache_max_size as u64 {
             return;
         }
 

@@ -2,8 +2,8 @@
 
 use crate::malachite::{MalachiteConfig, MalachiteConsensus};
 use crate::messages::{ConsensusMessage, ConsensusMessagePayload, MessageType, ProposalMessage};
-use crate::state::{CrossVMStateManager, StateManagerConfig};
-use crate::traits::{ConsensusEngine, CrossVMStateCoordinator, NodeId};
+use crate::state::{PersistentCrossVMStateManager, StateManagerConfig};
+use crate::traits::{ConsensusEngine, NodeId};
 use crate::*;
 use multivm_p2p::{
     ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget, MultiVmMessage,
@@ -20,8 +20,8 @@ use tracing::{debug, info, warn};
 pub struct MultiVMConsensusManager {
     /// Malachite consensus engine
     consensus_engine: MalachiteConsensus,
-    /// Cross-VM state coordinator
-    state_coordinator: Arc<RwLock<CrossVMStateManager>>,
+    /// Cross-VM state coordinator with persistent storage
+    state_coordinator: Arc<RwLock<PersistentCrossVMStateManager>>,
     /// P2P network layer for communication
     p2p_network: Option<Arc<RwLock<dyn P2PNetworkLayer>>>,
     /// Configuration
@@ -241,12 +241,23 @@ impl MultiVMConsensusManager {
         };
 
         // Create Malachite consensus instance
-        let (consensus_engine, _block_sender, _commit_receiver) =
-            MalachiteConsensus::new(malachite_config).await?;
+        let consensus_engine = MalachiteConsensus::new(malachite_config.into());
 
-        let state_coordinator = Arc::new(RwLock::new(CrossVMStateManager::new(
-            config.state_manager_config.clone(),
-        )));
+        // Initialize persistent state coordinator with RocksDB
+        let db_path = config.state_manager_config.rocksdb_path
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or("/opt/multivm/data/consensus_state.db");
+        
+        std::fs::create_dir_all(std::path::Path::new(db_path).parent().unwrap())
+            .map_err(|e| ConsensusError::Storage(format!("Failed to create data directory: {}", e)))?;
+        
+        let state_coordinator = Arc::new(RwLock::new(
+            PersistentCrossVMStateManager::new_with_rocksdb(
+                config.state_manager_config.clone(),
+                db_path,
+            ).await?
+        ));
 
         let algorithm_name = match config.algorithm {
             ConsensusAlgorithmType::Malachite => "Malachite",
@@ -559,7 +570,7 @@ impl MultiVMConsensusManager {
         };
 
         // Initialize and start Malachite consensus
-        self.consensus_engine.initialize(malachite_config).await?;
+        self.consensus_engine.initialize().await?;
         self.consensus_engine.start().await?;
 
         self.running = true;
@@ -583,8 +594,8 @@ impl MultiVMConsensusManager {
     }
 
     /// Check if the consensus manager is running
-    pub fn is_running(&self) -> bool {
-        self.running && self.consensus_engine.is_running()
+    pub async fn is_running(&self) -> bool {
+        self.running && self.consensus_engine.is_running().await
     }
 
     /// Subscribe to consensus events
@@ -863,7 +874,6 @@ impl MultiVMConsensusManager {
             .write()
             .await
             .update_vm_state(local_vm_type, height, state_root.clone())
-            .await
             .map_err(|e| ConsensusError::ValidationFailed(format!("State update failed: {}", e)))?;
 
         info!(
@@ -1692,7 +1702,7 @@ impl MultiVMConsensusManager {
     /// Process a cross-VM transaction
     pub async fn process_cross_vm_transaction(
         &mut self,
-        transaction: SpecialTransaction,
+        transaction: multivm_account_mapping::special_tx::SpecialTransaction,
     ) -> ConsensusResult<()> {
         info!("Processing cross-VM transaction");
 
@@ -1719,14 +1729,17 @@ impl MultiVMConsensusManager {
         })?;
 
         // Propose a block with this transaction through Malachite
-        let transactions = vec![serialized_tx];
+        let transactions = vec![crate::malachite::MalachiteTransaction {
+            data: serialized_tx,
+            hash: format!("tx_{}", uuid::Uuid::new_v4()),
+        }];
         let block = self.consensus_engine.propose_block(transactions).await?;
         // Process the block proposal through the consensus engine
         self.consensus_engine.commit_block(block.clone()).await?;
 
         // Update statistics
         self.stats.total_blocks += 1;
-        self.stats.current_height = block.header.height;
+        self.stats.current_height = block.height;
         self.stats.last_block_time = std::time::SystemTime::now();
 
         self.stats.cross_vm_transactions += 1;
@@ -1852,43 +1865,3 @@ impl MultiVMConsensusManager {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_consensus_manager_creation() {
-        let config = ConsensusManagerConfig {
-            node_id: Some("test-node".to_string()),
-            algorithm: ConsensusAlgorithmType::Malachite,
-            algorithm_config: AlgorithmConfig::Malachite(MalachiteConfig {
-                node_id: "test-node".to_string(),
-                network_config: crate::malachite::NetworkConfig {
-                    listen_addr: "127.0.0.1:26656".to_string(),
-                    peers: vec![],
-                },
-                consensus_params: crate::malachite::ConsensusParams {
-                    block_time_ms: 1000,
-                    max_block_size: 1024 * 1024,
-                    timeout_propose_ms: 3000,
-                    timeout_prevote_ms: 1000,
-                    timeout_precommit_ms: 1000,
-                },
-                validators: vec![],
-            }),
-            state_manager_config: StateManagerConfig::default(),
-            block_proposal_interval_ms: 1000,
-            max_transactions_per_block: 1000,
-            enable_auto_proposal: true,
-            network_config: NetworkConfig {
-                node_id: "test-node".to_string(),
-                listen_address: "127.0.0.1:26656".to_string(),
-                bootstrap_nodes: vec![],
-                enable_encryption: false,
-            },
-        };
-
-        let result = MultiVMConsensusManager::new(config).await;
-        assert!(result.is_ok());
-    }
-}

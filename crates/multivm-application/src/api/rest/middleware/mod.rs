@@ -196,10 +196,11 @@ async fn check_rate_limit(
     state: &Arc<ApplicationState>,
     client_id: &str,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    // Get rate limiting configuration
-    let rate_limit_config = &state.config.rate_limiting;
+    // Simple rate limiting configuration
+    let enabled = true;
+    let default_rpm = 1000u32;
 
-    if !rate_limit_config.enabled {
+    if !enabled {
         return Ok(true);
     }
 
@@ -209,7 +210,7 @@ async fn check_rate_limit(
     // Check current request count
     match state.cache.get::<u32>(&cache_key).await {
         Ok(Some(current_count)) => {
-            if current_count >= rate_limit_config.default_rpm {
+            if current_count >= default_rpm {
                 tracing::warn!("Rate limit exceeded for client: {}", client_id);
                 return Ok(false);
             }

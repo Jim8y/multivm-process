@@ -192,10 +192,16 @@ async fn send_block_to_engine(block: BlockType) -> Result<(), Box<dyn std::error
 
 ## Design Patterns
 
-### Error Handling
-- All operations return `Result` types
-- Errors are properly typed and serializable for IPC
-- Error context is preserved across process boundaries
+### Enhanced Error Handling
+- **Structured Error Types**: Rich context with detailed debugging information
+- **Error Categorization**: Automatic classification for retry logic and recovery strategies
+- **Recovery Guidance**: Built-in suggestions for error resolution
+- **Metrics Integration**: Error tracking and monitoring capabilities
+- **Security**: Sanitized error messages for external APIs
+- **Serializable**: All errors can be serialized for IPC communication
+- **Context Preservation**: Error context is maintained across process boundaries
+
+See [ERROR_HANDLING_GUIDE.md](./ERROR_HANDLING_GUIDE.md) for comprehensive documentation.
 
 ### State Management
 - Immutable state snapshots for consistency

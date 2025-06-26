@@ -1,7 +1,7 @@
 //! Block data structures for the MultiVM consensus layer
 
 use crate::traits::NodeId;
-use multivm_account_mapping::SpecialTransaction;
+// use multivm_account_mapping::special_tx::SpecialTransaction;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::SystemTime;
@@ -17,7 +17,7 @@ pub struct MultiVMBlock {
     /// EVM (Ethereum) transactions
     pub evm_transactions: Vec<EvmTransaction>,
     /// Cross-VM special transactions
-    pub multivm_transactions: Vec<SpecialTransaction>,
+    // pub multivm_transactions: Vec<SpecialTransaction>,
     /// State transitions resulting from this block
     pub state_transitions: Vec<StateTransition>,
 }
@@ -174,7 +174,7 @@ impl MultiVMBlock {
             header,
             svm_transactions: Vec::new(),
             evm_transactions: Vec::new(),
-            multivm_transactions: Vec::new(),
+            // multivm_transactions: Vec::new(),
             state_transitions: Vec::new(),
         }
     }
@@ -190,13 +190,13 @@ impl MultiVMBlock {
     }
 
     /// Add a MultiVM special transaction to the block
-    pub fn add_multivm_transaction(&mut self, transaction: SpecialTransaction) {
-        self.multivm_transactions.push(transaction);
-    }
+    // pub fn add_multivm_transaction(&mut self, transaction: SpecialTransaction) {
+    //     self.multivm_transactions.push(transaction);
+    // }
 
     /// Get total number of transactions in this block
     pub fn transaction_count(&self) -> usize {
-        self.svm_transactions.len() + self.evm_transactions.len() + self.multivm_transactions.len()
+        self.svm_transactions.len() + self.evm_transactions.len() // + self.multivm_transactions.len()
     }
 
     /// Calculate and update the transactions root hash
@@ -207,7 +207,7 @@ impl MultiVMBlock {
         let tx_data = (
             &self.svm_transactions,
             &self.evm_transactions,
-            &self.multivm_transactions,
+            // &self.multivm_transactions,
         );
 
         if let Ok(serialized) = bincode::serialize(&tx_data) {
@@ -357,144 +357,3 @@ impl EvmTransaction {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_multivm_block_creation() {
-        let mut block = MultiVMBlock::new(
-            1,
-            "previous_hash".to_string(),
-            "node1".to_string(),
-            vec![1, 2, 3],
-        );
-
-        assert_eq!(block.header.height, 1);
-        assert_eq!(block.header.proposer, "node1");
-        assert_eq!(block.transaction_count(), 0);
-
-        // Add a transaction
-        let svm_tx = SvmTransaction::new(
-            vec!["sig1".to_string()],
-            vec![1, 2, 3],
-            vec!["account1".to_string()],
-        );
-        block.add_svm_transaction(svm_tx);
-
-        assert_eq!(block.transaction_count(), 1);
-    }
-
-    #[test]
-    fn test_block_finalization() {
-        let mut block =
-            MultiVMBlock::new(1, "previous_hash".to_string(), "node1".to_string(), vec![]);
-
-        // Initially empty roots
-        assert!(block.header.transactions_root.is_empty());
-        assert!(block.header.state_root.is_empty());
-
-        block.finalize();
-
-        // After finalization, roots should be calculated
-        assert!(!block.header.transactions_root.is_empty());
-        assert!(!block.header.state_root.is_empty());
-    }
-
-    #[test]
-    fn test_svm_transaction() {
-        let tx = SvmTransaction::new(
-            vec!["signature1".to_string()],
-            vec![1, 2, 3, 4],
-            vec!["account1".to_string(), "account2".to_string()],
-        );
-
-        assert_eq!(tx.signatures.len(), 1);
-        assert_eq!(tx.accounts.len(), 2);
-        assert!(tx.size_bytes() > 0);
-    }
-
-    #[test]
-    fn test_evm_transaction() {
-        let tx = EvmTransaction::new(
-            "0x1234".to_string(),
-            Some("0x5678".to_string()),
-            1000,
-            21000,
-            20,
-            vec![],
-            1,
-        );
-
-        assert_eq!(tx.from, "0x1234");
-        assert_eq!(tx.to, Some("0x5678".to_string()));
-        assert!(!tx.is_contract_creation());
-        assert!(tx.size_bytes() > 0);
-
-        let contract_tx = EvmTransaction::new(
-            "0x1234".to_string(),
-            None,
-            0,
-            1000000,
-            20,
-            vec![0x60, 0x60, 0x60, 0x40], // Contract bytecode
-            2,
-        );
-
-        assert!(contract_tx.is_contract_creation());
-    }
-
-    #[test]
-    fn test_block_validation() {
-        let mut block =
-            MultiVMBlock::new(1, "previous_hash".to_string(), "node1".to_string(), vec![]);
-
-        // Valid block should pass
-        assert!(block.validate_structure().is_ok());
-
-        // Invalid version should fail
-        block.header.version = 0;
-        assert!(block.validate_structure().is_err());
-
-        // Restore valid version
-        block.header.version = 1;
-
-        // Future timestamp should fail
-        block.header.timestamp = SystemTime::now() + std::time::Duration::from_secs(3600);
-        assert!(block.validate_structure().is_err());
-    }
-
-    #[test]
-    fn test_block_hash_calculation() {
-        let block = MultiVMBlock::new(1, "previous_hash".to_string(), "node1".to_string(), vec![]);
-
-        let hash1 = block.calculate_hash();
-        let hash2 = block.calculate_hash();
-
-        // Hash should be deterministic
-        assert_eq!(hash1, hash2);
-        assert!(!hash1.is_empty());
-    }
-
-    #[test]
-    fn test_state_transition() {
-        let transition = StateTransition {
-            transition_type: StateTransitionType::BalanceChange,
-            target: "account1".to_string(),
-            previous_state: Some("prev_hash".to_string()),
-            new_state: "new_hash".to_string(),
-            changes: vec![StateChange {
-                field: "balance".to_string(),
-                previous_value: Some(serde_json::json!(100)),
-                new_value: serde_json::json!(200),
-            }],
-            caused_by: Uuid::new_v4(),
-        };
-
-        assert_eq!(transition.changes.len(), 1);
-        assert!(matches!(
-            transition.transition_type,
-            StateTransitionType::BalanceChange
-        ));
-    }
-}

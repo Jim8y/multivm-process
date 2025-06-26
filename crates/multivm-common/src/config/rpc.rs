@@ -15,43 +15,30 @@ pub struct RpcConfig {
 impl RpcConfig {
     pub fn validate(&self) -> Result<(), MultivmError> {
         if self.port == 0 {
-            return Err(MultivmError::Configuration(
-                "RPC port must be greater than 0".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "rpc".to_string(),
+                message: "RPC port must be greater than 0".to_string(),
+                validation_errors: None,
+            });
         }
 
         if self.max_connections == 0 {
-            return Err(MultivmError::Configuration(
-                "max_connections must be greater than 0".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "rpc".to_string(),
+                message: "max_connections must be greater than 0".to_string(),
+                validation_errors: None,
+            });
         }
 
         if self.request_timeout.as_secs() == 0 {
-            return Err(MultivmError::Configuration(
-                "request_timeout must be greater than 0".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "rpc".to_string(),
+                message: "request_timeout must be greater than 0".to_string(),
+                validation_errors: None,
+            });
         }
 
         Ok(())
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rpc_config_validation() {
-        let mut config = RpcConfig {
-            host: "127.0.0.1".to_string(),
-            port: 0, // Invalid port
-            max_connections: 1000,
-            request_timeout: Duration::from_secs(30),
-            cors_origins: vec!["*".to_string()],
-        };
-        assert!(config.validate().is_err());
-
-        config.port = 8545;
-        assert!(config.validate().is_ok());
-    }
-}

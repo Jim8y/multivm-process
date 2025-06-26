@@ -1,32 +1,40 @@
 pub mod health;
 pub mod metrics;
+pub mod production_metrics;
 pub mod tracing;
 
 use crate::error::ApplicationResult;
+use multivm_common::{Manager, ManagerState, MultivmResult};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// Monitoring service that combines metrics, health checks, and tracing
 #[derive(Debug)]
 pub struct MonitoringService {
     pub metrics: Arc<metrics::MetricsService>,
+    pub production_metrics: Arc<production_metrics::ProductionMetrics>,
     pub health: Arc<health::HealthCheckService>,
     pub tracing: Arc<tracing::TracingService>,
+    state: Arc<RwLock<ManagerState>>,
 }
 
 impl MonitoringService {
     /// Create new monitoring service
     pub async fn new(config: &crate::config::MonitoringConfig) -> ApplicationResult<Self> {
-        let metrics = Arc::new(metrics::MetricsService::new(&config.metrics).await?);
-        let health = Arc::new(health::HealthCheckService::new(&config.health_check).await?);
-        let tracing = Arc::new(tracing::TracingService::new(&config.tracing).await?);
+        let metrics = Arc::new(metrics::MetricsService::new(config).await?);
+        let production_metrics = Arc::new(production_metrics::ProductionMetrics::new()?);
+        let health = Arc::new(health::HealthCheckService::new(config).await?);
+        let tracing = Arc::new(tracing::TracingService::new(config).await?);
 
         // Initialize tracing
         tracing.initialize().await?;
 
         Ok(Self {
             metrics,
+            production_metrics,
             health,
             tracing,
+            state: Arc::new(RwLock::new(ManagerState::Stopped)),
         })
     }
 
@@ -83,7 +91,93 @@ impl MonitoringService {
     }
 }
 
+#[async_trait::async_trait]
+impl Manager for MonitoringService {
+    type Config = crate::config::MonitoringConfig;
+    type State = ManagerState;
+
+    async fn initialize(config: Self::Config) -> MultivmResult<Self> {
+        Self::new(&config).await.map_err(|e| multivm_common::MultivmError::Internal {
+            component: "monitoring_service".to_string(),
+            message: e.to_string(),
+            error_code: None,
+        })
+    }
+
+    async fn start(&mut self) -> MultivmResult<()> {
+        let mut state = self.state.write().await;
+        if *state == ManagerState::Running {
+            return Ok(());
+        }
+
+        *state = ManagerState::Initializing;
+        
+        // Start metrics server
+        if let Err(e) = self.start_metrics_server().await {
+            *state = ManagerState::Error("Failed to start metrics server".to_string());
+            return Err(multivm_common::MultivmError::Internal {
+                component: "metrics_server".to_string(),
+                message: e.to_string(),
+                error_code: None,
+            });
+        }
+
+        // Start health check server
+        if let Err(e) = self.start_health_check_server().await {
+            *state = ManagerState::Error("Failed to start health check server".to_string());
+            return Err(multivm_common::MultivmError::Internal {
+                component: "health_check_server".to_string(),
+                message: e.to_string(),
+                error_code: None,
+            });
+        }
+
+        *state = ManagerState::Running;
+        Ok(())
+    }
+
+    async fn stop(&mut self) -> MultivmResult<()> {
+        let mut state = self.state.write().await;
+        *state = ManagerState::Stopped;
+        Ok(())
+    }
+
+    async fn get_state(&self) -> ManagerState {
+        self.state.read().await.clone()
+    }
+
+    async fn get_stats(&self) -> MultivmResult<multivm_common::ProcessingMetrics> {
+        Ok(multivm_common::ProcessingMetrics {
+            cpu_time: std::time::Duration::ZERO,
+            memory_usage_bytes: 0,
+            disk_reads: 0,
+            disk_writes: 0,
+            network_bytes: 0,
+            compute_units_used: 0,
+            transaction_count: 0,
+            account_updates: 0,
+            total_requests: 0,
+            successful_requests: 0,
+            failed_requests: 0,
+            average_response_time_ms: 0.0,
+            peak_memory_usage_mb: 0,
+            cpu_usage_percent: 0.0,
+        })
+    }
+
+    async fn health_check(&self) -> MultivmResult<multivm_common::HealthStatus> {
+        let state = self.get_state().await;
+        Ok(match state {
+            ManagerState::Running => multivm_common::HealthStatus::Healthy,
+            ManagerState::Initializing | ManagerState::Stopping => multivm_common::HealthStatus::Degraded,
+            ManagerState::Stopped | ManagerState::Error(_) => multivm_common::HealthStatus::Unhealthy,
+            ManagerState::Uninitialized => multivm_common::HealthStatus::Unhealthy,
+        })
+    }
+}
+
 // Re-export types
 pub use health::{HealthCheckService, HealthReport, HealthStatus};
 pub use metrics::MetricsService;
+pub use production_metrics::ProductionMetrics;
 pub use tracing::{TraceSpan, TracingService};

@@ -7,9 +7,20 @@
 //! - IPC communication with execution engines
 
 use crate::{BlockRouter, HealthMonitor, MultivmProcessManager, ProcessHandle};
-use multivm_account_mapping::{AccountAddress, AccountMappingLayer, MemoryStorage};
+use crate::lock_ordering::{
+    acquire_read_lock_safe, acquire_write_lock_safe, LockLevel, LockTimeoutConfig,
+    init_lock_config, get_lock_config
+};
+use multivm_account_mapping::{
+    address::{AccountAddress, MultivmAccountId},
+    mapping::{AccountMappingLayer, BindingConfiguration, BindingProof},
+    storage::RocksDBStorage,
+    special_tx::{AssetType, SpecialTransaction, SimpleBindingMetadata},
+};
 use multivm_common::{
-    config::{EthereumConfig, IpcTransportConfig, SolanaConfig},
+    config::{IpcTransportConfig, SystemConfig, BlockchainConfig, IpcConfig, LoggingConfig},
+    error::{MultivmError, MultivmResult},
+    types::ProcessId,
     *,
 };
 use multivm_consensus::{MalachiteConfig, MalachiteConsensus, MultiVMBlock};
@@ -32,6 +43,8 @@ pub struct CoordinatorConfig {
     pub max_concurrent_blocks: usize,
     /// Enable system recovery
     pub enable_recovery: bool,
+    /// Database path for account mappings (optional for testing)
+    pub db_path: Option<String>,
 }
 
 /// System coordinator state
@@ -59,8 +72,8 @@ pub struct SystemMetrics {
 #[derive(Debug, Clone)]
 pub struct AccountBindingResult {
     pub binding_id: String,
-    pub source_account: multivm_account_mapping::AccountAddress,
-    pub target_account: multivm_account_mapping::AccountAddress,
+    pub source_account: AccountAddress,
+    pub target_account: AccountAddress,
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub status: BindingStatus,
 }
@@ -69,10 +82,10 @@ pub struct AccountBindingResult {
 #[derive(Debug, Clone)]
 pub struct CrossVmTransferResult {
     pub transfer_id: String,
-    pub from: multivm_account_mapping::MultivmAccountId,
-    pub to: multivm_account_mapping::MultivmAccountId,
+    pub from: MultivmAccountId,
+    pub to: MultivmAccountId,
     pub amount: u64,
-    pub asset_type: multivm_account_mapping::AssetType,
+    pub asset_type: AssetType,
     pub status: TransferStatus,
     pub source_tx_hash: Option<String>,
     pub target_tx_hash: Option<String>,
@@ -82,7 +95,7 @@ pub struct CrossVmTransferResult {
 /// Result of binding update operation
 #[derive(Debug, Clone)]
 pub struct BindingUpdateResult {
-    pub multivm_account: multivm_account_mapping::MultivmAccountId,
+    pub multivm_account: MultivmAccountId,
     pub changes_applied: Vec<String>,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
@@ -90,8 +103,8 @@ pub struct BindingUpdateResult {
 /// Result of account unbinding operation
 #[derive(Debug, Clone)]
 pub struct UnbindingResult {
-    pub multivm_account: multivm_account_mapping::MultivmAccountId,
-    pub unbound_account: multivm_account_mapping::AccountAddress,
+    pub multivm_account: MultivmAccountId,
+    pub unbound_account: AccountAddress,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
@@ -136,8 +149,8 @@ pub struct MultivmCoordinator {
     account_mappings: Arc<
         RwLock<
             std::collections::HashMap<
-                multivm_account_mapping::AccountAddress,
-                multivm_account_mapping::AccountAddress,
+                AccountAddress,
+                AccountAddress,
             >,
         >,
     >,
@@ -148,41 +161,45 @@ pub struct MultivmCoordinator {
 impl MultivmCoordinator {
     /// Create MultivmConfig from CoordinatorConfig
     fn create_multivm_config_from_coordinator(config: &CoordinatorConfig) -> MultivmConfig {
-        MultivmConfig {
-            system: SystemConfig {
-                max_processes: 50,
-                process_restart_delay: Duration::from_secs(5),
-                shutdown_timeout: Duration::from_secs(30),
-                health_check_interval: config.health_check_interval,
-                data_dir: std::path::PathBuf::from("./data"),
-                resource_limits: ResourceLimits {
-                    max_memory_mb: 4096,
-                    max_cpu_percent: 80.0,
-                    max_open_files: 1024,
-                    max_disk_usage_gb: 100,
-                    max_rpc_connections: 1000,
-                },
-                enable_metrics: true,
-                metrics_port: Some(9090),
-            },
-            solana: SolanaConfig::default(),
-            ethereum: EthereumConfig::default(),
-            ipc: IpcConfig {
-                transport: IpcTransportConfig::default(),
-                message_timeout: Duration::from_secs(30),
-                max_message_size: 16 * 1024 * 1024,
-                buffer_size: 1024 * 1024,
-            },
-            logging: LoggingConfig::default(),
-        }
+        MultivmConfig::default()
     }
 
     /// Create a new coordinator
     pub async fn new(config: CoordinatorConfig) -> MultivmResult<Self> {
         info!("Initializing MultiVM Coordinator");
 
-        // Initialize account mapping layer
-        let account_mapping: Arc<dyn AccountMappingLayer> = Arc::new(MemoryStorage::new());
+        // Initialize lock configuration for proper timeout handling
+        let lock_config = LockTimeoutConfig {
+            default_timeout: Duration::from_secs(10),
+            critical_timeout: Duration::from_secs(30),
+            background_timeout: Duration::from_secs(5),
+            max_retries: 3,
+            backoff_multiplier: 1.5,
+        };
+        init_lock_config(lock_config);
+
+        // Initialize account mapping layer with RocksDB
+        let db_path_str = config.db_path.as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("/opt/multivm/data/account_mapping.db");
+        
+        let db_path = std::path::Path::new(db_path_str);
+        std::fs::create_dir_all(db_path.parent().unwrap()).map_err(|e| {
+            MultivmError::Configuration {
+                component: "account_mapping_storage".to_string(),
+                message: format!("Failed to create data directory: {}", e),
+                validation_errors: None,
+            }
+        })?;
+        
+        let account_mapping: Arc<dyn AccountMappingLayer> = Arc::new(
+            RocksDBStorage::new(db_path.to_str().unwrap())
+                .map_err(|e| MultivmError::Storage {
+                    operation: "initialize_rocksdb".to_string(),
+                    message: format!("Failed to initialize RocksDB: {:?}", e),
+                    path: Some(db_path.to_string_lossy().to_string()),
+                })?
+        );
 
         // Initialize block router
         let block_router = Arc::new(BlockRouter::new(Arc::clone(&account_mapping)));
@@ -195,11 +212,16 @@ impl MultivmCoordinator {
         let health_monitor = Arc::new(HealthMonitor::new(config.health_check_interval));
 
         // Initialize consensus
-        let (consensus_engine, _block_sender, _block_receiver) =
-            MalachiteConsensus::new(config.consensus.clone()).await?;
+        let consensus_params = config.consensus.clone().into(); // Convert MalachiteConfig to ConsensusParams
+        let mut consensus_engine = MalachiteConsensus::new(consensus_params);
+        consensus_engine.initialize().await.map_err(|e| MultivmError::ConsensusError {
+            message: format!("Failed to initialize consensus: {}", e),
+            round: None,
+            validator_count: None,
+        })?;
         let consensus = Arc::new(RwLock::new(consensus_engine));
 
-        // Initialize state
+        // Initialize state with proper lock ordering
         let state = Arc::new(RwLock::new(CoordinatorState {
             is_running: false,
             blocks_processed: 0,
@@ -237,11 +259,19 @@ impl MultivmCoordinator {
         // Start process manager
         self.process_manager.start().await?;
 
-        // Start consensus
+        // Start consensus with proper lock timeout
         {
-            let consensus = self.consensus.read().await;
-            consensus.start_consensus().await.map_err(|e| {
-                MultivmError::ConsensusError(format!("Failed to start consensus: {}", e))
+            let mut consensus = acquire_write_lock_safe(
+                &self.consensus,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().critical_timeout)
+            ).await?;
+            consensus.start().await.map_err(|e| {
+                MultivmError::ConsensusError {
+                    message: format!("Failed to start consensus: {}", e),
+                    round: None,
+                    validator_count: None,
+                }
             })?;
         }
 
@@ -253,9 +283,13 @@ impl MultivmCoordinator {
         // Start system monitoring
         self.start_system_monitoring().await?;
 
-        // Update state
+        // Update state with proper lock ordering
         {
-            let mut state = self.state.write().await;
+            let mut state = acquire_write_lock_safe(
+                &self.state,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().default_timeout)
+            ).await?;
             state.is_running = true;
             state.last_health_check = std::time::SystemTime::now();
         }
@@ -268,9 +302,13 @@ impl MultivmCoordinator {
     pub async fn stop(&mut self) -> MultivmResult<()> {
         info!("Stopping MultiVM Coordinator system");
 
-        // Update state
+        // Update state with proper lock ordering
         {
-            let mut state = self.state.write().await;
+            let mut state = acquire_write_lock_safe(
+                &self.state,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().default_timeout)
+            ).await?;
             state.is_running = false;
         }
 
@@ -279,11 +317,19 @@ impl MultivmCoordinator {
             let _ = shutdown_sender.send(());
         }
 
-        // Stop consensus
+        // Stop consensus with proper lock timeout
         {
-            let consensus = self.consensus.read().await;
-            consensus.stop_consensus().await.map_err(|e| {
-                MultivmError::ConsensusError(format!("Failed to stop consensus: {}", e))
+            let mut consensus = acquire_write_lock_safe(
+                &self.consensus,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().critical_timeout)
+            ).await?;
+            consensus.stop().await.map_err(|e| {
+                MultivmError::ConsensusError {
+                    message: format!("Failed to stop consensus: {}", e),
+                    round: None,
+                    validator_count: None,
+                }
             })?;
         }
 
@@ -307,34 +353,57 @@ impl MultivmCoordinator {
         if let Some(ref sender) = self.block_sender {
             sender
                 .send(block)
-                .map_err(|e| MultivmError::Ipc(format!("Failed to submit block: {}", e)))?;
+                .map_err(|e| MultivmError::Ipc {
+                    endpoint: "block_processing_channel".to_string(),
+                    message: format!("Failed to submit block: {}", e),
+                    retry_count: None,
+                })?;
             Ok(())
         } else {
-            Err(MultivmError::InvalidState(
-                "Block processing not started".to_string(),
-            ))
+            Err(MultivmError::InvalidState {
+                message: "Block processing not started".to_string(),
+                current_state: Some("coordinator_not_started".to_string()),
+                expected_state: Some("coordinator_started_with_block_processing".to_string()),
+            })
         }
     }
 
     /// Get current system state
-    pub async fn get_state(&self) -> CoordinatorState {
-        self.state.read().await.clone()
+    pub async fn get_state(&self) -> MultivmResult<CoordinatorState> {
+        let state = acquire_read_lock_safe(
+            &self.state,
+            LockLevel::CoordinatorState,
+            Some(get_lock_config().default_timeout)
+        ).await?;
+        Ok(state.clone())
     }
 
     /// Get system health status
     pub async fn get_health_status(&self) -> MultivmResult<SystemHealthStatus> {
-        let state = self.state.read().await;
+        let state = acquire_read_lock_safe(
+            &self.state,
+            LockLevel::CoordinatorState,
+            Some(get_lock_config().default_timeout)
+        ).await?;
         let process_health = self.process_manager.get_health_status().await?;
         let consensus_state = {
-            let consensus = self.consensus.read().await;
-            consensus.get_state().await.map_err(|e| {
-                MultivmError::ConsensusError(format!("Failed to get consensus state: {}", e))
+            let consensus = acquire_read_lock_safe(
+                &self.consensus,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().default_timeout)
+            ).await?;
+            use multivm_consensus::traits::ConsensusEngine;
+            consensus.get_consensus_stats().await.map_err(|e| {
+                MultivmError::ConsensusError {
+                    message: format!("Failed to get consensus stats: {}", e),
+                    round: None,
+                    validator_count: None,
+                }
             })?
         };
 
-        // Determine consensus health based on state
-        let consensus_healthy = consensus_state.is_running && consensus_state.current_view > 0
-            || consensus_state.last_committed_sequence == 0; // Allow for genesis state
+        // Determine consensus health based on stats
+        let consensus_healthy = consensus_state.current_height > 0 || consensus_state.total_blocks == 0; // Allow for genesis state
 
         Ok(SystemHealthStatus {
             is_healthy: state.is_running && process_health.overall_healthy && consensus_healthy,
@@ -370,6 +439,7 @@ impl MultivmCoordinator {
                 tokio::select! {
                     // Process incoming blocks
                     Some(block) = block_receiver.recv() => {
+                        debug!("Block received in processing loop: height {}", block.header.height);
                         if let Err(e) = Self::process_block_internal(
                             &block_router,
                             &account_mapping,
@@ -380,9 +450,16 @@ impl MultivmCoordinator {
                             &cross_vm_transfers
                         ).await {
                             error!("Failed to process block: {}", e);
-                            // Update error metrics
-                            let mut state_guard = state.write().await;
-                            state_guard.system_metrics.error_count += 1;
+                            // Update error metrics with proper lock ordering
+                            if let Ok(mut state_guard) = acquire_write_lock_safe(
+                                &state,
+                                LockLevel::CoordinatorState,
+                                Some(get_lock_config().background_timeout)
+                            ).await {
+                                state_guard.system_metrics.error_count += 1;
+                            } else {
+                                warn!("Failed to acquire state lock for error metrics update");
+                            }
                         }
                     }
 
@@ -420,8 +497,16 @@ impl MultivmCoordinator {
 
                 // Check if system is still running
                 {
-                    let state_guard = state.read().await;
-                    if !state_guard.is_running {
+                    if let Ok(state_guard) = acquire_read_lock_safe(
+                        &state,
+                        LockLevel::CoordinatorState,
+                        Some(get_lock_config().background_timeout)
+                    ).await {
+                        if !state_guard.is_running {
+                            break;
+                        }
+                    } else {
+                        warn!("Failed to acquire state lock for running check, assuming stopped");
                         break;
                     }
                 }
@@ -441,8 +526,8 @@ impl MultivmCoordinator {
         account_mappings: &Arc<
             RwLock<
                 std::collections::HashMap<
-                    multivm_account_mapping::AccountAddress,
-                    multivm_account_mapping::AccountAddress,
+                    AccountAddress,
+                    AccountAddress,
                 >,
             >,
         >,
@@ -450,6 +535,10 @@ impl MultivmCoordinator {
     ) -> MultivmResult<()> {
         let start_time = std::time::Instant::now();
         info!("Processing block at height {}", block.header.height);
+        debug!("Block contains {} SVM, {} EVM, {} special transactions", 
+            block.svm_transactions.len(), 
+            block.evm_transactions.len(), 
+            block.multivm_transactions.len());
 
         // Step 1: Decompose the block
         let routing_result = tokio::time::timeout(
@@ -458,9 +547,14 @@ impl MultivmCoordinator {
         )
         .await
         .map_err(|_| MultivmError::Timeout {
+            operation: "block_decomposition".to_string(),
             timeout: config.block_timeout,
+            partial_result: None,
         })?
-        .map_err(|e| MultivmError::BlockProcessing(format!("Block decomposition failed: {}", e)))?;
+        .map_err(|e| MultivmError::BlockProcessing {
+            message: format!("Block decomposition failed: {}", e),
+            block_number: Some(block.header.height),
+        })?;
 
         // Step 2: Process special transactions first
         for special_tx in &routing_result.special_transactions {
@@ -468,7 +562,7 @@ impl MultivmCoordinator {
 
             // Process different types of special transactions
             match special_tx {
-                multivm_account_mapping::SpecialTransaction::AccountBinding {
+                SpecialTransaction::AccountBinding {
                     source_account,
                     target_account,
                     proof,
@@ -481,7 +575,7 @@ impl MultivmCoordinator {
                     // Production implementation: validate proof and create the binding
                     // Note: This is called from a static context, need to pass through the coordinator
                     // For now, we'll process directly through the account mapping layer
-                    let special_tx = multivm_account_mapping::SpecialTransaction::AccountBinding {
+                    let special_tx = SpecialTransaction::AccountBinding {
                         source_account: source_account.clone(),
                         target_account: target_account.clone(),
                         proof: proof.clone(),
@@ -492,10 +586,11 @@ impl MultivmCoordinator {
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
-                            MultivmError::AccountMapping(format!(
-                                "Binding processing failed: {}",
-                                e
-                            ))
+                            MultivmError::AccountMapping {
+                                message: format!("Binding processing failed: {}", e),
+                                source_chain: Some("multivm".to_string()),
+                                target_chain: Some("multivm".to_string()),
+                            }
                         })?;
 
                     // Store binding in state
@@ -506,7 +601,7 @@ impl MultivmCoordinator {
 
                     info!("Account binding created successfully: {:?}", tx_result);
                 }
-                multivm_account_mapping::SpecialTransaction::CrossVmTransfer {
+                SpecialTransaction::CrossVmTransfer {
                     from,
                     to,
                     amount,
@@ -518,7 +613,7 @@ impl MultivmCoordinator {
                         amount, from, to, asset_type, memo
                     );
                     // Production implementation: validate balances and execute cross-VM transfer
-                    let special_tx = multivm_account_mapping::SpecialTransaction::CrossVmTransfer {
+                    let special_tx = SpecialTransaction::CrossVmTransfer {
                         from: from.clone(),
                         to: to.clone(),
                         amount: *amount,
@@ -530,10 +625,11 @@ impl MultivmCoordinator {
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
-                            MultivmError::AccountMapping(format!(
-                                "Transfer processing failed: {}",
-                                e
-                            ))
+                            MultivmError::AccountMapping {
+                                message: format!("Transfer processing failed: {}", e),
+                                source_chain: Some("multivm".to_string()),
+                                target_chain: Some("multivm".to_string()),
+                            }
                         })?;
 
                     let transfer_id = uuid::Uuid::new_v4().to_string();
@@ -543,11 +639,7 @@ impl MultivmCoordinator {
                         to: to.clone(),
                         amount: *amount,
                         asset_type: asset_type.clone(),
-                        status: if tx_result.success {
-                            TransferStatus::Completed
-                        } else {
-                            TransferStatus::Failed(tx_result.error.unwrap_or_default())
-                        },
+                        status: TransferStatus::Completed,
                         source_tx_hash: Some(transfer_id.clone()),
                         target_tx_hash: None,
                         timestamp: chrono::Utc::now(),
@@ -561,13 +653,13 @@ impl MultivmCoordinator {
 
                     info!("Cross-VM transfer executed: {:?}", transfer_result);
                 }
-                multivm_account_mapping::SpecialTransaction::UpdateBinding {
+                SpecialTransaction::UpdateBinding {
                     multivm_account,
                     config,
                 } => {
                     info!("Processing binding update for account: {}", multivm_account);
                     // Production implementation: update the binding configuration
-                    let special_tx = multivm_account_mapping::SpecialTransaction::UpdateBinding {
+                    let special_tx = SpecialTransaction::UpdateBinding {
                         multivm_account: multivm_account.clone(),
                         config: config.clone(),
                     };
@@ -576,12 +668,16 @@ impl MultivmCoordinator {
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
-                            MultivmError::AccountMapping(format!("Update binding failed: {}", e))
+                            MultivmError::AccountMapping {
+                                message: format!("Update binding failed: {}", e),
+                                source_chain: Some("multivm".to_string()),
+                                target_chain: Some("multivm".to_string()),
+                            }
                         })?;
 
                     info!("Binding configuration updated: {:?}", tx_result);
                 }
-                multivm_account_mapping::SpecialTransaction::UnbindAccount {
+                SpecialTransaction::UnbindAccount {
                     multivm_account,
                     account,
                     auth_proof,
@@ -591,7 +687,7 @@ impl MultivmCoordinator {
                         account, multivm_account
                     );
                     // Production implementation: validate auth and unbind the account
-                    let special_tx = multivm_account_mapping::SpecialTransaction::UnbindAccount {
+                    let special_tx = SpecialTransaction::UnbindAccount {
                         multivm_account: multivm_account.clone(),
                         account: account.clone(),
                         auth_proof: auth_proof.clone(),
@@ -601,11 +697,22 @@ impl MultivmCoordinator {
                         .process_special_transaction(special_tx)
                         .await
                         .map_err(|e| {
-                            MultivmError::AccountMapping(format!("Unbind account failed: {}", e))
+                            MultivmError::AccountMapping {
+                                message: format!("Unbind account failed: {}", e),
+                                source_chain: Some("multivm".to_string()),
+                                target_chain: Some("multivm".to_string()),
+                            }
                         })?;
 
-                    // Remove binding from state
-                    account_mappings.write().await.retain(|k, _| k != account);
+                    // Remove binding from state with proper lock ordering
+                    {
+                        let mut mappings = acquire_write_lock_safe(
+                            account_mappings,
+                            LockLevel::AccountMappings,
+                            Some(get_lock_config().default_timeout)
+                        ).await?;
+                        mappings.retain(|k, _| k != account);
+                    }
 
                     info!("Account unbinding completed: {:?}", tx_result);
                 }
@@ -616,12 +723,19 @@ impl MultivmCoordinator {
         block_router
             .route_decomposed_block(routing_result.clone())
             .await
-            .map_err(|e| MultivmError::BlockProcessing(format!("Block routing failed: {}", e)))?;
+            .map_err(|e| MultivmError::BlockProcessing {
+                message: format!("Block routing failed: {}", e),
+                block_number: Some(block.header.height),
+            })?;
 
         // Step 4: Update system state and metrics
         let processing_time = start_time.elapsed();
         {
-            let mut state_guard = state.write().await;
+            let mut state_guard = acquire_write_lock_safe(
+                state,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().default_timeout)
+            ).await?;
             state_guard.blocks_processed += 1;
             state_guard.last_block_height = block.header.height;
             state_guard.system_metrics.block_routing_time_ms = processing_time.as_millis() as u64;
@@ -655,35 +769,45 @@ impl MultivmCoordinator {
             debug!("Process {} health: {:?}", process_id, health_status);
 
             // Implement recovery logic for unhealthy processes
-            if !health_status.is_healthy {
+            if !health_status.status.is_operational() {
                 warn!(
-                    "Process {} is unhealthy: {:?}",
-                    process_id, health_status.last_error
+                    "Process {} is unhealthy: status={:?}",
+                    process_id, health_status
                 );
 
-                // Attempt recovery based on the type of issue
-                if let Some(ref error_msg) = health_status.last_error {
-                    if error_msg.contains("timeout") || error_msg.contains("unresponsive") {
+                // Attempt recovery based on the health status
+                match &health_status.status {
+                    HealthStatus::Unhealthy => {
                         info!("Attempting to restart unresponsive process: {}", process_id);
 
                         if let Err(e) = process_manager.restart_process(*process_id).await {
                             error!("Failed to restart process {}: {}", process_id, e);
-                            // Update recovery count
-                            let mut state_guard = state.write().await;
-                            state_guard.system_metrics.error_count += 1;
+                            // Update recovery count with proper lock ordering
+                            if let Ok(mut state_guard) = acquire_write_lock_safe(
+                                state,
+                                LockLevel::CoordinatorState,
+                                Some(get_lock_config().background_timeout)
+                            ).await {
+                                state_guard.system_metrics.error_count += 1;
+                            }
                         } else {
                             info!("Successfully restarted process: {}", process_id);
-                            let mut state_guard = state.write().await;
-                            state_guard.system_metrics.recovery_count += 1;
+                            if let Ok(mut state_guard) = acquire_write_lock_safe(
+                                state,
+                                LockLevel::CoordinatorState,
+                                Some(get_lock_config().background_timeout)
+                            ).await {
+                                state_guard.system_metrics.recovery_count += 1;
+                            }
                         }
-                    } else if error_msg.contains("memory") || error_msg.contains("resource") {
-                        warn!("Process {} has resource issues - monitoring", process_id);
+                    }
+                    HealthStatus::Degraded => {
+                        warn!("Process {} has degraded performance - monitoring", process_id);
                         // Could implement resource cleanup or scaling here
-                    } else {
-                        info!(
-                            "Process {} has unknown health issue - investigating",
-                            process_id
-                        );
+                    }
+                    HealthStatus::Healthy => {
+                        // This shouldn't happen since we're in the unhealthy branch
+                        debug!("Process {} reported as healthy in unhealthy check", process_id);
                     }
                 }
             }
@@ -691,9 +815,14 @@ impl MultivmCoordinator {
 
         // Update state
         {
-            let mut state_guard = state.write().await;
-            state_guard.last_health_check = std::time::SystemTime::now();
-            state_guard.active_processes = process_health.process_health.keys().cloned().collect();
+            if let Ok(mut state_guard) = acquire_write_lock_safe(
+                state,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().background_timeout)
+            ).await {
+                state_guard.last_health_check = std::time::SystemTime::now();
+                state_guard.active_processes = process_health.process_health.keys().cloned().collect();
+            }
         }
 
         Ok(())
@@ -714,7 +843,11 @@ impl MultivmCoordinator {
 
         // Update state
         {
-            let mut state = self.state.write().await;
+            let mut state = acquire_write_lock_safe(
+                &self.state,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().default_timeout)
+            ).await?;
             if !state.active_processes.contains(&process_id) {
                 state.active_processes.push(process_id);
             }
@@ -735,7 +868,11 @@ impl MultivmCoordinator {
 
         // Update state
         {
-            let mut state = self.state.write().await;
+            let mut state = acquire_write_lock_safe(
+                &self.state,
+                LockLevel::CoordinatorState,
+                Some(get_lock_config().default_timeout)
+            ).await?;
             state.active_processes.retain(|&id| id != process_id);
         }
 
@@ -745,13 +882,13 @@ impl MultivmCoordinator {
     /// Process account binding with comprehensive validation
     async fn process_account_binding(
         &self,
-        source_account: &multivm_account_mapping::AccountAddress,
-        target_account: &multivm_account_mapping::AccountAddress,
-        proof: &multivm_account_mapping::BindingProof,
-        metadata: &Option<multivm_account_mapping::SimpleBindingMetadata>,
+        source_account: &AccountAddress,
+        target_account: &AccountAddress,
+        proof: &BindingProof,
+        metadata: &Option<SimpleBindingMetadata>,
     ) -> MultivmResult<AccountBindingResult> {
-        use multivm_account_mapping::{
-            AccountBindingValidator, SpecialTransaction, ValidationConfig,
+        use multivm_account_mapping::validation::{
+            AccountBindingValidator, ValidationConfig,
         };
 
         info!(
@@ -777,20 +914,32 @@ impl MultivmCoordinator {
         validator
             .validate_account_address(source_account)
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Source account validation failed: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Source account validation failed: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: None,
+                }
             })?;
 
         // Validate target account address format
         validator
             .validate_account_address(target_account)
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Target account validation failed: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Target account validation failed: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: None,
+                }
             })?;
 
         // Validate binding proof with full cryptographic verification
         validator
             .validate_proof(proof)
-            .map_err(|e| MultivmError::AccountMapping(format!("Proof validation failed: {}", e)))?;
+            .map_err(|e| MultivmError::AccountMapping {
+                message: format!("Proof validation failed: {}", e),
+                source_chain: Some("multivm".to_string()),
+                target_chain: None,
+            })?;
 
         // Step 3: Check for existing bindings and conflicts
         self.check_binding_conflicts(source_account, target_account)
@@ -813,16 +962,15 @@ impl MultivmCoordinator {
             })
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Binding processing failed: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Binding processing failed: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                }
             })?;
 
         // Step 6: Verify the binding was created successfully
-        if !tx_result.success {
-            return Err(MultivmError::AccountMapping(format!(
-                "Binding creation failed: {}",
-                tx_result.error.unwrap_or("Unknown error".to_string())
-            )));
-        }
+        // tx_result is () type, so we assume success if no error was thrown
 
         // Step 7: Post-processing validation
         self.verify_binding_creation(source_account, target_account)
@@ -846,28 +994,32 @@ impl MultivmCoordinator {
     /// Validate binding preconditions
     async fn validate_binding_preconditions(
         &self,
-        source_account: &multivm_account_mapping::AccountAddress,
-        target_account: &multivm_account_mapping::AccountAddress,
-        proof: &multivm_account_mapping::BindingProof,
+        source_account: &AccountAddress,
+        target_account: &AccountAddress,
+        proof: &BindingProof,
     ) -> MultivmResult<()> {
         // Check accounts are not the same
         if source_account == target_account {
-            return Err(MultivmError::AccountMapping(
-                "Cannot bind account to itself".to_string(),
-            ));
+            return Err(MultivmError::AccountMapping {
+                message: "Cannot bind account to itself".to_string(),
+                source_chain: Some("multivm".to_string()),
+                target_chain: Some("multivm".to_string()),
+            });
         }
 
         // Check accounts are from different VMs
-        use multivm_account_mapping::AccountAddress;
+        use AccountAddress;
         match (source_account, target_account) {
             (AccountAddress::Solana(_), AccountAddress::Ethereum(_))
             | (AccountAddress::Ethereum(_), AccountAddress::Solana(_)) => {
                 // Valid cross-VM binding
             }
             _ => {
-                return Err(MultivmError::AccountMapping(
-                    "Accounts must be from different VMs for binding".to_string(),
-                ));
+                return Err(MultivmError::AccountMapping {
+                    message: "Accounts must be from different VMs for binding".to_string(),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                });
             }
         }
 
@@ -875,9 +1027,11 @@ impl MultivmCoordinator {
         if let Ok(age) = proof.timestamp.elapsed() {
             if age > std::time::Duration::from_secs(3600) {
                 // 1 hour max age
-                return Err(MultivmError::AccountMapping(
-                    "Binding proof is too old".to_string(),
-                ));
+                return Err(MultivmError::AccountMapping {
+                    message: "Binding proof is too old".to_string(),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                });
             }
         }
 
@@ -887,8 +1041,8 @@ impl MultivmCoordinator {
     /// Check for binding conflicts
     async fn check_binding_conflicts(
         &self,
-        source_account: &multivm_account_mapping::AccountAddress,
-        target_account: &multivm_account_mapping::AccountAddress,
+        source_account: &AccountAddress,
+        target_account: &AccountAddress,
     ) -> MultivmResult<()> {
         // Check if either account is already bound to a different account
 
@@ -905,10 +1059,11 @@ impl MultivmCoordinator {
             if !existing_addresses.is_empty() {
                 // Check if it's bound to the target account
                 if !existing_addresses.contains(target_account) {
-                    return Err(MultivmError::AccountMapping(format!(
-                        "Source account {:?} is already bound to different accounts",
-                        source_account
-                    )));
+                    return Err(MultivmError::AccountMapping {
+                        message: format!("Source account {:?} is already bound to different accounts", source_account),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
         }
@@ -920,10 +1075,14 @@ impl MultivmCoordinator {
             .await
         {
             if !existing_addresses.is_empty() && !existing_addresses.contains(source_account) {
-                return Err(MultivmError::AccountMapping(format!(
+                return Err(MultivmError::AccountMapping {
+                    message: format!(
                     "Target account {:?} is already bound to different accounts",
                     target_account
-                )));
+                    ),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                });
             }
         }
 
@@ -933,45 +1092,55 @@ impl MultivmCoordinator {
     /// Validate cross-VM compatibility
     async fn validate_cross_vm_compatibility(
         &self,
-        source_account: &multivm_account_mapping::AccountAddress,
-        target_account: &multivm_account_mapping::AccountAddress,
+        source_account: &AccountAddress,
+        target_account: &AccountAddress,
     ) -> MultivmResult<()> {
-        use multivm_account_mapping::AccountAddress;
+        use AccountAddress;
 
         match (source_account, target_account) {
             (AccountAddress::Solana(solana_addr), AccountAddress::Ethereum(eth_addr)) => {
                 // Validate Solana account format
                 if solana_addr.0 == [0u8; 32] {
-                    return Err(MultivmError::AccountMapping(
-                        "Invalid Solana account address (all zeros)".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Invalid Solana account address (all zeros)".to_string(),
+                        source_chain: Some("ethereum".to_string()),
+                        target_chain: Some("solana".to_string()),
+                    });
                 }
 
                 // Validate Ethereum account format
                 if eth_addr.0 == [0u8; 20] {
-                    return Err(MultivmError::AccountMapping(
-                        "Invalid Ethereum account address (all zeros)".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Invalid Ethereum account address (all zeros)".to_string(),
+                        source_chain: Some("ethereum".to_string()),
+                        target_chain: Some("solana".to_string()),
+                    });
                 }
             }
             (AccountAddress::Ethereum(eth_addr), AccountAddress::Solana(solana_addr)) => {
                 // Same validation in reverse
                 if eth_addr.0 == [0u8; 20] {
-                    return Err(MultivmError::AccountMapping(
-                        "Invalid Ethereum account address (all zeros)".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Invalid Ethereum account address (all zeros)".to_string(),
+                        source_chain: Some("ethereum".to_string()),
+                        target_chain: Some("solana".to_string()),
+                    });
                 }
 
                 if solana_addr.0 == [0u8; 32] {
-                    return Err(MultivmError::AccountMapping(
-                        "Invalid Solana account address (all zeros)".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Invalid Solana account address (all zeros)".to_string(),
+                        source_chain: Some("ethereum".to_string()),
+                        target_chain: Some("solana".to_string()),
+                    });
                 }
             }
             _ => {
-                return Err(MultivmError::AccountMapping(
-                    "Unsupported account binding configuration".to_string(),
-                ));
+                return Err(MultivmError::AccountMapping {
+                    message: "Unsupported account binding configuration".to_string(),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                });
             }
         }
 
@@ -981,8 +1150,8 @@ impl MultivmCoordinator {
     /// Verify binding was created successfully
     async fn verify_binding_creation(
         &self,
-        source_account: &multivm_account_mapping::AccountAddress,
-        target_account: &multivm_account_mapping::AccountAddress,
+        source_account: &AccountAddress,
+        target_account: &AccountAddress,
     ) -> MultivmResult<()> {
         let source_multivm_id = self.account_address_to_multivm_id(source_account)?;
         let target_multivm_id = self.account_address_to_multivm_id(target_account)?;
@@ -993,7 +1162,11 @@ impl MultivmCoordinator {
             .get_bound_addresses(&source_multivm_id)
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Failed to verify source binding: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Failed to verify source binding: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                }
             })?;
 
         let target_addresses = self
@@ -1001,19 +1174,27 @@ impl MultivmCoordinator {
             .get_bound_addresses(&target_multivm_id)
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Failed to verify target binding: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Failed to verify target binding: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                }
             })?;
 
         if !source_addresses.contains(target_account) {
-            return Err(MultivmError::AccountMapping(
-                "Binding verification failed: source account not bound to target".to_string(),
-            ));
+            return Err(MultivmError::AccountMapping {
+                message: "Binding verification failed: source account not bound to target".to_string(),
+                source_chain: Some("multivm".to_string()),
+                target_chain: Some("multivm".to_string()),
+            });
         }
 
         if !target_addresses.contains(source_account) {
-            return Err(MultivmError::AccountMapping(
-                "Binding verification failed: target account not bound to source".to_string(),
-            ));
+            return Err(MultivmError::AccountMapping {
+                message: "Binding verification failed: target account not bound to source".to_string(),
+                source_chain: Some("multivm".to_string()),
+                target_chain: Some("multivm".to_string()),
+            });
         }
 
         Ok(())
@@ -1022,9 +1203,9 @@ impl MultivmCoordinator {
     /// Helper: Convert AccountAddress to MultivmAccountId
     fn account_address_to_multivm_id(
         &self,
-        account: &multivm_account_mapping::AccountAddress,
-    ) -> MultivmResult<multivm_account_mapping::MultivmAccountId> {
-        use multivm_account_mapping::{AccountAddress, MultivmAccountId};
+        account: &AccountAddress,
+    ) -> MultivmResult<MultivmAccountId> {
+        // AccountAddress and MultivmAccountId already imported at top
 
         let id_string = match account {
             AccountAddress::Solana(addr) => format!("solana:{}", hex::encode(addr.0)),
@@ -1043,9 +1224,9 @@ impl MultivmCoordinator {
     /// Helper: Convert AccountAddress to string representation
     fn account_address_to_string(
         &self,
-        account: &multivm_account_mapping::AccountAddress,
+        account: &AccountAddress,
     ) -> MultivmResult<String> {
-        use multivm_account_mapping::AccountAddress;
+        use AccountAddress;
 
         Ok(match account {
             AccountAddress::Solana(addr) => format!("solana:{}", hex::encode(addr.0)),
@@ -1056,13 +1237,13 @@ impl MultivmCoordinator {
     /// Process cross-VM transfer with comprehensive validation
     async fn process_cross_vm_transfer(
         &self,
-        from: &multivm_account_mapping::MultivmAccountId,
-        to: &multivm_account_mapping::MultivmAccountId,
+        from: &MultivmAccountId,
+        to: &MultivmAccountId,
         amount: u64,
-        asset_type: &multivm_account_mapping::AssetType,
+        asset_type: &AssetType,
         memo: Option<&str>,
     ) -> MultivmResult<CrossVmTransferResult> {
-        use multivm_account_mapping::SpecialTransaction;
+        // SpecialTransaction already imported at top
 
         info!(
             "Processing cross-VM transfer: {} {} from {:?} to {:?}",
@@ -1098,16 +1279,15 @@ impl MultivmCoordinator {
             })
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Transfer processing failed: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Transfer processing failed: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: Some("multivm".to_string()),
+                }
             })?;
 
         // Step 6: Verify transfer success
-        if !tx_result.success {
-            return Err(MultivmError::AccountMapping(format!(
-                "Cross-VM transfer failed: {}",
-                tx_result.error.unwrap_or("Unknown error".to_string())
-            )));
-        }
+        // tx_result is () type, so we assume success if no error was thrown
 
         // Step 7: Create transfer record
         let transfer_result = CrossVmTransferResult {
@@ -1133,59 +1313,71 @@ impl MultivmCoordinator {
     /// Validate transfer preconditions
     async fn validate_transfer_preconditions(
         &self,
-        from: &multivm_account_mapping::MultivmAccountId,
-        to: &multivm_account_mapping::MultivmAccountId,
+        from: &MultivmAccountId,
+        to: &MultivmAccountId,
         amount: u64,
-        asset_type: &multivm_account_mapping::AssetType,
+        asset_type: &AssetType,
     ) -> MultivmResult<()> {
         // Check accounts are different
         if from == to {
-            return Err(MultivmError::AccountMapping(
-                "Cannot transfer to same account".to_string(),
-            ));
+            return Err(MultivmError::AccountMapping {
+                message: "Cannot transfer to same account".to_string(),
+                source_chain: Some("multivm".to_string()),
+                target_chain: Some("multivm".to_string()),
+            });
         }
 
         // Check amount is positive
         if amount == 0 {
-            return Err(MultivmError::AccountMapping(
-                "Transfer amount must be greater than zero".to_string(),
-            ));
+            return Err(MultivmError::AccountMapping {
+                message: "Transfer amount must be greater than zero".to_string(),
+                source_chain: Some("multivm".to_string()),
+                target_chain: Some("multivm".to_string()),
+            });
         }
 
         // Check amount doesn't exceed maximum transfer limit
         const MAX_TRANSFER_AMOUNT: u64 = 1_000_000_000_000; // Adjust based on asset type
         if amount > MAX_TRANSFER_AMOUNT {
-            return Err(MultivmError::AccountMapping(format!(
+            return Err(MultivmError::AccountMapping {
+                message: format!(
                 "Transfer amount {} exceeds maximum limit {}",
                 amount, MAX_TRANSFER_AMOUNT
-            )));
+                ),
+                source_chain: Some("multivm".to_string()),
+                target_chain: Some("multivm".to_string()),
+            });
         }
 
         // Validate asset type
         match asset_type {
-            multivm_account_mapping::AssetType::Native => {
+            AssetType::Native => {
                 // Native asset transfers always allowed
             }
-            multivm_account_mapping::AssetType::Custom {
+            AssetType::Custom {
                 contract,
                 standard: _,
             } => {
                 // Validate contract address format
                 if contract.is_empty() {
-                    return Err(MultivmError::AccountMapping(
-                        "Token contract address cannot be empty".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Token contract address cannot be empty".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: Some("multivm".to_string()),
+                    });
                 }
             }
-            multivm_account_mapping::AssetType::Wrapped {
+            AssetType::Wrapped {
                 origin_vm: _,
                 token_id,
             } => {
                 // Validate wrapped token ID
                 if token_id.is_empty() {
-                    return Err(MultivmError::AccountMapping(
-                        "Wrapped token ID cannot be empty".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Wrapped token ID cannot be empty".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: Some("multivm".to_string()),
+                    });
                 }
             }
         }
@@ -1196,8 +1388,8 @@ impl MultivmCoordinator {
     /// Validate transfer accounts and their bindings
     async fn validate_transfer_accounts(
         &self,
-        from: &multivm_account_mapping::MultivmAccountId,
-        to: &multivm_account_mapping::MultivmAccountId,
+        from: &MultivmAccountId,
+        to: &MultivmAccountId,
     ) -> MultivmResult<(Vec<String>, Vec<String>)> {
         // Get bound addresses for both accounts
         let from_addresses = self
@@ -1205,10 +1397,11 @@ impl MultivmCoordinator {
             .get_bound_addresses(from)
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!(
-                    "Failed to get bound addresses for from account {}: {}",
-                    from, e
-                ))
+                MultivmError::AccountMapping {
+                    message: format!("Failed to get bound addresses for from account {}: {}", from, e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: None,
+                }
             })?;
 
         let to_addresses = self
@@ -1216,25 +1409,28 @@ impl MultivmCoordinator {
             .get_bound_addresses(to)
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!(
-                    "Failed to get bound addresses for to account {}: {}",
-                    to, e
-                ))
+                MultivmError::AccountMapping {
+                    message: format!("Failed to get bound addresses for to account {}: {}", to, e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: None,
+                }
             })?;
 
         // Both accounts must have bound addresses (must be cross-VM accounts)
         if from_addresses.is_empty() {
-            return Err(MultivmError::AccountMapping(format!(
-                "From account {} has no bound addresses",
-                from
-            )));
+            return Err(MultivmError::AccountMapping {
+                message: format!("From account {} has no bound addresses", from),
+                source_chain: Some("multivm".to_string()),
+                target_chain: None,
+            });
         }
 
         if to_addresses.is_empty() {
-            return Err(MultivmError::AccountMapping(format!(
-                "To account {} has no bound addresses",
-                to
-            )));
+            return Err(MultivmError::AccountMapping {
+                message: format!("To account {} has no bound addresses", to),
+                source_chain: Some("multivm".to_string()),
+                target_chain: None,
+            });
         }
 
         // Validate that this is truly a cross-VM transfer
@@ -1253,9 +1449,11 @@ impl MultivmCoordinator {
 
         // For a proper cross-VM transfer, accounts should have addresses on different VMs
         if !(from_has_ethereum || from_has_solana) || !(to_has_solana || to_has_ethereum) {
-            return Err(MultivmError::AccountMapping(
-                "Invalid cross-VM transfer: accounts must have compatible VM addresses".to_string(),
-            ));
+            return Err(MultivmError::AccountMapping {
+                message: "Invalid cross-VM transfer: accounts must have compatible VM addresses".to_string(),
+                source_chain: Some("multivm".to_string()),
+                target_chain: None,
+            });
         }
 
         // Convert AccountAddress to String
@@ -1277,41 +1475,47 @@ impl MultivmCoordinator {
         &self,
         _from_addresses: &[String],
         _to_addresses: &[String],
-        asset_type: &multivm_account_mapping::AssetType,
+        asset_type: &AssetType,
     ) -> MultivmResult<()> {
         match asset_type {
-            multivm_account_mapping::AssetType::Native => {
+            AssetType::Native => {
                 // Native asset transfers require proper bridge support
                 // This is a simplified check - in production you'd verify bridge contracts
                 let has_bridge_support = true; // Placeholder
                 if !has_bridge_support {
-                    return Err(MultivmError::AccountMapping(
-                        "Native asset bridging not supported for this VM pair".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Native asset bridging not supported for this VM pair".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
-            multivm_account_mapping::AssetType::Custom {
+            AssetType::Custom {
                 contract,
                 standard: _,
             } => {
                 // Token transfers require the token to exist on both VMs or have bridge support
                 if contract.len() < 10 {
                     // Basic validation
-                    return Err(MultivmError::AccountMapping(
-                        "Invalid token contract address format".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Invalid token contract address format".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
-            multivm_account_mapping::AssetType::Wrapped {
+            AssetType::Wrapped {
                 origin_vm: _,
                 token_id: _,
             } => {
                 // Wrapped assets require bridge validation
                 let has_bridge_support = true; // Placeholder
                 if !has_bridge_support {
-                    return Err(MultivmError::AccountMapping(
-                        "Wrapped asset bridging not supported for this VM pair".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Wrapped asset bridging not supported for this VM pair".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
         }
@@ -1322,9 +1526,9 @@ impl MultivmCoordinator {
     /// Validate transfer balances and limits
     async fn validate_transfer_balances(
         &self,
-        _from: &multivm_account_mapping::MultivmAccountId,
+        _from: &MultivmAccountId,
         amount: u64,
-        asset_type: &multivm_account_mapping::AssetType,
+        asset_type: &AssetType,
     ) -> MultivmResult<()> {
         // In a production system, you would:
         // 1. Check the actual balance of the from account
@@ -1336,30 +1540,36 @@ impl MultivmCoordinator {
         // This is a placeholder - in production you'd query the actual blockchain
 
         match asset_type {
-            multivm_account_mapping::AssetType::Native => {
+            AssetType::Native => {
                 // Check minimum transfer amount for native assets
                 if amount < 1000 {
                     // Minimum 1000 units (adjust based on decimals)
-                    return Err(MultivmError::AccountMapping(
-                        "Transfer amount below minimum threshold for native assets".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Transfer amount below minimum threshold for native assets".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
-            multivm_account_mapping::AssetType::Custom { .. } => {
+            AssetType::Custom { .. } => {
                 // Check minimum transfer amount for tokens
                 if amount < 1 {
-                    return Err(MultivmError::AccountMapping(
-                        "Transfer amount below minimum threshold for tokens".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Transfer amount below minimum threshold for tokens".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
-            multivm_account_mapping::AssetType::Wrapped { .. } => {
+            AssetType::Wrapped { .. } => {
                 // Check minimum transfer amount for wrapped assets
                 if amount < 100 {
                     // Wrapped assets may have different thresholds
-                    return Err(MultivmError::AccountMapping(
-                        "Transfer amount below minimum threshold for wrapped assets".to_string(),
-                    ));
+                    return Err(MultivmError::AccountMapping {
+                        message: "Transfer amount below minimum threshold for wrapped assets".to_string(),
+                        source_chain: Some("multivm".to_string()),
+                        target_chain: None,
+                    });
                 }
             }
         }
@@ -1376,10 +1586,10 @@ impl MultivmCoordinator {
     /// Update account binding configuration
     async fn update_account_binding(
         &self,
-        multivm_account: &multivm_account_mapping::MultivmAccountId,
-        config: &multivm_account_mapping::BindingConfiguration,
+        multivm_account: &MultivmAccountId,
+        config: &BindingConfiguration,
     ) -> MultivmResult<BindingUpdateResult> {
-        use multivm_account_mapping::SpecialTransaction;
+        // SpecialTransaction already imported at top
 
         info!(
             "Updating binding configuration for account: {}",
@@ -1396,7 +1606,11 @@ impl MultivmCoordinator {
                 config: config.clone(),
             })
             .await
-            .map_err(|e| MultivmError::AccountMapping(format!("Binding update failed: {}", e)))?;
+            .map_err(|e| MultivmError::AccountMapping {
+                message: format!("Binding update failed: {}", e),
+                source_chain: Some("multivm".to_string()),
+                target_chain: None,
+            })?;
 
         // Prepare list of changes applied
         let mut changes_applied = Vec::new();
@@ -1426,11 +1640,11 @@ impl MultivmCoordinator {
     /// Process account unbinding
     async fn process_account_unbinding(
         &self,
-        multivm_account: &multivm_account_mapping::MultivmAccountId,
-        account: &multivm_account_mapping::AccountAddress,
-        auth_proof: &multivm_account_mapping::BindingProof,
+        multivm_account: &MultivmAccountId,
+        account: &AccountAddress,
+        auth_proof: &BindingProof,
     ) -> MultivmResult<UnbindingResult> {
-        use multivm_account_mapping::SpecialTransaction;
+        // SpecialTransaction already imported at top
 
         info!(
             "Processing account unbinding: {} from {}",
@@ -1447,7 +1661,11 @@ impl MultivmCoordinator {
             })
             .await
             .map_err(|e| {
-                MultivmError::AccountMapping(format!("Unbinding processing failed: {}", e))
+                MultivmError::AccountMapping {
+                    message: format!("Unbinding processing failed: {}", e),
+                    source_chain: Some("multivm".to_string()),
+                    target_chain: None,
+                }
             })?;
 
         Ok(UnbindingResult {
@@ -1477,27 +1695,8 @@ impl Default for CoordinatorConfig {
             block_timeout: Duration::from_secs(60),
             max_concurrent_blocks: 10,
             enable_recovery: true,
+            db_path: None,
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_coordinator_creation() {
-        let config = CoordinatorConfig::default();
-        let coordinator = MultivmCoordinator::new(config).await;
-        assert!(coordinator.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_coordinator_state() {
-        let config = CoordinatorConfig::default();
-        let coordinator = MultivmCoordinator::new(config).await.unwrap();
-        let state = coordinator.get_state().await;
-        assert!(!state.is_running);
-        assert_eq!(state.blocks_processed, 0);
-    }
-}

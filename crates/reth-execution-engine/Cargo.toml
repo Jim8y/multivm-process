@@ -40,13 +40,18 @@ hex = { workspace = true }
 once_cell = { workspace = true }
 
 # HTTP client for RPC communication
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 
 # CLI parsing
 clap = { workspace = true }
 
 # Random number generation for JWT secrets
 rand = { workspace = true }
+
+# JWT and HMAC for Engine API authentication
+hmac = "0.12"
+base64 = "0.21"
+jsonwebtoken = "9.2"
 
 # Basic Ethereum utilities (avoiding version conflicts for now)
 # alloy-primitives = "0.7"
@@ -70,4 +75,5 @@ keccak = "0.1"
 
 [dev-dependencies]
 tempfile.workspace = true
-tokio-test = "0.4" 
+tokio-test = "0.4"
+tracing-test = "0.2"

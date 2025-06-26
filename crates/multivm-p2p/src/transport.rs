@@ -5,7 +5,7 @@ use futures::StreamExt;
 use libp2p::{
     identity, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder,
+    tcp, yamux, Multiaddr, PeerId, Swarm, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -162,26 +162,23 @@ impl TransportLayer {
 
         // Create dummy network behaviour for now
         // In production, this would integrate with routing and discovery
-        #[derive(NetworkBehaviour)]
-        struct DummyBehaviour {
-            ping: libp2p::ping::Behaviour,
-        }
+        let behaviour = libp2p::ping::Behaviour::new(libp2p::ping::Config::new());
 
-        let behaviour = DummyBehaviour {
-            ping: libp2p::ping::Behaviour::new(libp2p::ping::Config::new()),
-        };
+        // Create transport with libp2p 0.53 API - simplified approach
+        let transport = libp2p::tcp::Config::default()
+            .upgrade(libp2p::core::upgrade::Version::V1)
+            .authenticate(noise::Config::new(&local_key).unwrap())
+            .multiplex(yamux::Config::default())
+            .boxed();
 
-        // Create swarm with simplified configuration
-        let mut swarm = SwarmBuilder::with_existing_identity(local_key)
-            .with_tokio()
-            .with_tcp(
-                tcp::Config::default(),
-                noise::Config::new,
-                yamux::Config::default,
-            )?
-            .with_behaviour(|_| behaviour)?
-            .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(300)))
-            .build();
+        let mut swarm = Swarm::new(
+            transport,
+            behaviour,
+            self.local_peer_id,
+            libp2p::swarm::Config::with_executor(Box::new(|fut| {
+                tokio::spawn(fut);
+            }))
+        );
 
         // Start listening on configured addresses
         for addr_str in &self.config.tcp_addresses {
@@ -217,7 +214,7 @@ impl TransportLayer {
                 tokio::select! {
                     // Handle swarm events
                     event = swarm.select_next_some() => {
-                        if let Err(e) = Self::handle_swarm_event::<DummyBehaviour>(event, &event_sender, &connections, &stats).await {
+                        if let Err(e) = Self::handle_swarm_event::<libp2p::ping::Behaviour>(event, &event_sender, &connections, &stats).await {
                             error!("Error handling swarm event: {}", e);
                         }
                     }

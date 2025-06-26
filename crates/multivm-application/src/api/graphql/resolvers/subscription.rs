@@ -26,21 +26,21 @@ impl SubscriptionResolver {
                 interval.tick().await;
 
                 // Check for new SVM blocks
-                if let Ok(svm_block) = state.svm_gateway.get_latest_block().await {
-                    let block_slot = svm_block.data.slot;
+                if let Ok(svm_block) = state.gateway.get_latest_block().await {
+                    let block_slot = svm_block.data.number;
                     if block_slot > last_svm_block {
                         last_svm_block = block_slot;
                         yield NewBlockEvent {
                             vm_type: "svm".to_string(),
                             block_number: block_slot,
-                            block_hash: svm_block.data.blockhash,
+                            block_hash: svm_block.data.hash,
                             timestamp: chrono::Utc::now(),
                         };
                     }
                 }
 
                 // Check for new EVM blocks (mock implementation)
-                if let Ok(_evm_block) = state.evm_gateway.get_latest_block().await {
+                if let Ok(_evm_block) = state.gateway.get_latest_block().await {
                     // For now, simulate EVM block progression
                     last_evm_block += 1;
                     yield NewBlockEvent {
@@ -52,12 +52,12 @@ impl SubscriptionResolver {
                 }
 
                 // Check for new MultiVM blocks
-                if let Ok(multivm_block) = state.multivm_gateway.get_latest_block().await {
+                if let Ok(multivm_block) = state.gateway.get_latest_block().await {
                     yield NewBlockEvent {
                         vm_type: "multivm".to_string(),
-                        block_number: multivm_block.header.height,
-                        block_hash: multivm_block.header.state_root,
-                        timestamp: chrono::DateTime::from(multivm_block.header.timestamp),
+                        block_number: multivm_block.data.number,
+                        block_hash: multivm_block.data.hash,
+                        timestamp: chrono::Utc::now(),
                     };
                 }
             }

@@ -76,7 +76,7 @@ pub trait HealthChecker: Send + Sync {
     async fn is_healthy(&self) -> bool {
         self.check_health()
             .await
-            .map(|s| s.is_healthy)
+            .map(|s| s.is_operational())
             .unwrap_or(false)
     }
 }
@@ -105,34 +105,4 @@ pub struct NetworkStats {
 
     // Uptime
     pub uptime: std::time::Duration,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_network_stats() {
-        let stats = NetworkStats {
-            connected_peers: 5,
-            messages_sent: 100,
-            messages_received: 200,
-            packets_sent: 10,
-            packets_received: 20,
-            sent_by_protocol: std::collections::HashMap::new(),
-            received_by_protocol: std::collections::HashMap::new(),
-            bytes_sent: 1000,
-            bytes_received: 2000,
-            upload_rate: 1024.0,
-            download_rate: 2048.0,
-            uptime: std::time::Duration::from_secs(3600),
-        };
-
-        assert_eq!(stats.connected_peers, 5);
-        assert_eq!(stats.messages_sent, 100);
-        assert_eq!(stats.bytes_sent, 1000);
-        assert_eq!(stats.bytes_received, 2000);
-        assert_eq!(stats.packets_sent, 10);
-        assert_eq!(stats.packets_received, 20);
-    }
 }

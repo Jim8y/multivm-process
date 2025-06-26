@@ -134,12 +134,20 @@ impl SolanaRpcServer {
             // Start the HTTP server
             let bind_address: SocketAddr = format!("127.0.0.1:{}", self.port)
                 .parse()
-                .map_err(|e| MultivmError::Configuration(format!("Invalid bind address: {}", e)))?;
+                .map_err(|e| MultivmError::Configuration {
+                    component: "solana-rpc-server".to_string(),
+                    message: format!("Invalid bind address: {}", e),
+                    validation_errors: None,
+                })?;
 
             let server = ServerBuilder::new(io)
                 .rest_api(RestApi::Unsecure)
                 .start_http(&bind_address)
-                .map_err(|e| MultivmError::Rpc(format!("Failed to start RPC server: {}", e)))?;
+                .map_err(|e| MultivmError::Rpc {
+                    method: "start_http_server".to_string(),
+                    message: format!("Failed to start RPC server: {}", e),
+                    status_code: None,
+                })?;
 
             // Spawn server in background task
             let server_handle = tokio::spawn(async move {

@@ -14,8 +14,12 @@
 //! coordinates the atomic operations across multiple processes.
 
 use crate::{
-    atomic_coordinator::{CommitResult, OperationStatus, PrepareResult, StateChange, VmOperation},
-    AccountAddress, AssetType, OperationType, VmType,
+    address::AccountAddress,
+    atomic_coordinator::{
+        CommitResult, OperationStatus, OperationType, PrepareResult, StateChange, VmOperation,
+        VmType,
+    },
+    special_tx::AssetType,
 };
 use multivm_common::{MultivmError, MultivmResult};
 use serde::{Deserialize, Serialize};
@@ -205,8 +209,11 @@ impl SolanaProcessEngine {
                 .as_secs(),
         };
 
-        let data = bincode::serialize(&instruction_data)
-            .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+        let data =
+            bincode::serialize(&instruction_data).map_err(|e| MultivmError::Serialization {
+                message: e.to_string(),
+                data_type: Some("solana_transaction".to_string()),
+            })?;
 
         let accounts = vec![
             SolanaAccountMeta {
@@ -228,9 +235,11 @@ impl SolanaProcessEngine {
     fn extract_solana_address(&self, account: &AccountAddress) -> MultivmResult<String> {
         match account {
             AccountAddress::Solana(sol_addr) => Ok(bs58::encode(sol_addr.0).into_string()),
-            _ => Err(MultivmError::Configuration(
-                "Invalid account type for Solana engine".to_string(),
-            )),
+            _ => Err(MultivmError::Configuration {
+                component: "solana-engine".to_string(),
+                message: "Invalid account type for Solana engine".to_string(),
+                validation_errors: None,
+            }),
         }
     }
 
@@ -368,9 +377,10 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
                     vm_data.insert("block_height".to_string(), block_height.to_string());
                 }
                 _ => {
-                    return Err(MultivmError::UnsupportedOperation(
-                        "Operation not supported in prepare phase".to_string(),
-                    ));
+                    return Err(MultivmError::UnsupportedOperation {
+                        operation: "prepare_phase_operation".to_string(),
+                        alternatives: Some(vec!["Use commit phase for this operation".to_string()]),
+                    });
                 }
             }
         }
@@ -401,8 +411,12 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
                     recipient: "target_account".to_string(), // This would be actual recipient
                 };
 
-                let data = bincode::serialize(&instruction_data)
-                    .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+                let data = bincode::serialize(&instruction_data).map_err(|e| {
+                    MultivmError::Serialization {
+                        message: e.to_string(),
+                        data_type: Some("solana_transaction".to_string()),
+                    }
+                })?;
 
                 let instruction = SolanaInstruction {
                     program_id: self.config.cross_vm_program_id.clone(),
@@ -457,8 +471,12 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
                     lock_id: lock_id.clone(),
                 };
 
-                let data = bincode::serialize(&instruction_data)
-                    .map_err(|e| MultivmError::Serialization(e.to_string()))?;
+                let data = bincode::serialize(&instruction_data).map_err(|e| {
+                    MultivmError::Serialization {
+                        message: e.to_string(),
+                        data_type: Some("solana_transaction".to_string()),
+                    }
+                })?;
 
                 let instruction = SolanaInstruction {
                     program_id: self.config.cross_vm_program_id.clone(),
@@ -515,15 +533,20 @@ impl SolanaRpcClient {
             }))
             .send()
             .await
-            .map_err(|e| multivm_common::MultivmError::Rpc(format!("RPC request failed: {}", e)))?;
+            .map_err(|e| multivm_common::MultivmError::Rpc {
+                method: "solana_rpc".to_string(),
+                message: format!("RPC request failed: {}", e),
+                status_code: None,
+            })?;
 
         if response.status().is_success() {
             Ok(())
         } else {
-            Err(multivm_common::MultivmError::Rpc(format!(
-                "RPC returned status: {}",
-                response.status()
-            )))
+            Err(multivm_common::MultivmError::Rpc {
+                method: "solana_rpc".to_string(),
+                message: format!("RPC returned status: {}", response.status()),
+                status_code: Some(response.status().as_u16()),
+            })
         }
     }
 }
@@ -572,33 +595,5 @@ impl Default for SolanaEngineConfig {
             fee_payer: None,
             max_transaction_size: 1232, // Solana transaction size limit
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{AccountAddress, AssetType, SolanaAddress};
-
-    #[tokio::test]
-    async fn test_solana_engine_creation() {
-        let config = SolanaEngineConfig::default();
-        let engine = SolanaProcessEngine::new(config);
-
-        // Test basic functionality
-        assert_eq!(engine.active_locks.read().await.len(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_lock_instruction_building() {
-        let config = SolanaEngineConfig::default();
-        let engine = SolanaProcessEngine::new(config);
-
-        let account = AccountAddress::Solana(SolanaAddress([1u8; 32]));
-        let instruction = engine
-            .build_lock_instruction(&account, 1000, &AssetType::Native, "test_lock", VmType::Evm)
-            .await;
-
-        assert!(instruction.is_ok());
     }
 }

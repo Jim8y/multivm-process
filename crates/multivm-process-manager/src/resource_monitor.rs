@@ -1,6 +1,6 @@
 use multivm_common::*;
 use std::time::{Duration, Instant};
-use sysinfo::{CpuExt, ProcessExt, System, SystemExt};
+use sysinfo::System;
 
 /// System resource monitor for tracking CPU, memory, and other resources
 pub struct SystemResourceMonitor {
@@ -158,8 +158,16 @@ impl SystemResourceMonitor {
             visit_dir(&path_clone)
         })
         .await
-        .map_err(|e| MultivmError::Process(format!("Task join error: {}", e)))?
-        .map_err(|e| MultivmError::Io(format!("IO error calculating directory size: {}", e)))?;
+        .map_err(|e| MultivmError::Process {
+            process_id: "resource_monitor".to_string(),
+            message: format!("Task join error: {}", e),
+            exit_code: None,
+        })?
+        .map_err(|e| MultivmError::Storage {
+            operation: "calculate_directory_size".to_string(),
+            message: format!("IO error calculating directory size: {}", e),
+            path: None,
+        })?;
 
         Ok(size)
     }

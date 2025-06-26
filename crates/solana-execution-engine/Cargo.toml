@@ -49,6 +49,9 @@ solana-sdk = { workspace = true }
 solana-client = { workspace = true }
 solana-transaction-status = { workspace = true }
 
+# HTTP client for RPC communication
+reqwest = { workspace = true, features = ["json"] }
+
 # RPC and networking (using modern JSON-RPC library)
 jsonrpsee = { workspace = true }
 
@@ -56,6 +59,13 @@ jsonrpsee = { workspace = true }
 jsonrpc-http-server = { workspace = true }
 jsonrpc-core = { workspace = true }
 
+# Additional dependencies for real integration
+rand = { workspace = true }
+hmac = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio-test = "0.4" 
+tokio-test = "0.4"
+tracing-test = "0.2"
+futures = { workspace = true }
+ctor = "0.2"

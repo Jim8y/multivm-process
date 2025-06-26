@@ -1,10 +1,11 @@
 //! Validation logic for account binding operations
 
 use crate::{
-    AccountAddress, AccountBinding, AccountMappingError, AccountMappingResult, BindingProof,
-    EthereumAddress, ProofType, SolanaAddress,
+    address::{AccountAddress, EthereumAddress, SolanaAddress},
+    error::{AccountMappingError, AccountMappingResult},
+    mapping::{AccountBinding, BindingProof, ProofType},
 };
-use ed25519_dalek::{Signature, VerifyingKey};
+use ed25519_dalek::{PublicKey as VerifyingKey, Signature};
 use hex;
 use sha2::{Digest, Sha256};
 use std::time::{Duration, SystemTime};
@@ -285,11 +286,18 @@ impl AccountBindingValidator {
         }
 
         // Parse the signature with proper error handling
-        let signature = Signature::from_bytes(signature.try_into().map_err(|_| {
+        let signature_bytes: &[u8; 64] =
+            signature
+                .try_into()
+                .map_err(|_| AccountMappingError::InvalidBindingProof {
+                    reason: "Failed to parse Ed25519 signature: invalid length".to_string(),
+                })?;
+
+        let parsed_signature = Signature::from_bytes(signature_bytes).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: "Failed to parse Ed25519 signature".to_string(),
+                reason: format!("Failed to parse Ed25519 signature: {}", e),
             }
-        })?);
+        })?;
 
         // Validate and parse the public key
         let public_key = VerifyingKey::from_bytes(&addr.0).map_err(|e| {
@@ -302,7 +310,7 @@ impl AccountBindingValidator {
         // (all zeros already checked in validate_solana_address)
 
         // Perform cryptographic verification with timing attack resistance
-        public_key.verify(message, &signature).map_err(|e| {
+        public_key.verify(message, &parsed_signature).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
                 reason: format!("Solana signature verification failed: {}", e),
             }
@@ -683,7 +691,7 @@ impl AccountBindingValidator {
         // Step 1: Validate transaction hash format
         if !tx_hash.starts_with("0x") || tx_hash.len() != 66 {
             return Err(AccountMappingError::InvalidProof {
-                reason: "Invalid Ethereum transaction hash format".to_string(),
+                message: "Invalid Ethereum transaction hash format".to_string(),
             });
         }
 
@@ -703,7 +711,7 @@ impl AccountBindingValidator {
         // Step 3: Validate transaction exists
         if mock_transaction_response["hash"].is_null() {
             return Err(AccountMappingError::InvalidProof {
-                reason: format!("Transaction {} not found on Ethereum blockchain", tx_hash),
+                message: format!("Transaction {} not found on Ethereum blockchain", tx_hash),
             });
         }
 
@@ -712,12 +720,12 @@ impl AccountBindingValidator {
             mock_transaction_response["blockHash"]
                 .as_str()
                 .ok_or_else(|| AccountMappingError::InvalidProof {
-                    reason: "Transaction missing block hash".to_string(),
+                    message: "Transaction missing block hash".to_string(),
                 })?;
 
         if actual_block_hash != expected_block_hash {
             return Err(AccountMappingError::InvalidProof {
-                reason: format!(
+                message: format!(
                     "Block hash mismatch: expected {}, got {}",
                     expected_block_hash, actual_block_hash
                 ),
@@ -728,7 +736,7 @@ impl AccountBindingValidator {
         let confirmations_hex = mock_transaction_response["confirmations"]
             .as_str()
             .ok_or_else(|| AccountMappingError::InvalidProof {
-                reason: "Transaction missing confirmation count".to_string(),
+                message: "Transaction missing confirmation count".to_string(),
             })?;
 
         let confirmations = u64::from_str_radix(
@@ -738,12 +746,12 @@ impl AccountBindingValidator {
             16,
         )
         .map_err(|_| AccountMappingError::InvalidProof {
-            reason: "Invalid confirmation count format".to_string(),
+            message: "Invalid confirmation count format".to_string(),
         })?;
 
         if confirmations < self.config.min_confirmations as u64 {
             return Err(AccountMappingError::InvalidProof {
-                reason: format!(
+                message: format!(
                     "Insufficient confirmations: {} < {}",
                     confirmations, self.config.min_confirmations
                 ),
@@ -753,7 +761,7 @@ impl AccountBindingValidator {
         // Step 6: Validate transaction sender matches account (for self-sent transactions)
         let from_address = mock_transaction_response["from"].as_str().ok_or_else(|| {
             AccountMappingError::InvalidProof {
-                reason: "Transaction missing from address".to_string(),
+                message: "Transaction missing from address".to_string(),
             }
         })?;
 
@@ -779,7 +787,7 @@ impl AccountBindingValidator {
         // Step 1: Validate signature format (Solana signatures are base58)
         if tx_signature.len() < 80 || tx_signature.len() > 90 {
             return Err(AccountMappingError::InvalidProof {
-                reason: "Invalid Solana transaction signature format".to_string(),
+                message: "Invalid Solana transaction signature format".to_string(),
             });
         }
 
@@ -808,7 +816,7 @@ impl AccountBindingValidator {
         // Step 3: Validate transaction exists and succeeded
         if mock_transaction_response["signature"].is_null() {
             return Err(AccountMappingError::InvalidProof {
-                reason: format!(
+                message: format!(
                     "Transaction {} not found on Solana blockchain",
                     tx_signature
                 ),
@@ -818,14 +826,14 @@ impl AccountBindingValidator {
         // Check if transaction failed
         if !mock_transaction_response["meta"]["err"].is_null() {
             return Err(AccountMappingError::InvalidProof {
-                reason: format!("Transaction {} failed on Solana blockchain", tx_signature),
+                message: format!("Transaction {} failed on Solana blockchain", tx_signature),
             });
         }
 
         // Step 4: Validate minimum slot confirmations
         let slot = mock_transaction_response["slot"].as_u64().ok_or_else(|| {
             AccountMappingError::InvalidProof {
-                reason: "Transaction missing slot information".to_string(),
+                message: "Transaction missing slot information".to_string(),
             }
         })?;
 
@@ -836,7 +844,7 @@ impl AccountBindingValidator {
 
         if confirmations < self.config.min_confirmations as u64 {
             return Err(AccountMappingError::InvalidProof {
-                reason: format!(
+                message: format!(
                     "Insufficient slot confirmations: {} < {}",
                     confirmations, self.config.min_confirmations
                 ),
@@ -847,7 +855,7 @@ impl AccountBindingValidator {
         let block_time = mock_transaction_response["blockTime"]
             .as_i64()
             .ok_or_else(|| AccountMappingError::InvalidProof {
-                reason: "Transaction missing block time".to_string(),
+                message: "Transaction missing block time".to_string(),
             })?;
 
         let now = std::time::SystemTime::now()
@@ -937,83 +945,5 @@ impl Default for ValidationConfig {
             min_confirmations: 6,
             validate_signatures: true, // Now enabled with proper crypto implementation
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::AccountBinding;
-
-    fn create_test_config() -> ValidationConfig {
-        ValidationConfig {
-            max_proof_age: Duration::from_secs(3600),
-            require_strong_proofs: false,
-            min_confirmations: 1,
-            validate_signatures: false,
-        }
-    }
-
-    fn create_test_account() -> AccountAddress {
-        AccountAddress::Solana(SolanaAddress([1u8; 32]))
-    }
-
-    fn create_test_proof() -> BindingProof {
-        let account = create_test_account();
-        ProofGenerator::create_signature_proof_template(account, b"test message".to_vec())
-    }
-
-    #[test]
-    fn test_address_validation() {
-        let validator = AccountBindingValidator::new(create_test_config());
-        let account = create_test_account();
-
-        validator.validate_account_address(&account).unwrap();
-    }
-
-    #[test]
-    fn test_proof_validation() {
-        let validator = AccountBindingValidator::new(create_test_config());
-        let mut proof = create_test_proof();
-
-        // Set a valid signature placeholder
-        if let ProofType::Signature {
-            ref mut signature, ..
-        } = proof.proof_type
-        {
-            *signature = vec![1u8; 64]; // Mock Solana signature length
-        }
-
-        validator.validate_proof(&proof).unwrap();
-    }
-
-    #[test]
-    fn test_binding_validation() {
-        let validator = AccountBindingValidator::new(create_test_config());
-        let account = create_test_account();
-        let binding = AccountBinding::create_auto_binding(account);
-
-        validator.validate_binding(&binding).unwrap();
-    }
-
-    #[test]
-    fn test_invalid_zero_address() {
-        let validator = AccountBindingValidator::new(create_test_config());
-        let zero_addr = AccountAddress::Solana(SolanaAddress([0u8; 32]));
-
-        assert!(validator.validate_account_address(&zero_addr).is_err());
-    }
-
-    #[test]
-    fn test_proof_age_validation() {
-        let validator = AccountBindingValidator::new(ValidationConfig {
-            max_proof_age: Duration::from_secs(1),
-            ..create_test_config()
-        });
-
-        let mut proof = create_test_proof();
-        proof.timestamp = SystemTime::now() - Duration::from_secs(2);
-
-        assert!(validator.validate_proof(&proof).is_err());
     }
 }

@@ -1,229 +1,178 @@
 # MultiVM API Reference
 
-## Overview
-
-The MultiVM API provides comprehensive access to cross-VM blockchain operations through REST, GraphQL, and WebSocket interfaces.
+This document provides comprehensive API reference for the MultiVM platform.
 
 ## Base URLs
 
-- **REST API**: `https://api.multivm.org/v1`
-- **GraphQL**: `https://api.multivm.org/graphql`
-- **WebSocket**: `wss://api.multivm.org/ws`
+- **REST API**: `http://localhost:8080/api/v1`
+- **GraphQL**: `http://localhost:8081/graphql`
+- **WebSocket**: `ws://localhost:8082/ws`
+- **Admin**: `http://localhost:8083/admin`
+- **Health**: `http://localhost:8090/health`
+- **Metrics**: `http://localhost:9090/metrics`
 
 ## Authentication
 
-All API requests require authentication using either JWT tokens or API keys.
+All API endpoints require authentication via JWT tokens or API keys.
 
 ### JWT Authentication
-
-```bash
-# Login
-curl -X POST https://api.multivm.org/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "user", "password": "pass"}'
-
-# Use token
-curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  https://api.multivm.org/v1/accounts
+```http
+Authorization: Bearer <jwt_token>
 ```
 
 ### API Key Authentication
-
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.multivm.org/v1/accounts
+```http
+X-API-Key: <api_key>
 ```
 
 ## REST API Endpoints
 
-### Account Management
+### Health and Status
 
-#### Create MultiVM Account
-
-```http
-POST /v1/accounts
-Content-Type: application/json
-
-{
-  "name": "My MultiVM Account",
-  "description": "Primary trading account"
-}
-```
+#### GET /health
+Returns the health status of the platform.
 
 **Response:**
 ```json
 {
-  "id": "multivm:7f8a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-  "name": "My MultiVM Account",
-  "created_at": "2024-01-15T10:30:00Z"
-}
-```
-
-#### Bind Account
-
-```http
-POST /v1/accounts/{id}/bind
-Content-Type: application/json
-
-{
-  "target_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD7E",
-  "vm_type": "evm",
-  "proof": {
-    "type": "signature",
-    "data": "0x...",
-    "timestamp": "2024-01-15T10:30:00Z"
+  "status": "healthy",
+  "timestamp": "2025-01-01T00:00:00Z",
+  "components": {
+    "database": "healthy",
+    "cache": "healthy",
+    "consensus": "healthy"
   }
 }
 ```
 
-#### List Bound Addresses
+#### GET /status
+Returns detailed system status and metrics.
 
-```http
-GET /v1/accounts/{id}/addresses
+**Response:**
+```json
+{
+  "uptime": 3600,
+  "version": "0.1.0",
+  "node_id": "node-123",
+  "consensus": {
+    "current_height": 1000,
+    "validator_count": 4
+  },
+  "vm_engines": {
+    "solana": "active",
+    "ethereum": "active"
+  }
+}
+```
+
+### Account Management
+
+#### POST /accounts/bind
+Bind accounts across different VMs.
+
+**Request:**
+```json
+{
+  "solana_address": "11111111111111111111111111111112",
+  "ethereum_address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C",
+  "proof": "binding_proof_data"
+}
 ```
 
 **Response:**
 ```json
 {
-  "addresses": [
+  "binding_id": "binding-123",
+  "status": "confirmed",
+  "created_at": "2025-01-01T00:00:00Z"
+}
+```
+
+#### GET /accounts/{address}/bindings
+Get all bindings for an account.
+
+**Response:**
+```json
+{
+  "address": "11111111111111111111111111111112",
+  "bindings": [
     {
-      "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD7E",
-      "vm_type": "evm",
-      "bound_at": "2024-01-15T10:30:00Z"
-    },
-    {
-      "address": "7S3P4HxJpyyDjpcJKJGDYLgEBHyYcCjED2QTtzhRpQmU",
-      "vm_type": "svm",
-      "bound_at": "2024-01-15T10:35:00Z"
+      "target_address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C",
+      "target_vm": "ethereum",
+      "status": "active",
+      "created_at": "2025-01-01T00:00:00Z"
     }
   ]
 }
 ```
 
-### Cross-VM Operations
+### Transaction Processing
 
-#### Transfer Assets
+#### POST /transactions/cross-vm
+Submit a cross-VM transaction.
 
-```http
-POST /v1/transfers
-Content-Type: application/json
-
+**Request:**
+```json
 {
-  "from": "multivm:7f8a9b1c...",
-  "to": "multivm:8a9b2c3d...",
-  "amount": "1000000000",
-  "asset": {
-    "type": "native",
-    "vm": "evm"
-  },
-  "memo": "Payment for services"
+  "source_vm": "solana",
+  "target_vm": "ethereum", 
+  "source_address": "11111111111111111111111111111112",
+  "target_address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C",
+  "amount": "1000000",
+  "data": "transaction_data"
 }
 ```
 
 **Response:**
 ```json
 {
-  "transaction_id": "tx_123456789",
+  "transaction_id": "tx-123",
   "status": "pending",
-  "estimated_completion": "2024-01-15T10:32:00Z",
-  "source_tx": "0x...",
-  "target_tx": null
+  "estimated_confirmation_time": 30
 }
 ```
 
-#### Atomic Swap
-
-```http
-POST /v1/swaps
-Content-Type: application/json
-
-{
-  "party_a": {
-    "account": "multivm:7f8a9b1c...",
-    "asset": "ETH",
-    "amount": "1000000000000000000"
-  },
-  "party_b": {
-    "account": "multivm:8a9b2c3d...",
-    "asset": "SOL",
-    "amount": "50000000000"
-  },
-  "expires_at": "2024-01-15T11:00:00Z"
-}
-```
-
-### Transaction Queries
-
-#### Get Transaction Status
-
-```http
-GET /v1/transactions/{id}
-```
+#### GET /transactions/{id}
+Get transaction status and details.
 
 **Response:**
 ```json
 {
-  "id": "tx_123456789",
-  "type": "cross_vm_transfer",
-  "status": "completed",
-  "source": {
-    "vm": "evm",
-    "tx_hash": "0x...",
-    "confirmations": 12,
-    "gas_used": "21000"
-  },
-  "target": {
-    "vm": "svm",
-    "tx_hash": "5xY3p...",
-    "confirmations": 32,
-    "compute_units": "5000"
-  },
-  "created_at": "2024-01-15T10:30:00Z",
-  "completed_at": "2024-01-15T10:31:30Z"
+  "transaction_id": "tx-123",
+  "status": "confirmed",
+  "source_vm": "solana",
+  "target_vm": "ethereum",
+  "confirmations": 6,
+  "created_at": "2025-01-01T00:00:00Z",
+  "confirmed_at": "2025-01-01T00:01:00Z"
 }
 ```
 
-#### List Transactions
+### VM Operations
 
-```http
-GET /v1/transactions?account={id}&limit=10&offset=0
-```
-
-### Blockchain State
-
-#### EVM Block Info
-
-```http
-GET /v1/evm/blocks/latest
-```
+#### GET /vm/solana/status
+Get Solana VM status.
 
 **Response:**
 ```json
 {
-  "number": 18500000,
-  "hash": "0x...",
-  "parent_hash": "0x...",
-  "timestamp": 1700000000,
-  "transactions": 250,
-  "gas_used": "15000000",
-  "gas_limit": "30000000"
+  "status": "active",
+  "current_slot": 1000,
+  "epoch": 100,
+  "health": "healthy"
 }
 ```
 
-#### SVM Slot Info
-
-```http
-GET /v1/svm/slots/latest
-```
+#### GET /vm/ethereum/status  
+Get Ethereum VM status.
 
 **Response:**
 ```json
 {
-  "slot": 180000000,
-  "block_hash": "...",
-  "parent_slot": 179999999,
-  "transactions": 1500,
-  "compute_units_used": 48000000
+  "status": "active",
+  "current_block": 2000,
+  "gas_price": "20000000000",
+  "health": "healthy"
 }
 ```
 
@@ -233,79 +182,60 @@ GET /v1/svm/slots/latest
 
 ```graphql
 type Query {
-  account(id: ID!): Account
-  accounts(limit: Int, offset: Int): [Account!]!
-  transaction(id: ID!): Transaction
-  transactions(filter: TransactionFilter): [Transaction!]!
-  crossVmStats: CrossVmStatistics
+  account(address: String!): Account
+  transaction(id: String!): Transaction
+  vmStatus(vm: VmType!): VmStatus
+  systemStatus: SystemStatus
 }
 
 type Mutation {
-  createAccount(input: CreateAccountInput!): Account!
-  bindAccount(input: BindAccountInput!): AccountBinding!
-  transfer(input: TransferInput!): Transaction!
-  atomicSwap(input: SwapInput!): SwapTransaction!
+  bindAccounts(input: BindAccountsInput!): BindingResult
+  submitTransaction(input: TransactionInput!): TransactionResult
 }
 
 type Subscription {
-  accountUpdates(accountId: ID!): AccountUpdate!
-  transactionStatus(transactionId: ID!): TransactionStatus!
-  blockHeaders(vmType: VmType!): BlockHeader!
+  transactionUpdates(id: String!): Transaction
+  systemEvents: SystemEvent
 }
 ```
 
 ### Example Queries
 
-#### Get Account Details
-
+#### Get Account Information
 ```graphql
-query GetAccount($id: ID!) {
-  account(id: $id) {
-    id
-    name
-    addresses {
-      address
-      vmType
-      balance
-    }
-    transactions(last: 10) {
-      id
-      type
+query GetAccount($address: String!) {
+  account(address: $address) {
+    address
+    vm_type
+    bindings {
+      target_address
+      target_vm
       status
-      amount
-      timestamp
     }
+    balance
   }
 }
 ```
 
-#### Cross-VM Transfer
-
+#### Submit Cross-VM Transaction
 ```graphql
-mutation CrossVmTransfer($input: TransferInput!) {
-  transfer(input: $input) {
-    id
+mutation SubmitCrossVmTransaction($input: TransactionInput!) {
+  submitTransaction(input: $input) {
+    transaction_id
     status
-    source {
-      vm
-      txHash
-    }
-    target {
-      vm
-      txHash
-    }
+    estimated_confirmation_time
   }
 }
 ```
 
-### Real-time Subscriptions
-
+#### Subscribe to Transaction Updates
 ```graphql
-subscription WatchTransaction($id: ID!) {
-  transactionStatus(transactionId: $id) {
+subscription TransactionUpdates($id: String!) {
+  transactionUpdates(id: $id) {
+    transaction_id
     status
     confirmations
-    error
+    updated_at
   }
 }
 ```
@@ -313,191 +243,168 @@ subscription WatchTransaction($id: ID!) {
 ## WebSocket API
 
 ### Connection
-
 ```javascript
-const ws = new WebSocket('wss://api.multivm.org/ws');
-
-ws.on('open', () => {
-  // Authenticate
-  ws.send(JSON.stringify({
-    type: 'auth',
-    token: 'YOUR_JWT_TOKEN'
-  }));
-});
+const ws = new WebSocket('ws://localhost:8082/ws');
 ```
 
-### Subscribe to Events
-
-```javascript
-// Subscribe to account updates
-ws.send(JSON.stringify({
-  type: 'subscribe',
-  channel: 'account',
-  params: {
-    account_id: 'multivm:7f8a9b1c...'
-  }
-}));
-
-// Subscribe to block headers
-ws.send(JSON.stringify({
-  type: 'subscribe',
-  channel: 'blocks',
-  params: {
-    vm_type: 'evm'
-  }
-}));
+### Message Format
+```json
+{
+  "type": "message_type",
+  "data": { ... },
+  "timestamp": "2025-01-01T00:00:00Z"
+}
 ```
 
 ### Message Types
 
-#### Account Update
-
-```json
-{
-  "type": "account_update",
-  "data": {
-    "account_id": "multivm:7f8a9b1c...",
-    "event": "balance_change",
-    "details": {
-      "vm": "evm",
-      "address": "0x...",
-      "old_balance": "1000000000000000000",
-      "new_balance": "2000000000000000000"
-    }
-  }
-}
-```
-
-#### Transaction Update
-
+#### Transaction Updates
 ```json
 {
   "type": "transaction_update",
   "data": {
-    "transaction_id": "tx_123456789",
+    "transaction_id": "tx-123",
     "status": "confirmed",
-    "confirmations": 12
+    "confirmations": 6
   }
 }
 ```
 
-## Error Handling
+#### System Events
+```json
+{
+  "type": "system_event",
+  "data": {
+    "event": "consensus_height_update",
+    "height": 1001
+  }
+}
+```
 
-### Error Response Format
+#### Account Notifications
+```json
+{
+  "type": "account_notification",
+  "data": {
+    "address": "11111111111111111111111111111112",
+    "event": "balance_update",
+    "new_balance": "2000000"
+  }
+}
+```
+
+## Error Responses
+
+All APIs use consistent error response format:
 
 ```json
 {
   "error": {
-    "code": "INVALID_ACCOUNT",
-    "message": "Account not found",
+    "code": "INVALID_ADDRESS",
+    "message": "The provided address is not valid",
     "details": {
-      "account_id": "multivm:invalid..."
+      "field": "ethereum_address",
+      "value": "invalid_address"
     }
-  }
+  },
+  "request_id": "req-123",
+  "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
 
 ### Common Error Codes
 
-| Code | Description | HTTP Status |
-|------|-------------|-------------|
-| `AUTH_REQUIRED` | Authentication required | 401 |
-| `INVALID_TOKEN` | Invalid or expired token | 401 |
-| `PERMISSION_DENIED` | Insufficient permissions | 403 |
-| `INVALID_ACCOUNT` | Account not found | 404 |
-| `INVALID_BINDING` | Invalid binding proof | 400 |
-| `INSUFFICIENT_BALANCE` | Not enough funds | 400 |
-| `RATE_LIMITED` | Too many requests | 429 |
-| `INTERNAL_ERROR` | Server error | 500 |
+- `INVALID_ADDRESS`: Invalid blockchain address
+- `INSUFFICIENT_BALANCE`: Insufficient account balance
+- `BINDING_NOT_FOUND`: Account binding not found
+- `TRANSACTION_FAILED`: Transaction execution failed
+- `RATE_LIMIT_EXCEEDED`: API rate limit exceeded
+- `UNAUTHORIZED`: Authentication required
+- `FORBIDDEN`: Insufficient permissions
+- `INTERNAL_ERROR`: Internal server error
 
 ## Rate Limits
 
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| Authentication | 10 | 1 hour |
-| Account Creation | 5 | 1 hour |
-| Transfers | 100 | 1 minute |
-| Queries | 1000 | 1 minute |
-| WebSocket Messages | 100 | 1 second |
+- **Default**: 1000 requests per minute per API key
+- **Burst**: Up to 100 requests in 10 seconds
+- **WebSocket**: 10 connections per IP
+
+Rate limit headers:
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 999
+X-RateLimit-Reset: 1640995200
+```
 
 ## SDK Examples
 
 ### JavaScript/TypeScript
-
 ```typescript
-import { MultiVMClient } from '@multivm/sdk';
+import { MultivmClient } from '@multivm/sdk';
 
-const client = new MultiVMClient({
-  apiKey: 'YOUR_API_KEY',
-  network: 'mainnet'
+const client = new MultivmClient({
+  baseUrl: 'http://localhost:8080',
+  apiKey: 'your-api-key'
 });
 
-// Create account
-const account = await client.accounts.create({
-  name: 'My Account'
+// Bind accounts
+const binding = await client.accounts.bind({
+  solana_address: '11111111111111111111111111111112',
+  ethereum_address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C',
+  proof: 'binding_proof'
 });
 
-// Bind Ethereum address
-await client.accounts.bind(account.id, {
-  address: '0x...',
-  vmType: 'evm',
-  proof: signedMessage
-});
-
-// Transfer assets
-const tx = await client.transfers.create({
-  from: account.id,
-  to: 'multivm:8a9b2c3d...',
-  amount: '1000000000',
-  asset: 'ETH'
+// Submit cross-VM transaction
+const transaction = await client.transactions.submitCrossVm({
+  source_vm: 'solana',
+  target_vm: 'ethereum',
+  source_address: '11111111111111111111111111111112',
+  target_address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C',
+  amount: '1000000'
 });
 ```
 
-### Python
+### Rust
+```rust
+use multivm_client::MultivmClient;
 
-```python
-from multivm import Client
+let client = MultivmClient::new("http://localhost:8080", "your-api-key");
 
-client = Client(api_key='YOUR_API_KEY')
+// Bind accounts
+let binding = client.accounts().bind(BindAccountsRequest {
+    solana_address: "11111111111111111111111111111112".to_string(),
+    ethereum_address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C".to_string(),
+    proof: "binding_proof".to_string(),
+}).await?;
 
-# Get account
-account = client.accounts.get('multivm:7f8a9b1c...')
-
-# List transactions
-transactions = client.transactions.list(
-    account_id=account.id,
-    limit=10
-)
-
-# Subscribe to updates
-async def handle_update(update):
-    print(f"New update: {update}")
-
-await client.subscribe_account(account.id, handle_update)
+// Submit cross-VM transaction  
+let transaction = client.transactions().submit_cross_vm(CrossVmTransactionRequest {
+    source_vm: VmType::Solana,
+    target_vm: VmType::Ethereum,
+    source_address: "11111111111111111111111111111112".to_string(),
+    target_address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C".to_string(),
+    amount: "1000000".to_string(),
+    data: None,
+}).await?;
 ```
 
-## Webhooks
+## Monitoring and Metrics
 
-Configure webhooks to receive real-time notifications:
+### Prometheus Metrics
 
-```http
-POST /v1/webhooks
-Content-Type: application/json
+Available at `http://localhost:9090/metrics`:
 
-{
-  "url": "https://your-server.com/webhook",
-  "events": ["transfer.completed", "swap.executed"],
-  "secret": "your-webhook-secret"
-}
-```
+- `multivm_transactions_total`: Total number of transactions
+- `multivm_transactions_duration_seconds`: Transaction processing time
+- `multivm_accounts_bound_total`: Total number of bound accounts
+- `multivm_vm_status`: VM engine status (0=inactive, 1=active)
+- `multivm_consensus_height`: Current consensus height
+- `multivm_http_requests_total`: HTTP request count by endpoint
+- `multivm_websocket_connections`: Active WebSocket connections
 
-## Testing
+### Health Check Endpoints
 
-Use the testnet API for development:
-
-- Base URL: `https://testnet-api.multivm.org/v1`
-- Faucet: `https://testnet-faucet.multivm.org`
-
----
-
-© 2024 MultiVM Project. Licensed under MIT/Apache-2.0.
+- `GET /health`: Basic health check
+- `GET /health/detailed`: Detailed component health
+- `GET /health/ready`: Readiness probe for Kubernetes
+- `GET /health/live`: Liveness probe for Kubernetes

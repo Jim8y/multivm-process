@@ -110,6 +110,91 @@ This document outlines security best practices for deploying and operating the M
    - Implement circuit breakers
    - Monitor gas usage patterns
 
+## Storage Security
+
+### RocksDB Security
+
+1. **Data Encryption at Rest**
+   ```toml
+   [database.rocksdb.encryption]
+   enabled = true
+   key_rotation_days = 30
+   algorithm = "AES-256-CTR"
+   key_derivation = "PBKDF2"
+   
+   # Use external key management
+   key_provider = "vault"  # Options: vault, aws-kms, file
+   key_id = "multivm/rocksdb/master-key"
+   ```
+
+2. **Access Control**
+   ```bash
+   # Restrict database directory access
+   chmod 700 /var/lib/multivm/data
+   chown multivm:multivm /var/lib/multivm/data
+   
+   # SELinux context (if enabled)
+   semanage fcontext -a -t multivm_db_t '/var/lib/multivm/data(/.*)?'
+   restorecon -Rv /var/lib/multivm/data
+   ```
+
+3. **Backup Security**
+   ```bash
+   # Encrypted backups
+   multivm-node --db-backup /backup/encrypted \
+     --encrypt --key-file /etc/multivm/backup.key
+   
+   # Secure backup transfer
+   rsync -avz --rsh="ssh -c aes256-gcm@openssh.com" \
+     /backup/encrypted/ backup-server:/secure/multivm/
+   ```
+
+4. **Database Integrity**
+   ```toml
+   [database.rocksdb.integrity]
+   # Enable checksums for all blocks
+   verify_checksums_in_compaction = true
+   paranoid_file_checks = true
+   
+   # Regular integrity checks
+   integrity_check_interval = "24h"
+   auto_repair = false  # Manual intervention required
+   ```
+
+5. **Audit Logging**
+   ```toml
+   [database.rocksdb.audit]
+   log_all_operations = true
+   log_directory = "/var/log/multivm/rocksdb-audit"
+   
+   # What to log
+   log_reads = false  # Performance impact
+   log_writes = true
+   log_deletes = true
+   log_compactions = true
+   ```
+
+### Memory Security
+
+1. **Secure Memory Handling**
+   ```rust
+   // Zero sensitive data after use
+   use zeroize::Zeroize;
+   
+   let mut sensitive_data = load_from_rocksdb();
+   // Use data...
+   sensitive_data.zeroize();
+   ```
+
+2. **Memory Locking**
+   ```toml
+   [security.memory]
+   # Lock sensitive pages in memory
+   mlock_db_cache = true
+   mlock_keys = true
+   max_locked_memory_mb = 1024
+   ```
+
 ## Operational Security
 
 ### Access Control
@@ -195,6 +280,9 @@ This document outlines security best practices for deploying and operating the M
    - Unexpected validator behavior
    - Abnormal network traffic
    - Unauthorized configuration changes
+   - Unusual RocksDB access patterns
+   - Database file modifications outside of normal operations
+   - Unexpected growth in database size
 
 2. **Forensics Tools**
    ```bash
@@ -203,6 +291,13 @@ This document outlines security best practices for deploying and operating the M
    
    # Analyze logs
    multivm-cli analyze-logs --suspicious --last 24h
+   
+   # Capture RocksDB state
+   multivm-node --db-info --detailed > db-state.txt
+   
+   # Create forensic database snapshot
+   multivm-node --db-backup /forensics/$(date +%Y%m%d-%H%M%S) \
+     --include-logs --include-wal
    ```
 
 ### Containment and Recovery
@@ -234,6 +329,9 @@ This document outlines security best practices for deploying and operating the M
    - [ ] Error messages don't leak info
    - [ ] Cryptographic functions from audited libraries
    - [ ] No unsafe Rust code without justification
+   - [ ] RocksDB keys properly sanitized
+   - [ ] No sensitive data in RocksDB logs
+   - [ ] Proper error handling for storage operations
 
 2. **Dependency Management**
    ```bash
@@ -265,6 +363,12 @@ This document outlines security best practices for deploying and operating the M
    - Implement right to erasure
    - Data minimization
    - Privacy by design
+   - Secure deletion from RocksDB:
+     ```rust
+     // Ensure data is completely removed
+     db.delete(key)?;
+     db.compact_range(Some(key), Some(key))?;
+     ```
 
 2. **Audit Trails**
    - Log all administrative actions

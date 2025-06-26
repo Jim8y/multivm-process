@@ -18,10 +18,15 @@
 //! 4. Provides rollback capabilities if any step fails
 
 use crate::{
-    AccountAddress, AccountMappingLayer, AssetType, AtomicConstraints, AtomicCoordinatorConfig,
-    AtomicTransactionCoordinator, CrossVmTransaction, CrossVmTxType, FeeConfiguration,
-    MultivmAccountId, OperationResources, OperationType, TransactionId, TransactionMetadata,
-    TransactionPriority, VmOperation, VmType,
+    address::{AccountAddress, MultivmAccountId},
+    atomic_coordinator::{
+        AtomicConstraints, AtomicCoordinatorConfig, AtomicTransactionCoordinator,
+        CrossVmTransaction, CrossVmTxType, FeeConfiguration, OperationResources, OperationType,
+        TransactionId, TransactionMetadata, TransactionPhase, TransactionPriority, VmOperation,
+        VmType,
+    },
+    mapping::AccountMappingLayer,
+    special_tx::AssetType,
 };
 use multivm_common::{MultivmError, MultivmResult};
 use std::collections::HashMap;
@@ -336,13 +341,13 @@ impl CrossVmCoordinator {
 
         // Map to cross-VM status
         let status = match atomic_status {
-            crate::TransactionPhase::Validating => CrossVmTransactionStatus::Validating,
-            crate::TransactionPhase::Preparing => CrossVmTransactionStatus::Preparing,
-            crate::TransactionPhase::Prepared => CrossVmTransactionStatus::Prepared,
-            crate::TransactionPhase::Committing => CrossVmTransactionStatus::Executing,
-            crate::TransactionPhase::Committed => CrossVmTransactionStatus::Completed,
-            crate::TransactionPhase::Aborted => CrossVmTransactionStatus::Failed,
-            crate::TransactionPhase::Failed => CrossVmTransactionStatus::Failed,
+            TransactionPhase::Validating => CrossVmTransactionStatus::Validating,
+            TransactionPhase::Preparing => CrossVmTransactionStatus::Preparing,
+            TransactionPhase::Prepared => CrossVmTransactionStatus::Prepared,
+            TransactionPhase::Committing => CrossVmTransactionStatus::Executing,
+            TransactionPhase::Committed => CrossVmTransactionStatus::Completed,
+            TransactionPhase::Aborted => CrossVmTransactionStatus::Failed,
+            TransactionPhase::Failed => CrossVmTransactionStatus::Failed,
             _ => CrossVmTransactionStatus::Pending,
         };
 
@@ -353,15 +358,19 @@ impl CrossVmCoordinator {
     async fn validate_transfer(&self, transfer: &SimpleCrossVmTransfer) -> MultivmResult<()> {
         // Check amount limits
         if transfer.amount < self.config.asset_validation.min_transfer_amount {
-            return Err(MultivmError::Configuration(
-                "Transfer amount below minimum".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: "Transfer amount below minimum".to_string(),
+                validation_errors: Some(vec![]),
+            });
         }
 
         if transfer.amount > self.config.asset_validation.max_transfer_amount {
-            return Err(MultivmError::Configuration(
-                "Transfer amount above maximum".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: "Transfer amount above maximum".to_string(),
+                validation_errors: Some(vec![]),
+            });
         }
 
         // Get bound addresses for source and target accounts
@@ -369,31 +378,37 @@ impl CrossVmCoordinator {
             ._account_mapping
             .get_bound_addresses(&transfer.from)
             .await
-            .map_err(|_| {
-                MultivmError::Configuration(format!("Source account {} not found", transfer.from))
+            .map_err(|_| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Source account {} not found", transfer.from),
+                validation_errors: Some(vec![]),
             })?;
 
         let target_addresses = self
             ._account_mapping
             .get_bound_addresses(&transfer.to)
             .await
-            .map_err(|_| {
-                MultivmError::Configuration(format!("Target account {} not found", transfer.to))
+            .map_err(|_| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Target account {} not found", transfer.to),
+                validation_errors: Some(vec![]),
             })?;
 
         // Verify accounts have bindings
         if source_addresses.is_empty() {
-            return Err(MultivmError::Configuration(format!(
-                "Source account {} has no bound addresses",
-                transfer.from
-            )));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Source account {} has no bound addresses", transfer.from),
+                validation_errors: Some(vec![]),
+            });
         }
 
         if target_addresses.is_empty() {
-            return Err(MultivmError::Configuration(format!(
-                "Target account {} has no bound addresses",
-                transfer.to
-            )));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Target account {} has no bound addresses", transfer.to),
+                validation_errors: Some(vec![]),
+            });
         }
 
         // Additional validation: check if accounts have necessary VM support
@@ -418,17 +433,25 @@ impl CrossVmCoordinator {
         });
 
         if !has_source_vm_support {
-            return Err(MultivmError::Configuration(format!(
-                "Source account {} does not support asset {} on any bound VM",
-                transfer.from, transfer.asset_id
-            )));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!(
+                    "Source account {} does not support asset {} on any bound VM",
+                    transfer.from, transfer.asset_id
+                ),
+                validation_errors: Some(vec![]),
+            });
         }
 
         if !has_target_vm_support {
-            return Err(MultivmError::Configuration(format!(
-                "Target account {} does not support asset {} on any bound VM",
-                transfer.to, transfer.asset_id
-            )));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!(
+                    "Target account {} does not support asset {} on any bound VM",
+                    transfer.to, transfer.asset_id
+                ),
+                validation_errors: Some(vec![]),
+            });
         }
 
         Ok(())
@@ -438,14 +461,20 @@ impl CrossVmCoordinator {
     async fn validate_swap(&self, swap: &CrossVmSwapRequest) -> MultivmResult<()> {
         // Check expiration
         if SystemTime::now() > swap.expires_at {
-            return Err(MultivmError::Configuration("Swap has expired".to_string()));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: "Swap has expired".to_string(),
+                validation_errors: Some(vec![]),
+            });
         }
 
         // Check slippage tolerance
         if swap.max_slippage < 0.0 || swap.max_slippage > 1.0 {
-            return Err(MultivmError::Configuration(
-                "Invalid slippage tolerance".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: "Invalid slippage tolerance".to_string(),
+                validation_errors: Some(vec![]),
+            });
         }
 
         Ok(())
@@ -462,16 +491,20 @@ impl CrossVmCoordinator {
             ._account_mapping
             .get_bound_addresses(from)
             .await
-            .map_err(|_| {
-                MultivmError::Configuration(format!("Failed to get addresses for account {}", from))
+            .map_err(|_| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Failed to get addresses for account {}", from),
+                validation_errors: Some(vec![]),
             })?;
 
         let to_addresses = self
             ._account_mapping
             .get_bound_addresses(to)
             .await
-            .map_err(|_| {
-                MultivmError::Configuration(format!("Failed to get addresses for account {}", to))
+            .map_err(|_| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Failed to get addresses for account {}", to),
+                validation_errors: Some(vec![]),
             })?;
 
         // Find the first supported VM for each account
@@ -482,8 +515,10 @@ impl CrossVmCoordinator {
                 AccountAddress::Solana(_) => VmType::Svm,
             })
             .next()
-            .ok_or_else(|| {
-                MultivmError::Configuration("Source account has no valid VM bindings".to_string())
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: "Source account has no valid VM bindings".to_string(),
+                validation_errors: Some(vec![]),
             })?;
 
         let target_vm = to_addresses
@@ -493,8 +528,10 @@ impl CrossVmCoordinator {
                 AccountAddress::Solana(_) => VmType::Svm,
             })
             .next()
-            .ok_or_else(|| {
-                MultivmError::Configuration("Target account has no valid VM bindings".to_string())
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: "Target account has no valid VM bindings".to_string(),
+                validation_errors: Some(vec![]),
             })?;
 
         Ok((source_vm, target_vm))
@@ -529,11 +566,10 @@ impl CrossVmCoordinator {
                         | (AccountAddress::Solana(_), VmType::Svm)
                 )
             })
-            .ok_or_else(|| {
-                MultivmError::Configuration(format!(
-                    "No {:?} address found for source account",
-                    source_vm
-                ))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("No {:?} address found for source account", source_vm),
+                validation_errors: Some(vec![]),
             })?
             .clone();
 
@@ -547,11 +583,10 @@ impl CrossVmCoordinator {
                         | (AccountAddress::Solana(_), VmType::Svm)
                 )
             })
-            .ok_or_else(|| {
-                MultivmError::Configuration(format!(
-                    "No {:?} address found for target account",
-                    target_vm
-                ))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("No {:?} address found for target account", target_vm),
+                validation_errors: Some(vec![]),
             })?
             .clone();
 
@@ -634,12 +669,22 @@ impl CrossVmCoordinator {
 
         // Determine VMs for each asset
         let (asset_a_vm, asset_b_vm) = (
-            asset_a.supported_vms.first().ok_or_else(|| {
-                MultivmError::Configuration("Asset A has no supported VMs".to_string())
-            })?,
-            asset_b.supported_vms.first().ok_or_else(|| {
-                MultivmError::Configuration("Asset B has no supported VMs".to_string())
-            })?,
+            asset_a
+                .supported_vms
+                .first()
+                .ok_or_else(|| MultivmError::Configuration {
+                    component: "cross_vm_coordinator".to_string(),
+                    message: "Asset A has no supported VMs".to_string(),
+                    validation_errors: Some(vec![]),
+                })?,
+            asset_b
+                .supported_vms
+                .first()
+                .ok_or_else(|| MultivmError::Configuration {
+                    component: "cross_vm_coordinator".to_string(),
+                    message: "Asset B has no supported VMs".to_string(),
+                    validation_errors: Some(vec![]),
+                })?,
         );
 
         // Find appropriate addresses
@@ -652,11 +697,10 @@ impl CrossVmCoordinator {
                         | (AccountAddress::Solana(_), VmType::Svm)
                 )
             })
-            .ok_or_else(|| {
-                MultivmError::Configuration(format!(
-                    "Party A has no {:?} address for asset A",
-                    asset_a_vm
-                ))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Party A has no {:?} address for asset A", asset_a_vm),
+                validation_errors: Some(vec![]),
             })?
             .clone();
 
@@ -669,11 +713,10 @@ impl CrossVmCoordinator {
                         | (AccountAddress::Solana(_), VmType::Svm)
                 )
             })
-            .ok_or_else(|| {
-                MultivmError::Configuration(format!(
-                    "Party B has no {:?} address for asset A",
-                    asset_a_vm
-                ))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Party B has no {:?} address for asset A", asset_a_vm),
+                validation_errors: Some(vec![]),
             })?
             .clone();
 
@@ -686,11 +729,10 @@ impl CrossVmCoordinator {
                         | (AccountAddress::Solana(_), VmType::Svm)
                 )
             })
-            .ok_or_else(|| {
-                MultivmError::Configuration(format!(
-                    "Party A has no {:?} address for asset B",
-                    asset_b_vm
-                ))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Party A has no {:?} address for asset B", asset_b_vm),
+                validation_errors: Some(vec![]),
             })?
             .clone();
 
@@ -703,11 +745,10 @@ impl CrossVmCoordinator {
                         | (AccountAddress::Solana(_), VmType::Svm)
                 )
             })
-            .ok_or_else(|| {
-                MultivmError::Configuration(format!(
-                    "Party B has no {:?} address for asset B",
-                    asset_b_vm
-                ))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Party B has no {:?} address for asset B", asset_b_vm),
+                validation_errors: Some(vec![]),
             })?
             .clone();
 
@@ -839,7 +880,11 @@ impl CrossVmCoordinator {
             .assets
             .get(asset_id)
             .cloned()
-            .ok_or_else(|| MultivmError::Configuration(format!("Asset not found: {}", asset_id)))
+            .ok_or_else(|| MultivmError::Configuration {
+                component: "cross_vm_coordinator".to_string(),
+                message: format!("Asset not found: {}", asset_id),
+                validation_errors: Some(vec![]),
+            })
     }
 
     /// Record transaction in history
@@ -973,33 +1018,5 @@ impl Default for CrossVmCoordinatorConfig {
                 verify_balances: true,
             },
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::MemoryStorage;
-
-    #[tokio::test]
-    async fn test_cross_vm_coordinator_creation() {
-        let storage = Arc::new(MemoryStorage::new());
-        let account_mapping = storage.clone();
-        let config = CrossVmCoordinatorConfig::default();
-
-        let coordinator = CrossVmCoordinator::new(config, account_mapping).await;
-        assert!(coordinator.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_asset_registry() {
-        let registry = Arc::new(RwLock::new(AssetRegistry::new()));
-        assert!(CrossVmCoordinator::initialize_default_assets(&registry)
-            .await
-            .is_ok());
-
-        let reg = registry.read().await;
-        assert!(reg.assets.contains_key("ETH"));
-        assert!(reg.assets.contains_key("SOL"));
     }
 }

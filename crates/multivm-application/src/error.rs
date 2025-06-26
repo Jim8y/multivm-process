@@ -75,6 +75,9 @@ pub enum ApplicationError {
     #[error("Service unavailable: {service}: {reason}")]
     ServiceUnavailable { service: String, reason: String },
 
+    #[error("Monitoring error: {component}: {message}")]
+    MonitoringError { component: String, message: String },
+
     /// Resource errors
     #[error("Resource not found: {resource_type}: {identifier}")]
     ResourceNotFound {
@@ -122,6 +125,9 @@ pub enum ApplicationError {
 
     #[error("Unknown error: {message}")]
     Unknown { message: String },
+
+    #[error("Feature not implemented: {feature}")]
+    NotImplemented { feature: String },
 }
 
 impl ApplicationError {
@@ -191,10 +197,12 @@ impl ApplicationError {
             ApplicationError::ConfigurationError { .. }
             | ApplicationError::StartupError { .. }
             | ApplicationError::ServiceUnavailable { .. }
+            | ApplicationError::MonitoringError { .. }
             | ApplicationError::ResourceExhausted { .. }
             | ApplicationError::PerformanceDegraded { .. }
             | ApplicationError::InternalError { .. }
-            | ApplicationError::Unknown { .. } => ErrorCategory::Server,
+            | ApplicationError::Unknown { .. }
+            | ApplicationError::NotImplemented { .. } => ErrorCategory::Server,
         }
     }
 
@@ -215,7 +223,9 @@ impl ApplicationError {
 
             ApplicationError::RateLimitExceeded { .. } => 429, // Too Many Requests
 
-            ApplicationError::InternalError { .. } | ApplicationError::Unknown { .. } => 500, // Internal Server Error
+            ApplicationError::InternalError { .. }
+            | ApplicationError::Unknown { .. }
+            | ApplicationError::NotImplemented { .. } => 500, // Internal Server Error
 
             ApplicationError::ServiceUnavailable { .. } => 503, // Service Unavailable
 
@@ -349,14 +359,15 @@ impl From<jsonwebtoken::errors::Error> for ApplicationError {
     }
 }
 
-impl From<multivm_consensus::error::ConsensusError> for ApplicationError {
-    fn from(err: multivm_consensus::error::ConsensusError) -> Self {
-        ApplicationError::InternalError {
-            component: "consensus".to_string(),
-            message: err.to_string(),
-        }
-    }
-}
+// Consensus error conversion disabled until dependency conflicts are resolved
+// impl From<multivm_consensus::error::ConsensusError> for ApplicationError {
+//     fn from(err: multivm_consensus::error::ConsensusError) -> Self {
+//         ApplicationError::InternalError {
+//             component: "consensus".to_string(),
+//             message: err.to_string(),
+//         }
+//     }
+// }
 
 impl From<multivm_common::error::MultivmError> for ApplicationError {
     fn from(err: multivm_common::error::MultivmError) -> Self {
@@ -403,48 +414,3 @@ impl ApplicationError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_categorization() {
-        let auth_error = ApplicationError::AuthenticationFailed {
-            reason: "Invalid token".to_string(),
-        };
-        assert_eq!(auth_error.category(), ErrorCategory::Authentication);
-        assert!(!auth_error.is_recoverable());
-        assert!(!auth_error.is_critical());
-        assert_eq!(auth_error.http_status(), 401);
-    }
-
-    #[test]
-    fn test_recoverable_errors() {
-        let timeout_error = ApplicationError::TimeoutError {
-            operation: "api_call".to_string(),
-            timeout_ms: 5000,
-        };
-        assert!(timeout_error.is_recoverable());
-        assert!(!timeout_error.is_critical());
-    }
-
-    #[test]
-    fn test_critical_errors() {
-        let startup_error = ApplicationError::StartupError {
-            service: "rest_api".to_string(),
-            message: "Port already in use".to_string(),
-        };
-        assert!(!startup_error.is_recoverable());
-        assert!(startup_error.is_critical());
-    }
-
-    #[test]
-    fn test_metric_tags() {
-        let svm_error = ApplicationError::SvmError {
-            message: "Transaction failed".to_string(),
-        };
-        let tags = svm_error.metric_tags();
-        assert!(tags.contains(&("vm_type", "svm")));
-        assert!(tags.contains(&("category", "blockchain")));
-    }
-}

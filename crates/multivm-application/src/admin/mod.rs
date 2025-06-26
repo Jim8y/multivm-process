@@ -91,32 +91,74 @@ pub async fn create_app(state: Arc<ApplicationState>) -> ApplicationResult<Route
 
 /// Admin dashboard
 async fn admin_dashboard(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../docs/assets/web/static/admin/dashboard.html").to_string())
+    Html(r#"<!DOCTYPE html>
+<html>
+<head><title>MultiVM Admin Dashboard</title></head>
+<body>
+<h1>MultiVM Admin Dashboard</h1>
+<p>Dashboard functionality temporarily disabled.</p>
+</body>
+</html>"#.to_string())
 }
 
 /// Nodes management page
 async fn nodes_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../docs/assets/web/static/admin/nodes.html").to_string())
+    Html(r#"<!DOCTYPE html>
+<html>
+<head><title>Nodes Management</title></head>
+<body>
+<h1>Nodes Management</h1>
+<p>Nodes management functionality temporarily disabled.</p>
+</body>
+</html>"#.to_string())
 }
 
 /// Transactions page
 async fn transactions_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../docs/assets/web/static/admin/transactions.html").to_string())
+    Html(r#"<!DOCTYPE html>
+<html>
+<head><title>Transactions</title></head>
+<body>
+<h1>Transactions</h1>
+<p>Transactions view temporarily disabled.</p>
+</body>
+</html>"#.to_string())
 }
 
 /// Accounts page
 async fn accounts_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../docs/assets/web/static/admin/accounts.html").to_string())
+    Html(r#"<!DOCTYPE html>
+<html>
+<head><title>Accounts</title></head>
+<body>
+<h1>Accounts</h1>
+<p>Accounts view temporarily disabled.</p>
+</body>
+</html>"#.to_string())
 }
 
 /// System page
 async fn system_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../docs/assets/web/static/admin/system.html").to_string())
+    Html(r#"<!DOCTYPE html>
+<html>
+<head><title>System</title></head>
+<body>
+<h1>System Information</h1>
+<p>System information temporarily disabled.</p>
+</body>
+</html>"#.to_string())
 }
 
 /// Logs page
 async fn logs_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(include_str!("../../../../docs/assets/web/static/admin/logs.html").to_string())
+    Html(r#"<!DOCTYPE html>
+<html>
+<head><title>Logs</title></head>
+<body>
+<h1>System Logs</h1>
+<p>Logs view temporarily disabled.</p>
+</body>
+</html>"#.to_string())
 }
 
 // API Handlers
@@ -281,17 +323,17 @@ async fn api_get_config(
             admin_port: state.config.server.admin.port,
         },
         database: DatabaseConfigData {
-            url: state.config.database.url.clone(),
-            max_connections: state.config.database.max_connections,
-            min_connections: state.config.database.min_connections,
+            url: state.config.base.database.connection_url.clone(),
+            max_connections: state.config.base.database.max_connections,
+            min_connections: state.config.base.database.min_connections,
         },
         cache: CacheConfigData {
             strategy: format!("{:?}", state.config.cache.strategy),
-            ttl_seconds: state.config.cache.default_ttl.as_secs(),
+            ttl_seconds: state.config.cache.default_ttl_seconds,
         },
         monitoring: MonitoringConfigData {
             enable_metrics: state.config.monitoring.enable_metrics,
-            metrics_port: state.config.monitoring.metrics.port,
+            metrics_port: state.config.monitoring.metrics_port,
         },
     };
 
@@ -347,13 +389,13 @@ async fn api_update_config(
             }));
         }
 
-        updated_config.cache.default_ttl = std::time::Duration::from_secs(cache_config.ttl_seconds);
+        updated_config.cache.default_ttl_seconds = cache_config.ttl_seconds;
     }
 
     // Update monitoring configuration if provided
     if let Some(monitoring_config) = request.monitoring {
         updated_config.monitoring.enable_metrics = monitoring_config.enable_metrics;
-        updated_config.monitoring.metrics.port = monitoring_config.metrics_port;
+        updated_config.monitoring.metrics_port = monitoring_config.metrics_port;
     }
 
     // In a production system, you would:
@@ -396,7 +438,7 @@ async fn api_get_logs(
             component: "svm_gateway".to_string(),
             message: format!(
                 "Connected to Solana node at {}",
-                state.config.vm_clients.solana.rpc_url
+                state.config.base.blockchain.solana.rpc_url
             ),
         },
         LogEntry {
@@ -405,7 +447,7 @@ async fn api_get_logs(
             component: "evm_gateway".to_string(),
             message: format!(
                 "Connected to Reth node at {}",
-                state.config.vm_clients.reth.rpc_url
+                state.config.base.blockchain.ethereum.rpc_url
             ),
         },
         LogEntry {

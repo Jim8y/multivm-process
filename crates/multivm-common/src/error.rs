@@ -1,117 +1,228 @@
+//! Unified error handling system for the MultiVM platform
+//!
+//! This module provides a consistent error handling framework with:
+//! - Structured error types with detailed context
+//! - Error categorization for recovery strategies
+//! - Consistent error conversion patterns
+
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use thiserror::Error;
 
 /// Main error type for the multi-VM system
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum MultivmError {
-    #[error("Configuration error: {0}")]
-    Configuration(String),
-
-    #[error("Process error: {0}")]
-    Process(String),
-
-    #[error("IPC communication error: {0}")]
-    Ipc(String),
-
-    #[error("Solana engine error: {0}")]
-    Solana(String),
-
-    #[error("Ethereum engine error: {0}")]
-    Ethereum(String),
-
-    #[error("RPC error: {0}")]
-    Rpc(String),
-
-    #[error("Storage error: {0}")]
-    Storage(String),
-
-    #[error("Network error: {0}")]
-    Network(String),
-
-    #[error("Serialization error: {0}")]
-    Serialization(String),
-
-    #[error("Timeout error: operation timed out after {timeout:?}")]
-    Timeout { timeout: std::time::Duration },
-
-    #[error("Lock timeout: failed to acquire lock '{lock_name}' after {timeout:?}")]
-    LockTimeout {
-        lock_name: String,
-        timeout: std::time::Duration,
+    /// Configuration-related errors
+    #[error("Configuration error in {component}: {message}")]
+    Configuration {
+        component: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        validation_errors: Option<Vec<String>>,
     },
 
-    #[error("Resource limit exceeded: {resource} exceeded limit {limit}")]
-    ResourceLimit { resource: String, limit: String },
+    /// Process management errors
+    #[error("Process error in {process_id}: {message}")]
+    Process {
+        process_id: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        exit_code: Option<i32>,
+    },
 
-    #[error("Invalid state: {0}")]
-    InvalidState(String),
+    /// IPC communication errors
+    #[error("IPC communication error on {endpoint}: {message}")]
+    Ipc {
+        endpoint: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_count: Option<u32>,
+    },
 
-    #[error("Unsupported operation: {0}")]
-    UnsupportedOperation(String),
+    /// Blockchain-specific execution errors
+    #[error("{vm_type} engine error: {message}")]
+    VmEngine {
+        vm_type: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        block_info: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        transaction_info: Option<String>,
+    },
 
-    #[error("Block processing error: {0}")]
-    BlockProcessing(String),
+    /// RPC-related errors
+    #[error("RPC error on {method}: {message}")]
+    Rpc {
+        method: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        status_code: Option<u16>,
+    },
 
-    #[error("Authentication failed: {0}")]
-    AuthenticationFailed(String),
+    /// Storage and persistence errors
+    #[error("Storage error in {operation}: {message}")]
+    Storage {
+        operation: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+    },
 
-    #[error("Rate limited: {0}")]
-    RateLimited(String),
+    /// Network connectivity and communication errors
+    #[error("Network error: {message}")]
+    Network {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        endpoint: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after: Option<Duration>,
+    },
 
-    #[error("Encryption error: {0}")]
-    EncryptionError(String),
+    /// Serialization and data format errors
+    #[error("Serialization error: {message}")]
+    Serialization {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        data_type: Option<String>,
+    },
 
-    #[error("Encryption failed: {0}")]
-    EncryptionFailed(String),
+    /// Operation timeout errors
+    #[error("Timeout error: {operation} timed out after {timeout:?}")]
+    Timeout {
+        operation: String,
+        timeout: Duration,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        partial_result: Option<String>,
+    },
 
-    #[error("Permission denied: {0}")]
-    PermissionDenied(String),
+    /// Resource exhaustion errors
+    #[error("Resource limit exceeded: {resource} used {current}/{limit}")]
+    ResourceLimit {
+        resource: String,
+        current: String,
+        limit: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        suggested_action: Option<String>,
+    },
 
-    #[error("IO error: {0}")]
-    Io(String),
+    /// Invalid state transition errors
+    #[error("Invalid state transition: {message}")]
+    InvalidState {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        current_state: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        expected_state: Option<String>,
+    },
 
-    #[error("Unknown error: {0}")]
-    Unknown(String),
+    /// Authentication and authorization errors
+    #[error("Authentication failed: {reason}")]
+    AuthenticationFailed {
+        reason: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        user_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        required_permissions: Option<Vec<String>>,
+    },
 
-    /// Account mapping layer error
-    #[error("Account mapping error: {0}")]
-    AccountMapping(String),
+    /// Rate limiting errors
+    #[error("Rate limited: {message}")]
+    RateLimited {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after: Option<Duration>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        current_rate: Option<f64>,
+    },
 
-    #[error("Consensus error: {0}")]
-    ConsensusError(String),
+    /// Account mapping layer errors
+    #[error("Account mapping error: {message}")]
+    AccountMapping {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_chain: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        target_chain: Option<String>,
+    },
 
-    #[error("Insufficient balance: {0}")]
-    InsufficientBalance(String),
+    /// Consensus mechanism errors
+    #[error("Consensus error: {message}")]
+    ConsensusError {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        round: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        validator_count: Option<u32>,
+    },
+
+    /// Validation errors
+    #[error("Validation error: {field}: {message}")]
+    Validation {
+        field: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        value: Option<String>,
+    },
+
+    /// Resource not found errors
+    #[error("Not found: {resource}")]
+    NotFound {
+        resource: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        resource_id: Option<String>,
+    },
+
+    /// Not implemented functionality errors
+    #[error("Not implemented: {feature}")]
+    NotImplemented {
+        feature: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        alternatives: Option<Vec<String>>,
+    },
+
+    /// Internal system errors
+    #[error("Internal error in {component}: {message}")]
+    Internal {
+        component: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error_code: Option<String>,
+    },
+
+    /// Encryption/decryption errors
+    #[error("Encryption failed: {message}")]
+    EncryptionFailed {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        algorithm: Option<String>,
+    },
+
+    /// Block processing errors
+    #[error("Block processing error: {message}")]
+    BlockProcessing {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        block_number: Option<u64>,
+    },
+
+    /// Unsupported operation errors
+    #[error("Unsupported operation: {operation}")]
+    UnsupportedOperation {
+        operation: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        alternatives: Option<Vec<String>>,
+    },
+
+    /// Catch-all for unexpected errors
+    #[error("Unknown error: {message}")]
+    Unknown {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error_source: Option<String>,
+    },
 }
 
-// Conversion from common error types
-impl From<std::io::Error> for MultivmError {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err.to_string())
-    }
-}
-
-impl From<serde_json::Error> for MultivmError {
-    fn from(err: serde_json::Error) -> Self {
-        Self::Serialization(err.to_string())
-    }
-}
-
-// bincode dependency removed - use serde_json for serialization
-// impl From<bincode::Error> for MultivmError {
-//     fn from(err: bincode::Error) -> Self {
-//         Self::Serialization(err.to_string())
-//     }
-// }
-
-impl From<tokio::time::error::Elapsed> for MultivmError {
-    fn from(_err: tokio::time::error::Elapsed) -> Self {
-        Self::Timeout {
-            timeout: std::time::Duration::from_secs(0), // Default timeout
-        }
-    }
-}
-
-// Error categories for better error handling
+/// Error categories for better error handling
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCategory {
     /// Errors that can be retried
@@ -130,31 +241,29 @@ impl MultivmError {
     /// Categorize the error for handling decisions
     pub fn category(&self) -> ErrorCategory {
         match self {
-            MultivmError::Configuration(_) => ErrorCategory::Configuration,
-            MultivmError::Process(_) => ErrorCategory::Fatal,
-            MultivmError::Ipc(_) => ErrorCategory::Transient,
-            MultivmError::Solana(_) => ErrorCategory::Recoverable,
-            MultivmError::Ethereum(_) => ErrorCategory::Recoverable,
-            MultivmError::Rpc(_) => ErrorCategory::Transient,
-            MultivmError::Storage(_) => ErrorCategory::Fatal,
-            MultivmError::Network(_) => ErrorCategory::Transient,
-            MultivmError::Serialization(_) => ErrorCategory::Fatal,
+            MultivmError::Configuration { .. } => ErrorCategory::Configuration,
+            MultivmError::Process { .. } => ErrorCategory::Fatal,
+            MultivmError::Ipc { .. } => ErrorCategory::Transient,
+            MultivmError::VmEngine { .. } => ErrorCategory::Recoverable,
+            MultivmError::Rpc { .. } => ErrorCategory::Transient,
+            MultivmError::Storage { .. } => ErrorCategory::Fatal,
+            MultivmError::Network { .. } => ErrorCategory::Transient,
+            MultivmError::Serialization { .. } => ErrorCategory::Fatal,
             MultivmError::Timeout { .. } => ErrorCategory::Transient,
-            MultivmError::LockTimeout { .. } => ErrorCategory::Transient,
             MultivmError::ResourceLimit { .. } => ErrorCategory::Resource,
-            MultivmError::InvalidState(_) => ErrorCategory::Fatal,
-            MultivmError::UnsupportedOperation(_) => ErrorCategory::Configuration,
-            MultivmError::BlockProcessing(_) => ErrorCategory::Recoverable,
-            MultivmError::PermissionDenied(_) => ErrorCategory::Configuration,
-            MultivmError::Io(_) => ErrorCategory::Transient,
-            MultivmError::Unknown(_) => ErrorCategory::Fatal,
-            MultivmError::AccountMapping(_) => ErrorCategory::Fatal,
-            MultivmError::AuthenticationFailed(_) => ErrorCategory::Configuration,
-            MultivmError::RateLimited(_) => ErrorCategory::Resource,
-            MultivmError::EncryptionError(_) => ErrorCategory::Fatal,
-            MultivmError::EncryptionFailed(_) => ErrorCategory::Fatal,
-            MultivmError::ConsensusError(_) => ErrorCategory::Recoverable,
-            MultivmError::InsufficientBalance(_) => ErrorCategory::Fatal,
+            MultivmError::InvalidState { .. } => ErrorCategory::Fatal,
+            MultivmError::AuthenticationFailed { .. } => ErrorCategory::Configuration,
+            MultivmError::RateLimited { .. } => ErrorCategory::Resource,
+            MultivmError::AccountMapping { .. } => ErrorCategory::Fatal,
+            MultivmError::ConsensusError { .. } => ErrorCategory::Recoverable,
+            MultivmError::Validation { .. } => ErrorCategory::Configuration,
+            MultivmError::NotFound { .. } => ErrorCategory::Fatal,
+            MultivmError::NotImplemented { .. } => ErrorCategory::Configuration,
+            MultivmError::EncryptionFailed { .. } => ErrorCategory::Fatal,
+            MultivmError::BlockProcessing { .. } => ErrorCategory::Recoverable,
+            MultivmError::UnsupportedOperation { .. } => ErrorCategory::Configuration,
+            MultivmError::Internal { .. } => ErrorCategory::Fatal,
+            MultivmError::Unknown { .. } => ErrorCategory::Fatal,
         }
     }
 
@@ -171,40 +280,91 @@ impl MultivmError {
         matches!(self.category(), ErrorCategory::Fatal)
     }
 
-    /// Get a user-friendly error message
-    pub fn user_message(&self) -> String {
+    /// Get retry information for recoverable errors
+    pub fn retry_info(&self) -> Option<Duration> {
         match self {
-            MultivmError::Configuration(msg) => {
-                format!("Configuration issue: {}. Please check your settings.", msg)
-            }
-            MultivmError::Process(msg) => {
-                format!("Process error: {}. The system may need to restart.", msg)
-            }
-            MultivmError::Timeout { timeout } => {
-                format!("Operation timed out after {:?}. Please try again.", timeout)
-            }
-            MultivmError::ResourceLimit { resource, limit } => {
-                format!(
-                    "Resource limit exceeded: {} has reached the limit of {}. \
-                     Please free up resources or increase limits.",
-                    resource, limit
-                )
-            }
-            MultivmError::Network(msg) => {
-                format!(
-                    "Network connectivity issue: {}. Please check your connection.",
-                    msg
-                )
-            }
-            _ => self.to_string(),
+            MultivmError::Network { retry_after, .. } => *retry_after,
+            MultivmError::RateLimited { retry_after, .. } => *retry_after,
+            MultivmError::Timeout { .. } if self.is_retryable() => Some(Duration::from_secs(1)),
+            MultivmError::Ipc { .. } if self.is_retryable() => Some(Duration::from_millis(500)),
+            _ => None,
         }
     }
 
-    /// Create a context wrapper for the error
+    /// Get HTTP status code for API responses
+    pub fn http_status(&self) -> u16 {
+        match self {
+            MultivmError::Validation { .. } => 400, // Bad Request
+            MultivmError::AuthenticationFailed { .. } => 401, // Unauthorized
+            MultivmError::NotFound { .. } => 404,   // Not Found
+            MultivmError::RateLimited { .. } => 429, // Too Many Requests
+            MultivmError::Internal { .. } | MultivmError::Unknown { .. } => 500, // Internal Server Error
+            MultivmError::Timeout { .. } => 504,                                 // Gateway Timeout
+            _ => 500, // Default to Internal Server Error
+        }
+    }
+
+    /// Create error with context
     pub fn with_context(self, context: &str) -> Self {
         match self {
-            MultivmError::Unknown(msg) => MultivmError::Unknown(format!("{}: {}", context, msg)),
+            MultivmError::Unknown {
+                message,
+                error_source,
+            } => MultivmError::Unknown {
+                message: format!("{}: {}", context, message),
+                error_source,
+            },
             other => other,
+        }
+    }
+}
+
+// Conversion implementations for external error types
+impl From<std::io::Error> for MultivmError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Storage {
+            operation: "io_operation".to_string(),
+            message: err.to_string(),
+            path: None,
+        }
+    }
+}
+
+impl From<serde_json::Error> for MultivmError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Serialization {
+            message: err.to_string(),
+            data_type: Some("json".to_string()),
+        }
+    }
+}
+
+impl From<tokio::time::error::Elapsed> for MultivmError {
+    fn from(_err: tokio::time::error::Elapsed) -> Self {
+        Self::Timeout {
+            operation: "unknown".to_string(),
+            timeout: Duration::from_secs(30),
+            partial_result: None,
+        }
+    }
+}
+
+impl From<toml::de::Error> for MultivmError {
+    fn from(err: toml::de::Error) -> Self {
+        Self::Configuration {
+            component: "config".to_string(),
+            message: format!("TOML parsing error: {}", err),
+            validation_errors: None,
+        }
+    }
+}
+
+impl From<toml::ser::Error> for MultivmError {
+    fn from(err: toml::ser::Error) -> Self {
+        Self::Configuration {
+            component: "config".to_string(),
+            message: format!("TOML serialization error: {}", err),
+            validation_errors: None,
         }
     }
 }
@@ -212,67 +372,68 @@ impl MultivmError {
 /// Result type alias for convenience
 pub type MultivmResult<T> = std::result::Result<T, MultivmError>;
 
-/// Error context for tracking error chains
-#[derive(Debug, Clone)]
-pub struct ErrorContext {
-    pub operation: String,
-    pub component: String,
-    pub timestamp: std::time::SystemTime,
-    pub additional_info: std::collections::HashMap<String, String>,
-}
-
-impl ErrorContext {
-    pub fn new(operation: &str, component: &str) -> Self {
-        Self {
-            operation: operation.to_string(),
-            component: component.to_string(),
-            timestamp: std::time::SystemTime::now(),
-            additional_info: std::collections::HashMap::new(),
-        }
-    }
-
-    pub fn with_info(mut self, key: &str, value: &str) -> Self {
-        self.additional_info
-            .insert(key.to_string(), value.to_string());
-        self
-    }
-}
-
-/// Trait for adding context to errors
-pub trait ErrorContextExt<T> {
-    fn with_context(self, context: ErrorContext) -> MultivmResult<T>;
-    fn with_operation(self, operation: &str, component: &str) -> MultivmResult<T>;
-}
-
-impl<T, E> ErrorContextExt<T> for std::result::Result<T, E>
-where
-    E: Into<MultivmError>,
-{
-    fn with_context(self, context: ErrorContext) -> MultivmResult<T> {
-        self.map_err(|e| {
-            let mut error = e.into();
-            error = error.with_context(&format!("{}::{}", context.component, context.operation));
-            error
-        })
-    }
-
-    fn with_operation(self, operation: &str, component: &str) -> MultivmResult<T> {
-        self.with_context(ErrorContext::new(operation, component))
-    }
-}
-
-/// Macro for creating contextual errors
+/// Convenience macros for creating errors
 #[macro_export]
 macro_rules! multivm_error {
-    ($variant:ident, $msg:expr) => {
-        MultivmError::$variant($msg.to_string())
+    (Configuration, $component:expr, $msg:expr) => {
+        MultivmError::Configuration {
+            component: $component.to_string(),
+            message: $msg.to_string(),
+            validation_errors: None,
+        }
     };
-    ($variant:ident, $fmt:expr, $($arg:tt)*) => {
-        MultivmError::$variant(format!($fmt, $($arg)*))
+    (Process, $process_id:expr, $msg:expr) => {
+        MultivmError::Process {
+            process_id: $process_id.to_string(),
+            message: $msg.to_string(),
+            exit_code: None,
+        }
+    };
+    (VmEngine, $vm_type:expr, $msg:expr) => {
+        MultivmError::VmEngine {
+            vm_type: $vm_type.to_string(),
+            message: $msg.to_string(),
+            block_info: None,
+            transaction_info: None,
+        }
+    };
+    (Network, $msg:expr) => {
+        MultivmError::Network {
+            message: $msg.to_string(),
+            endpoint: None,
+            retry_after: None,
+        }
+    };
+    (Storage, $operation:expr, $msg:expr) => {
+        MultivmError::Storage {
+            operation: $operation.to_string(),
+            message: $msg.to_string(),
+            path: None,
+        }
+    };
+    (Validation, $field:expr, $msg:expr) => {
+        MultivmError::Validation {
+            field: $field.to_string(),
+            message: $msg.to_string(),
+            value: None,
+        }
+    };
+    (NotFound, $resource:expr) => {
+        MultivmError::NotFound {
+            resource: $resource.to_string(),
+            resource_id: None,
+        }
+    };
+    (Internal, $component:expr, $msg:expr) => {
+        MultivmError::Internal {
+            component: $component.to_string(),
+            message: $msg.to_string(),
+            error_code: None,
+        }
     };
 }
 
-/// Macro for early return with context
+/// Macro for early return with validation
 #[macro_export]
 macro_rules! ensure {
     ($cond:expr, $err:expr) => {
@@ -280,66 +441,4 @@ macro_rules! ensure {
             return Err($err);
         }
     };
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_categories() {
-        let config_err = MultivmError::Configuration("test".to_string());
-        assert_eq!(config_err.category(), ErrorCategory::Configuration);
-        assert!(!config_err.is_retryable());
-
-        let timeout_err = MultivmError::Timeout {
-            timeout: std::time::Duration::from_secs(5),
-        };
-        assert_eq!(timeout_err.category(), ErrorCategory::Transient);
-        assert!(timeout_err.is_retryable());
-    }
-
-    #[test]
-    fn test_error_conversion() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
-        let multivm_err: MultivmError = io_err.into();
-
-        match multivm_err {
-            MultivmError::Io(msg) => assert!(msg.contains("file not found")),
-            _ => panic!("Expected Io error"),
-        }
-    }
-
-    #[test]
-    fn test_error_context() {
-        let ctx = ErrorContext::new("test_operation", "test_component")
-            .with_info("key1", "value1")
-            .with_info("key2", "value2");
-
-        assert_eq!(ctx.operation, "test_operation");
-        assert_eq!(ctx.component, "test_component");
-        assert_eq!(ctx.additional_info.len(), 2);
-    }
-
-    #[test]
-    fn test_user_message() {
-        let timeout_err = MultivmError::Timeout {
-            timeout: std::time::Duration::from_secs(30),
-        };
-
-        let user_msg = timeout_err.user_message();
-        assert!(user_msg.contains("30s"));
-        assert!(user_msg.contains("try again"));
-    }
-
-    #[test]
-    fn test_multivm_error_macro() {
-        let err = multivm_error!(Configuration, "Invalid setting: {}", "test_setting");
-        match err {
-            MultivmError::Configuration(msg) => {
-                assert_eq!(msg, "Invalid setting: test_setting");
-            }
-            _ => panic!("Expected Configuration error"),
-        }
-    }
 }

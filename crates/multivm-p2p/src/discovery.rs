@@ -3,7 +3,7 @@
 use anyhow::Result;
 use libp2p::{
     kad::{self, QueryId, QueryResult},
-    mdns::{tokio::Behaviour as Mdns, Config as MdnsConfig},
+    mdns::{Behaviour as Mdns, Config as MdnsConfig},
     swarm::NetworkBehaviour,
     Multiaddr, PeerId,
 };

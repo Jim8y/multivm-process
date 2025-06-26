@@ -1,50 +1,55 @@
 [package]
 name = "multivm-common"
 version.workspace = true
-authors = ["MultiVM Contributors"]
 edition.workspace = true
 license.workspace = true
-description = "Common types and traits for multi-VM blockchain processing"
+repository.workspace = true
+authors.workspace = true
+description = "Common utilities and types for the MultiVM platform"
 
 [dependencies]
-# Core async and serialization support
+# Core async runtime
 tokio = { workspace = true }
+async-trait = { workspace = true }
 futures = { workspace = true }
+
+# Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+bincode = { workspace = true }
+toml = { workspace = true }
+
+# Error handling and logging
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
-# Async trait support
-async-trait = { workspace = true }
-
-# Configuration support
-toml = { workspace = true }
-
-# Authentication and security
+# Cryptography and hashing
+hex = { workspace = true }
 sha2 = { workspace = true }
-bincode = { workspace = true }
-jsonwebtoken = { workspace = true }
 rand = { workspace = true }
-hmac = { workspace = true }
-uuid = { workspace = true }
 
-# Time handling
+# Time and UUID
 chrono = { workspace = true }
-
-# Concurrency utilities
+uuid = { workspace = true }
 once_cell = { workspace = true }
 
-# Encryption dependencies for secure transport
-aes-gcm = "0.10"
-chacha20poly1305 = "0.10"
-x25519-dalek = "2.0"
+# Security and encryption - temporarily reduced to resolve zeroize conflict
+# aes-gcm = "0.10"
+# chacha20poly1305 = "0.8"
+jsonwebtoken = { workspace = true }
+hmac = { workspace = true }
 
-# Blockchain-specific dependencies moved to execution engines
-# solana-sdk moved to solana-execution-engine
-# alloy-primitives moved to reth-execution-engine  
-# Cryptographic dependencies moved to respective execution engines
+# System information
+num_cpus = "1.16"
+
+# Concurrency utilities
+parking_lot = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
-tempfile = { workspace = true } 
+tempfile = { workspace = true }
+proptest = { workspace = true }
+
+[features]
+default = []
+testing = []

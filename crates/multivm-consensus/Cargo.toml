@@ -1,54 +1,55 @@
 [package]
 name = "multivm-consensus"
-version = { workspace = true }
+version = "0.1.0"
 authors = ["MultiVM Contributors"]
 description = "Malachite consensus integration for MultiVM"
-edition = { workspace = true }
-license = { workspace = true }
+edition = "2021"
+license = "MIT"
+
+[workspace]
+# Empty workspace to prevent workspace inheritance
 
 [dependencies]
 multivm-common = { path = "../multivm-common" }
-multivm-account-mapping = { path = "../multivm-account-mapping" }
+# multivm-account-mapping = { path = "../multivm-account-mapping" }  # Temporarily disabled
 multivm-p2p = { path = "../multivm-p2p" }
 
 # Core dependencies
-tokio = { workspace = true }
-async-trait = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-bincode = { workspace = true }
-tracing = { workspace = true }
-thiserror = { workspace = true }
+tokio = { version = "1.45", features = ["full"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+tracing = "0.1"
+thiserror = "1.0"
 rand = "0.8"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 parking_lot = "0.12"
-futures = { workspace = true }
-chrono = { workspace = true }
-bs58 = { workspace = true }
+futures = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+bs58 = "0.5"
+rocksdb = "0.21"
 
 # Consensus specific
-sha2 = { workspace = true }
+sha2 = "0.10"
 sha3 = "0.10"
-blake3 = { workspace = true }
-hex = { workspace = true }
-ed25519-dalek.workspace = true
+blake3 = "1.5"
+hex = "0.4"
+ed25519-dalek = { version = "2.0", features = ["rand_core"] }
 
-# Malachite consensus engine
-informalsystems-malachitebft-engine = { workspace = true }
-informalsystems-malachitebft-core-consensus = { workspace = true }
-informalsystems-malachitebft-core-types = { workspace = true }
-informalsystems-malachitebft-proto = { workspace = true }
-informalsystems-malachitebft-app-channel = { workspace = true }
-informalsystems-malachitebft-codec = { workspace = true }
-informalsystems-malachitebft-config = { workspace = true }
+# Malachite consensus engine - temporarily commented out due to dependency conflicts
+# informalsystems-malachitebft-engine = { workspace = true }
+# informalsystems-malachitebft-core-consensus = { workspace = true }
+# informalsystems-malachitebft-core-types = { workspace = true }
+# informalsystems-malachitebft-proto = { workspace = true }
+# informalsystems-malachitebft-app-channel = { workspace = true }
+# informalsystems-malachitebft-codec = { workspace = true }
+# informalsystems-malachitebft-config = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
-tempfile = { workspace = true }
-criterion = { workspace = true }
+tempfile = "3.0"
+criterion = "0.5"
 rand = "0.8"
 tracing-subscriber = "0.3"
 
-[[bench]]
-name = "consensus_bench"
-harness = false

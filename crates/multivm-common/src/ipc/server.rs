@@ -1,12 +1,11 @@
-use crate::{
-    HealthStatus, IpcCommand, IpcResponse, IpcTransport, MultivmError, MultivmResult, ProcessId,
-};
+use crate::ipc::transport::IpcTransport;
+use crate::{HealthStatus, IpcCommand, IpcResponse, MultivmError, MultivmResult, ProcessId};
 use async_trait::async_trait;
-use std::time::{Duration, SystemTime};
 
 /// IPC server for handling incoming commands
 pub struct IpcServer<T: IpcTransport> {
     transport: T,
+    #[allow(dead_code)]
     process_id: ProcessId,
     handlers: std::collections::HashMap<String, Box<dyn IpcCommandHandler>>,
 }
@@ -78,19 +77,7 @@ impl<T: IpcTransport> IpcServer<T> {
             IpcCommand::Ping => Ok(IpcResponse::Pong),
             IpcCommand::GetHealth => {
                 // Default health handler
-                let status = HealthStatus {
-                    process_id: self.process_id,
-                    is_healthy: true,
-                    last_block_processed: None,
-                    blocks_processed_total: 0,
-                    uptime: Duration::from_secs(0), // Would be calculated in real implementation
-                    memory_usage: 0,
-                    cpu_usage_percent: 0.0,
-                    rpc_active: false,
-                    errors_count: 0,
-                    last_error: None,
-                    timestamp: SystemTime::now(),
-                };
+                let status = HealthStatus::Healthy;
                 Ok(IpcResponse::Health { status })
             }
             _ => {
@@ -99,10 +86,10 @@ impl<T: IpcTransport> IpcServer<T> {
                 if let Some(handler) = self.handlers.get(&format!("{:?}", command_type)) {
                     handler.handle(command).await
                 } else {
-                    Err(MultivmError::UnsupportedOperation(format!(
-                        "No handler for command: {:?}",
-                        command
-                    )))
+                    Err(MultivmError::UnsupportedOperation {
+                        operation: format!("No handler for command: {:?}", command),
+                        alternatives: None,
+                    })
                 }
             }
         }

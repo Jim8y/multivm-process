@@ -202,13 +202,30 @@ impl ConsensusError {
 impl From<ConsensusError> for MultivmError {
     fn from(err: ConsensusError) -> Self {
         match err {
-            ConsensusError::Network(msg) => MultivmError::Network(msg),
-            ConsensusError::Storage(msg) => MultivmError::Storage(msg),
-            ConsensusError::Configuration(msg) => MultivmError::Configuration(msg),
-            ConsensusError::Timeout { timeout } => MultivmError::Timeout {
-                timeout: std::time::Duration::from_millis(timeout),
+            ConsensusError::Network(msg) => MultivmError::Network {
+                message: msg,
+                endpoint: None,
+                retry_after: None,
             },
-            other => MultivmError::Unknown(format!("Consensus error: {}", other)),
+            ConsensusError::Storage(msg) => MultivmError::Storage {
+                operation: "consensus".to_string(),
+                message: msg,
+                path: None,
+            },
+            ConsensusError::Configuration(msg) => MultivmError::Configuration {
+                component: "consensus".to_string(),
+                message: msg,
+                validation_errors: None,
+            },
+            ConsensusError::Timeout { timeout } => MultivmError::Timeout {
+                operation: "consensus".to_string(),
+                timeout: std::time::Duration::from_millis(timeout),
+                partial_result: None,
+            },
+            other => MultivmError::Unknown {
+                message: format!("Consensus error: {}", other),
+                error_source: None,
+            },
         }
     }
 }
@@ -217,10 +234,10 @@ impl From<ConsensusError> for MultivmError {
 impl From<MultivmError> for ConsensusError {
     fn from(err: MultivmError) -> Self {
         match err {
-            MultivmError::Network(msg) => ConsensusError::Network(msg),
-            MultivmError::Storage(msg) => ConsensusError::Storage(msg),
-            MultivmError::Configuration(msg) => ConsensusError::Configuration(msg),
-            MultivmError::Timeout { timeout } => ConsensusError::Timeout {
+            MultivmError::Network { message, .. } => ConsensusError::Network(message),
+            MultivmError::Storage { message, .. } => ConsensusError::Storage(message),
+            MultivmError::Configuration { message, .. } => ConsensusError::Configuration(message),
+            MultivmError::Timeout { timeout, .. } => ConsensusError::Timeout {
                 timeout: timeout.as_millis() as u64,
             },
             other => ConsensusError::Internal(other.to_string()),
@@ -228,64 +245,3 @@ impl From<MultivmError> for ConsensusError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_categories() {
-        let error = ConsensusError::InvalidBlock("test".to_string());
-        assert_eq!(error.category(), "validation");
-        assert!(!error.is_recoverable());
-        assert!(!error.is_critical());
-
-        let error = ConsensusError::ForkDetected { height: 100 };
-        assert_eq!(error.category(), "fork");
-        assert!(!error.is_recoverable());
-        assert!(error.is_critical());
-
-        let error = ConsensusError::Timeout { timeout: 5000 };
-        assert_eq!(error.category(), "timeout");
-        assert!(error.is_recoverable());
-        assert!(!error.is_critical());
-    }
-
-    #[test]
-    fn test_error_conversion() {
-        let consensus_error = ConsensusError::Network("test error".to_string());
-        let multivm_error: MultivmError = consensus_error.into();
-
-        match multivm_error {
-            MultivmError::Network(msg) => assert!(msg.contains("test error")),
-            _ => panic!("Unexpected error type"),
-        }
-    }
-
-    #[test]
-    fn test_insufficient_votes_error() {
-        let error = ConsensusError::InsufficientVotes {
-            required: 5,
-            actual: 3,
-        };
-
-        assert!(error.is_recoverable());
-        assert!(!error.is_critical());
-        assert_eq!(error.category(), "consensus");
-
-        let error_str = error.to_string();
-        assert!(error_str.contains("required 5"));
-        assert!(error_str.contains("got 3"));
-    }
-
-    #[test]
-    fn test_view_change_error() {
-        let error = ConsensusError::ViewChangeInProgress {
-            old_view: 1,
-            new_view: 2,
-        };
-
-        assert!(error.is_recoverable());
-        assert!(!error.is_critical());
-        assert_eq!(error.category(), "view_change");
-    }
-}

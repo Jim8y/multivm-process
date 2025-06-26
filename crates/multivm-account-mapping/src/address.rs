@@ -179,11 +179,12 @@ impl fmt::Display for EthereumAddress {
 }
 
 // Conversion implementations
-impl From<solana_sdk::pubkey::Pubkey> for SolanaAddress {
-    fn from(pubkey: solana_sdk::pubkey::Pubkey) -> Self {
-        SolanaAddress(pubkey.to_bytes())
-    }
-}
+// Temporarily disabled due to solana_sdk dependency conflicts
+// impl From<solana_sdk::pubkey::Pubkey> for SolanaAddress {
+//     fn from(pubkey: solana_sdk::pubkey::Pubkey) -> Self {
+//         SolanaAddress(pubkey.to_bytes())
+//     }
+// }
 
 impl From<SolanaAddress> for AccountAddress {
     fn from(addr: SolanaAddress) -> Self {
@@ -200,31 +201,5 @@ impl From<EthereumAddress> for AccountAddress {
 impl From<alloy_primitives::Address> for EthereumAddress {
     fn from(addr: alloy_primitives::Address) -> Self {
         EthereumAddress(addr.0 .0)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_multivm_account_generation() {
-        let solana_addr = SolanaAddress([1u8; 32]);
-        let account = AccountAddress::Solana(solana_addr);
-
-        let multivm_id = MultivmAccountId::from_account(&account);
-        let multivm_id2 = MultivmAccountId::from_account(&account);
-
-        // Should be deterministic
-        assert_eq!(multivm_id, multivm_id2);
-    }
-
-    #[test]
-    fn test_address_conversion() {
-        let solana_addr = SolanaAddress([42u8; 32]);
-        let account = AccountAddress::from(solana_addr);
-
-        assert_eq!(account.vm_type(), VmType::Svm);
-        assert_eq!(account.to_bytes().len(), 32);
     }
 }

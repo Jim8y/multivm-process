@@ -2,11 +2,25 @@ use crate::{BlockchainType, ProcessId};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime};
 
-/// Health status of a blockchain engine process
+/// Health status enumeration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum HealthStatus {
+    Healthy,
+    Degraded,
+    Unhealthy,
+}
+
+impl HealthStatus {
+    pub fn is_operational(&self) -> bool {
+        matches!(self, HealthStatus::Healthy | HealthStatus::Degraded)
+    }
+}
+
+/// Detailed health information for a blockchain engine process
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HealthStatus {
+pub struct HealthInfo {
     pub process_id: ProcessId,
-    pub is_healthy: bool,
+    pub status: HealthStatus,
     pub last_block_processed: Option<u64>,
     pub blocks_processed_total: u64,
     pub uptime: Duration,

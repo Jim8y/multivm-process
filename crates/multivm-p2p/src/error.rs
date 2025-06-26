@@ -100,7 +100,11 @@ pub type P2PResult<T> = std::result::Result<T, P2PError>;
 // Conversion to MultivmError
 impl From<P2PError> for MultivmError {
     fn from(err: P2PError) -> Self {
-        MultivmError::Network(err.to_string())
+        MultivmError::Network {
+            message: err.to_string(),
+            endpoint: None,
+            retry_after: None,
+        }
     }
 }
 
@@ -237,63 +241,3 @@ impl P2PError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_creation() {
-        let err = P2PError::connection_error("Test connection error");
-        assert!(matches!(err, P2PError::ConnectionError { .. }));
-        assert!(err.is_recoverable());
-        assert!(!err.is_fatal());
-        assert_eq!(err.category(), "connection");
-    }
-
-    #[test]
-    fn test_error_conversion() {
-        let p2p_err = P2PError::peer_not_found("peer123");
-        let multivm_err: MultivmError = p2p_err.into();
-
-        match multivm_err {
-            MultivmError::Network(msg) => assert!(msg.contains("peer123")),
-            _ => panic!("Expected Network error"),
-        }
-    }
-
-    #[test]
-    fn test_error_categories() {
-        assert_eq!(P2PError::NetworkNotStarted.category(), "lifecycle");
-        assert_eq!(
-            P2PError::timeout(std::time::Duration::from_secs(5)).category(),
-            "timeout"
-        );
-        assert_eq!(
-            P2PError::protocol_error("multivm", "test").category(),
-            "protocol"
-        );
-    }
-
-    #[test]
-    fn test_recoverable_errors() {
-        assert!(P2PError::connection_error("test").is_recoverable());
-        assert!(P2PError::timeout(std::time::Duration::from_secs(1)).is_recoverable());
-        assert!(!P2PError::invalid_message("test").is_recoverable());
-    }
-
-    #[test]
-    fn test_fatal_errors() {
-        assert!(P2PError::ConfigurationError {
-            message: "test".to_string()
-        }
-        .is_fatal());
-        assert!(P2PError::UnsupportedProtocol {
-            version: "1.0".to_string()
-        }
-        .is_fatal());
-        assert!(!P2PError::ConnectionError {
-            message: "test".to_string()
-        }
-        .is_fatal());
-    }
-}

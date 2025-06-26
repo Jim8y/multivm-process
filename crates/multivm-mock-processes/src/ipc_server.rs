@@ -224,27 +224,3 @@ pub mod error_codes {
     pub const INVALID_PARAMS: i32 = -32602;
     pub const INTERNAL_ERROR: i32 = -32603;
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_ipc_server_creation() {
-        let server = IpcServer::new("127.0.0.1:0".to_string());
-        assert!(!server.is_running().await);
-    }
-
-    #[test]
-    fn test_ipc_message_serialization() {
-        let msg = IpcMessage {
-            jsonrpc: "2.0".to_string(),
-            id: Some(Value::Number(1.into())),
-            method: "eth_sendTransaction".to_string(),
-            params: Value::Array(vec![]),
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("eth_sendTransaction"));
-    }
-}

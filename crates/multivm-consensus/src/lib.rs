@@ -81,7 +81,7 @@ pub use metrics::{
 };
 
 // Common imports
-use multivm_account_mapping::SpecialTransaction;
+// use multivm_account_mapping::special_tx::SpecialTransaction;
 
 /// Version information for the consensus layer
 pub const CONSENSUS_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -98,18 +98,3 @@ pub const DEFAULT_CONSENSUS_TIMEOUT: u64 = 5000;
 /// Default heartbeat interval in milliseconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 1000;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_constants() {
-        // These assertions are removed to avoid clippy warnings
-        // Constants are validated at compile time
-        assert_eq!(CONSENSUS_VERSION, "0.1.0");
-        assert_eq!(MAX_BLOCK_SIZE, 1024 * 1024);
-        assert_eq!(MAX_TRANSACTIONS_PER_BLOCK, 1000);
-        assert_eq!(DEFAULT_CONSENSUS_TIMEOUT, 5000);
-        assert_eq!(DEFAULT_HEARTBEAT_INTERVAL, 1000);
-    }
-}

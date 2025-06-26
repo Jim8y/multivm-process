@@ -1,4 +1,4 @@
-use multivm_common::{ipc::IpcCommand, traits::ExecutionEngine};
+use multivm_common::{IpcCommand, traits::ExecutionEngine};
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;

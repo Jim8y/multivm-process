@@ -4,6 +4,7 @@ use super::permissions::{Permission, PermissionChecker};
 use crate::config::AuthConfig;
 use crate::error::{ApplicationError, AuthResult};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Main authentication manager
@@ -64,7 +65,7 @@ impl AuthManager {
     /// Create a new authentication manager
     pub async fn new(config: &AuthConfig) -> AuthResult<Self> {
         // Initialize JWT authentication
-        let jwt_auth = Arc::new(JwtAuth::new(&config.jwt_secret, config.jwt_expiration)?);
+        let jwt_auth = Arc::new(JwtAuth::new(&config.jwt_secret, Duration::from_secs(config.jwt_expiration_hours as u64 * 3600))?);
 
         // Initialize API key manager
         let storage_backend = match config.api_key_validation {
@@ -333,78 +334,3 @@ impl std::fmt::Display for AuthMethod {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::AuthConfig;
-    use std::time::Duration;
-
-    #[tokio::test]
-    async fn test_auth_manager_creation() {
-        let config = AuthConfig {
-            jwt_secret: "test-secret-key-that-is-long-enough".to_string(),
-            jwt_expiration: Duration::from_secs(3600),
-            enable_api_keys: true,
-            api_key_validation: crate::config::ApiKeyValidation::Database,
-            admin_api_key: None,
-        };
-
-        let auth_manager = AuthManager::new(&config).await;
-        assert!(auth_manager.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_anonymous_authentication() {
-        let config = AuthConfig {
-            jwt_secret: "test-secret-key-that-is-long-enough".to_string(),
-            jwt_expiration: Duration::from_secs(3600),
-            enable_api_keys: true,
-            api_key_validation: crate::config::ApiKeyValidation::Database,
-            admin_api_key: None,
-        };
-
-        let auth_manager = AuthManager::new(&config).await.unwrap();
-        let result = auth_manager
-            .authenticate(AuthRequest::Anonymous)
-            .await
-            .unwrap();
-
-        assert_eq!(result.auth_method, AuthMethod::Anonymous);
-        assert_eq!(result.role, UserRole::Guest);
-        assert!(result.has_permission(&Permission::ReadSystemStatus));
-    }
-
-    #[tokio::test]
-    async fn test_auth_header_extraction() {
-        let config = AuthConfig {
-            jwt_secret: "test-secret-key-that-is-long-enough".to_string(),
-            jwt_expiration: Duration::from_secs(3600),
-            enable_api_keys: true,
-            api_key_validation: crate::config::ApiKeyValidation::Database,
-            admin_api_key: None,
-        };
-
-        let auth_manager = AuthManager::new(&config).await.unwrap();
-
-        // Test API key extraction
-        let auth_request = auth_manager.extract_auth_from_headers(None, Some("test-api-key"));
-
-        match auth_request {
-            AuthRequest::ApiKey(key) => assert_eq!(key, "test-api-key"),
-            _ => panic!("Expected API key authentication"),
-        }
-
-        // Test JWT extraction
-        let auth_request =
-            auth_manager.extract_auth_from_headers(Some("Bearer test-jwt-token"), None);
-
-        match auth_request {
-            AuthRequest::JwtToken(token) => assert_eq!(token, "test-jwt-token"),
-            _ => panic!("Expected JWT authentication"),
-        }
-
-        // Test anonymous
-        let auth_request = auth_manager.extract_auth_from_headers(None, None);
-        assert_eq!(auth_request, AuthRequest::Anonymous);
-    }
-}

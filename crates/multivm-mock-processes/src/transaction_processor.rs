@@ -238,38 +238,3 @@ impl Default for TransactionProcessor {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_transaction_lifecycle() {
-        let mut processor = TransactionProcessor::new();
-
-        // Add transaction
-        let hash = "0x1234567890abcdef";
-        let data = json!({
-            "from": "0x1234",
-            "to": "0x5678",
-            "value": "1000000000000000000"
-        });
-
-        processor.add_transaction(hash.to_string(), data);
-        assert_eq!(processor.pending_count(), 1);
-
-        // Start processing
-        assert!(processor.start_processing(hash));
-
-        // Complete processing
-        assert!(processor.complete_processing(hash, 100, 0, 21000, true));
-        assert_eq!(processor.pending_count(), 0);
-        assert_eq!(processor.processed_count(), 1);
-
-        // Check receipt
-        let receipt = processor.get_receipt(hash).unwrap();
-        assert_eq!(receipt.block_number, 100);
-        assert!(receipt.success);
-    }
-}

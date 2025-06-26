@@ -1,6 +1,6 @@
 //! Redis cache implementation
 
-use crate::config::RedisConfig;
+use crate::config::RedisCacheConfig as RedisConfig;
 use crate::error::ApplicationResult;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;

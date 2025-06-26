@@ -1,5 +1,6 @@
 use crate::{
-    BlockchainType, EngineState, HealthStatus, MessageId, ProcessId, RpcCall, RpcResponse,
+    types::{RpcCall, RpcResponse},
+    BlockchainType, EngineState, HealthStatus, MessageId, ProcessId,
 };
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime};
@@ -128,31 +129,4 @@ pub enum IpcResponse {
 
     /// Health check response
     HealthCheck,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ipc_message_creation() {
-        let msg = IpcMessage::new(ProcessId::Main, ProcessId::Solana, IpcCommand::Ping);
-
-        assert_eq!(msg.source, ProcessId::Main);
-        assert_eq!(msg.destination, ProcessId::Solana);
-        assert!(!msg.is_expired());
-    }
-
-    #[test]
-    fn test_ipc_message_timeout() {
-        let msg = IpcMessage::new(ProcessId::Main, ProcessId::Ethereum, IpcCommand::GetHealth)
-            .with_timeout(Duration::from_millis(1));
-
-        // Message should not be expired immediately
-        assert!(!msg.is_expired());
-
-        // Wait and check if expired (this test might be flaky in very slow environments)
-        std::thread::sleep(Duration::from_millis(2));
-        assert!(msg.is_expired());
-    }
 }

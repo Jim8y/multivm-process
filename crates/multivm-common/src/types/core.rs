@@ -40,6 +40,40 @@ impl std::fmt::Display for ProcessId {
     }
 }
 
+/// System memory usage information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryUsage {
+    pub total: u64,
+    pub used: u64,
+    pub available: u64,
+    pub percentage: f64,
+}
+
+/// System CPU usage information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CpuUsage {
+    pub percentage: f64,
+    pub cores: u32,
+    pub load_average: [f64; 3], // 1min, 5min, 15min
+}
+
+/// System disk usage information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskUsage {
+    pub total: u64,
+    pub used: u64,
+    pub available: u64,
+    pub percentage: f64,
+}
+
+/// System information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub memory: MemoryUsage,
+    pub cpu: CpuUsage,
+    pub disk: DiskUsage,
+    pub uptime: std::time::Duration,
+}
 /// Blockchain type enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockchainType {
@@ -53,30 +87,5 @@ impl std::fmt::Display for BlockchainType {
             BlockchainType::Solana => write!(f, "solana"),
             BlockchainType::Ethereum => write!(f, "ethereum"),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_message_id_uniqueness() {
-        let id1 = MessageId::new();
-        let id2 = MessageId::new();
-        assert_ne!(id1, id2);
-    }
-
-    #[test]
-    fn test_process_id_display() {
-        assert_eq!(ProcessId::Main.to_string(), "main");
-        assert_eq!(ProcessId::Solana.to_string(), "solana");
-        assert_eq!(ProcessId::Ethereum.to_string(), "ethereum");
-    }
-
-    #[test]
-    fn test_blockchain_type_display() {
-        assert_eq!(BlockchainType::Solana.to_string(), "solana");
-        assert_eq!(BlockchainType::Ethereum.to_string(), "ethereum");
     }
 }

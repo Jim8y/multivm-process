@@ -17,15 +17,19 @@ impl IpcConfig {
         self.transport.validate()?;
 
         if self.message_timeout.as_secs() == 0 {
-            return Err(MultivmError::Configuration(
-                "message_timeout must be greater than 0".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "ipc".to_string(),
+                message: "message_timeout must be greater than 0".to_string(),
+                validation_errors: None,
+            });
         }
 
         if self.max_message_size == 0 || self.buffer_size == 0 {
-            return Err(MultivmError::Configuration(
-                "message and buffer sizes must be greater than 0".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "ipc".to_string(),
+                message: "message and buffer sizes must be greater than 0".to_string(),
+                validation_errors: None,
+            });
         }
 
         Ok(())
@@ -55,18 +59,24 @@ impl IpcTransportConfig {
         match self {
             IpcTransportConfig::TcpSocket { port, .. } => {
                 if *port == 0 {
-                    return Err(MultivmError::Configuration(
-                        "TCP port must be greater than 0".to_string(),
-                    ));
+                    return Err(MultivmError::Configuration {
+                        component: "ipc".to_string(),
+                        message: "TCP port must be greater than 0".to_string(),
+                        validation_errors: None,
+                    });
                 }
             }
             IpcTransportConfig::UnixSocket { path } => {
                 if let Some(parent) = path.parent() {
                     if !parent.exists() {
-                        return Err(MultivmError::Configuration(format!(
-                            "Unix socket parent directory does not exist: {:?}",
-                            parent
-                        )));
+                        return Err(MultivmError::Configuration {
+                            component: "ipc".to_string(),
+                            message: format!(
+                                "Unix socket parent directory does not exist: {:?}",
+                                parent
+                            ),
+                            validation_errors: None,
+                        });
                     }
                 }
             }

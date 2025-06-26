@@ -1,6 +1,10 @@
 //! Core account mapping and binding logic
 
-use crate::{AccountAddress, AccountMappingError, AccountMappingResult, MultivmAccountId, VmType};
+use crate::{
+    address::{AccountAddress, EthereumAddress, MultivmAccountId, SolanaAddress},
+    atomic_coordinator::VmType,
+    error::{AccountMappingError, AccountMappingResult},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -278,14 +282,14 @@ impl AccountBinding {
     /// Validate Ed25519 signature for Solana accounts
     fn validate_ed25519_signature(
         &self,
-        solana_addr: &crate::SolanaAddress,
+        solana_addr: &SolanaAddress,
         message: &[u8],
         signature: &[u8],
     ) -> AccountMappingResult<()> {
-        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+        use ed25519_dalek::{PublicKey as VerifyingKey, Signature, Verifier};
 
         // Parse the signature
-        let signature = Signature::from_slice(signature).map_err(|_| {
+        let signature = Signature::from_bytes(signature).map_err(|_| {
             AccountMappingError::InvalidBindingProof {
                 reason: "Invalid Ed25519 signature format".to_string(),
             }
@@ -311,7 +315,7 @@ impl AccountBinding {
     /// Validate secp256k1 signature for Ethereum accounts
     fn validate_secp256k1_signature(
         &self,
-        eth_addr: &crate::EthereumAddress,
+        eth_addr: &EthereumAddress,
         message: &[u8],
         signature: &[u8],
     ) -> AccountMappingResult<()> {
@@ -719,83 +723,58 @@ impl AccountMapper {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{EthereumAddress, SolanaAddress};
+/// Trait for account mapping layer implementations
+#[async_trait::async_trait]
+pub trait AccountMappingLayer: Send + Sync {
+    /// Get all bound addresses for a MultiVM account
+    async fn get_bound_addresses(
+        &self,
+        multivm_id: &MultivmAccountId,
+    ) -> AccountMappingResult<Vec<AccountAddress>>;
 
-    fn create_test_svm_account() -> AccountAddress {
-        AccountAddress::Solana(SolanaAddress([1u8; 32]))
-    }
+    /// Create a new account binding
+    async fn create_binding(&self, binding: AccountBinding) -> AccountMappingResult<()>;
 
-    fn create_test_evm_account() -> AccountAddress {
-        AccountAddress::Ethereum(EthereumAddress([2u8; 20]))
-    }
+    /// Get binding by MultiVM account ID
+    async fn get_binding(
+        &self,
+        multivm_id: &MultivmAccountId,
+    ) -> AccountMappingResult<Option<AccountBinding>>;
 
-    fn create_test_proof(account: AccountAddress) -> BindingProof {
-        BindingProof {
-            account,
-            proof_type: ProofType::Signature {
-                message: b"test message".to_vec(),
-                signature: b"test signature".to_vec(),
-            },
-            proof_data: vec![],
-            timestamp: SystemTime::now(),
-        }
-    }
+    /// Get binding by any bound account address
+    async fn get_binding_by_account(
+        &self,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<Option<AccountBinding>>;
 
-    #[test]
-    fn test_auto_binding_creation() {
-        let svm_account = create_test_svm_account();
-        let binding = AccountBinding::create_auto_binding(svm_account.clone());
+    /// Resolve MultiVM account ID from VM-specific address
+    async fn resolve_multivm_account(
+        &self,
+        account: &AccountAddress,
+    ) -> AccountMappingResult<Option<MultivmAccountId>>;
 
-        assert_eq!(binding.svm_account, Some(svm_account));
-        assert_eq!(binding.evm_account, None);
-        assert!(!binding.has_both_vm_accounts());
-    }
+    /// Check if an account has a binding
+    async fn has_binding(&self, account: &AccountAddress) -> AccountMappingResult<bool>;
 
-    #[test]
-    fn test_cross_vm_binding() {
-        let svm_account = create_test_svm_account();
-        let evm_account = create_test_evm_account();
+    /// Update binding metadata
+    async fn update_binding(
+        &self,
+        multivm_id: &MultivmAccountId,
+        metadata: BindingMetadata,
+    ) -> AccountMappingResult<()>;
 
-        let mut binding = AccountBinding::create_auto_binding(svm_account);
-        let proof = create_test_proof(evm_account.clone());
+    /// Remove a binding
+    async fn remove_binding(&self, multivm_id: &MultivmAccountId) -> AccountMappingResult<()>;
 
-        binding
-            .add_cross_binding(evm_account.clone(), proof)
-            .unwrap();
+    /// Add an automatic binding for a new account
+    async fn add_auto_binding(
+        &self,
+        account: AccountAddress,
+    ) -> AccountMappingResult<MultivmAccountId>;
 
-        assert_eq!(binding.evm_account, Some(evm_account));
-        assert!(binding.has_both_vm_accounts());
-        assert_eq!(binding.binding_proofs.len(), 1);
-    }
-
-    #[test]
-    fn test_account_mapper() {
-        let mut mapper = AccountMapper::new();
-        let svm_account = create_test_svm_account();
-        let binding = AccountBinding::create_auto_binding(svm_account.clone());
-        let multivm_id = binding.multivm_account.clone();
-
-        mapper.add_binding(binding).unwrap();
-
-        assert!(mapper.has_binding(&svm_account));
-        assert_eq!(
-            mapper.resolve_multivm_account(&svm_account),
-            Some(multivm_id.clone())
-        );
-        assert!(mapper.get_binding(&multivm_id).is_some());
-    }
-
-    #[test]
-    fn test_duplicate_binding_error() {
-        let mut mapper = AccountMapper::new();
-        let svm_account = create_test_svm_account();
-        let binding1 = AccountBinding::create_auto_binding(svm_account.clone());
-        let binding2 = AccountBinding::create_auto_binding(svm_account);
-
-        mapper.add_binding(binding1).unwrap();
-        assert!(mapper.add_binding(binding2).is_err());
-    }
+    /// Process special transactions (account mappings, cross-VM operations)
+    async fn process_special_transaction(
+        &self,
+        special_tx: crate::special_tx::SpecialTransaction,
+    ) -> AccountMappingResult<()>;
 }

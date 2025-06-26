@@ -13,7 +13,7 @@ path = "src/main.rs"
 [dependencies]
 # Common types and traits
 multivm-common = { path = "../multivm-common" }
-multivm-consensus = { path = "../multivm-consensus" }
+# multivm-consensus = { path = "../multivm-consensus" }  # Temporarily disabled
 multivm-process-manager = { path = "../multivm-process-manager" }
 
 # Core dependencies

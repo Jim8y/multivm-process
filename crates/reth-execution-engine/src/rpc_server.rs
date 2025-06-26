@@ -102,12 +102,20 @@ impl RethRpcServer {
             // Start the HTTP server
             let bind_address: SocketAddr = format!("127.0.0.1:{}", self.port)
                 .parse()
-                .map_err(|e| MultivmError::Configuration(format!("Invalid bind address: {}", e)))?;
+                .map_err(|e| MultivmError::Configuration {
+                    component: "rpc_server".to_string(),
+                    message: format!("Invalid bind address: {}", e),
+                    validation_errors: Some(vec![format!("Port: {}", self.port)]),
+                })?;
 
             let server = ServerBuilder::new(io)
                 .rest_api(RestApi::Unsecure)
                 .start_http(&bind_address)
-                .map_err(|e| MultivmError::Rpc(format!("Failed to start RPC server: {}", e)))?;
+                .map_err(|e| MultivmError::Rpc {
+                    method: "start_http".to_string(),
+                    message: format!("Failed to start RPC server: {}", e),
+                    status_code: Some(500),
+                })?;
 
             // Spawn server in background task
             let server_handle = tokio::spawn(async move {

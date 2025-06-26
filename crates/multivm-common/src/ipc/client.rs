@@ -1,6 +1,7 @@
+use crate::ipc::transport::IpcTransport;
 use crate::{
-    HealthStatus, IpcCommand, IpcMessage, IpcResponse, IpcTransport, MessageId, MultivmError,
-    MultivmResult, ProcessId,
+    HealthStatus, IpcCommand, IpcMessage, IpcResponse, MessageId, MultivmError, MultivmResult,
+    ProcessId,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -95,13 +96,19 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
             Ok(Err(_)) => {
                 // Channel closed without response
                 self.pending_requests.lock().await.remove(&message_id);
-                Err(MultivmError::Ipc("Response channel closed".to_string()))
+                Err(MultivmError::Ipc {
+                    endpoint: "unknown".to_string(),
+                    message: "Response channel closed".to_string(),
+                    retry_count: None,
+                })
             }
             Err(_) => {
                 // Timeout
                 self.pending_requests.lock().await.remove(&message_id);
                 Err(MultivmError::Timeout {
+                    operation: "block_processing".to_string(),
                     timeout: timeout_duration,
+                    partial_result: None,
                 })
             }
         }
@@ -130,7 +137,10 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
     {
         // Serialize the block to bytes
         let block_data_bytes =
-            bincode::serialize(block).map_err(|e| MultivmError::Serialization(e.to_string()))?;
+            bincode::serialize(block).map_err(|e| MultivmError::Serialization {
+                message: e.to_string(),
+                data_type: Some("block".to_string()),
+            })?;
 
         let command = IpcCommand::ProcessBlock {
             block_data_bytes,
@@ -154,13 +164,22 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
                 if success {
                     Ok(result_bytes)
                 } else {
-                    Err(MultivmError::BlockProcessing(
-                        "Block processing failed".to_string(),
-                    ))
+                    Err(MultivmError::BlockProcessing {
+                        message: "Block processing failed".to_string(),
+                        block_number: None,
+                    })
                 }
             }
-            IpcResponse::Error { message, .. } => Err(MultivmError::Ipc(message)),
-            _ => Err(MultivmError::Ipc("Unexpected response type".to_string())),
+            IpcResponse::Error { message, .. } => Err(MultivmError::Ipc {
+                endpoint: "unknown".to_string(),
+                message,
+                retry_count: None,
+            }),
+            _ => Err(MultivmError::Ipc {
+                endpoint: "unknown".to_string(),
+                message: "Unexpected response type".to_string(),
+                retry_count: None,
+            }),
         }
     }
 
@@ -176,7 +195,10 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
     {
         // Serialize the block to bytes
         let block_data_bytes =
-            bincode::serialize(block).map_err(|e| MultivmError::Serialization(e.to_string()))?;
+            bincode::serialize(block).map_err(|e| MultivmError::Serialization {
+                message: e.to_string(),
+                data_type: Some("block".to_string()),
+            })?;
 
         let command = IpcCommand::ProcessBlock {
             block_data_bytes,
@@ -198,8 +220,16 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
             .await?
         {
             IpcResponse::Health { status } => Ok(status),
-            IpcResponse::Error { message, .. } => Err(MultivmError::Ipc(message)),
-            _ => Err(MultivmError::Ipc("Unexpected response type".to_string())),
+            IpcResponse::Error { message, .. } => Err(MultivmError::Ipc {
+                endpoint: "unknown".to_string(),
+                message,
+                retry_count: None,
+            }),
+            _ => Err(MultivmError::Ipc {
+                endpoint: "unknown".to_string(),
+                message: "Unexpected response type".to_string(),
+                retry_count: None,
+            }),
         }
     }
 
@@ -216,8 +246,7 @@ impl<T: IpcTransport + 'static> IpcClient<T> {
 
     /// Try to extract a response from a message
     fn try_extract_response(message: &IpcMessage) -> Option<IpcResponse> {
-        // Check if this message is a response by looking at the command type
-        // In a real implementation, we'd have a proper way to distinguish requests from responses
+        // Extract response based on command type and message metadata
         match &message.command {
             IpcCommand::Ping => Some(IpcResponse::Pong),
             IpcCommand::GetHealth => Some(message.clone().into_response()),
@@ -266,21 +295,7 @@ impl IntoResponse for IpcMessage {
             IpcCommand::GetHealth => {
                 // Return health status with proper structure
                 IpcResponse::Health {
-                    status: crate::HealthStatus {
-                        process_id: crate::ProcessId::Main,
-                        is_healthy: true,
-                        last_block_processed: Some(0),
-                        blocks_processed_total: 0,
-                        uptime: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default(),
-                        memory_usage: 1024 * 1024, // 1MB
-                        cpu_usage_percent: 5.0,
-                        rpc_active: true,
-                        errors_count: 0,
-                        last_error: None,
-                        timestamp: std::time::SystemTime::now(),
-                    },
+                    status: crate::HealthStatus::Healthy,
                 }
             }
             IpcCommand::GetState => {
@@ -329,7 +344,7 @@ impl IntoResponse for IpcMessage {
                 });
 
                 IpcResponse::RpcResponse {
-                    response: crate::RpcResponse {
+                    response: crate::types::RpcResponse {
                         id: call.id,
                         result: Some(response_data),
                         error: None,

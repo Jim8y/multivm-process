@@ -9,12 +9,12 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 pub struct HealthCheckService {
     status: Arc<RwLock<HealthStatus>>,
-    config: crate::config::HealthCheckConfig,
+    config: crate::config::MonitoringConfig,
 }
 
 impl HealthCheckService {
     /// Create new health check service
-    pub async fn new(config: &crate::config::HealthCheckConfig) -> ApplicationResult<Self> {
+    pub async fn new(config: &crate::config::MonitoringConfig) -> ApplicationResult<Self> {
         Ok(Self {
             status: Arc::new(RwLock::new(HealthStatus::default())),
             config: config.clone(),
@@ -23,7 +23,7 @@ impl HealthCheckService {
 
     /// Start health check HTTP server
     pub async fn start_server(&self) -> ApplicationResult<()> {
-        let addr = format!("{}:{}", self.config.host, self.config.port);
+        let addr = format!("0.0.0.0:{}", self.config.health_check_port);
         tracing::info!("Starting health check server on {}", addr);
 
         // Start HTTP server with health check endpoints

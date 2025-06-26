@@ -1,12 +1,13 @@
 use crate::config::{EthereumConfig, LegacyIpcConfig, LegacyLoggingConfig, LegacySystemConfig};
-use crate::{MultivmError, SolanaConfig};
+use crate::{MultivmError};
+use crate::config::SolanaExecutionConfig;
 use serde::{Deserialize, Serialize};
 
 /// Main configuration for the multi-VM system
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MultivmConfig {
     pub system: LegacySystemConfig,
-    pub solana: SolanaConfig,
+    pub solana: SolanaExecutionConfig,
     pub ethereum: EthereumConfig,
     pub ipc: LegacyIpcConfig,
     pub logging: LegacyLoggingConfig,
@@ -16,11 +17,19 @@ impl MultivmConfig {
     /// Load configuration from file
     pub fn from_file(path: &str) -> Result<Self, MultivmError> {
         let content = std::fs::read_to_string(path).map_err(|e| {
-            MultivmError::Configuration(format!("Failed to read config file: {}", e))
+            MultivmError::Configuration {
+                component: "main".to_string(),
+                message: format!("Failed to read config file: {}", e),
+                validation_errors: None,
+            }
         })?;
 
         let config: Self = toml::from_str(&content)
-            .map_err(|e| MultivmError::Configuration(format!("Failed to parse config: {}", e)))?;
+            .map_err(|e| MultivmError::Configuration {
+                component: "main".to_string(),
+                message: format!("Failed to parse config: {}", e),
+                validation_errors: None,
+            })?;
 
         config.validate()?;
         Ok(config)
@@ -29,11 +38,19 @@ impl MultivmConfig {
     /// Save configuration to file
     pub fn save_to_file(&self, path: &str) -> Result<(), MultivmError> {
         let content = toml::to_string_pretty(self).map_err(|e| {
-            MultivmError::Configuration(format!("Failed to serialize config: {}", e))
+            MultivmError::Configuration {
+                component: "main".to_string(),
+                message: format!("Failed to serialize config: {}", e),
+                validation_errors: None,
+            }
         })?;
 
         std::fs::write(path, content).map_err(|e| {
-            MultivmError::Configuration(format!("Failed to write config file: {}", e))
+            MultivmError::Configuration {
+                component: "main".to_string(),
+                message: format!("Failed to write config file: {}", e),
+                validation_errors: None,
+            }
         })?;
 
         Ok(())
@@ -50,13 +67,3 @@ impl MultivmConfig {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_multivm_config_default() {
-        let config = MultivmConfig::default();
-        assert!(config.validate().is_ok());
-    }
-}

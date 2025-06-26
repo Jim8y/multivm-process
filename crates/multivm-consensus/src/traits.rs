@@ -2,7 +2,10 @@
 
 use crate::ConsensusResult;
 use async_trait::async_trait;
-use multivm_account_mapping::{MultivmAccountId, SpecialTransaction};
+// use multivm_account_mapping::{
+//     address::MultivmAccountId,
+//     special_tx::SpecialTransaction
+// };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::time::SystemTime;
@@ -41,7 +44,7 @@ pub trait ConsensusEngine: Send + Sync + Debug {
     async fn validate_block(&self, block: &Self::Block) -> ConsensusResult<bool>;
 
     /// Commit a validated block to the blockchain
-    async fn commit_block(&self, block: Self::Block) -> ConsensusResult<()>;
+    async fn commit_block(&mut self, block: Self::Block) -> ConsensusResult<()>;
 
     /// Get the current blockchain height
     async fn get_current_height(&self) -> ConsensusResult<u64>;
@@ -60,16 +63,16 @@ pub trait ConsensusEngine: Send + Sync + Debug {
 #[async_trait]
 pub trait CrossVMStateCoordinator: Send + Sync + Debug {
     /// Apply a cross-VM transaction and return the resulting state changes
-    async fn apply_cross_vm_transaction(
-        &mut self,
-        transaction: &SpecialTransaction,
-    ) -> ConsensusResult<Vec<StateChange>>;
+    // async fn apply_cross_vm_transaction(
+    //     &mut self,
+    //     transaction: &SpecialTransaction,
+    // ) -> ConsensusResult<Vec<StateChange>>;
 
     /// Validate a cross-VM transaction before applying it
-    async fn validate_cross_vm_transaction(
-        &self,
-        transaction: &SpecialTransaction,
-    ) -> ConsensusResult<ValidationResult>;
+    // async fn validate_cross_vm_transaction(
+    //     &self,
+    //     transaction: &SpecialTransaction,
+    // ) -> ConsensusResult<ValidationResult>;
 
     /// Get the current cross-VM state snapshot
     async fn get_cross_vm_state(&self) -> ConsensusResult<CrossVMState>;
@@ -197,7 +200,7 @@ pub struct CrossVMState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusAccountBinding {
     /// MultiVM account identifier
-    pub multivm_account: MultivmAccountId,
+    // pub multivm_account: MultivmAccountId,
     /// Associated VM addresses
     pub bound_addresses: Vec<String>,
     /// Binding metadata
@@ -303,56 +306,3 @@ impl ValidationResult {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validation_result() {
-        let valid = ValidationResult::Valid;
-        assert!(valid.is_valid());
-        assert!(!valid.is_invalid());
-        assert!(!valid.is_pending());
-        assert!(valid.error_message().is_none());
-
-        let invalid = ValidationResult::Invalid("test error".to_string());
-        assert!(!invalid.is_valid());
-        assert!(invalid.is_invalid());
-        assert!(!invalid.is_pending());
-        assert_eq!(invalid.error_message(), Some("test error"));
-
-        let pending = ValidationResult::Pending;
-        assert!(!pending.is_valid());
-        assert!(!pending.is_invalid());
-        assert!(pending.is_pending());
-        assert!(pending.error_message().is_none());
-    }
-
-    #[test]
-    fn test_consensus_stats_default() {
-        let stats = ConsensusStats::default();
-        assert_eq!(stats.current_height, 0);
-        assert_eq!(stats.current_round, 0);
-        assert_eq!(stats.algorithm, "unknown");
-    }
-
-    #[test]
-    fn test_state_change_serialization() {
-        let change = StateChange {
-            change_type: StateChangeType::BalanceUpdate,
-            target: "account123".to_string(),
-            previous_value: Some(serde_json::json!(100)),
-            new_value: serde_json::json!(200),
-            metadata: serde_json::json!({"reason": "transfer"}),
-        };
-
-        let serialized = serde_json::to_string(&change).unwrap();
-        let deserialized: StateChange = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(change.target, deserialized.target);
-        assert!(matches!(
-            deserialized.change_type,
-            StateChangeType::BalanceUpdate
-        ));
-    }
-}

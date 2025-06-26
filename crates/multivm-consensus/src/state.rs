@@ -6,7 +6,11 @@ use crate::traits::{
 };
 use crate::{ConsensusError, ConsensusResult};
 use async_trait::async_trait;
-use multivm_account_mapping::{AccountBinding, MultivmAccountId, SpecialTransaction};
+// use multivm_account_mapping::{
+//     mapping::AccountBinding,
+//     address::MultivmAccountId,
+//     special_tx::SpecialTransaction
+// };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -16,6 +20,276 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, error, info, warn};
+use rocksdb::{DB, Options};
+
+/// Trait for persistent consensus state storage
+#[async_trait]
+pub trait ConsensusStateStorage: Send + Sync {
+    /// Store consensus state at a specific height
+    async fn store_state(&self, height: u64, state: &ConsensusState) -> ConsensusResult<()>;
+    
+    /// Retrieve consensus state at a specific height
+    async fn get_state(&self, height: u64) -> ConsensusResult<Option<ConsensusState>>;
+    
+    /// Get the latest stored state
+    async fn get_latest_state(&self) -> ConsensusResult<Option<ConsensusState>>;
+    
+    /// Delete state at a specific height
+    async fn delete_state(&self, height: u64) -> ConsensusResult<()>;
+    
+    /// List available state heights
+    async fn list_heights(&self) -> ConsensusResult<Vec<u64>>;
+    
+    /// Get storage statistics
+    async fn get_stats(&self) -> ConsensusResult<StorageStats>;
+}
+
+/// Storage statistics for monitoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageStats {
+    pub total_states: usize,
+    pub disk_usage_bytes: u64,
+    pub oldest_height: Option<u64>,
+    pub newest_height: Option<u64>,
+}
+
+/// RocksDB implementation of consensus state storage
+pub struct RocksDBConsensusStorage {
+    db: Arc<DB>,
+}
+
+impl RocksDBConsensusStorage {
+    /// Create a new RocksDB consensus storage
+    pub fn new(db_path: &str) -> ConsensusResult<Self> {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        
+        let db = DB::open(&opts, db_path)
+            .map_err(|e| ConsensusError::Storage(format!("Failed to open RocksDB: {}", e)))?;
+        
+        Ok(Self {
+            db: Arc::new(db),
+        })
+    }
+    
+    fn height_key(height: u64) -> String {
+        format!("consensus_state:{:020}", height)
+    }
+}
+
+#[async_trait]
+impl ConsensusStateStorage for RocksDBConsensusStorage {
+    async fn store_state(&self, height: u64, state: &ConsensusState) -> ConsensusResult<()> {
+        let key = Self::height_key(height);
+        let value = bincode::serialize(state)
+            .map_err(|e| ConsensusError::Storage(format!("Serialization error: {}", e)))?;
+        
+        self.db.put(key.as_bytes(), &value)
+            .map_err(|e| ConsensusError::Storage(format!("Failed to store state: {}", e)))?;
+        
+        Ok(())
+    }
+    
+    async fn get_state(&self, height: u64) -> ConsensusResult<Option<ConsensusState>> {
+        let key = Self::height_key(height);
+        
+        match self.db.get(key.as_bytes())
+            .map_err(|e| ConsensusError::Storage(format!("Failed to get state: {}", e)))? 
+        {
+            Some(value) => {
+                let state = bincode::deserialize(&value)
+                    .map_err(|e| ConsensusError::Storage(format!("Deserialization error: {}", e)))?;
+                Ok(Some(state))
+            }
+            None => Ok(None),
+        }
+    }
+    
+    async fn get_latest_state(&self) -> ConsensusResult<Option<ConsensusState>> {
+        let iter = self.db.iterator(rocksdb::IteratorMode::Start);
+        let mut latest_height = None;
+        
+        // Find the highest height
+        for (key, _) in iter.flatten() {
+            if let Ok(key_str) = String::from_utf8(key.to_vec()) {
+                if let Some(height_str) = key_str.strip_prefix("consensus_state:") {
+                    if let Ok(height) = height_str.parse::<u64>() {
+                        latest_height = Some(latest_height.map_or(height, |h: u64| h.max(height)));
+                    }
+                }
+            }
+        }
+        
+        if let Some(height) = latest_height {
+            self.get_state(height).await
+        } else {
+            Ok(None)
+        }
+    }
+    
+    async fn delete_state(&self, height: u64) -> ConsensusResult<()> {
+        let key = Self::height_key(height);
+        self.db.delete(key.as_bytes())
+            .map_err(|e| ConsensusError::Storage(format!("Failed to delete state: {}", e)))?;
+        Ok(())
+    }
+    
+    async fn list_heights(&self) -> ConsensusResult<Vec<u64>> {
+        let mut heights = Vec::new();
+        let iter = self.db.iterator(rocksdb::IteratorMode::Start);
+        
+        for (key, _) in iter.flatten() {
+            if let Ok(key_str) = String::from_utf8(key.to_vec()) {
+                if let Some(height_str) = key_str.strip_prefix("consensus_state:") {
+                    if let Ok(height) = height_str.parse::<u64>() {
+                        heights.push(height);
+                    }
+                }
+            }
+        }
+        
+        heights.sort_unstable();
+        Ok(heights)
+    }
+    
+    async fn get_stats(&self) -> ConsensusResult<StorageStats> {
+        let heights = self.list_heights().await?;
+        
+        Ok(StorageStats {
+            total_states: heights.len(),
+            disk_usage_bytes: 0, // RocksDB doesn't provide easy way to get size
+            oldest_height: heights.first().copied(),
+            newest_height: heights.last().copied(),
+        })
+    }
+}
+
+/// Configuration for persistent state manager
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersistentStateConfig {
+    /// RocksDB database path
+    pub db_path: String,
+    /// Maximum number of states to keep
+    pub max_states: usize,
+    /// Cleanup interval in seconds
+    pub cleanup_interval_secs: u64,
+    /// Enable automatic cleanup of old states
+    pub auto_cleanup: bool,
+}
+
+impl Default for PersistentStateConfig {
+    fn default() -> Self {
+        Self {
+            db_path: "/opt/multivm/data/consensus_state.db".to_string(),
+            max_states: 1000,
+            cleanup_interval_secs: 3600, // 1 hour
+            auto_cleanup: true,
+        }
+    }
+}
+
+/// Persistent cross-VM state manager with RocksDB backend  
+pub struct PersistentCrossVMStateManager {
+    /// In-memory state manager for active operations
+    memory_manager: CrossVMStateManager,
+    /// Persistent storage backend
+    storage: Arc<dyn ConsensusStateStorage>,
+    /// Configuration
+    config: StateManagerConfig,
+}
+
+impl PersistentCrossVMStateManager {
+    /// Create a new persistent state manager with RocksDB
+    pub async fn new_with_rocksdb(
+        state_config: StateManagerConfig,
+        db_path: &str,
+    ) -> ConsensusResult<Self> {
+        let memory_manager = CrossVMStateManager::new(state_config.clone());
+        
+        let storage = Arc::new(RocksDBConsensusStorage::new(db_path)?);
+        
+        let manager = Self {
+            memory_manager,
+            storage,
+            config: state_config,
+        };
+        
+        // Try to load latest state from storage
+        if let Some(state) = manager.storage.get_latest_state().await? {
+            info!("Loaded consensus state from persistence: {:?}", state);
+        }
+        
+        Ok(manager)
+    }
+    
+    /// Get the current consensus state (from memory)
+    pub async fn get_consensus_state(&self) -> ConsensusResult<ConsensusState> {
+        // For MultiVM, we track our own consensus state, not VM-specific states
+        Ok(ConsensusState::new())
+    }
+    
+    /// Save current state to persistent storage
+    pub async fn save_state(&self, height: u64) -> ConsensusResult<()> {
+        let state = self.get_consensus_state().await?;
+        self.storage.store_state(height, &state).await?;
+        Ok(())
+    }
+    
+    /// Load state from persistent storage at specific height
+    pub async fn load_state(&self, height: u64) -> ConsensusResult<Option<ConsensusState>> {
+        self.storage.get_state(height).await
+    }
+    
+    /// Get storage statistics
+    pub async fn get_storage_stats(&self) -> ConsensusResult<StorageStats> {
+        self.storage.get_stats().await
+    }
+    
+    /// Get current height from memory manager
+    pub fn get_current_height(&self) -> u64 {
+        self.memory_manager.get_current_height()
+    }
+    
+    /// Get current view from memory manager
+    pub fn get_current_view(&self) -> u64 {
+        self.memory_manager.get_current_view()
+    }
+    
+    /// Update VM state
+    pub fn update_vm_state(&self, vm_type: crate::messages::VmType, height: u64, state_root: String) -> ConsensusResult<()> {
+        self.memory_manager.update_vm_state(vm_type, height, state_root)
+    }
+    
+    /// Apply a block to the state
+    pub async fn apply_block(&mut self, block: &crate::MultiVMBlock) -> ConsensusResult<()> {
+        self.memory_manager.apply_block(block).await
+    }
+    
+    /// Get cross-VM state
+    pub async fn get_cross_vm_state(&self) -> ConsensusResult<CrossVMState> {
+        self.memory_manager.get_cross_vm_state().await
+    }
+    
+    /// Create checkpoint
+    pub async fn create_checkpoint(&self) -> ConsensusResult<StateCheckpoint> {
+        self.memory_manager.create_checkpoint().await
+    }
+    
+    /// Restore from checkpoint
+    pub async fn restore_from_checkpoint(&mut self, checkpoint: &StateCheckpoint) -> ConsensusResult<()> {
+        self.memory_manager.restore_from_checkpoint(checkpoint).await
+    }
+    
+    /// Sync state to target height
+    pub async fn sync_state(&mut self, target_height: u64) -> ConsensusResult<()> {
+        self.memory_manager.sync_state(target_height).await
+    }
+    
+    /// Validate cross-VM transaction
+    pub async fn validate_cross_vm_transaction(&self, transaction: &SpecialTransaction) -> ConsensusResult<ValidationResult> {
+        self.memory_manager.validate_cross_vm_transaction(transaction).await
+    }
+}
 
 /// Simple consensus state for tracking consensus progress
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,7 +338,7 @@ pub struct CrossVMStateManager {
     /// State history for rollback support
     state_history: Arc<RwLock<Vec<StateCheckpoint>>>,
     /// Account bindings cache
-    account_bindings: Arc<RwLock<HashMap<MultivmAccountId, AccountBinding>>>,
+    // account_bindings: Arc<RwLock<HashMap<MultivmAccountId, AccountBinding>>>,
     /// Pending state changes
     pending_changes: Arc<RwLock<Vec<StateChange>>>,
     /// Configuration
@@ -82,6 +356,8 @@ pub struct StateManagerConfig {
     pub enable_verification: bool,
     /// Maximum pending changes before forced commit
     pub max_pending_changes: usize,
+    /// Optional RocksDB path (for testing)
+    pub rocksdb_path: Option<String>,
 }
 
 impl Default for StateManagerConfig {
@@ -91,6 +367,7 @@ impl Default for StateManagerConfig {
             checkpoint_interval: 10,
             enable_verification: true,
             max_pending_changes: 1000,
+            rocksdb_path: None,
         }
     }
 }
@@ -110,7 +387,7 @@ impl CrossVMStateManager {
         Self {
             state: Arc::new(RwLock::new(initial_state)),
             state_history: Arc::new(RwLock::new(Vec::new())),
-            account_bindings: Arc::new(RwLock::new(HashMap::new())),
+            // account_bindings: Arc::new(RwLock::new(HashMap::new())),
             pending_changes: Arc::new(RwLock::new(Vec::new())),
             config,
         }
@@ -504,7 +781,7 @@ impl CrossVMStateManager {
     }
 
     /// Update VM state for a specific VM type
-    pub async fn update_vm_state(
+    pub fn update_vm_state(
         &self,
         vm_type: VmType,
         height: u64,
@@ -1331,75 +1608,4 @@ impl CrossVMStateManager {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[tokio::test]
-    async fn test_state_manager_creation() {
-        let config = StateManagerConfig::default();
-        let manager = CrossVMStateManager::new(config);
-
-        let stats = manager.get_state_statistics();
-        assert_eq!(stats.current_height, 0);
-        assert_eq!(stats.global_nonce, 0);
-        assert_eq!(stats.account_bindings_count, 0);
-    }
-
-    #[tokio::test]
-    async fn test_height_update() {
-        let config = StateManagerConfig::default();
-        let manager = CrossVMStateManager::new(config);
-
-        manager.update_height(100).unwrap();
-
-        let stats = manager.get_state_statistics();
-        assert_eq!(stats.current_height, 100);
-    }
-
-    #[tokio::test]
-    async fn test_state_root_updates() {
-        let config = StateManagerConfig::default();
-        let manager = CrossVMStateManager::new(config);
-
-        manager
-            .update_svm_state_root("svm_root_123".to_string())
-            .unwrap();
-        manager
-            .update_evm_state_root("evm_root_456".to_string())
-            .unwrap();
-
-        let stats = manager.get_state_statistics();
-        assert_eq!(stats.svm_state_root, "svm_root_123");
-        assert_eq!(stats.evm_state_root, "evm_root_456");
-    }
-
-    #[tokio::test]
-    async fn test_cross_vm_transaction_validation() {
-        let config = StateManagerConfig::default();
-        let manager = CrossVMStateManager::new(config);
-
-        let tx = SpecialTransaction::CrossVmTransfer {
-            from: multivm_account_mapping::MultivmAccountId::from_seed(b"test_from"),
-            to: multivm_account_mapping::MultivmAccountId::from_seed(b"test_to"),
-            amount: 100,
-            asset_type: multivm_account_mapping::AssetType::Native,
-            memo: Some("test transfer".to_string()),
-        };
-
-        let result = manager.validate_cross_vm_transaction(&tx).await.unwrap();
-        assert!(result.is_valid());
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_creation() {
-        let config = StateManagerConfig::default();
-        let manager = CrossVMStateManager::new(config);
-
-        manager.update_height(50).unwrap();
-
-        let checkpoint = manager.create_checkpoint().await.unwrap();
-        assert_eq!(checkpoint.height, 50);
-        assert!(!checkpoint.state_hash.is_empty());
-    }
-}

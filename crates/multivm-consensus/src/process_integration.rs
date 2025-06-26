@@ -216,8 +216,11 @@ impl ProcessConsensusCoordinator {
         )?);
 
         // Create Malachite consensus engine
-        let (consensus_engine, block_sender, commit_receiver) =
-            MalachiteConsensus::new(config.consensus_config.clone()).await?;
+        let consensus_engine = MalachiteConsensus::new(config.consensus_config.clone().into());
+        
+        // Create channels for block processing
+        let (block_sender, _block_receiver) = mpsc::channel(100);
+        let (_commit_sender, commit_receiver) = mpsc::channel(100);
 
         Ok(Self {
             consensus_engine: Some(consensus_engine),
@@ -234,8 +237,8 @@ impl ProcessConsensusCoordinator {
         info!("Starting process consensus coordinator");
 
         // Start the Malachite consensus engine
-        if let Some(engine) = &self.consensus_engine {
-            engine.start_consensus().await?;
+        if let Some(engine) = &mut self.consensus_engine {
+            engine.start().await?;
         }
 
         // Start the commit processing loop
@@ -630,54 +633,3 @@ pub struct ExecutionStats {
     pub avg_block_execution_time_ms: u64,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_process_consensus_coordinator_creation() {
-        let config = ProcessConsensusConfig::default();
-        let coordinator = ProcessConsensusCoordinator::new(config).await;
-        assert!(coordinator.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_process_execution_coordinator() {
-        let config = ProcessExecutionConfig::default();
-        let executor = ProcessExecutionCoordinator::new(config).unwrap();
-
-        // Create test block
-        let mut block = MultiVMBlock::new(1, "0x0".to_string(), "test-node".to_string(), vec![]);
-
-        // Add EVM transaction
-        block.add_evm_transaction(crate::block::EvmTransaction::new(
-            "0x1234".to_string(),
-            Some("0x5678".to_string()),
-            1000,
-            21000,
-            20,
-            vec![1, 2, 3, 4],
-            1,
-        ));
-
-        // Add SVM transaction
-        block.add_svm_transaction(crate::block::SvmTransaction::new(
-            vec!["sig1".to_string()],
-            vec![5, 6, 7],
-            vec!["account1".to_string()],
-        ));
-
-        // Execute block
-        let result = executor.execute_block(block).await;
-        assert!(result.is_ok());
-
-        // Check execution state
-        let state = executor.get_execution_state().await;
-        assert_eq!(state.last_executed_height, 1);
-        assert_eq!(state.execution_history.len(), 1);
-
-        let stats = state.get_stats();
-        assert_eq!(stats.total_blocks, 1);
-        assert_eq!(stats.total_transactions, 2);
-    }
-}

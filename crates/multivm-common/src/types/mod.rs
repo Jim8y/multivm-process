@@ -13,4 +13,4 @@ pub use health::*;
 pub use metrics::*;
 pub use requests::*;
 pub use resources::*;
-pub use rpc::{RpcCall, RpcError, RpcResponse};
+pub use rpc::{RpcCall, RpcConfig, RpcError, RpcResponse};

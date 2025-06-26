@@ -8,12 +8,12 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct MetricsService {
     registry: Arc<RwLock<MetricsRegistry>>,
-    config: crate::config::MetricsConfig,
+    config: crate::config::MonitoringConfig,
 }
 
 impl MetricsService {
     /// Create new metrics service
-    pub async fn new(config: &crate::config::MetricsConfig) -> ApplicationResult<Self> {
+    pub async fn new(config: &crate::config::MonitoringConfig) -> ApplicationResult<Self> {
         Ok(Self {
             registry: Arc::new(RwLock::new(MetricsRegistry::new())),
             config: config.clone(),
@@ -22,7 +22,7 @@ impl MetricsService {
 
     /// Start metrics HTTP server
     pub async fn start_server(&self) -> ApplicationResult<()> {
-        let addr = format!("{}:{}", self.config.host, self.config.port);
+        let addr = format!("0.0.0.0:{}", self.config.metrics_port);
         tracing::info!("Starting metrics server on {}", addr);
 
         // Start HTTP server for metrics endpoint

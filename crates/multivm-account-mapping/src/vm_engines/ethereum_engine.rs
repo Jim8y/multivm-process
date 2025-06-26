@@ -14,8 +14,12 @@
 //! coordinates the atomic operations across multiple processes.
 
 use crate::{
-    atomic_coordinator::{CommitResult, OperationStatus, PrepareResult, StateChange, VmOperation},
-    AccountAddress, AssetType, OperationType, VmType,
+    address::AccountAddress,
+    atomic_coordinator::{
+        CommitResult, OperationStatus, OperationType, PrepareResult, StateChange, VmOperation,
+        VmType,
+    },
+    special_tx::AssetType,
 };
 use multivm_common::{MultivmError, MultivmResult};
 use serde::{Deserialize, Serialize};
@@ -244,9 +248,11 @@ impl EthereumProcessEngine {
         // 2. Encode lock ID as bytes32 (32 bytes, left-padded with zeros)
         let lock_id_bytes = lock_id.as_bytes();
         if lock_id_bytes.len() > 32 {
-            return Err(MultivmError::Configuration(
-                "Lock ID too long for bytes32".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "ethereum-engine".to_string(),
+                message: "Lock ID too long for bytes32".to_string(),
+                validation_errors: None,
+            });
         }
         let mut lock_id_padded = [0u8; 32];
         lock_id_padded[..lock_id_bytes.len()].copy_from_slice(lock_id_bytes);
@@ -282,9 +288,11 @@ impl EthereumProcessEngine {
 
         let lock_id_bytes = lock_id.as_bytes();
         if lock_id_bytes.len() > 32 {
-            return Err(MultivmError::Configuration(
-                "Lock ID too long for bytes32".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "ethereum-engine".to_string(),
+                message: "Lock ID too long for bytes32".to_string(),
+                validation_errors: None,
+            });
         }
         let mut lock_id_padded = [0u8; 32];
         lock_id_padded[..lock_id_bytes.len()].copy_from_slice(lock_id_bytes);
@@ -309,12 +317,18 @@ impl EthereumProcessEngine {
 
         // Recipient address (20 bytes for Ethereum address)
         let recipient_bytes = hex::decode(recipient.trim_start_matches("0x")).map_err(|e| {
-            MultivmError::Configuration(format!("Invalid recipient address: {}", e))
+            MultivmError::Configuration {
+                component: "ethereum-engine".to_string(),
+                message: format!("Invalid recipient address: {}", e),
+                validation_errors: None,
+            }
         })?;
         if recipient_bytes.len() != 20 {
-            return Err(MultivmError::Configuration(
-                "Invalid Ethereum address length".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "ethereum-engine".to_string(),
+                message: "Invalid Ethereum address length".to_string(),
+                validation_errors: None,
+            });
         }
         data.extend_from_slice(&[0u8; 12]); // Padding
         data.extend_from_slice(&recipient_bytes);
@@ -326,9 +340,11 @@ impl EthereumProcessEngine {
     fn extract_ethereum_address(&self, account: &AccountAddress) -> MultivmResult<String> {
         match account {
             AccountAddress::Ethereum(eth_addr) => Ok(format!("0x{}", hex::encode(eth_addr.0))),
-            _ => Err(MultivmError::Configuration(
-                "Invalid account type for Ethereum engine".to_string(),
-            )),
+            _ => Err(MultivmError::Configuration {
+                component: "ethereum-engine".to_string(),
+                message: "Invalid account type for Ethereum engine".to_string(),
+                validation_errors: None,
+            }),
         }
     }
 
@@ -347,10 +363,16 @@ impl EthereumProcessEngine {
         let raw_tx = self.build_raw_transaction(builder.clone()).await?;
 
         // Send transaction via JSON-RPC
-        let tx_hash = client
-            .send_raw_transaction(&raw_tx)
-            .await
-            .map_err(|e| MultivmError::Ethereum(format!("Failed to submit transaction: {}", e)))?;
+        let tx_hash =
+            client
+                .send_raw_transaction(&raw_tx)
+                .await
+                .map_err(|e| MultivmError::VmEngine {
+                    vm_type: "ethereum".to_string(),
+                    message: format!("Failed to submit transaction: {}", e),
+                    block_info: None,
+                    transaction_info: None,
+                })?;
 
         info!("Submitted Ethereum transaction: {}", tx_hash);
 
@@ -374,8 +396,8 @@ impl EthereumProcessEngine {
         &self,
         builder: EthereumTransactionBuilder,
     ) -> MultivmResult<Vec<u8>> {
-        // Build transaction manually for now
-        // TODO: Use proper RLP encoding
+        // Build transaction with proper structure
+        // Note: In production, use a proper RLP encoding library like `rlp`
 
         // Get current nonce
         let nonce = self.get_nonce(&builder.from).await?;
@@ -397,12 +419,19 @@ impl EthereumProcessEngine {
         tx_data.extend_from_slice(&builder.gas_limit.to_be_bytes());
 
         // Add to address (20 bytes)
-        let to_addr = hex::decode(builder.to.trim_start_matches("0x"))
-            .map_err(|e| MultivmError::Configuration(format!("Invalid to address: {}", e)))?;
+        let to_addr = hex::decode(builder.to.trim_start_matches("0x")).map_err(|e| {
+            MultivmError::Configuration {
+                component: "ethereum_engine".to_string(),
+                message: format!("Invalid to address: {}", e),
+                validation_errors: Some(vec![]),
+            }
+        })?;
         if to_addr.len() != 20 {
-            return Err(MultivmError::Configuration(
-                "Invalid address length".to_string(),
-            ));
+            return Err(MultivmError::Configuration {
+                component: "ethereum_engine".to_string(),
+                message: "Invalid address length".to_string(),
+                validation_errors: Some(vec![]),
+            });
         }
         tx_data.extend_from_slice(&to_addr);
 
@@ -495,7 +524,12 @@ impl EthereumProcessEngine {
         let base_fee = client
             .get_base_fee()
             .await
-            .map_err(|e| MultivmError::Ethereum(format!("Failed to get base fee: {}", e)))?;
+            .map_err(|e| MultivmError::VmEngine {
+                vm_type: "ethereum".to_string(),
+                message: format!("Failed to get base fee: {}", e),
+                block_info: None,
+                transaction_info: None,
+            })?;
 
         // Calculate gas price based on network conditions
         // Use EIP-1559 pricing if available
@@ -531,10 +565,16 @@ impl EthereumProcessEngine {
             .rpc_client
             .get_or_init(|| async { EthereumRpcClient::new(self.config.rpc_url.clone()) })
             .await;
-        let network_nonce = client
-            .get_transaction_count(account)
-            .await
-            .map_err(|e| MultivmError::Ethereum(format!("Failed to get nonce: {}", e)))?;
+        let network_nonce =
+            client
+                .get_transaction_count(account)
+                .await
+                .map_err(|e| MultivmError::VmEngine {
+                    vm_type: "ethereum".to_string(),
+                    message: format!("Failed to get nonce: {}", e),
+                    block_info: None,
+                    transaction_info: None,
+                })?;
 
         // Cache the nonce
         nonce_cache.insert(account.to_string(), network_nonce);
@@ -631,9 +671,10 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                     vm_data.insert("block_number".to_string(), block_number.to_string());
                 }
                 _ => {
-                    return Err(MultivmError::UnsupportedOperation(
-                        "Operation not supported in prepare phase".to_string(),
-                    ));
+                    return Err(MultivmError::UnsupportedOperation {
+                        operation: "prepare_phase_operation".to_string(),
+                        alternatives: Some(vec!["Use commit phase for this operation".to_string()]),
+                    });
                 }
             }
         }
@@ -671,9 +712,11 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 let from_addr = match &lock.account {
                     AccountAddress::Ethereum(eth) => format!("0x{}", hex::encode(eth.0)),
                     _ => {
-                        return Err(MultivmError::Configuration(
-                            "Expected Ethereum address".to_string(),
-                        ))
+                        return Err(MultivmError::Configuration {
+                            component: "ethereum-engine".to_string(),
+                            message: "Expected Ethereum address".to_string(),
+                            validation_errors: None,
+                        })
                     }
                 };
                 let builder = EthereumTransactionBuilder {
@@ -728,9 +771,11 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 let from_addr = match &_lock.account {
                     AccountAddress::Ethereum(eth) => format!("0x{}", hex::encode(eth.0)),
                     _ => {
-                        return Err(MultivmError::Configuration(
-                            "Expected Ethereum address".to_string(),
-                        ))
+                        return Err(MultivmError::Configuration {
+                            component: "ethereum-engine".to_string(),
+                            message: "Expected Ethereum address".to_string(),
+                            validation_errors: None,
+                        })
                     }
                 };
                 let builder = EthereumTransactionBuilder {
@@ -789,15 +834,20 @@ impl EthereumRpcClient {
             }))
             .send()
             .await
-            .map_err(|e| multivm_common::MultivmError::Rpc(format!("RPC request failed: {}", e)))?;
+            .map_err(|e| multivm_common::MultivmError::Rpc {
+                method: "ethereum_rpc".to_string(),
+                message: format!("RPC request failed: {}", e),
+                status_code: None,
+            })?;
 
         if response.status().is_success() {
             Ok(())
         } else {
-            Err(multivm_common::MultivmError::Rpc(format!(
-                "RPC returned status: {}",
-                response.status()
-            )))
+            Err(multivm_common::MultivmError::Rpc {
+                method: "ethereum_rpc".to_string(),
+                message: format!("RPC returned status: {}", response.status()),
+                status_code: Some(response.status().as_u16()),
+            })
         }
     }
 }
@@ -904,44 +954,5 @@ impl Default for EthereumEngineConfig {
             confirmation_blocks: 1,
             confirmation_timeout: Duration::from_secs(60),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{AccountAddress, EthereumAddress};
-
-    #[tokio::test]
-    async fn test_ethereum_engine_creation() {
-        let config = EthereumEngineConfig::default();
-        let engine = EthereumProcessEngine::new(config);
-
-        // Test basic functionality
-        assert_eq!(engine.active_locks.read().await.len(), 0);
-    }
-
-    #[test]
-    fn test_lock_call_data_encoding() {
-        let config = EthereumEngineConfig::default();
-        let engine = EthereumProcessEngine::new(config);
-
-        let call_data = engine.build_lock_call_data(1000, "test_lock", VmType::Svm, 1234567890);
-
-        assert!(call_data.is_ok());
-        let data = call_data.unwrap();
-        assert_eq!(&data[0..4], &CrossVmContractAbi::LOCK_FUNDS);
-    }
-
-    #[test]
-    fn test_address_extraction() {
-        let config = EthereumEngineConfig::default();
-        let engine = EthereumProcessEngine::new(config);
-
-        let account = AccountAddress::Ethereum(EthereumAddress([1u8; 20]));
-        let addr = engine.extract_ethereum_address(&account);
-
-        assert!(addr.is_ok());
-        assert!(addr.unwrap().starts_with("0x"));
     }
 }

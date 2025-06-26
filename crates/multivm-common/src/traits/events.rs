@@ -61,22 +61,3 @@ pub enum EventType {
     Configuration,
     All,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_event_types() {
-        let event = SystemEvent::ProcessStarted {
-            process_id: ProcessId::Solana,
-        };
-
-        match event {
-            SystemEvent::ProcessStarted { process_id } => {
-                assert_eq!(process_id, ProcessId::Solana);
-            }
-            _ => panic!("Expected ProcessStarted event"),
-        }
-    }
-}

@@ -1,56 +1,62 @@
 [package]
 name = "multivm-process-manager"
 version.workspace = true
-authors = ["MultiVM Contributors"]
 edition.workspace = true
 license.workspace = true
-description = "Process manager for multi-VM blockchain execution engines"
+repository.workspace = true
+authors.workspace = true
+description = "Process management service for the MultiVM platform"
 
 [dependencies]
-# Common types and traits
+# Internal dependencies
 multivm-common = { path = "../multivm-common" }
-multivm-consensus = { path = "../multivm-consensus" }
-multivm-account-mapping = { path = "../multivm-account-mapping" }
-blake3 = { workspace = true }
+# multivm-account-mapping = { path = "../multivm-account-mapping" }  # Temporarily disabled
+# multivm-consensus = { path = "../multivm-consensus" }  # Temporarily disabled
 
-# Core dependencies
+# Core async runtime
 tokio = { workspace = true }
-tokio-util = { workspace = true }
-futures = { workspace = true }
 async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Process management
+nix = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
 bincode = { workspace = true }
 
-# Error handling
+# Error handling and logging
 thiserror = { workspace = true }
-anyhow = { workspace = true }
-
-# Logging
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Process management
-which = "4.4"
-sysinfo = "0.29"
-
-# Time handling
-chrono = { workspace = true }
-uuid = { workspace = true }
+# Cryptography and encoding
 hex = { workspace = true }
-sha2 = { workspace = true }
-rand = { workspace = true }
 bs58 = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+# chacha20poly1305 = { workspace = true }  # Temporarily commented due to version conflict
+jsonwebtoken = { workspace = true }
 
-# HTTP client for health checks
+# System utilities
+which = "6.0"
+blake3 = "1.5"
+sysinfo = { workspace = true }
 reqwest = { workspace = true }
 
-# Security and cryptography
-jsonwebtoken = { workspace = true }
-chacha20poly1305 = "0.10"
+# Time and UUID
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Concurrency utilities
+parking_lot = { workspace = true }
 
 [dev-dependencies]
+tokio-test = "0.4"
 tempfile = { workspace = true }
-tokio-test = "0.4" 
+proptest = { workspace = true }
+
+[features]
+default = []
+testing = []

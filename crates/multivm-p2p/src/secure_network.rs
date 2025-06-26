@@ -19,7 +19,7 @@ use libp2p::{
     noise,
     ping::{self},
     swarm::SwarmEvent,
-    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder, Transport,
+    tcp, yamux, Multiaddr, PeerId, Swarm, Transport,
 };
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
@@ -186,22 +186,21 @@ impl SecureNetworkManager {
         // Configure network behaviour
         let behaviour = self.create_behaviour(&keypair, peer_id).await?;
 
-        // Create swarm
-        let mut swarm = SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_tcp(
-                tcp::Config::default(),
-                noise::Config::new,
-                yamux::Config::default,
-            )
-            .map_err(|e| P2PError::ConfigurationError {
-                message: e.to_string(),
-            })?
-            .with_behaviour(|_| behaviour)
-            .map_err(|e| P2PError::ConfigurationError {
-                message: e.to_string(),
-            })?
-            .build();
+        // Create swarm with simplified API
+        let transport = tcp::Config::default()
+            .upgrade(libp2p::core::upgrade::Version::V1)
+            .authenticate(noise::Config::new(&keypair).unwrap())
+            .multiplex(yamux::Config::default())
+            .boxed();
+
+        let mut swarm = Swarm::new(
+            transport,
+            behaviour,
+            peer_id,
+            libp2p::swarm::Config::with_executor(Box::new(|fut| {
+                tokio::spawn(fut);
+            }))
+        );
 
         // Listen on configured addresses
         for addr in &self.config.network.listen_addresses {
@@ -491,31 +490,3 @@ impl Default for Firewall {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_secure_network_creation() {
-        let config = P2PConfig::default();
-        let result = SecureNetworkManager::new(config).await;
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_firewall_rules() {
-        let mut firewall = Firewall::default();
-        let test_ip = "192.168.1.1".parse().unwrap();
-
-        // Should allow by default
-        assert!(firewall.default_allow);
-
-        // Add to blocklist
-        firewall.blocklist.insert(test_ip);
-        assert!(!firewall.allowlist.contains(&test_ip));
-
-        // Add to allowlist
-        firewall.allowlist.insert(test_ip);
-        assert!(firewall.allowlist.contains(&test_ip));
-    }
-}

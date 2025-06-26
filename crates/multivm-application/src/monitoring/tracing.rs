@@ -8,13 +8,13 @@ use std::sync::Arc;
 /// Tracing service for distributed tracing
 #[derive(Debug)]
 pub struct TracingService {
-    config: crate::config::TracingConfig,
+    config: crate::config::MonitoringConfig,
     spans: Arc<RwLock<Vec<TraceSpan>>>,
 }
 
 impl TracingService {
     /// Create new tracing service
-    pub async fn new(config: &crate::config::TracingConfig) -> ApplicationResult<Self> {
+    pub async fn new(config: &crate::config::MonitoringConfig) -> ApplicationResult<Self> {
         Ok(Self {
             config: config.clone(),
             spans: Arc::new(RwLock::new(Vec::new())),
@@ -23,20 +23,20 @@ impl TracingService {
 
     /// Initialize tracing
     pub async fn initialize(&self) -> ApplicationResult<()> {
-        if !self.config.enabled {
+        if !self.config.enable_metrics {
             tracing::info!("Distributed tracing is disabled");
             return Ok(());
         }
 
         tracing::info!(
             "Initializing distributed tracing: service_name={}, endpoint={:?}",
-            self.config.service_name,
-            self.config.endpoint
+            "multivm-application",
+            self.config.prometheus_endpoint.as_deref().unwrap_or("http://localhost:9090")
         );
 
         // Set up OpenTelemetry tracing backend
 
-        if let Some(_endpoint) = &self.config.endpoint {
+        if let Some(_endpoint) = &self.config.prometheus_endpoint {
             // Note: OpenTelemetry Jaeger integration would be configured here
             // For now, we'll just log that tracing is configured
             tracing::info!("Tracing service configured (Jaeger integration requires compatible opentelemetry version)");
@@ -86,7 +86,7 @@ impl TracingService {
 
         if self.should_sample() {
             // Send span to the configured tracing backend
-            if let Some(_) = &self.config.endpoint {
+            if let Some(_) = &self.config.prometheus_endpoint {
                 // Span will be automatically exported via OpenTelemetry
                 tracing::debug!("Span sent to tracing backend: {}", span.name);
             }
@@ -118,12 +118,12 @@ impl TracingService {
 
     /// Check if we should sample this trace
     fn should_sample(&self) -> bool {
-        if !self.config.enabled {
+        if !self.config.enable_metrics {
             return false;
         }
 
         // Simple sampling based on configured rate
-        rand::random::<f64>() < self.config.sampling_rate
+        rand::random::<f64>() < 0.1 // 10% sampling rate
     }
 
     /// Get recent spans for debugging

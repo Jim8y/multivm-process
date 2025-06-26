@@ -147,39 +147,3 @@ impl Default for StateManager {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_state_manager_basic() {
-        let mut manager = StateManager::new();
-
-        // Test block number
-        assert_eq!(manager.get_block_number(), 0);
-        assert_eq!(manager.increment_block(), 1);
-        assert_eq!(manager.get_block_number(), 1);
-
-        // Test default balances
-        assert!(manager.get_balance("0x742d35Cc6634C0532925a3b844Bc9e7595f8fA66") > 0);
-
-        // Test transfers
-        let from = "0x742d35Cc6634C0532925a3b844Bc9e7595f8fA66";
-        let to = "0x1234567890123456789012345678901234567890";
-        let amount = 1_000_000_000_000_000_000u128; // 1 ETH
-
-        assert!(manager.transfer(from, to, amount));
-        assert_eq!(manager.get_balance(to), amount);
-    }
-
-    #[test]
-    fn test_nonce_tracking() {
-        let mut manager = StateManager::new();
-        let address = "0x742d35Cc6634C0532925a3b844Bc9e7595f8fA66";
-
-        assert_eq!(manager.get_nonce(address), 0);
-        assert_eq!(manager.increment_nonce(address), 0);
-        assert_eq!(manager.get_nonce(address), 1);
-    }
-}

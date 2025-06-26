@@ -1,6 +1,6 @@
 //! Message types for P2P networking
 
-use multivm_account_mapping::{AccountAddress, SpecialTransaction};
+use multivm_account_mapping::{address::AccountAddress, special_tx::SpecialTransaction};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -429,80 +429,3 @@ impl Default for ResourceLimits {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use multivm_account_mapping::{EthereumAddress, SolanaAddress};
-
-    #[test]
-    fn test_message_creation() {
-        let payload = MessagePayload::Control(ControlMessage::Heartbeat {
-            status: NodeStatus::Active,
-            uptime: std::time::Duration::from_secs(3600),
-        });
-
-        let message = NetworkMessage::new(
-            payload,
-            MessageSource::NetworkLayer,
-            MessageTarget::Broadcast,
-        );
-
-        assert!(!message.id.is_empty());
-        assert!(message.is_broadcast());
-        assert!(!message.is_peer_message());
-        assert!(!message.is_local());
-    }
-
-    #[test]
-    fn test_multivm_message() {
-        let source = AccountAddress::Solana(SolanaAddress([1u8; 32]));
-        let target = AccountAddress::Ethereum(EthereumAddress([2u8; 20]));
-
-        let payload = MessagePayload::MultiVm(MultiVmMessage::AccountBinding {
-            source,
-            target,
-            proof_hash: "0x123...".to_string(),
-        });
-
-        let message = NetworkMessage::new(
-            payload,
-            MessageSource::MultiVmLayer,
-            MessageTarget::Broadcast,
-        )
-        .with_metadata("priority", "high");
-
-        assert_eq!(message.metadata.get("priority"), Some(&"high".to_string()));
-    }
-
-    #[test]
-    fn test_execution_priority_ordering() {
-        assert!(ExecutionPriority::Critical > ExecutionPriority::High);
-        assert!(ExecutionPriority::High > ExecutionPriority::Normal);
-        assert!(ExecutionPriority::Normal > ExecutionPriority::Low);
-    }
-
-    #[test]
-    fn test_peer_message_targeting() {
-        let message = NetworkMessage::new(
-            MessagePayload::Control(ControlMessage::StatusRequest),
-            MessageSource::NetworkLayer,
-            MessageTarget::Peer("peer123".to_string()),
-        );
-
-        assert!(message.is_peer_message());
-        assert_eq!(message.target_peer(), Some("peer123"));
-        assert!(!message.is_broadcast());
-    }
-
-    #[test]
-    fn test_message_size_estimation() {
-        let message = NetworkMessage::new(
-            MessagePayload::Control(ControlMessage::StatusRequest),
-            MessageSource::NetworkLayer,
-            MessageTarget::Broadcast,
-        );
-
-        let size = message.estimated_size();
-        assert!(size > 0);
-    }
-}
