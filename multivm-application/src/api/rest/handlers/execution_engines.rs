@@ -93,11 +93,11 @@ pub fn execution_engine_routes() -> Router<Arc<ApplicationState>> {
         .route("/status", get(get_execution_engine_status))
         .route("/health", get(get_execution_engine_health))
         .route("/metrics", get(get_execution_engine_metrics))
-        .route("/:blockchain_type/process", post(process_block))
-        .route("/:blockchain_type/reset", post(reset_engine))
-        .route("/:blockchain_type/latest_block", get(get_latest_block))
-        .route("/:blockchain_type/state", get(get_engine_state))
-        .route("/:blockchain_type/restart", post(restart_engine))
+        .route("/{blockchain_type}/process", post(process_block))
+        .route("/{blockchain_type}/reset", post(reset_engine))
+        .route("/{blockchain_type}/latest_block", get(get_latest_block))
+        .route("/{blockchain_type}/state", get(get_engine_state))
+        .route("/{blockchain_type}/restart", post(restart_engine))
 }
 
 /// Get overall execution engine status

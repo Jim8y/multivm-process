@@ -1069,16 +1069,14 @@ impl TcpConnectionFactory {
                     }
                 };
 
-                // Encryption temporarily disabled due to missing implementation
-                let encrypted_data = message_data;
-                // TODO: Re-enable encryption when implementation is complete
-                // let encrypted_data = match Self::encrypt_message(&message_data, &encryption_key) {
-                //     Ok(data) => data,
-                //     Err(e) => {
-                //         error!("Failed to encrypt message: {}", e);
-                //         continue;
-                //     }
-                // };
+                // Encrypt the message data
+                let encrypted_data = match Self::encrypt_message(&message_data, &encryption_key) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        error!("Failed to encrypt message: {}", e);
+                        continue;
+                    }
+                };
 
                 /*
                 // Original ChaCha20Poly1305 encryption - disabled
