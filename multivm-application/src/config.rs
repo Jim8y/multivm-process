@@ -513,9 +513,7 @@ impl ApplicationConfig {
             if *port == 0 {
                 return Err(ApplicationError::ConfigurationError {
                     component: "server".to_string(),
-                    message: format!(
-                        "{name} port {port} is invalid. Must be between 1 and 65535"
-                    ),
+                    message: format!("{name} port {port} is invalid. Must be between 1 and 65535"),
                 });
             }
         }

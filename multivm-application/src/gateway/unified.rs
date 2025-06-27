@@ -874,7 +874,7 @@ impl UnifiedGateway {
         mint: &str,
     ) -> ApplicationResult<GatewayResponse<serde_json::Value>> {
         let request_start = Instant::now();
-        
+
         // Mock token supply data for now
         let supply_data = serde_json::json!({
             "mint": mint,
@@ -889,7 +889,10 @@ impl UnifiedGateway {
                 vm_type: self.config.vm_type,
                 cached: false,
                 response_time_ms: request_start.elapsed().as_millis() as u64,
-                request_id: format!("req_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+                request_id: format!(
+                    "req_{}",
+                    chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+                ),
                 endpoint_used: self.config.rpc_url.clone(),
             },
         })

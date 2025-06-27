@@ -409,7 +409,7 @@ mod tests {
     }
 
     // Additional tests would require axum_test dependency
-    // #[tokio::test] 
+    // #[tokio::test]
     // async fn test_execution_engine_endpoints() {
     //     // Tests disabled until axum_test dependency is available
     // }

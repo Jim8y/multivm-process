@@ -115,9 +115,7 @@ pub fn validate_port(port: u16, purpose: &str) -> MultivmResult<u16> {
             validation_errors: None,
         }),
         1..=1023 => {
-            eprintln!(
-                "Warning: Using privileged port {port} for {purpose} (requires root)"
-            );
+            eprintln!("Warning: Using privileged port {port} for {purpose} (requires root)");
             Ok(port)
         }
         1024..=65535 => Ok(port),
@@ -176,9 +174,7 @@ pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String
     if var_value.chars().any(|c| suspicious_chars.contains(&c)) {
         return Err(MultivmError::Configuration {
             component: "environment_variable".to_string(),
-            message: format!(
-                "Environment variable {var_name} contains suspicious characters"
-            ),
+            message: format!("Environment variable {var_name} contains suspicious characters"),
             validation_errors: None,
         });
     }
@@ -187,9 +183,7 @@ pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String
     if var_value.len() > 1024 {
         return Err(MultivmError::Configuration {
             component: "environment_variable".to_string(),
-            message: format!(
-                "Environment variable {var_name} is too long (max 1024 characters)"
-            ),
+            message: format!("Environment variable {var_name} is too long (max 1024 characters)"),
             validation_errors: None,
         });
     }

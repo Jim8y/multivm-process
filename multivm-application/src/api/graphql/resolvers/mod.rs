@@ -25,10 +25,8 @@ pub mod utils {
     pub fn app_error_to_graphql(error: crate::error::ApplicationError) -> async_graphql::Error {
         match error {
             crate::error::ApplicationError::ValidationError { field, message } => {
-                async_graphql::Error::new(format!(
-                    "Validation error in field '{field}': {message}"
-                ))
-                .extend_with(|_, e| e.set("code", "VALIDATION_ERROR"))
+                async_graphql::Error::new(format!("Validation error in field '{field}': {message}"))
+                    .extend_with(|_, e| e.set("code", "VALIDATION_ERROR"))
             }
             crate::error::ApplicationError::AuthenticationFailed { reason } => {
                 async_graphql::Error::new(format!("Authentication error: {reason}"))

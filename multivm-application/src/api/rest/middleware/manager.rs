@@ -100,7 +100,6 @@ pub struct RequestTrackingConfig {
     pub include_request_details: bool,
 }
 
-
 impl Default for SecurityHeadersConfig {
     fn default() -> Self {
         Self {

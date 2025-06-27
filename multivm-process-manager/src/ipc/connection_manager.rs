@@ -429,9 +429,7 @@ impl IpcConnectionManager {
 
         Err(MultivmError::Ipc {
             endpoint: format!("process_{process_id}"),
-            message: format!(
-                "No available connections for process {process_id} (pool exhausted)"
-            ),
+            message: format!("No available connections for process {process_id} (pool exhausted)"),
             retry_count: None,
         })
     }

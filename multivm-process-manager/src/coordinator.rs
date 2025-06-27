@@ -1403,9 +1403,7 @@ impl MultivmCoordinator {
             .get_bound_addresses(from)
             .await
             .map_err(|e| MultivmError::AccountMapping {
-                message: format!(
-                    "Failed to get bound addresses for from account {from}: {e}"
-                ),
+                message: format!("Failed to get bound addresses for from account {from}: {e}"),
                 source_chain: Some("multivm".to_string()),
                 target_chain: None,
             })?;

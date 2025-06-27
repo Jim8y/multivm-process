@@ -241,9 +241,7 @@ async fn handle_config_migration(config_path: &Path) -> Result<(), Box<dyn std::
     config_migration::save_unified_config(&migration_result.config, &unified_config_path).await?;
 
     println!("✅ Configuration migration completed!");
-    println!(
-        "📄 Unified configuration saved to: {unified_config_path:?}"
-    );
+    println!("📄 Unified configuration saved to: {unified_config_path:?}");
 
     // Generate migration report
     let report = config_migration::generate_migration_report(config_path, &unified_config_path)?;

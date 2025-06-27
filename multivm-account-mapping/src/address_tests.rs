@@ -34,11 +34,11 @@ mod tests {
 
         // Just test that they can be created
         match sol_addr {
-            AccountAddress::Solana(_) => {}, // Valid Solana address created
+            AccountAddress::Solana(_) => {} // Valid Solana address created
             _ => panic!("Expected Solana address"),
         }
         match eth_addr {
-            AccountAddress::Ethereum(_) => {}, // Valid Ethereum address created
+            AccountAddress::Ethereum(_) => {} // Valid Ethereum address created
             _ => panic!("Expected Ethereum address"),
         }
     }
