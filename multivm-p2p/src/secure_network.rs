@@ -194,15 +194,15 @@ impl SecureNetworkManager {
                 noise::Config::new,
                 yamux::Config::default,
             )
-            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {}", e)))?
+            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {e}")))?
             .with_behaviour(|_| behaviour)
-            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {}", e)))?
+            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {e}")))?
             .build();
 
         // Listen on configured addresses
         for addr in &self.config.network.listen_addresses {
             let multiaddr: Multiaddr = addr.parse().map_err(|e| P2PError::ConfigurationError {
-                message: format!("Invalid address {}: {}", addr, e),
+                message: format!("Invalid address {addr}: {e}"),
             })?;
             swarm
                 .listen_on(multiaddr)
@@ -370,7 +370,7 @@ impl SecureNetworkManager {
     pub async fn add_trusted_peer(
         &mut self,
         peer_id: PeerId,
-        public_key: ed25519_dalek::PublicKey,
+        public_key: ed25519_dalek::VerifyingKey,
     ) {
         self.security_manager.add_trusted_peer(peer_id, public_key);
         self.trusted_peers.write().await.insert(peer_id);
@@ -486,4 +486,3 @@ impl Default for Firewall {
         }
     }
 }
-

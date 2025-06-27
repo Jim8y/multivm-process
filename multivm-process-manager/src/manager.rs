@@ -4,15 +4,14 @@ use std::time::Duration;
 use tokio::sync::{oneshot, Mutex, RwLock};
 
 use crate::lock_ordering::{
-    acquire_write_lock_safe, LockLevel, LockTimeoutConfig,
-    init_lock_config, get_lock_config
+    acquire_write_lock_safe, get_lock_config, init_lock_config, LockLevel, LockTimeoutConfig,
 };
-use multivm_common::{types_rpc::RpcConfig,
+use multivm_common::{
     error::MultivmError,
-    IpcCommand, IpcResponse,
     traits::ProcessManager as ProcessManagerTrait,
-    types::{BlockchainType, HealthStatus, HealthInfo, ProcessId},
-    MultivmConfig, MultivmResult, SystemEvent,
+    types::{BlockchainType, HealthInfo, HealthStatus, ProcessId},
+    types_rpc::RpcConfig,
+    IpcCommand, IpcResponse, MultivmConfig, MultivmResult, SystemEvent,
 };
 
 /// Events emitted by the process manager
@@ -37,8 +36,11 @@ pub enum ProcessManagerEvent {
     },
 }
 
-use crate::{/*BlockRouter,*/ HealthMonitor, ProcessHandle, resource_monitor::SystemResourceMonitor};
-// use multivm_account_mapping::storage::MemoryStorage;  // Temporarily disabled due to dependency conflicts
+use crate::{
+    resource_monitor::SystemResourceMonitor,
+    zombie_reaper::{ZombieReaper, ZombieReaperConfig},
+    /*BlockRouter,*/ HealthMonitor, ProcessHandle,
+};
 use std::path::PathBuf;
 
 // Temporary compatibility types until we fully migrate to unified config
@@ -87,6 +89,7 @@ struct MultivmProcessManagerInner {
     health_monitor: HealthMonitor,
     // block_router: BlockRouter,  // Temporarily disabled due to dependency conflicts
     resource_monitor: Arc<Mutex<SystemResourceMonitor>>,
+    zombie_reaper: ZombieReaper,
     ipc_server: Mutex<Option<tokio::task::JoinHandle<()>>>,
     event_handlers: RwLock<Vec<Box<dyn EventHandler>>>,
     shutdown_sender: Mutex<Option<oneshot::Sender<()>>>,
@@ -127,29 +130,33 @@ impl MultivmProcessManager {
         init_lock_config(lock_config);
 
         // Validate configuration
-        config.validate()
-            .map_err(|e| MultivmError::Configuration {
-                component: "system_config".to_string(),
-                message: format!("Invalid system config: {}", e),
-                validation_errors: Some(vec![]),
-            })?;
+        config.validate().map_err(|e| MultivmError::Configuration {
+            component: "system_config".to_string(),
+            message: format!("Invalid system config: {e}"),
+            validation_errors: Some(vec![]),
+        })?;
 
         // Create data directories
         std::fs::create_dir_all(&config.system.data_dir).map_err(|e| {
             MultivmError::Configuration {
                 component: "data_directory".to_string(),
-                message: format!("Failed to create data directory: {}", e),
+                message: format!("Failed to create data directory: {e}"),
                 validation_errors: Some(vec![]),
             }
         })?;
 
         // Initialize components
         let health_monitor = HealthMonitor::new(std::time::Duration::from_secs(30));
-        // let account_mapping = Arc::new(MemoryStorage::new());  // Temporarily disabled
-        // let block_router = BlockRouter::new(account_mapping);  // Temporarily disabled
+        // Account mapping integration disabled temporarily due to dependency issues
+        // let account_mapping = Arc::new(multivm_account_mapping::storage::MemoryStorage::new());
+        // let block_router = multivm_account_mapping::routing::BlockRouter::new(account_mapping.clone());
         let resource_monitor = Arc::new(Mutex::new(SystemResourceMonitor::new(
             ResourceLimits::default(),
         )));
+
+        // Initialize zombie reaper
+        let zombie_reaper_config = ZombieReaperConfig::default();
+        let zombie_reaper = ZombieReaper::new(zombie_reaper_config);
 
         let inner = MultivmProcessManagerInner {
             config,
@@ -157,6 +164,7 @@ impl MultivmProcessManager {
             health_monitor,
             // block_router,  // Temporarily disabled due to dependency conflicts
             resource_monitor,
+            zombie_reaper,
             ipc_server: Mutex::new(None),
             event_handlers: RwLock::new(Vec::new()),
             shutdown_sender: Mutex::new(None),
@@ -192,6 +200,9 @@ impl MultivmProcessManager {
 
         // Start resource monitoring
         self.start_resource_monitoring().await?;
+
+        // Start zombie process reaper
+        self.start_zombie_reaper().await?;
 
         // Start IPC server
         self.start_ipc_server().await?;
@@ -291,15 +302,16 @@ impl MultivmProcessManager {
             let mut processes = acquire_write_lock_safe(
                 &self.inner.processes,
                 LockLevel::Processes,
-                Some(get_lock_config().critical_timeout)
-            ).await?;
+                Some(get_lock_config().critical_timeout),
+            )
+            .await?;
 
             // Get and remove the current process handle atomically
             processes
                 .remove(&process_id)
                 .ok_or_else(|| MultivmError::Process {
-                    process_id: format!("{:?}", process_id),
-                    message: format!("Process not found: {}", process_id),
+                    process_id: format!("{process_id:?}"),
+                    message: format!("Process not found: {process_id}"),
                     exit_code: None,
                 })?
         };
@@ -318,11 +330,7 @@ impl MultivmProcessManager {
                 tracing::info!("Starting new SVM engine process");
                 // Use the unified blockchain config for Solana
                 let solana_config = &self.inner.config.blockchain.solana;
-                ProcessHandle::start_solana_engine(
-                    solana_config,
-                    &self.inner.config.ipc,
-                )
-                .await?
+                ProcessHandle::start_solana_engine(solana_config, &self.inner.config.ipc).await?
             }
             ProcessId::Ethereum => {
                 tracing::info!("Starting new EVM engine process");
@@ -337,12 +345,15 @@ impl MultivmProcessManager {
                 let mut processes = acquire_write_lock_safe(
                     &self.inner.processes,
                     LockLevel::Processes,
-                    Some(get_lock_config().default_timeout)
-                ).await?;
+                    Some(get_lock_config().default_timeout),
+                )
+                .await?;
                 processes.insert(process_id, handle);
                 return Err(MultivmError::UnsupportedOperation {
-                    operation: format!("Cannot restart process type: {}", process_id),
-                    alternatives: Some(vec!["Use ProcessId::Solana or ProcessId::Ethereum".to_string()]),
+                    operation: format!("Cannot restart process type: {process_id}"),
+                    alternatives: Some(vec![
+                        "Use ProcessId::Solana or ProcessId::Ethereum".to_string()
+                    ]),
                 });
             }
         };
@@ -352,8 +363,9 @@ impl MultivmProcessManager {
             let mut processes = acquire_write_lock_safe(
                 &self.inner.processes,
                 LockLevel::Processes,
-                Some(get_lock_config().default_timeout)
-            ).await?;
+                Some(get_lock_config().default_timeout),
+            )
+            .await?;
             processes.insert(process_id, new_handle);
         }
 
@@ -414,6 +426,18 @@ impl MultivmProcessManager {
         tracing::info!("Registering process: {}", handle.process_id);
 
         let process_id = handle.process_id;
+
+        // Get the actual PID if the process is running
+        if let Some(child) = handle.child.read().await.as_ref() {
+            if let Some(pid) = child.id() {
+                // Register with zombie reaper to prevent accidental reaping
+                self.inner
+                    .zombie_reaper
+                    .register_multivm_process(pid, process_id)
+                    .await;
+            }
+        }
+
         let mut processes = self.inner.processes.write().await;
         processes.insert(process_id, handle);
 
@@ -426,7 +450,16 @@ impl MultivmProcessManager {
         tracing::info!("Unregistering process: {}", process_id);
 
         let mut processes = self.inner.processes.write().await;
-        if let Some(_handle) = processes.remove(&process_id) {
+        if let Some(handle) = processes.remove(&process_id) {
+            // Unregister from zombie reaper if it has a PID
+            if let Some(child) = handle.child.read().await.as_ref() {
+                if let Some(pid) = child.id() {
+                    self.inner
+                        .zombie_reaper
+                        .unregister_multivm_process(pid)
+                        .await;
+                }
+            }
             tracing::info!("Process unregistered successfully: {}", process_id);
         } else {
             tracing::warn!("Process not found for unregistration: {}", process_id);
@@ -499,7 +532,9 @@ impl MultivmProcessManager {
                 // Perform health checks on all processes
                 let processes = processes_handle.read().await;
                 for (process_id, handle) in processes.iter() {
-                    let health_info = health_monitor.check_process_health(handle).await
+                    let health_info = health_monitor
+                        .check_process_health(handle)
+                        .await
                         .unwrap_or_else(|_| HealthInfo {
                             process_id: *process_id,
                             status: HealthStatus::Unhealthy,
@@ -513,7 +548,7 @@ impl MultivmProcessManager {
                             last_error: Some("Health check failed".to_string()),
                             timestamp: std::time::SystemTime::now(),
                         });
-                    
+
                     if !health_info.status.is_operational() {
                         tracing::warn!(
                             "Process {} is unhealthy: status={:?}",
@@ -560,6 +595,13 @@ impl MultivmProcessManager {
         Ok(())
     }
 
+    /// Start the zombie process reaper
+    async fn start_zombie_reaper(&self) -> MultivmResult<()> {
+        tracing::info!("Starting zombie process reaper");
+        self.inner.zombie_reaper.start().await?;
+        Ok(())
+    }
+
     /// Start IPC server for inter-process communication
     async fn start_ipc_server(&self) -> MultivmResult<()> {
         let inner = self.inner.clone();
@@ -587,6 +629,16 @@ impl MultivmProcessManager {
         }
     }
 
+    /// Get zombie reaper statistics
+    pub async fn get_zombie_reaper_stats(&self) -> crate::zombie_reaper::ZombieReaperStats {
+        self.inner.zombie_reaper.get_stats().await
+    }
+
+    /// Manually trigger a zombie process scan
+    pub async fn scan_for_zombies(&self) -> MultivmResult<()> {
+        self.inner.zombie_reaper.manual_scan().await
+    }
+
     /// Emit a system event to all registered handlers
     async fn emit_event(&self, event: SystemEvent) {
         let handlers = self.inner.event_handlers.read().await;
@@ -610,6 +662,11 @@ impl MultivmProcessManager {
             }
         }
         drop(processes);
+
+        // Stop zombie reaper
+        if let Err(e) = self.inner.zombie_reaper.stop().await {
+            tracing::warn!("Failed to stop zombie reaper: {}", e);
+        }
 
         // Send shutdown signal to IPC server if running
         if let Some(sender) = self.inner.shutdown_sender.lock().await.take() {
@@ -653,7 +710,9 @@ impl ProcessManagerTrait for MultivmProcessManager {
             ProcessId::Ethereum => self.start_ethereum_engine().await,
             ProcessId::Main => Err(MultivmError::UnsupportedOperation {
                 operation: "Cannot start main process".to_string(),
-                alternatives: Some(vec!["Use start_solana_engine or start_ethereum_engine".to_string()]),
+                alternatives: Some(vec![
+                    "Use start_solana_engine or start_ethereum_engine".to_string()
+                ]),
             }),
         }
     }
@@ -661,16 +720,12 @@ impl ProcessManagerTrait for MultivmProcessManager {
     async fn stop_process(&self, process_id: ProcessId, graceful: bool) -> MultivmResult<()> {
         let processes = self.inner.processes.read().await;
         if let Some(handle) = processes.get(&process_id) {
-            self.stop_process_internal(
-                handle,
-                graceful,
-                Some(self.inner.config.shutdown_timeout()),
-            )
-            .await
+            self.stop_process_internal(handle, graceful, Some(self.inner.config.shutdown_timeout()))
+                .await
         } else {
             Err(MultivmError::Process {
-                process_id: format!("{:?}", process_id),
-                message: format!("Process {} not found", process_id),
+                process_id: format!("{process_id:?}"),
+                message: format!("Process {process_id} not found"),
                 exit_code: None,
             })
         }
@@ -711,12 +766,16 @@ impl ProcessManagerTrait for MultivmProcessManager {
     async fn get_process_health(&self, process_id: ProcessId) -> MultivmResult<HealthStatus> {
         let processes = self.inner.processes.read().await;
         if let Some(handle) = processes.get(&process_id) {
-            let health_info = self.inner.health_monitor.check_process_health(handle).await?;
+            let health_info = self
+                .inner
+                .health_monitor
+                .check_process_health(handle)
+                .await?;
             Ok(health_info.status)
         } else {
             Err(MultivmError::Process {
-                process_id: format!("{:?}", process_id),
-                message: format!("Process {} not found", process_id),
+                process_id: format!("{process_id:?}"),
+                message: format!("Process {process_id} not found"),
                 exit_code: None,
             })
         }
@@ -732,11 +791,10 @@ impl ProcessManagerTrait for MultivmProcessManager {
             handle.send_command(command).await
         } else {
             Err(MultivmError::Process {
-                process_id: format!("{:?}", process_id),
-                message: format!("Process {} not found", process_id),
+                process_id: format!("{process_id:?}"),
+                message: format!("Process {process_id} not found"),
                 exit_code: None,
             })
         }
     }
 }
-

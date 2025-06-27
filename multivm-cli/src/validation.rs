@@ -12,7 +12,7 @@ pub fn validate_file_path(path: &str, purpose: &str) -> MultivmResult<PathBuf> {
     if path.is_empty() {
         return Err(MultivmError::Configuration {
             component: "file_path".to_string(),
-            message: format!("Empty path provided for {}", purpose),
+            message: format!("Empty path provided for {purpose}"),
             validation_errors: None,
         });
     }
@@ -21,7 +21,7 @@ pub fn validate_file_path(path: &str, purpose: &str) -> MultivmResult<PathBuf> {
     if path.contains("..") || path.contains("~") {
         return Err(MultivmError::Configuration {
             component: "file_path".to_string(),
-            message: format!("Invalid path for {}: contains unsafe components", purpose),
+            message: format!("Invalid path for {purpose}: contains unsafe components"),
             validation_errors: None,
         });
     }
@@ -35,7 +35,7 @@ pub fn validate_file_path(path: &str, purpose: &str) -> MultivmResult<PathBuf> {
             Ok(canonical) => Ok(canonical),
             Err(e) => Err(MultivmError::Configuration {
                 component: "file_path".to_string(),
-                message: format!("Failed to canonicalize path for {}: {}", purpose, e),
+                message: format!("Failed to canonicalize path for {purpose}: {e}"),
                 validation_errors: None,
             }),
         }
@@ -49,21 +49,21 @@ pub fn validate_file_path(path: &str, purpose: &str) -> MultivmResult<PathBuf> {
                     }
                     Err(e) => Err(MultivmError::Configuration {
                         component: "file_path".to_string(),
-                        message: format!("Invalid parent directory for {}: {}", purpose, e),
+                        message: format!("Invalid parent directory for {purpose}: {e}"),
                         validation_errors: None,
                     }),
                 }
             } else {
                 Err(MultivmError::Configuration {
                     component: "file_path".to_string(),
-                    message: format!("Parent directory does not exist for {}", purpose),
+                    message: format!("Parent directory does not exist for {purpose}"),
                     validation_errors: None,
                 })
             }
         } else {
             Err(MultivmError::Configuration {
                 component: "file_path".to_string(),
-                message: format!("Invalid path structure for {}", purpose),
+                message: format!("Invalid path structure for {purpose}"),
                 validation_errors: None,
             })
         }
@@ -96,7 +96,8 @@ pub fn validate_node_id(node_id: &str) -> MultivmResult<String> {
     {
         return Err(MultivmError::Configuration {
             component: "node_id".to_string(),
-            message: "Node ID contains invalid characters (only alphanumeric, -, _ allowed)".to_string(),
+            message: "Node ID contains invalid characters (only alphanumeric, -, _ allowed)"
+                .to_string(),
             validation_errors: None,
         });
     }
@@ -110,13 +111,12 @@ pub fn validate_port(port: u16, purpose: &str) -> MultivmResult<u16> {
     match port {
         0 => Err(MultivmError::Configuration {
             component: "port".to_string(),
-            message: format!("Port 0 is not valid for {}", purpose),
+            message: format!("Port 0 is not valid for {purpose}"),
             validation_errors: None,
         }),
         1..=1023 => {
             eprintln!(
-                "Warning: Using privileged port {} for {} (requires root)",
-                port, purpose
+                "Warning: Using privileged port {port} for {purpose} (requires root)"
             );
             Ok(port)
         }
@@ -176,7 +176,9 @@ pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String
     if var_value.chars().any(|c| suspicious_chars.contains(&c)) {
         return Err(MultivmError::Configuration {
             component: "environment_variable".to_string(),
-            message: format!("Environment variable {} contains suspicious characters", var_name),
+            message: format!(
+                "Environment variable {var_name} contains suspicious characters"
+            ),
             validation_errors: None,
         });
     }
@@ -185,7 +187,9 @@ pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String
     if var_value.len() > 1024 {
         return Err(MultivmError::Configuration {
             component: "environment_variable".to_string(),
-            message: format!("Environment variable {} is too long (max 1024 characters)", var_name),
+            message: format!(
+                "Environment variable {var_name} is too long (max 1024 characters)"
+            ),
             validation_errors: None,
         });
     }
@@ -196,13 +200,13 @@ pub fn validate_env_var(var_name: &str, var_value: &str) -> MultivmResult<String
 /// Validate configuration file contents for basic safety
 pub fn validate_config_file_safety(config_path: &Path) -> MultivmResult<()> {
     // Check file permissions (should not be world-writable)
-    let metadata = config_path.metadata().map_err(|e| {
-        MultivmError::Configuration {
+    let metadata = config_path
+        .metadata()
+        .map_err(|e| MultivmError::Configuration {
             component: "config_file".to_string(),
-            message: format!("Cannot read config file metadata: {}", e),
+            message: format!("Cannot read config file metadata: {e}"),
             validation_errors: None,
-        }
-    })?;
+        })?;
 
     #[cfg(unix)]
     {
@@ -237,4 +241,3 @@ pub fn validate_config_file_safety(config_path: &Path) -> MultivmResult<()> {
 
     Ok(())
 }
-

@@ -1,3 +1,9 @@
+//! IPC Configuration Module
+//!
+//! This module defines the configuration structures for Inter-Process Communication
+//! between MultiVM components. It supports both Unix domain sockets and TCP transports
+//! for flexible deployment scenarios.
+
 use crate::MultivmError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

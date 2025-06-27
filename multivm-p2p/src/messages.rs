@@ -40,7 +40,7 @@ pub enum MessagePayload {
 }
 
 /// Source information for a message
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MessageSource {
     /// Message from SVM execution layer
     SvmExecution,
@@ -55,7 +55,7 @@ pub enum MessageSource {
 }
 
 /// Target specification for message routing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MessageTarget {
     /// Broadcast to all connected peers
     Broadcast,
@@ -346,8 +346,28 @@ pub struct PeerAdvertisement {
     pub reputation: f64,
 }
 
-// Re-export types that are imported from other modules
-pub use crate::{NetworkStats, PeerInfo};
+/// Network statistics
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct NetworkStats {
+    pub connected_peers: usize,
+    pub messages_sent: u64,
+    pub messages_received: u64,
+    pub messages_dropped: u64,
+    pub rate_limit_violations: u64,
+    pub auth_failures: u64,
+    pub firewall_blocks: u64,
+}
+
+/// Peer information for network operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerInfo {
+    /// Peer ID as string
+    pub peer_id: String,
+    /// Multi-addresses the peer can be reached at
+    pub addresses: Vec<String>,
+    /// Node capabilities
+    pub capabilities: NodeCapabilities,
+}
 
 impl NetworkMessage {
     /// Create a new network message
@@ -429,3 +449,28 @@ impl Default for ResourceLimits {
     }
 }
 
+impl Default for NodeCapabilities {
+    fn default() -> Self {
+        Self {
+            supported_vms: vec![VmType::Svm, VmType::Evm],
+            protocol_versions: vec![1],
+            features: vec![],
+            limits: ResourceLimits::default(),
+        }
+    }
+}
+
+impl NetworkMessage {
+    /// Check if message is for VM-specific execution
+    pub fn is_vm_specific(&self) -> bool {
+        matches!(self.target, MessageTarget::Local(_))
+    }
+
+    /// Get the target VM if applicable
+    pub fn target_vm(&self) -> Option<VmType> {
+        match &self.target {
+            MessageTarget::Local(vm_type) => Some(vm_type.clone()),
+            _ => None,
+        }
+    }
+}

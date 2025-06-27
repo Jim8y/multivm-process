@@ -46,7 +46,7 @@ impl SubscriptionResolver {
                     yield NewBlockEvent {
                         vm_type: "evm".to_string(),
                         block_number: last_evm_block,
-                        block_hash: format!("0x{:064x}", last_evm_block),
+                        block_hash: format!("0x{last_evm_block:064x}"),
                         timestamp: chrono::Utc::now(),
                     };
                 }
@@ -81,7 +81,7 @@ impl SubscriptionResolver {
                     vm_type: if counter % 3 == 0 { "multivm".to_string() }
                              else if counter % 2 == 0 { "svm".to_string() }
                              else { "evm".to_string() },
-                    transaction_id: format!("tx_{}", counter),
+                    transaction_id: format!("tx_{counter}"),
                     status: "pending".to_string(),
                     timestamp: chrono::Utc::now(),
                 };

@@ -22,4 +22,3 @@ pub fn default_body_limit_layer() -> RequestBodyLimitLayer {
 pub fn body_limit_layer(max_bytes: u64) -> RequestBodyLimitLayer {
     RequestBodyLimitLayer::new(max_bytes as usize)
 }
-

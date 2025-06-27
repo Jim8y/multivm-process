@@ -103,7 +103,7 @@ impl Display for ValidatorAddress {
         write!(f, "{}", self.0)
     }
 }
-/// Implement Value trait for MultiVMBlock
+// Implement Value trait for MultiVMBlock
 // impl Value for MultiVMBlock {
 //     type Id = BlockId;
 //

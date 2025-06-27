@@ -311,7 +311,7 @@ impl MultivmError {
                 message,
                 error_source,
             } => MultivmError::Unknown {
-                message: format!("{}: {}", context, message),
+                message: format!("{context}: {message}"),
                 error_source,
             },
             other => other,
@@ -353,7 +353,7 @@ impl From<toml::de::Error> for MultivmError {
     fn from(err: toml::de::Error) -> Self {
         Self::Configuration {
             component: "config".to_string(),
-            message: format!("TOML parsing error: {}", err),
+            message: format!("TOML parsing error: {err}"),
             validation_errors: None,
         }
     }
@@ -363,7 +363,7 @@ impl From<toml::ser::Error> for MultivmError {
     fn from(err: toml::ser::Error) -> Self {
         Self::Configuration {
             component: "config".to_string(),
-            message: format!("TOML serialization error: {}", err),
+            message: format!("TOML serialization error: {err}"),
             validation_errors: None,
         }
     }

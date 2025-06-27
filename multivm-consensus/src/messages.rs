@@ -42,6 +42,8 @@ pub enum MessageType {
     Query(QueryMessage),
     /// Response message
     Response(ResponseMessage),
+    /// Block finalized message
+    BlockFinalized { height: u64, block_hash: String },
 }
 
 /// Different types of consensus messages
@@ -63,6 +65,8 @@ pub enum ConsensusMessagePayload {
     Query(QueryMessage),
     /// Response to a query
     Response(ResponseMessage),
+    /// Block finalized message
+    BlockFinalized { height: u64, block_hash: String },
 }
 
 /// Block proposal message
@@ -508,6 +512,7 @@ impl ConsensusMessage {
             ConsensusMessagePayload::Timeout(_) => "timeout",
             ConsensusMessagePayload::Query(_) => "query",
             ConsensusMessagePayload::Response(_) => "response",
+            ConsensusMessagePayload::BlockFinalized { .. } => "block_finalized",
         }
     }
 
@@ -522,6 +527,12 @@ impl ConsensusMessage {
             ConsensusMessagePayload::Timeout(msg) => MessageType::Timeout(msg.clone()),
             ConsensusMessagePayload::Query(msg) => MessageType::Query(msg.clone()),
             ConsensusMessagePayload::Response(msg) => MessageType::Response(msg.clone()),
+            ConsensusMessagePayload::BlockFinalized { height, block_hash } => {
+                MessageType::BlockFinalized {
+                    height: *height,
+                    block_hash: block_hash.clone(),
+                }
+            }
         }
     }
 

@@ -39,3 +39,6 @@ pub use managers::{BaseManager, Manager, ManagerState, ManagerStats};
 // Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const NAME: &str = env!("CARGO_PKG_NAME");
+
+#[cfg(test)]
+mod tests;

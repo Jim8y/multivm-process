@@ -3,7 +3,7 @@
 //! Provides authentication, message validation, and anti-replay protection.
 
 use crate::error::{P2PError, P2PResult};
-use ed25519_dalek::{Signature, Signer, Keypair as SigningKey, Verifier, PublicKey as VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -93,7 +93,7 @@ impl SecurityManager {
         let mut csprng = rand::thread_rng();
         let mut bytes = [0u8; 32];
         csprng.fill(&mut bytes);
-        let signing_key = SigningKey::from_bytes(&bytes).expect("32 bytes should be valid");
+        let signing_key = SigningKey::from_bytes(&bytes);
 
         Self {
             signing_key,
@@ -125,7 +125,7 @@ impl SecurityManager {
 
     /// Get our public key
     pub fn public_key(&self) -> VerifyingKey {
-        self.signing_key.public
+        self.signing_key.verifying_key()
     }
 
     /// Secure a message for transmission
@@ -279,12 +279,17 @@ impl SecurityManager {
             .ok_or(P2PError::UnknownPeer(*sender))?;
 
         // Verify signature
-        let signature = Signature::from_bytes(
-            signature_bytes
+        let signature = if signature_bytes.len() == 64 {
+            let sig_array: [u8; 64] = signature_bytes
                 .as_slice()
                 .try_into()
-                .map_err(|_| P2PError::InvalidMessage("Invalid signature format".to_string()))?,
-        ).map_err(|_| P2PError::InvalidMessage("Failed to parse signature".to_string()))?;
+                .map_err(|_| P2PError::InvalidMessage("Invalid signature format".to_string()))?;
+            Signature::from_bytes(&sig_array)
+        } else {
+            return Err(P2PError::InvalidMessage(
+                "Signature must be 64 bytes".to_string(),
+            ));
+        };
 
         public_key
             .verify(&message.message_hash, &signature)
@@ -405,4 +410,3 @@ pub struct SecurityStats {
     pub nonces_tracked: usize,
     pub config: SecurityConfig,
 }
-

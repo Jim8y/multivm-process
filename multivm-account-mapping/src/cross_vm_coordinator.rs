@@ -493,7 +493,7 @@ impl CrossVmCoordinator {
             .await
             .map_err(|_| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Failed to get addresses for account {}", from),
+                message: format!("Failed to get addresses for account {from}"),
                 validation_errors: Some(vec![]),
             })?;
 
@@ -503,7 +503,7 @@ impl CrossVmCoordinator {
             .await
             .map_err(|_| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Failed to get addresses for account {}", to),
+                message: format!("Failed to get addresses for account {to}"),
                 validation_errors: Some(vec![]),
             })?;
 
@@ -568,7 +568,7 @@ impl CrossVmCoordinator {
             })
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("No {:?} address found for source account", source_vm),
+                message: format!("No {source_vm:?} address found for source account"),
                 validation_errors: Some(vec![]),
             })?
             .clone();
@@ -585,7 +585,7 @@ impl CrossVmCoordinator {
             })
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("No {:?} address found for target account", target_vm),
+                message: format!("No {target_vm:?} address found for target account"),
                 validation_errors: Some(vec![]),
             })?
             .clone();
@@ -699,7 +699,7 @@ impl CrossVmCoordinator {
             })
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Party A has no {:?} address for asset A", asset_a_vm),
+                message: format!("Party A has no {asset_a_vm:?} address for asset A"),
                 validation_errors: Some(vec![]),
             })?
             .clone();
@@ -715,7 +715,7 @@ impl CrossVmCoordinator {
             })
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Party B has no {:?} address for asset A", asset_a_vm),
+                message: format!("Party B has no {asset_a_vm:?} address for asset A"),
                 validation_errors: Some(vec![]),
             })?
             .clone();
@@ -731,7 +731,7 @@ impl CrossVmCoordinator {
             })
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Party A has no {:?} address for asset B", asset_b_vm),
+                message: format!("Party A has no {asset_b_vm:?} address for asset B"),
                 validation_errors: Some(vec![]),
             })?
             .clone();
@@ -747,7 +747,7 @@ impl CrossVmCoordinator {
             })
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Party B has no {:?} address for asset B", asset_b_vm),
+                message: format!("Party B has no {asset_b_vm:?} address for asset B"),
                 validation_errors: Some(vec![]),
             })?
             .clone();
@@ -882,7 +882,7 @@ impl CrossVmCoordinator {
             .cloned()
             .ok_or_else(|| MultivmError::Configuration {
                 component: "cross_vm_coordinator".to_string(),
-                message: format!("Asset not found: {}", asset_id),
+                message: format!("Asset not found: {asset_id}"),
                 validation_errors: Some(vec![]),
             })
     }

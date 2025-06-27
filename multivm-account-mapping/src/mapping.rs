@@ -286,14 +286,18 @@ impl AccountBinding {
         message: &[u8],
         signature: &[u8],
     ) -> AccountMappingResult<()> {
-        use ed25519_dalek::{PublicKey as VerifyingKey, Signature, Verifier};
+        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
-        // Parse the signature
-        let signature = Signature::from_bytes(signature).map_err(|_| {
-            AccountMappingError::InvalidBindingProof {
-                reason: "Invalid Ed25519 signature format".to_string(),
-            }
-        })?;
+        // Parse the signature (ed25519-dalek v2 expects a fixed-size array)
+        let signature = if signature.len() == 64 {
+            let mut sig_bytes = [0u8; 64];
+            sig_bytes.copy_from_slice(signature);
+            Signature::from_bytes(&sig_bytes)
+        } else {
+            return Err(AccountMappingError::InvalidBindingProof {
+                reason: "Ed25519 signature must be 64 bytes".to_string(),
+            });
+        };
 
         // Parse the public key from the Solana address
         let public_key = VerifyingKey::from_bytes(&solana_addr.0).map_err(|_| {
@@ -441,7 +445,7 @@ impl AccountBinding {
             .send()
             .await
             .map_err(|e| AccountMappingError::Internal {
-                message: format!("Solana RPC request failed: {}", e),
+                message: format!("Solana RPC request failed: {e}"),
             })?;
 
         let response_json: serde_json::Value =
@@ -449,13 +453,13 @@ impl AccountBinding {
                 .json()
                 .await
                 .map_err(|e| AccountMappingError::Internal {
-                    message: format!("Failed to parse Solana RPC response: {}", e),
+                    message: format!("Failed to parse Solana RPC response: {e}"),
                 })?;
 
         // Validate RPC response and transaction data
         if let Some(error) = response_json.get("error") {
             return Err(AccountMappingError::InvalidBindingProof {
-                reason: format!("Solana RPC error: {}", error),
+                reason: format!("Solana RPC error: {error}"),
             });
         }
 
@@ -468,7 +472,7 @@ impl AccountBinding {
         // Verify transaction exists and is confirmed
         if result.is_null() {
             return Err(AccountMappingError::InvalidBindingProof {
-                reason: format!("Solana transaction {} not found", tx_hash),
+                reason: format!("Solana transaction {tx_hash} not found"),
             });
         }
 
@@ -537,7 +541,7 @@ impl AccountBinding {
             .send()
             .await
             .map_err(|e| AccountMappingError::Internal {
-                message: format!("Ethereum RPC request failed: {}", e),
+                message: format!("Ethereum RPC request failed: {e}"),
             })?;
 
         let response_json: serde_json::Value =
@@ -545,13 +549,13 @@ impl AccountBinding {
                 .json()
                 .await
                 .map_err(|e| AccountMappingError::Internal {
-                    message: format!("Failed to parse Ethereum RPC response: {}", e),
+                    message: format!("Failed to parse Ethereum RPC response: {e}"),
                 })?;
 
         // Validate RPC response
         if let Some(error) = response_json.get("error") {
             return Err(AccountMappingError::InvalidBindingProof {
-                reason: format!("Ethereum RPC error: {}", error),
+                reason: format!("Ethereum RPC error: {error}"),
             });
         }
 
@@ -564,7 +568,7 @@ impl AccountBinding {
         // Verify transaction exists
         if result.is_null() {
             return Err(AccountMappingError::InvalidBindingProof {
-                reason: format!("Ethereum transaction {} not found", tx_hash),
+                reason: format!("Ethereum transaction {tx_hash} not found"),
             });
         }
 
@@ -577,8 +581,7 @@ impl AccountBinding {
         if !tx_block_hash.is_empty() && !block_hash.starts_with(&tx_block_hash[2..]) {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: format!(
-                    "Transaction block hash {} does not match expected {}",
-                    tx_block_hash, block_hash
+                    "Transaction block hash {tx_block_hash} does not match expected {block_hash}"
                 ),
             });
         }

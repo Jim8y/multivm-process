@@ -1,15 +1,23 @@
 //! # REST API Middleware
 //!
 //! Middleware components for request processing including authentication,
-//! rate limiting, metrics collection, and request tracking.
+//! rate limiting, metrics collection, request tracking, and security headers.
 
-use crate::ApplicationState;
+pub mod manager;
+pub mod security;
+
+use crate::{validation, ApplicationState};
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
+pub use manager::{
+    MiddlewareConfig, MiddlewareConfigBuilder, MiddlewareHealthReport, MiddlewareHealthStatus,
+    MiddlewareManager,
+};
+pub use security::{CspBuilder, SecurityAudit, SecurityConfig};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -64,6 +72,11 @@ pub async fn auth_middleware(
     if let Some(api_key) = headers.get("x-api-key") {
         let api_key_str = api_key.to_str().map_err(|_| StatusCode::BAD_REQUEST)?;
 
+        // Validate API key format before processing
+        if validation::auth::validate_api_key(api_key_str).is_err() {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
         let auth_manager = state.auth_manager.read().await;
         match auth_manager.validate_api_key(api_key_str).await {
             Ok(_) => return Ok(next.run(request).await),
@@ -76,6 +89,11 @@ pub async fn auth_middleware(
         let auth_str = auth_header.to_str().map_err(|_| StatusCode::BAD_REQUEST)?;
 
         if let Some(token) = auth_str.strip_prefix("Bearer ") {
+            // Validate JWT format before processing
+            if validation::auth::validate_jwt_format(token).is_err() {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+
             let auth_manager = state.auth_manager.read().await;
             match auth_manager.validate_jwt_token(token).await {
                 Ok(_) => return Ok(next.run(request).await),
@@ -159,7 +177,7 @@ fn extract_client_identifier(headers: &HeaderMap, request: &Request) -> String {
     // Try API key first
     if let Some(api_key) = headers.get("x-api-key") {
         if let Ok(key_str) = api_key.to_str() {
-            return format!("api_key:{}", key_str);
+            return format!("api_key:{key_str}");
         }
     }
 
@@ -168,14 +186,15 @@ fn extract_client_identifier(headers: &HeaderMap, request: &Request) -> String {
         if let Ok(ip_str) = forwarded.to_str() {
             // Take the first IP in the chain
             if let Some(first_ip) = ip_str.split(',').next() {
-                return format!("ip:{}", first_ip.trim());
+                let trimmed_ip = first_ip.trim();
+                return format!("ip:{trimmed_ip}");
             }
         }
     }
 
     if let Some(real_ip) = headers.get("x-real-ip") {
         if let Ok(ip_str) = real_ip.to_str() {
-            return format!("ip:{}", ip_str);
+            return format!("ip:{ip_str}");
         }
     }
 
@@ -188,7 +207,7 @@ fn extract_client_identifier(headers: &HeaderMap, request: &Request) -> String {
     }
 
     // Ultimate fallback for unknown clients
-    format!("ip:127.0.0.1")
+    "ip:127.0.0.1".to_string()
 }
 
 /// Check rate limit for a client
@@ -205,7 +224,7 @@ async fn check_rate_limit(
     }
 
     // Create cache key for this client
-    let cache_key = format!("rate_limit:{}", client_id);
+    let cache_key = format!("rate_limit:{client_id}");
 
     // Check current request count
     match state.cache.get::<u32>(&cache_key).await {
@@ -241,8 +260,20 @@ async fn check_rate_limit(
 
 /// CORS middleware configuration
 pub fn cors_headers() -> [(String, String); 4] {
+    // In production, restrict origins to specific domains
+    let allowed_origins = if cfg!(debug_assertions) {
+        // Development: allow localhost and common dev ports
+        "http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080"
+    } else {
+        // Production: restrict to specific trusted domains
+        "https://multivm.app,https://api.multivm.app,https://dashboard.multivm.app"
+    };
+
     [
-        ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+        (
+            "Access-Control-Allow-Origin".to_string(),
+            allowed_origins.to_string(),
+        ),
         (
             "Access-Control-Allow-Methods".to_string(),
             "GET, POST, PUT, DELETE, OPTIONS".to_string(),

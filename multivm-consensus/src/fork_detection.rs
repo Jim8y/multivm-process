@@ -551,7 +551,7 @@ impl ForkDetectionManager {
             forks
                 .get(fork_id)
                 .ok_or_else(|| {
-                    ForkDetectionError::InvalidForkData(format!("Fork {} not found", fork_id))
+                    ForkDetectionError::InvalidForkData(format!("Fork {fork_id} not found"))
                 })?
                 .clone()
         };

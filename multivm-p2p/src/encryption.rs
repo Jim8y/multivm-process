@@ -1,12 +1,11 @@
 //! Production-ready encryption utilities for secure P2P communication
 
 use crate::error::{P2PError, P2PResult};
-// ChaCha20Poly1305 disabled - using placeholder implementations
-// use chacha20poly1305::{
-//     aead::{Aead, AeadCore, KeyInit, OsRng as AeadOsRng},
-//     ChaCha20Poly1305, Key, Nonce,
-// };
-use ed25519_dalek::{Signature, Signer, Keypair as SigningKey, Verifier, PublicKey as VerifyingKey};
+use chacha20poly1305::{
+    aead::{Aead, AeadCore, KeyInit, OsRng as AeadOsRng},
+    ChaCha20Poly1305, Key, Nonce,
+};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::{rngs::OsRng, RngCore};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -36,7 +35,7 @@ impl EncryptionManager {
         let mut csprng = rand::thread_rng();
         let mut bytes = [0u8; 32];
         csprng.fill(&mut bytes);
-        Ok(SigningKey::from_bytes(&bytes).expect("32 bytes should be valid"))
+        Ok(SigningKey::from_bytes(&bytes))
     }
 
     /// Generate a new X25519 keypair for encryption
@@ -46,48 +45,94 @@ impl EncryptionManager {
         (secret, public)
     }
 
-    /// Encrypt a message using ChaCha20-Poly1305 (DISABLED - placeholder implementation)
+    /// Encrypt a message using ChaCha20-Poly1305 with X25519 key exchange
     pub fn encrypt_message(
         &self,
-        _plaintext: &[u8],
-        _recipient_public_key: &[u8],
+        plaintext: &[u8],
+        recipient_public_key: &[u8],
     ) -> P2PResult<Vec<u8>> {
-        // PLACEHOLDER: ChaCha20Poly1305 encryption disabled
-        // Return dummy encrypted data that maintains the expected format
-        let dummy_ephemeral_public = [0u8; 32];
-        let dummy_nonce = [0u8; 12];
-        let dummy_ciphertext = b"ENCRYPTED_DATA_PLACEHOLDER";
+        // Generate ephemeral keypair for this message
+        let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
+        let ephemeral_public = PublicKey::from(&ephemeral_secret);
+
+        // Parse recipient's public key
+        let recipient_public = PublicKey::from(
+            <[u8; 32]>::try_from(recipient_public_key)
+                .map_err(|_| P2PError::security_error("Invalid recipient public key"))?,
+        );
+
+        // Compute shared secret
+        let shared_secret = ephemeral_secret.diffie_hellman(&recipient_public);
+
+        // Derive encryption key from shared secret
+        let encryption_key = derive_key_from_shared_secret(shared_secret.as_bytes());
+
+        // Initialize ChaCha20Poly1305
+        let cipher = ChaCha20Poly1305::new(&encryption_key);
+
+        // Generate random nonce
+        let nonce = ChaCha20Poly1305::generate_nonce(&mut AeadOsRng);
+
+        // Encrypt the plaintext
+        let ciphertext = cipher
+            .encrypt(&nonce, plaintext)
+            .map_err(|e| P2PError::security_error(format!("Encryption failed: {e}")))?;
 
         // Construct encrypted message: [ephemeral_public || nonce || ciphertext]
-        let mut encrypted = Vec::with_capacity(32 + 12 + dummy_ciphertext.len());
-        encrypted.extend_from_slice(&dummy_ephemeral_public);
-        encrypted.extend_from_slice(&dummy_nonce);
-        encrypted.extend_from_slice(dummy_ciphertext);
+        let mut encrypted = Vec::with_capacity(32 + 12 + ciphertext.len());
+        encrypted.extend_from_slice(ephemeral_public.as_bytes());
+        encrypted.extend_from_slice(&nonce);
+        encrypted.extend_from_slice(&ciphertext);
 
         Ok(encrypted)
     }
 
-    /// Decrypt a message using our private key bytes (DISABLED - placeholder implementation)
+    /// Decrypt a message using our private key bytes
     pub fn decrypt_message(
         &self,
         ciphertext: &[u8],
-        _our_secret_key_bytes: &[u8; 32],
+        our_secret_key_bytes: &[u8; 32],
     ) -> P2PResult<Vec<u8>> {
         if ciphertext.len() < 44 {
-            // 32 (public key) + 12 (nonce)
+            // 32 (ephemeral public key) + 12 (nonce) + minimum ciphertext
             return Err(P2PError::security_error("Ciphertext too short"));
         }
 
-        // Extract encrypted data component
+        // Extract components
+        let ephemeral_public_bytes = &ciphertext[0..32];
+        let nonce_bytes = &ciphertext[32..44];
         let encrypted_data = &ciphertext[44..];
 
-        // PLACEHOLDER: ChaCha20Poly1305 decryption disabled
-        // Return dummy decrypted data if we recognize our placeholder
-        if encrypted_data == b"ENCRYPTED_DATA_PLACEHOLDER" {
-            Ok(b"DECRYPTED_DATA_PLACEHOLDER".to_vec())
-        } else {
-            Err(P2PError::security_error("Decryption disabled - placeholder implementation"))
-        }
+        // Parse ephemeral public key
+        let ephemeral_public = PublicKey::from(
+            <[u8; 32]>::try_from(ephemeral_public_bytes)
+                .map_err(|_| P2PError::security_error("Invalid ephemeral public key"))?,
+        );
+
+        // Create our secret key from bytes
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha20Rng;
+        let mut rng = ChaCha20Rng::from_seed(*our_secret_key_bytes);
+        let our_secret = EphemeralSecret::random_from_rng(&mut rng);
+
+        // Compute shared secret
+        let shared_secret = our_secret.diffie_hellman(&ephemeral_public);
+
+        // Derive decryption key from shared secret
+        let decryption_key = derive_key_from_shared_secret(shared_secret.as_bytes());
+
+        // Initialize ChaCha20Poly1305
+        let cipher = ChaCha20Poly1305::new(&decryption_key);
+
+        // Parse nonce
+        let nonce = Nonce::from_slice(nonce_bytes);
+
+        // Decrypt the ciphertext
+        let plaintext = cipher
+            .decrypt(nonce, encrypted_data)
+            .map_err(|e| P2PError::security_error(format!("Decryption failed: {e}")))?;
+
+        Ok(plaintext)
     }
 
     /// Sign a message with Ed25519
@@ -103,12 +148,19 @@ impl EncryptionManager {
         signature: &[u8],
         public_key: &VerifyingKey,
     ) -> P2PResult<()> {
-        let sig = Signature::from_bytes(signature)
-            .map_err(|e| P2PError::security_error(format!("Invalid signature: {}", e)))?;
+        let sig = if signature.len() == 64 {
+            let mut sig_bytes = [0u8; 64];
+            sig_bytes.copy_from_slice(signature);
+            Signature::from_bytes(&sig_bytes)
+        } else {
+            return Err(P2PError::security_error(
+                "Signature must be 64 bytes".to_string(),
+            ));
+        };
 
         public_key
             .verify(message, &sig)
-            .map_err(|e| P2PError::security_error(format!("Signature verification failed: {}", e)))
+            .map_err(|e| P2PError::security_error(format!("Signature verification failed: {e}")))
     }
 
     /// Derive a shared secret using X25519 ECDH
@@ -183,7 +235,7 @@ impl EncryptionManager {
 
         Ok(SecureEnvelope {
             encrypted_payload: encrypted,
-            sender_public_key: signing_key.public.to_bytes().to_vec(),
+            sender_public_key: signing_key.verifying_key().to_bytes().to_vec(),
             timestamp: SystemTime::now(),
         })
     }
@@ -231,7 +283,7 @@ impl EncryptionManager {
             &<[u8; 32]>::try_from(&envelope.sender_public_key[..])
                 .map_err(|_| P2PError::security_error("Invalid sender public key"))?,
         )
-        .map_err(|e| P2PError::security_error(format!("Invalid sender public key: {}", e)))?;
+        .map_err(|e| P2PError::security_error(format!("Invalid sender public key: {e}")))?;
 
         self.verify_signature(plaintext, signature, &sender_public_key)?;
 
@@ -272,20 +324,15 @@ pub struct SecureEnvelope {
     pub timestamp: SystemTime,
 }
 
-/// Derive an encryption key from a shared secret (DISABLED - placeholder implementation)
-// ChaCha20Poly1305 Key type not available, function disabled
-// fn derive_key_from_shared_secret(shared_secret: &[u8]) -> Key {
-//     let mut hasher = Sha256::new();
-//     hasher.update(b"MultiVM-P2P-Encryption-Key");
-//     hasher.update(shared_secret);
-//     let hash = hasher.finalize();
-//
-//     // Use first 32 bytes as ChaCha20Poly1305 key
-//     *Key::from_slice(&hash[..32])
-// }
-fn derive_key_from_shared_secret(_shared_secret: &[u8]) -> [u8; 32] {
-    // PLACEHOLDER: Return dummy key
-    [0u8; 32]
+/// Derive an encryption key from a shared secret using HKDF
+fn derive_key_from_shared_secret(shared_secret: &[u8]) -> Key {
+    let mut hasher = Sha256::new();
+    hasher.update(b"MultiVM-P2P-Encryption-Key");
+    hasher.update(shared_secret);
+    let hash = hasher.finalize();
+
+    // Use first 32 bytes as ChaCha20Poly1305 key
+    *Key::from_slice(&hash[..32])
 }
 
 /// Production authentication manager for peer connections

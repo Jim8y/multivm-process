@@ -83,11 +83,11 @@ impl<T: IpcTransport> IpcServer<T> {
             _ => {
                 // Try to find a registered handler
                 let command_type = std::mem::discriminant(&command);
-                if let Some(handler) = self.handlers.get(&format!("{:?}", command_type)) {
+                if let Some(handler) = self.handlers.get(&format!("{command_type:?}")) {
                     handler.handle(command).await
                 } else {
                     Err(MultivmError::UnsupportedOperation {
-                        operation: format!("No handler for command: {:?}", command),
+                        operation: format!("No handler for command: {command:?}"),
                         alternatives: None,
                     })
                 }

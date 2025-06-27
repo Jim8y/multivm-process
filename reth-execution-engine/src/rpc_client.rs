@@ -1,5 +1,5 @@
 //! JSON-RPC client for Reth node communication
-//! 
+//!
 //! This module provides a comprehensive RPC client for communicating with Reth nodes
 //! via standard Ethereum JSON-RPC methods. It includes connection pooling, retry logic,
 //! and proper error handling for production use.
@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 pub struct RethRpcClient {
     client: Client,
     rpc_url: String,
-    request_timeout: Duration,
+    _request_timeout: Duration,
     max_retries: u32,
     retry_delay: Duration,
 }
@@ -81,12 +81,12 @@ impl RethRpcClient {
             .pool_idle_timeout(Duration::from_secs(30))
             .tcp_keepalive(Duration::from_secs(60))
             .build()
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to create RPC client: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Failed to create RPC client: {e}")))?;
 
         Ok(Self {
             client,
             rpc_url,
-            request_timeout,
+            _request_timeout: request_timeout,
             max_retries,
             retry_delay,
         })
@@ -95,50 +95,62 @@ impl RethRpcClient {
     /// Get chain ID
     pub async fn get_chain_id(&self) -> Result<u64, RethEngineError> {
         let response = self.make_request("eth_chainId", json!([])).await?;
-        
+
         if let Some(chain_id_hex) = response.get("result").and_then(|r| r.as_str()) {
             let chain_id = u64::from_str_radix(chain_id_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid chain ID: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid chain ID: {e}")))?;
             Ok(chain_id)
         } else {
-            Err(RethEngineError::Rpc("Invalid chain ID response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid chain ID response".to_string(),
+            ))
         }
     }
 
     /// Get current block number
     pub async fn get_block_number(&self) -> Result<u64, RethEngineError> {
         let response = self.make_request("eth_blockNumber", json!([])).await?;
-        
+
         if let Some(block_hex) = response.get("result").and_then(|r| r.as_str()) {
             let block_number = u64::from_str_radix(block_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid block number: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid block number: {e}")))?;
             Ok(block_number)
         } else {
-            Err(RethEngineError::Rpc("Invalid block number response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid block number response".to_string(),
+            ))
         }
     }
 
     /// Get gas price
     pub async fn get_gas_price(&self) -> Result<u64, RethEngineError> {
         let response = self.make_request("eth_gasPrice", json!([])).await?;
-        
+
         if let Some(gas_price_hex) = response.get("result").and_then(|r| r.as_str()) {
             let gas_price = u64::from_str_radix(gas_price_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid gas price: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid gas price: {e}")))?;
             Ok(gas_price)
         } else {
-            Err(RethEngineError::Rpc("Invalid gas price response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid gas price response".to_string(),
+            ))
         }
     }
 
     /// Get balance of an address
-    pub async fn get_balance(&self, address: &str, block: Option<&str>) -> Result<u64, RethEngineError> {
+    pub async fn get_balance(
+        &self,
+        address: &str,
+        block: Option<&str>,
+    ) -> Result<u64, RethEngineError> {
         let block_param = block.unwrap_or("latest");
-        let response = self.make_request("eth_getBalance", json!([address, block_param])).await?;
-        
+        let response = self
+            .make_request("eth_getBalance", json!([address, block_param]))
+            .await?;
+
         if let Some(balance_hex) = response.get("result").and_then(|r| r.as_str()) {
             let balance = u64::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid balance: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid balance: {e}")))?;
             Ok(balance)
         } else {
             Err(RethEngineError::Rpc("Invalid balance response".to_string()))
@@ -146,56 +158,83 @@ impl RethRpcClient {
     }
 
     /// Get transaction count (nonce) for an address
-    pub async fn get_transaction_count(&self, address: &str, block: Option<&str>) -> Result<u64, RethEngineError> {
+    pub async fn get_transaction_count(
+        &self,
+        address: &str,
+        block: Option<&str>,
+    ) -> Result<u64, RethEngineError> {
         let block_param = block.unwrap_or("latest");
-        let response = self.make_request("eth_getTransactionCount", json!([address, block_param])).await?;
-        
+        let response = self
+            .make_request("eth_getTransactionCount", json!([address, block_param]))
+            .await?;
+
         if let Some(count_hex) = response.get("result").and_then(|r| r.as_str()) {
             let count = u64::from_str_radix(count_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid transaction count: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid transaction count: {e}")))?;
             Ok(count)
         } else {
-            Err(RethEngineError::Rpc("Invalid transaction count response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid transaction count response".to_string(),
+            ))
         }
     }
 
     /// Estimate gas for a transaction
     pub async fn estimate_gas(&self, transaction: &RpcTransaction) -> Result<u64, RethEngineError> {
         let tx_object = self.transaction_to_json(transaction);
-        let response = self.make_request("eth_estimateGas", json!([tx_object])).await?;
-        
+        let response = self
+            .make_request("eth_estimateGas", json!([tx_object]))
+            .await?;
+
         if let Some(gas_hex) = response.get("result").and_then(|r| r.as_str()) {
             let gas_estimate = u64::from_str_radix(gas_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid gas estimate: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid gas estimate: {e}")))?;
             Ok(gas_estimate)
         } else {
-            Err(RethEngineError::Rpc("Invalid gas estimation response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid gas estimation response".to_string(),
+            ))
         }
     }
 
     /// Send raw transaction
     pub async fn send_raw_transaction(&self, raw_tx: &str) -> Result<String, RethEngineError> {
-        let response = self.make_request("eth_sendRawTransaction", json!([raw_tx])).await?;
-        
+        let response = self
+            .make_request("eth_sendRawTransaction", json!([raw_tx]))
+            .await?;
+
         if let Some(tx_hash) = response.get("result").and_then(|r| r.as_str()) {
             Ok(tx_hash.to_string())
         } else if let Some(error) = response.get("error") {
-            Err(RethEngineError::Rpc(format!("Transaction rejected: {}", error)))
+            Err(RethEngineError::Rpc(format!(
+                "Transaction rejected: {error}"
+            )))
         } else {
-            Err(RethEngineError::Rpc("Invalid transaction response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid transaction response".to_string(),
+            ))
         }
     }
 
     /// Get block by number
-    pub async fn get_block_by_number(&self, block_number: u64, full_transactions: bool) -> Result<Option<RpcBlock>, RethEngineError> {
-        let block_hex = format!("0x{:x}", block_number);
-        let response = self.make_request("eth_getBlockByNumber", json!([block_hex, full_transactions])).await?;
-        
+    pub async fn get_block_by_number(
+        &self,
+        block_number: u64,
+        full_transactions: bool,
+    ) -> Result<Option<RpcBlock>, RethEngineError> {
+        let block_hex = format!("0x{block_number:x}");
+        let response = self
+            .make_request(
+                "eth_getBlockByNumber",
+                json!([block_hex, full_transactions]),
+            )
+            .await?;
+
         if let Some(block_data) = response.get("result") {
             if block_data.is_null() {
                 return Ok(None);
             }
-            
+
             let block = self.parse_block(block_data)?;
             Ok(Some(block))
         } else {
@@ -204,14 +243,20 @@ impl RethRpcClient {
     }
 
     /// Get block by hash
-    pub async fn get_block_by_hash(&self, block_hash: &str, full_transactions: bool) -> Result<Option<RpcBlock>, RethEngineError> {
-        let response = self.make_request("eth_getBlockByHash", json!([block_hash, full_transactions])).await?;
-        
+    pub async fn get_block_by_hash(
+        &self,
+        block_hash: &str,
+        full_transactions: bool,
+    ) -> Result<Option<RpcBlock>, RethEngineError> {
+        let response = self
+            .make_request("eth_getBlockByHash", json!([block_hash, full_transactions]))
+            .await?;
+
         if let Some(block_data) = response.get("result") {
             if block_data.is_null() {
                 return Ok(None);
             }
-            
+
             let block = self.parse_block(block_data)?;
             Ok(Some(block))
         } else {
@@ -220,9 +265,14 @@ impl RethRpcClient {
     }
 
     /// Get transaction by hash
-    pub async fn get_transaction_by_hash(&self, tx_hash: &str) -> Result<Option<Value>, RethEngineError> {
-        let response = self.make_request("eth_getTransactionByHash", json!([tx_hash])).await?;
-        
+    pub async fn get_transaction_by_hash(
+        &self,
+        tx_hash: &str,
+    ) -> Result<Option<Value>, RethEngineError> {
+        let response = self
+            .make_request("eth_getTransactionByHash", json!([tx_hash]))
+            .await?;
+
         if let Some(tx_data) = response.get("result") {
             if tx_data.is_null() {
                 Ok(None)
@@ -230,19 +280,26 @@ impl RethRpcClient {
                 Ok(Some(tx_data.clone()))
             }
         } else {
-            Err(RethEngineError::Rpc("Invalid transaction response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid transaction response".to_string(),
+            ))
         }
     }
 
     /// Get transaction receipt
-    pub async fn get_transaction_receipt(&self, tx_hash: &str) -> Result<Option<RpcTransactionReceipt>, RethEngineError> {
-        let response = self.make_request("eth_getTransactionReceipt", json!([tx_hash])).await?;
-        
+    pub async fn get_transaction_receipt(
+        &self,
+        tx_hash: &str,
+    ) -> Result<Option<RpcTransactionReceipt>, RethEngineError> {
+        let response = self
+            .make_request("eth_getTransactionReceipt", json!([tx_hash]))
+            .await?;
+
         if let Some(receipt_data) = response.get("result") {
             if receipt_data.is_null() {
                 return Ok(None);
             }
-            
+
             let receipt = self.parse_transaction_receipt(receipt_data)?;
             Ok(Some(receipt))
         } else {
@@ -251,15 +308,23 @@ impl RethRpcClient {
     }
 
     /// Call a contract method
-    pub async fn call(&self, transaction: &RpcTransaction, block: Option<&str>) -> Result<String, RethEngineError> {
+    pub async fn call(
+        &self,
+        transaction: &RpcTransaction,
+        block: Option<&str>,
+    ) -> Result<String, RethEngineError> {
         let tx_object = self.transaction_to_json(transaction);
         let block_param = block.unwrap_or("latest");
-        let response = self.make_request("eth_call", json!([tx_object, block_param])).await?;
-        
+        let response = self
+            .make_request("eth_call", json!([tx_object, block_param]))
+            .await?;
+
         if let Some(result) = response.get("result").and_then(|r| r.as_str()) {
             Ok(result.to_string())
         } else if let Some(error) = response.get("error") {
-            Err(RethEngineError::Rpc(format!("Contract call failed: {}", error)))
+            Err(RethEngineError::Rpc(format!(
+                "Contract call failed: {error}"
+            )))
         } else {
             Err(RethEngineError::Rpc("Invalid call response".to_string()))
         }
@@ -268,7 +333,7 @@ impl RethRpcClient {
     /// Get logs
     pub async fn get_logs(&self, filter: &Value) -> Result<Vec<Value>, RethEngineError> {
         let response = self.make_request("eth_getLogs", json!([filter])).await?;
-        
+
         if let Some(logs) = response.get("result").and_then(|r| r.as_array()) {
             Ok(logs.clone())
         } else {
@@ -279,31 +344,35 @@ impl RethRpcClient {
     /// Get network version
     pub async fn get_network_version(&self) -> Result<String, RethEngineError> {
         let response = self.make_request("net_version", json!([])).await?;
-        
+
         if let Some(version) = response.get("result").and_then(|r| r.as_str()) {
             Ok(version.to_string())
         } else {
-            Err(RethEngineError::Rpc("Invalid network version response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid network version response".to_string(),
+            ))
         }
     }
 
     /// Get peer count
     pub async fn get_peer_count(&self) -> Result<u64, RethEngineError> {
         let response = self.make_request("net_peerCount", json!([])).await?;
-        
+
         if let Some(count_hex) = response.get("result").and_then(|r| r.as_str()) {
             let count = u64::from_str_radix(count_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid peer count: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid peer count: {e}")))?;
             Ok(count)
         } else {
-            Err(RethEngineError::Rpc("Invalid peer count response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid peer count response".to_string(),
+            ))
         }
     }
 
     /// Check if node is syncing
     pub async fn is_syncing(&self) -> Result<bool, RethEngineError> {
         let response = self.make_request("eth_syncing", json!([])).await?;
-        
+
         if let Some(result) = response.get("result") {
             if result.is_boolean() {
                 Ok(result.as_bool().unwrap_or(false))
@@ -321,11 +390,13 @@ impl RethRpcClient {
     /// Get client version
     pub async fn get_client_version(&self) -> Result<String, RethEngineError> {
         let response = self.make_request("web3_clientVersion", json!([])).await?;
-        
+
         if let Some(version) = response.get("result").and_then(|r| r.as_str()) {
             Ok(version.to_string())
         } else {
-            Err(RethEngineError::Rpc("Invalid client version response".to_string()))
+            Err(RethEngineError::Rpc(
+                "Invalid client version response".to_string(),
+            ))
         }
     }
 
@@ -340,7 +411,7 @@ impl RethRpcClient {
     /// Make a JSON-RPC request with retry logic
     async fn make_request(&self, method: &str, params: Value) -> Result<Value, RethEngineError> {
         for attempt in 1..=self.max_retries {
-            let request_id = format!("{}_{}", method, attempt);
+            let request_id = format!("{method}_{attempt}");
             let rpc_request = json!({
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -350,7 +421,8 @@ impl RethRpcClient {
 
             debug!("RPC request: {} (attempt {})", method, attempt);
 
-            match self.client
+            match self
+                .client
                 .post(&self.rpc_url)
                 .header("Content-Type", "application/json")
                 .json(&rpc_request)
@@ -367,14 +439,18 @@ impl RethRpcClient {
                             warn!("Failed to parse RPC response on attempt {}: {}", attempt, e);
                             if attempt == self.max_retries {
                                 return Err(RethEngineError::Rpc(format!(
-                                    "Failed to parse RPC response: {}", e
+                                    "Failed to parse RPC response: {e}"
                                 )));
                             }
                         }
                     }
                 }
                 Ok(response) => {
-                    warn!("RPC returned error status on attempt {}: {}", attempt, response.status());
+                    warn!(
+                        "RPC returned error status on attempt {}: {}",
+                        attempt,
+                        response.status()
+                    );
                     if attempt == self.max_retries {
                         return Err(RethEngineError::Rpc(format!(
                             "RPC returned error status: {}",
@@ -385,7 +461,7 @@ impl RethRpcClient {
                 Err(e) => {
                     warn!("RPC request failed on attempt {}: {}", attempt, e);
                     if attempt == self.max_retries {
-                        return Err(RethEngineError::Rpc(format!("RPC request failed: {}", e)));
+                        return Err(RethEngineError::Rpc(format!("RPC request failed: {e}")));
                     }
                 }
             }
@@ -396,7 +472,10 @@ impl RethRpcClient {
             }
         }
 
-        unreachable!()
+        // This should never be reached due to the logic above, but just in case
+        Err(RethEngineError::Rpc(format!(
+            "All retry attempts exhausted for RPC method: {method}"
+        )))
     }
 
     /// Convert RpcTransaction to JSON object
@@ -442,57 +521,67 @@ impl RethRpcClient {
 
     /// Parse block data from JSON
     fn parse_block(&self, block_data: &Value) -> Result<RpcBlock, RethEngineError> {
-        let number_hex = block_data.get("number")
+        let number_hex = block_data
+            .get("number")
             .and_then(|n| n.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing block number".to_string()))?;
         let number = u64::from_str_radix(number_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid block number: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid block number: {e}")))?;
 
-        let hash = block_data.get("hash")
+        let hash = block_data
+            .get("hash")
             .and_then(|h| h.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing block hash".to_string()))?
             .to_string();
 
-        let parent_hash = block_data.get("parentHash")
+        let parent_hash = block_data
+            .get("parentHash")
             .and_then(|h| h.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing parent hash".to_string()))?
             .to_string();
 
-        let timestamp_hex = block_data.get("timestamp")
+        let timestamp_hex = block_data
+            .get("timestamp")
             .and_then(|t| t.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing timestamp".to_string()))?;
         let timestamp = u64::from_str_radix(timestamp_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid timestamp: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid timestamp: {e}")))?;
 
-        let gas_limit_hex = block_data.get("gasLimit")
+        let gas_limit_hex = block_data
+            .get("gasLimit")
             .and_then(|g| g.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing gas limit".to_string()))?;
         let gas_limit = u64::from_str_radix(gas_limit_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid gas limit: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid gas limit: {e}")))?;
 
-        let gas_used_hex = block_data.get("gasUsed")
+        let gas_used_hex = block_data
+            .get("gasUsed")
             .and_then(|g| g.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing gas used".to_string()))?;
         let gas_used = u64::from_str_radix(gas_used_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid gas used: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid gas used: {e}")))?;
 
-        let base_fee_per_gas = block_data.get("baseFeePerGas")
+        let base_fee_per_gas = block_data
+            .get("baseFeePerGas")
             .and_then(|b| b.as_str())
             .map(|hex| u64::from_str_radix(hex.trim_start_matches("0x"), 16))
             .transpose()
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid base fee: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid base fee: {e}")))?;
 
-        let transactions = block_data.get("transactions")
+        let transactions = block_data
+            .get("transactions")
             .and_then(|t| t.as_array())
             .ok_or_else(|| RethEngineError::Rpc("Missing transactions".to_string()))?
             .clone();
 
-        let state_root = block_data.get("stateRoot")
+        let state_root = block_data
+            .get("stateRoot")
             .and_then(|s| s.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing state root".to_string()))?
             .to_string();
 
-        let receipts_root = block_data.get("receiptsRoot")
+        let receipts_root = block_data
+            .get("receiptsRoot")
             .and_then(|r| r.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing receipts root".to_string()))?
             .to_string();
@@ -512,70 +601,88 @@ impl RethRpcClient {
     }
 
     /// Parse transaction receipt from JSON
-    fn parse_transaction_receipt(&self, receipt_data: &Value) -> Result<RpcTransactionReceipt, RethEngineError> {
-        let transaction_hash = receipt_data.get("transactionHash")
+    fn parse_transaction_receipt(
+        &self,
+        receipt_data: &Value,
+    ) -> Result<RpcTransactionReceipt, RethEngineError> {
+        let transaction_hash = receipt_data
+            .get("transactionHash")
             .and_then(|h| h.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing transaction hash".to_string()))?
             .to_string();
 
-        let transaction_index_hex = receipt_data.get("transactionIndex")
+        let transaction_index_hex = receipt_data
+            .get("transactionIndex")
             .and_then(|i| i.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing transaction index".to_string()))?;
-        let transaction_index = u64::from_str_radix(transaction_index_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid transaction index: {}", e)))?;
+        let transaction_index =
+            u64::from_str_radix(transaction_index_hex.trim_start_matches("0x"), 16)
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid transaction index: {e}")))?;
 
-        let block_hash = receipt_data.get("blockHash")
+        let block_hash = receipt_data
+            .get("blockHash")
             .and_then(|h| h.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing block hash".to_string()))?
             .to_string();
 
-        let block_number_hex = receipt_data.get("blockNumber")
+        let block_number_hex = receipt_data
+            .get("blockNumber")
             .and_then(|n| n.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing block number".to_string()))?;
         let block_number = u64::from_str_radix(block_number_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid block number: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid block number: {e}")))?;
 
-        let from = receipt_data.get("from")
+        let from = receipt_data
+            .get("from")
             .and_then(|f| f.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing from address".to_string()))?
             .to_string();
 
-        let to = receipt_data.get("to")
+        let to = receipt_data
+            .get("to")
             .and_then(|t| t.as_str())
             .map(|s| s.to_string());
 
-        let cumulative_gas_used_hex = receipt_data.get("cumulativeGasUsed")
+        let cumulative_gas_used_hex = receipt_data
+            .get("cumulativeGasUsed")
             .and_then(|g| g.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing cumulative gas used".to_string()))?;
-        let cumulative_gas_used = u64::from_str_radix(cumulative_gas_used_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid cumulative gas used: {}", e)))?;
+        let cumulative_gas_used =
+            u64::from_str_radix(cumulative_gas_used_hex.trim_start_matches("0x"), 16)
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid cumulative gas used: {e}")))?;
 
-        let gas_used_hex = receipt_data.get("gasUsed")
+        let gas_used_hex = receipt_data
+            .get("gasUsed")
             .and_then(|g| g.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing gas used".to_string()))?;
         let gas_used = u64::from_str_radix(gas_used_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid gas used: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid gas used: {e}")))?;
 
-        let contract_address = receipt_data.get("contractAddress")
+        let contract_address = receipt_data
+            .get("contractAddress")
             .and_then(|a| a.as_str())
             .map(|s| s.to_string());
 
-        let logs = receipt_data.get("logs")
+        let logs = receipt_data
+            .get("logs")
             .and_then(|l| l.as_array())
             .ok_or_else(|| RethEngineError::Rpc("Missing logs".to_string()))?
             .clone();
 
-        let status_hex = receipt_data.get("status")
+        let status_hex = receipt_data
+            .get("status")
             .and_then(|s| s.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing status".to_string()))?;
         let status = u64::from_str_radix(status_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid status: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Invalid status: {e}")))?;
 
-        let effective_gas_price_hex = receipt_data.get("effectiveGasPrice")
+        let effective_gas_price_hex = receipt_data
+            .get("effectiveGasPrice")
             .and_then(|p| p.as_str())
             .ok_or_else(|| RethEngineError::Rpc("Missing effective gas price".to_string()))?;
-        let effective_gas_price = u64::from_str_radix(effective_gas_price_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::Rpc(format!("Invalid effective gas price: {}", e)))?;
+        let effective_gas_price =
+            u64::from_str_radix(effective_gas_price_hex.trim_start_matches("0x"), 16)
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid effective gas price: {e}")))?;
 
         Ok(RpcTransactionReceipt {
             transaction_hash,
@@ -633,7 +740,8 @@ impl RethRpcClientBuilder {
     }
 
     pub fn build(self) -> Result<RethRpcClient, RethEngineError> {
-        let rpc_url = self.rpc_url
+        let rpc_url = self
+            .rpc_url
             .ok_or_else(|| RethEngineError::Configuration("RPC URL is required".to_string()))?;
 
         RethRpcClient::new(

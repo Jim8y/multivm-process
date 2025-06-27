@@ -151,8 +151,7 @@ impl RateLimiter {
                 }
             }
             Err(_) => Err(P2PError::RateLimitExceeded(format!(
-                "Rate limit exceeded for peer: {}",
-                peer_id
+                "Rate limit exceeded for peer: {peer_id}"
             ))),
         }
     }
@@ -223,7 +222,7 @@ impl RateLimiter {
 
         let entry = self
             .simple_limits
-            .entry(format!("{}:{:?}", peer_id, priority))
+            .entry(format!("{peer_id}:{priority:?}"))
             .or_insert((0, limit, now));
 
         let (count, entry_limit, window_start) = entry;
@@ -310,8 +309,7 @@ impl MessageRateLimiter {
         match limiter.check() {
             Ok(_) => Ok(()),
             Err(_) => Err(P2PError::RateLimitExceeded(format!(
-                "Rate limit exceeded for message type: {}",
-                msg_type
+                "Rate limit exceeded for message type: {msg_type}"
             ))),
         }
     }
@@ -322,4 +320,3 @@ impl Default for MessageRateLimiter {
         Self::new()
     }
 }
-

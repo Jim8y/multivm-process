@@ -546,7 +546,7 @@ impl NetworkRecoveryManager {
                 }
                 Err(e) => {
                     error!("Recovery phase {:?} failed: {}", phase, e);
-                    recovery_status.errors.push(format!("{:?}: {}", phase, e));
+                    recovery_status.errors.push(format!("{phase:?}: {e}"));
 
                     if recovery_status.attempts >= self.config.max_recovery_attempts {
                         recovery_status.phase = RecoveryPhase::Failed;

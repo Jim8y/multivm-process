@@ -6,7 +6,10 @@ use crate::{IpcMessage, MultivmError, MultivmResult};
 //     aead::{Aead, KeyInit},
 //     Aes256Gcm, Key as AesKey, Nonce as AesNonce,
 // };
-// use chacha20poly1305::{aead::{Aead as ChaChaAead, NewAead}, ChaCha20Poly1305, Key as ChaChaKey, Nonce as ChaChaNonce};
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Key as ChaChaKey, Nonce as ChaChaNonce,
+};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -198,7 +201,7 @@ impl AuthManager {
             .issued_at
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| MultivmError::AuthenticationFailed {
-                reason: format!("Invalid issued_at time: {}", e),
+                reason: format!("Invalid issued_at time: {e}"),
                 user_id: None,
                 required_permissions: None,
             })?
@@ -208,7 +211,7 @@ impl AuthManager {
             .expires_at
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| MultivmError::AuthenticationFailed {
-                reason: format!("Invalid expires_at time: {}", e),
+                reason: format!("Invalid expires_at time: {e}"),
                 user_id: None,
                 required_permissions: None,
             })?
@@ -227,7 +230,7 @@ impl AuthManager {
 
         let jwt_token = encode(&header, &claims, &encoding_key).map_err(|e| {
             MultivmError::AuthenticationFailed {
-                reason: format!("JWT encoding failed: {}", e),
+                reason: format!("JWT encoding failed: {e}"),
                 user_id: None,
                 required_permissions: None,
             }
@@ -250,7 +253,7 @@ impl AuthManager {
 
         let jwt_token = String::from_utf8(token.signature.clone()).map_err(|e| {
             MultivmError::AuthenticationFailed {
-                reason: format!("Invalid JWT format: {}", e),
+                reason: format!("Invalid JWT format: {e}"),
                 user_id: None,
                 required_permissions: None,
             }
@@ -483,6 +486,21 @@ impl SecureIpcTransport {
         Ok(())
     }
 
+    /// Set shared secret for encryption key derivation
+    pub fn set_shared_secret(&mut self, secret: Vec<u8>) {
+        self.connection_info.shared_secret = Some(secret);
+    }
+
+    /// Set local process ID for key derivation
+    pub fn set_local_process_id(&mut self, process_id: String) {
+        self.connection_info.local_process_id = Some(process_id);
+    }
+
+    /// Set remote process ID for key derivation  
+    pub fn set_remote_process_id(&mut self, process_id: String) {
+        self.connection_info.remote_process_id = Some(process_id);
+    }
+
     /// Send a secure message
     pub async fn send_secure(&mut self, message: IpcMessage) -> MultivmResult<()> {
         // Check authentication
@@ -507,7 +525,7 @@ impl SecureIpcTransport {
         // Check rate limiting
         if !self.rate_limiter.check_rate_limit(process_id).await? {
             return Err(MultivmError::RateLimited {
-                message: format!("Rate limit exceeded for {}", process_id),
+                message: format!("Rate limit exceeded for {process_id}"),
                 retry_after: Some(Duration::from_secs(1)),
                 current_rate: None,
             });
@@ -754,7 +772,7 @@ impl SecureIpcTransport {
         let mut mac =
             <HmacSha256 as Mac>::new_from_slice(&self.auth_manager.signing_key).map_err(|e| {
                 MultivmError::AuthenticationFailed {
-                    reason: format!("MAC key error: {}", e),
+                    reason: format!("MAC key error: {e}"),
                     user_id: None,
                     required_permissions: None,
                 }
@@ -771,22 +789,133 @@ impl SecureIpcTransport {
         nonce
     }
 
-    /// Encrypt message with ChaCha20Poly1305 - temporarily disabled
+    /// Encrypt message with ChaCha20Poly1305
     async fn encrypt_with_chacha20poly1305(
         &self,
         message: IpcMessage,
     ) -> MultivmResult<SecureMessage> {
-        // Fallback to unencrypted wrapping while encryption is disabled
-        self.wrap_message(message).await
+        // Serialize the message
+        let plaintext = bincode::serialize(&message).map_err(|e| MultivmError::Serialization {
+            message: e.to_string(),
+            data_type: Some("message".to_string()),
+        })?;
+
+        // Derive encryption key (32 bytes for ChaCha20-Poly1305)
+        let key = self.derive_encryption_key(32)?;
+        let cipher_key = ChaChaKey::from_slice(&key);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Generate nonce (12 bytes for ChaCha20-Poly1305)
+        let nonce = self.generate_nonce();
+        let nonce_array = ChaChaNonce::from_slice(&nonce);
+
+        // Encrypt
+        let ciphertext = cipher
+            .encrypt(nonce_array, plaintext.as_ref())
+            .map_err(|e| MultivmError::EncryptionFailed {
+                message: format!("ChaCha20-Poly1305 encryption failed: {e}"),
+                algorithm: Some("ChaCha20-Poly1305".to_string()),
+            })?;
+
+        // Create secure message with proper authentication
+        let process_id = self
+            .connection_info
+            .remote_process_id
+            .as_ref()
+            .ok_or_else(|| MultivmError::AuthenticationFailed {
+                reason: "No process ID".to_string(),
+                user_id: None,
+                required_permissions: None,
+            })?
+            .clone();
+
+        // Get authenticated token
+        let auth_token = if let Some(stored_token) = {
+            let tokens = self.auth_manager.tokens.read().await;
+            tokens.get(&process_id).cloned()
+        } {
+            stored_token
+        } else {
+            // Create new token if none exists
+            AuthToken {
+                process_id: process_id.clone(),
+                issued_at: SystemTime::now(),
+                expires_at: SystemTime::now() + Duration::from_secs(3600),
+                permissions: vec!["ipc".to_string()],
+                signature: Vec::new(),
+            }
+        };
+
+        // Generate unique message ID and sequence number
+        let message_id = format!(
+            "{}-{}-{}",
+            process_id,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos(),
+            uuid::Uuid::new_v4()
+        );
+
+        let sequence_number = {
+            let mut counter = self.sequence_counter.lock().await;
+            *counter += 1;
+            *counter
+        };
+
+        // Compute MAC for additional authentication
+        let mac = self.compute_message_mac(&ciphertext)?;
+
+        Ok(SecureMessage {
+            auth_token,
+            encrypted_payload: ciphertext,
+            mac,
+            timestamp: SystemTime::now(),
+            nonce,
+            message_id,
+            sequence_number,
+        })
     }
 
-    /// Decrypt message with ChaCha20Poly1305 - temporarily disabled
+    /// Decrypt message with ChaCha20Poly1305
     fn decrypt_with_chacha20poly1305(
         &self,
         secure_message: SecureMessage,
     ) -> MultivmResult<IpcMessage> {
-        // Fallback to unencrypted unwrapping while encryption is disabled
-        self.unwrap_message(secure_message)
+        // Verify MAC first
+        let computed_mac = self.compute_message_mac(&secure_message.encrypted_payload)?;
+        if computed_mac != secure_message.mac {
+            return Err(MultivmError::AuthenticationFailed {
+                reason: "Message MAC verification failed".to_string(),
+                user_id: None,
+                required_permissions: None,
+            });
+        }
+
+        // Derive encryption key
+        let key = self.derive_encryption_key(32)?;
+        let cipher_key = ChaChaKey::from_slice(&key);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Prepare nonce
+        let nonce = ChaChaNonce::from_slice(&secure_message.nonce);
+
+        // Decrypt
+        let plaintext = cipher
+            .decrypt(nonce, secure_message.encrypted_payload.as_ref())
+            .map_err(|e| MultivmError::EncryptionFailed {
+                message: format!("ChaCha20-Poly1305 decryption failed: {e}"),
+                algorithm: Some("ChaCha20-Poly1305".to_string()),
+            })?;
+
+        // Deserialize message
+        let message: IpcMessage =
+            bincode::deserialize(&plaintext).map_err(|e| MultivmError::Serialization {
+                message: e.to_string(),
+                data_type: Some("message".to_string()),
+            })?;
+
+        Ok(message)
     }
 
     /// Encrypt message with AES-256-GCM - temporarily disabled
@@ -854,19 +983,26 @@ impl SecureIpcTransport {
     }
 
     /// Derive encryption key from shared secret
-    #[allow(dead_code)]
     fn derive_encryption_key(&self, key_length: usize) -> MultivmResult<Vec<u8>> {
         // Get base key material from connection info
         let base_key = match &self.connection_info.shared_secret {
             Some(secret) => secret.clone(),
             None => {
-                // Fallback to deriving from process IDs
+                // Fallback to deriving from process IDs in a deterministic order
                 let mut hasher = Sha256::new();
+
+                // Sort process IDs to ensure both sides derive the same key
+                let mut ids = Vec::new();
                 if let Some(local_id) = &self.connection_info.local_process_id {
-                    hasher.update(local_id.as_bytes());
+                    ids.push(local_id.as_bytes());
                 }
                 if let Some(remote_id) = &self.connection_info.remote_process_id {
-                    hasher.update(remote_id.as_bytes());
+                    ids.push(remote_id.as_bytes());
+                }
+                ids.sort();
+
+                for id in ids {
+                    hasher.update(id);
                 }
                 hasher.update(b"IPC-ENCRYPTION-KEY");
                 hasher.finalize().to_vec()
@@ -1066,7 +1202,7 @@ impl Default for RateLimitConfig {
 impl Default for EncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled: true, // Enabled by default for security
+            enabled: true, // Re-enabled with ChaCha20Poly1305 v0.10
             algorithm: EncryptionAlgorithm::ChaCha20Poly1305,
             key_derivation: KeyDerivation::Argon2,
         }
@@ -1084,3 +1220,11 @@ impl EncryptionConfig {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "secure_transport_tests.rs"]
+mod secure_transport_tests;
+
+#[cfg(test)]
+#[path = "simple_encryption_test.rs"]
+mod simple_encryption_test;

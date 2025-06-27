@@ -172,19 +172,19 @@ impl TransportLayer {
                 noise::Config::new,
                 yamux::Config::default,
             )
-            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {}", e)))?
+            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {e}")))?
             .with_behaviour(|_| behaviour)
-            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {}", e)))?
+            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {e}")))?
             .build();
 
         // Start listening on configured addresses
         for addr_str in &self.config.tcp_addresses {
             let addr: Multiaddr = addr_str
                 .parse()
-                .map_err(|e| P2PError::Internal(format!("Invalid address {}: {}", addr_str, e)))?;
+                .map_err(|e| P2PError::Internal(format!("Invalid address {addr_str}: {e}")))?;
             swarm
                 .listen_on(addr.clone())
-                .map_err(|e| P2PError::Transport(format!("Failed to listen on {}: {}", addr, e)))?;
+                .map_err(|e| P2PError::Transport(format!("Failed to listen on {addr}: {e}")))?;
             info!("Listening on TCP: {}", addr);
         }
 
@@ -308,7 +308,7 @@ impl TransportLayer {
                     .send(TransportEvent::ConnectionClosed {
                         peer_id,
                         address: endpoint.get_remote_address().clone(),
-                        reason: format!("{:?}", cause),
+                        reason: format!("{cause:?}"),
                     })
                     .await;
             }
@@ -346,7 +346,7 @@ impl TransportLayer {
                     let _ = event_sender
                         .send(TransportEvent::Error {
                             peer_id: Some(peer_id),
-                            error: format!("Connection error: {}", error),
+                            error: format!("Connection error: {error}"),
                         })
                         .await;
                 }
@@ -375,7 +375,7 @@ impl TransportLayer {
 
         // Serialize message
         let message_data = bincode::serialize(&message).map_err(|e| P2PError::Serialization {
-            message: format!("Failed to serialize message: {}", e),
+            message: format!("Failed to serialize message: {e}"),
         })?;
 
         // Send message through the provided swarm parameter

@@ -1,3 +1,9 @@
+//! IPC Client for Solana Execution Engine
+//!
+//! This module provides the IPC (Inter-Process Communication) client for communicating
+//! with the MultiVM coordinator. It supports both Unix domain sockets and TCP connections
+//! for cross-platform compatibility.
+
 use crate::common::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpStream, UnixStream};

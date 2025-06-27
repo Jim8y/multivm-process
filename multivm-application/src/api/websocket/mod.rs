@@ -3,7 +3,7 @@
 //! Provides real-time WebSocket connections for streaming blockchain data,
 //! transaction updates, and system events.
 
-use crate::{ApplicationResult, ApplicationState};
+use crate::{validation, ApplicationResult, ApplicationState};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -327,7 +327,8 @@ impl WebSocketServer {
                     // Send the event to the connection
                     if connection
                         .sender
-                        .send(Message::Text(serialized_event.into())).is_err()
+                        .send(Message::Text(serialized_event.into()))
+                        .is_err()
                     {
                         // Connection is closed or sender failed
                         failed_connections.push(connection_id.clone());
@@ -362,7 +363,8 @@ impl WebSocketServer {
             if let Ok(serialized_event) = serde_json::to_string(&event) {
                 if connection
                     .sender
-                    .send(Message::Text(serialized_event.into())).is_err()
+                    .send(Message::Text(serialized_event.into()))
+                    .is_err()
                 {
                     warn!("Failed to send event to connection {}", connection_id);
                     return Err(crate::error::ApplicationError::WebSocketError {
@@ -609,6 +611,15 @@ async fn handle_text_message(
 ) -> ApplicationResult<()> {
     debug!("Received text message from {}: {}", connection_id, text);
 
+    // Validate message size
+    if text.len() > 64 * 1024 {
+        // 64KB limit
+        return Err(crate::error::ApplicationError::ValidationError {
+            field: "message_size".to_string(),
+            message: "Message too large".to_string(),
+        });
+    }
+
     // Parse the incoming message
     let message: WebSocketMessage = serde_json::from_str(&text).map_err(|e| {
         crate::error::ApplicationError::ValidationError {
@@ -626,6 +637,21 @@ async fn handle_text_message(
             handle_subscription(state, connection_id, events, false).await?
         }
         WebSocketMessage::Authenticate { token } => {
+            // Validate token format before processing
+            let token_valid = if token.starts_with("Bearer ") {
+                let jwt_token = &token[7..];
+                validation::auth::validate_jwt_format(jwt_token).is_ok()
+            } else {
+                validation::auth::validate_api_key(&token).is_ok()
+            };
+
+            if !token_valid {
+                return Err(crate::error::ApplicationError::ValidationError {
+                    field: "authentication_token".to_string(),
+                    message: "Invalid token format".to_string(),
+                });
+            }
+
             handle_authentication(state, connection_id, token).await?
         }
         WebSocketMessage::Ping => {

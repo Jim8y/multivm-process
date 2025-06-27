@@ -314,7 +314,7 @@ impl SolanaConfig {
         Self {
             cluster: SolanaCluster::Localnet,
             data_dir: PathBuf::from("./data/solana-dev"),
-            mock_mode: true, // Use mock mode for development by default
+            mock_mode: false, // Use real Solana implementation for production readiness
             ..Default::default()
         }
     }

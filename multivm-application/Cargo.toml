@@ -14,6 +14,7 @@ multivm-account-mapping = { path = "../multivm-account-mapping" }
 # multivm-consensus = { path = "../multivm-consensus" }  # Temporarily disabled due to malachite
 multivm-p2p = { path = "../multivm-p2p" }
 multivm-process-manager = { path = "../multivm-process-manager" }
+reth-execution-engine = { path = "../reth-execution-engine" }
 
 # Core async runtime
 tokio = { workspace = true }
@@ -46,6 +47,11 @@ config = { workspace = true }
 # Time and UUID
 chrono = { workspace = true }
 uuid = { workspace = true }
+
+# Validation and regex
+regex = "1.10"
+bs58 = { workspace = true }
+lazy_static = "1.4"
 
 # Concurrency utilities
 parking_lot = { workspace = true }

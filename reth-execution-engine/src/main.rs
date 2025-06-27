@@ -1,4 +1,4 @@
-use multivm_common::{IpcCommand, traits::ExecutionEngine};
+use multivm_common::{traits::ExecutionEngine, IpcCommand};
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -51,8 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🚀 Starting Reth Execution Engine");
     println!("📁 Data directory: {}", data_dir_path.display());
-    println!("🌐 RPC port: {}", rpc_port);
-    println!("🔗 Chain ID: {}", chain_id);
+    println!("🌐 RPC port: {rpc_port}");
+    println!("🔗 Chain ID: {chain_id}");
 
     #[cfg(feature = "mock")]
     println!("🎭 Running in MOCK mode (no real Reth node process)");
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✅ Reth execution engine started successfully");
     println!("🌐 Engine API available at: http://127.0.0.1:8546");
-    println!("🌐 JSON-RPC available at: http://127.0.0.1:{}", rpc_port);
+    println!("🌐 JSON-RPC available at: http://127.0.0.1:{rpc_port}");
 
     // Simple health check simulation
     tokio::spawn(async move {

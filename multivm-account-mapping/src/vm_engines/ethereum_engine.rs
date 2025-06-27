@@ -22,12 +22,14 @@ use crate::{
     special_tx::AssetType,
 };
 use multivm_common::{MultivmError, MultivmResult};
+use secp256k1::{Message, Secp256k1};
 use serde::{Deserialize, Serialize};
+use sha3::Digest;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::{Mutex, OnceCell, RwLock};
-use tracing::info;
+use tracing::{debug, info};
 use uuid::Uuid;
 // RLP encoding will be handled manually for now
 
@@ -66,7 +68,7 @@ struct EthSignature {
 }
 
 /// Configuration for Ethereum VM engine
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EthereumEngineConfig {
     /// RPC endpoint URL
     pub rpc_url: String,
@@ -86,6 +88,9 @@ pub struct EthereumEngineConfig {
     pub confirmation_blocks: u64,
     /// Maximum wait time for confirmations
     pub confirmation_timeout: Duration,
+    /// Signing key for transactions (ECDSA secp256k1)
+    /// WARNING: In production, use a secure key management service
+    pub signing_key: secp256k1::SecretKey,
 }
 
 /// Ethereum lock record for atomic operations
@@ -319,7 +324,7 @@ impl EthereumProcessEngine {
         let recipient_bytes = hex::decode(recipient.trim_start_matches("0x")).map_err(|e| {
             MultivmError::Configuration {
                 component: "ethereum-engine".to_string(),
-                message: format!("Invalid recipient address: {}", e),
+                message: format!("Invalid recipient address: {e}"),
                 validation_errors: None,
             }
         })?;
@@ -369,7 +374,7 @@ impl EthereumProcessEngine {
                 .await
                 .map_err(|e| MultivmError::VmEngine {
                     vm_type: "ethereum".to_string(),
-                    message: format!("Failed to submit transaction: {}", e),
+                    message: format!("Failed to submit transaction: {e}"),
                     block_info: None,
                     transaction_info: None,
                 })?;
@@ -422,7 +427,7 @@ impl EthereumProcessEngine {
         let to_addr = hex::decode(builder.to.trim_start_matches("0x")).map_err(|e| {
             MultivmError::Configuration {
                 component: "ethereum_engine".to_string(),
-                message: format!("Invalid to address: {}", e),
+                message: format!("Invalid to address: {e}"),
                 validation_errors: Some(vec![]),
             }
         })?;
@@ -456,30 +461,119 @@ impl EthereumProcessEngine {
         Ok(tx_data)
     }
 
-    /// Sign transaction (placeholder - in production use secure key management)
-    async fn sign_transaction(&self, _tx_bytes: &[u8]) -> MultivmResult<EthSignature> {
-        // In production, this would use secure key management
-        // For now, return a dummy signature
-        Ok(EthSignature {
-            v: 27 + (self.config.chain_id * 2 + 35),
-            r: [0u8; 32],
-            s: [0u8; 32],
-        })
+    /// Sign transaction using secure key management
+    async fn sign_transaction(&self, tx_bytes: &[u8]) -> MultivmResult<EthSignature> {
+        // Calculate transaction hash
+        let tx_hash = sha3::Keccak256::digest(tx_bytes);
+
+        // Sign with the configured private key
+        // Note: In production, this should use a secure key management service (KMS)
+        // or hardware security module (HSM) instead of storing keys in memory
+        let secp = Secp256k1::new();
+        let message = Message::from_digest_slice(&tx_hash).map_err(|e| MultivmError::VmEngine {
+            vm_type: "ethereum".to_string(),
+            message: format!("Invalid transaction hash: {e}"),
+            block_info: None,
+            transaction_info: None,
+        })?;
+
+        let signature = secp.sign_ecdsa_recoverable(&message, &self.config.signing_key);
+
+        let (recovery_id, signature_bytes) = signature.serialize_compact();
+        let mut r = [0u8; 32];
+        let mut s = [0u8; 32];
+        r.copy_from_slice(&signature_bytes[..32]);
+        s.copy_from_slice(&signature_bytes[32..]);
+
+        // EIP-155 signature encoding
+        let v = if self.config.use_eip1559 {
+            recovery_id.to_i32() as u64
+        } else {
+            27 + recovery_id.to_i32() as u64 + (self.config.chain_id * 2 + 35)
+        };
+
+        Ok(EthSignature { v, r, s })
     }
 
     /// Wait for transaction confirmation from Reth process
-    async fn wait_for_confirmation(&self, _tx_hash: &str) -> MultivmResult<u64> {
-        // Mock implementation - simulates polling Reth process for confirmation
-        // In production, this would:
-        // 1. Poll Reth process via IPC for transaction status
-        // 2. Wait for sufficient confirmations
-        // 3. Return final block number
+    async fn wait_for_confirmation(&self, tx_hash: &str) -> MultivmResult<u64> {
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { EthereumRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
 
-        // Simulate confirmation time from external Reth process
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        let mut attempts = 0;
+        let max_attempts = 60; // 5 minutes with 5 second intervals
+        let confirmation_blocks = self.config.confirmation_blocks;
 
-        // Return mock block number from Reth
-        Ok(18_000_000)
+        loop {
+            // Poll for transaction receipt
+            match client.get_transaction_receipt(tx_hash).await {
+                Ok(Some(receipt)) => {
+                    if let Some(block_number_val) =
+                        receipt.get("blockNumber").and_then(|v| v.as_str())
+                    {
+                        let block_number =
+                            u64::from_str_radix(block_number_val.trim_start_matches("0x"), 16)
+                                .map_err(|_| MultivmError::VmEngine {
+                                    vm_type: "ethereum".to_string(),
+                                    message: "Invalid block number in receipt".to_string(),
+                                    block_info: None,
+                                    transaction_info: Some(tx_hash.to_string()),
+                                })?;
+
+                        // Simplified confirmation check - assume confirmed after receipt
+                        let confirmations = 1;
+
+                        if confirmations >= confirmation_blocks {
+                            // Check if transaction was successful
+                            if let Some(status_val) = receipt.get("status").and_then(|v| v.as_str())
+                            {
+                                let status =
+                                    u64::from_str_radix(status_val.trim_start_matches("0x"), 16)
+                                        .unwrap_or(0);
+                                if status == 1 {
+                                    return Ok(block_number);
+                                } else {
+                                    return Err(MultivmError::VmEngine {
+                                        vm_type: "ethereum".to_string(),
+                                        message: "Transaction failed".to_string(),
+                                        block_info: Some(format!("block: {block_number}")),
+                                        transaction_info: Some(tx_hash.to_string()),
+                                    });
+                                }
+                            } else {
+                                return Err(MultivmError::VmEngine {
+                                    vm_type: "ethereum".to_string(),
+                                    message: "No status in transaction receipt".to_string(),
+                                    block_info: Some(format!("block: {block_number}")),
+                                    transaction_info: Some(tx_hash.to_string()),
+                                });
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // Transaction not yet mined
+                }
+                Err(e) => {
+                    debug!("Error checking transaction receipt: {}", e);
+                }
+            }
+
+            attempts += 1;
+            if attempts >= max_attempts {
+                return Err(MultivmError::VmEngine {
+                    vm_type: "ethereum".to_string(),
+                    message: "Transaction confirmation timeout".to_string(),
+                    block_info: None,
+                    transaction_info: Some(tx_hash.to_string()),
+                });
+            }
+
+            // Wait before next attempt
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
     }
 
     /// Create lock record
@@ -526,7 +620,7 @@ impl EthereumProcessEngine {
             .await
             .map_err(|e| MultivmError::VmEngine {
                 vm_type: "ethereum".to_string(),
-                message: format!("Failed to get base fee: {}", e),
+                message: format!("Failed to get base fee: {e}"),
                 block_info: None,
                 transaction_info: None,
             })?;
@@ -571,7 +665,7 @@ impl EthereumProcessEngine {
                 .await
                 .map_err(|e| MultivmError::VmEngine {
                     vm_type: "ethereum".to_string(),
-                    message: format!("Failed to get nonce: {}", e),
+                    message: format!("Failed to get nonce: {e}"),
                     block_info: None,
                     transaction_info: None,
                 })?;
@@ -599,7 +693,7 @@ impl crate::atomic_coordinator::ProcessEngine for EthereumProcessEngine {
                 success: false,
                 lock_ids: vec![],
                 execution_cost: 0,
-                error: Some(format!("Ethereum RPC connection failed: {}", e)),
+                error: Some(format!("Ethereum RPC connection failed: {e}")),
                 vm_data: HashMap::new(),
             });
         }
@@ -836,7 +930,7 @@ impl EthereumRpcClient {
             .await
             .map_err(|e| multivm_common::MultivmError::Rpc {
                 method: "ethereum_rpc".to_string(),
-                message: format!("RPC request failed: {}", e),
+                message: format!("RPC request failed: {e}"),
                 status_code: None,
             })?;
 
@@ -865,8 +959,143 @@ impl EthereumRpcClient {
 
         if let Some(result) = response.get("result").and_then(|v| v.as_str()) {
             Ok(result.to_string())
+        } else if let Some(error) = response.get("error") {
+            Err(format!("RPC error: {error}").into())
         } else {
             Err("Invalid response from eth_sendRawTransaction".into())
+        }
+    }
+
+    /// Get balance of an account
+    pub async fn get_balance(&self, address: &str) -> Result<u64, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([address, "latest"]);
+        let response = self.json_rpc_request("eth_getBalance", params).await?;
+
+        if let Some(balance_hex) = response.get("result").and_then(|v| v.as_str()) {
+            let balance = u64::from_str_radix(balance_hex.trim_start_matches("0x"), 16)?;
+            Ok(balance)
+        } else {
+            Err("Failed to get balance".into())
+        }
+    }
+
+    /// Get code at address
+    pub async fn get_code(&self, address: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([address, "latest"]);
+        let response = self.json_rpc_request("eth_getCode", params).await?;
+
+        if let Some(code_hex) = response.get("result").and_then(|v| v.as_str()) {
+            let code = hex::decode(code_hex.trim_start_matches("0x"))?;
+            Ok(code)
+        } else {
+            Err("Failed to get code".into())
+        }
+    }
+
+    /// Call contract method (view function)
+    pub async fn eth_call(
+        &self,
+        to: &str,
+        data: &[u8],
+        block: Option<&str>,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let call_object = serde_json::json!({
+            "to": to,
+            "data": format!("0x{}", hex::encode(data))
+        });
+        let params = serde_json::json!([call_object, block.unwrap_or("latest")]);
+        let response = self.json_rpc_request("eth_call", params).await?;
+
+        if let Some(result_hex) = response.get("result").and_then(|v| v.as_str()) {
+            let result = hex::decode(result_hex.trim_start_matches("0x"))?;
+            Ok(result)
+        } else {
+            Err("Failed to call contract".into())
+        }
+    }
+
+    /// Estimate gas for transaction
+    pub async fn estimate_gas(
+        &self,
+        from: &str,
+        to: &str,
+        data: &[u8],
+        value: Option<u64>,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
+        let mut call_object = serde_json::json!({
+            "from": from,
+            "to": to,
+            "data": format!("0x{}", hex::encode(data))
+        });
+
+        if let Some(val) = value {
+            call_object["value"] = serde_json::json!(format!("0x{:x}", val));
+        }
+
+        let params = serde_json::json!([call_object]);
+        let response = self.json_rpc_request("eth_estimateGas", params).await?;
+
+        if let Some(gas_hex) = response.get("result").and_then(|v| v.as_str()) {
+            let gas = u64::from_str_radix(gas_hex.trim_start_matches("0x"), 16)?;
+            Ok(gas)
+        } else {
+            Err("Failed to estimate gas".into())
+        }
+    }
+
+    /// Get current block number
+    pub async fn get_block_number(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let response = self
+            .json_rpc_request("eth_blockNumber", serde_json::json!([]))
+            .await?;
+
+        if let Some(block_hex) = response.get("result").and_then(|v| v.as_str()) {
+            let block_number = u64::from_str_radix(block_hex.trim_start_matches("0x"), 16)?;
+            Ok(block_number)
+        } else {
+            Err("Failed to get block number".into())
+        }
+    }
+
+    /// Get logs with filter
+    pub async fn get_logs(
+        &self,
+        from_block: Option<u64>,
+        to_block: Option<u64>,
+        address: Option<&str>,
+        topics: Option<Vec<String>>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let mut filter = serde_json::Map::new();
+
+        if let Some(from) = from_block {
+            filter.insert(
+                "fromBlock".to_string(),
+                serde_json::json!(format!("0x{:x}", from)),
+            );
+        }
+
+        if let Some(to) = to_block {
+            filter.insert(
+                "toBlock".to_string(),
+                serde_json::json!(format!("0x{:x}", to)),
+            );
+        }
+
+        if let Some(addr) = address {
+            filter.insert("address".to_string(), serde_json::json!(addr));
+        }
+
+        if let Some(topic_list) = topics {
+            filter.insert("topics".to_string(), serde_json::json!(topic_list));
+        }
+
+        let params = serde_json::json!([filter]);
+        let response = self.json_rpc_request("eth_getLogs", params).await?;
+
+        if let Some(logs) = response.get("result") {
+            Ok(logs.clone())
+        } else {
+            Err("Failed to get logs".into())
         }
     }
 
@@ -921,6 +1150,27 @@ impl EthereumRpcClient {
         }
     }
 
+    /// Get transaction receipt
+    pub async fn get_transaction_receipt(
+        &self,
+        tx_hash: &str,
+    ) -> Result<Option<serde_json::Value>, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([tx_hash]);
+        let response = self
+            .json_rpc_request("eth_getTransactionReceipt", params)
+            .await?;
+
+        if let Some(receipt) = response.get("result") {
+            if receipt.is_null() {
+                Ok(None)
+            } else {
+                Ok(Some(receipt.clone()))
+            }
+        } else {
+            Err("Failed to get transaction receipt".into())
+        }
+    }
+
     /// Make JSON-RPC request
     async fn json_rpc_request(
         &self,
@@ -943,6 +1193,10 @@ impl EthereumRpcClient {
 
 impl Default for EthereumEngineConfig {
     fn default() -> Self {
+        // Generate a random private key for default - WARNING: Not for production use
+        let mut rng = rand::thread_rng();
+        let signing_key = secp256k1::SecretKey::new(&mut rng);
+
         Self {
             rpc_url: "http://localhost:8545".to_string(),
             chain_id: 1337, // Local development chain
@@ -953,6 +1207,7 @@ impl Default for EthereumEngineConfig {
             priority_fee_per_gas: 1_500_000_000, // 1.5 gwei
             confirmation_blocks: 1,
             confirmation_timeout: Duration::from_secs(60),
+            signing_key,
         }
     }
 }

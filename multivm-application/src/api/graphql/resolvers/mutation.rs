@@ -57,11 +57,7 @@ impl MutationResolver {
             ));
         }
 
-        match state
-            .gateway
-            .send_evm_transaction(&transaction_data)
-            .await
-        {
+        match state.gateway.send_evm_transaction(&transaction_data).await {
             Ok(response) => Ok(TransactionResult {
                 success: true,
                 transaction_id: response.data,
@@ -113,18 +109,19 @@ impl MutationResolver {
         {
             Ok(response) => {
                 let binding_data = response.data;
-                let binding_id = binding_data.get("binding_id")
+                let binding_id = binding_data
+                    .get("binding_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 Ok(AccountBindingResult {
                     success: true,
-                    multivm_account: format!("{}:{}", svm_addr, evm_addr),
+                    multivm_account: format!("{svm_addr}:{evm_addr}"),
                     binding_id,
                     error: None,
                 })
-            },
+            }
             Err(e) => {
                 tracing::error!("Failed to bind accounts: {}", e);
                 Ok(AccountBindingResult {
@@ -225,22 +222,15 @@ impl MutationResolver {
                     .and_then(|v| v.as_str())
                     .unwrap_or(&default_evm_tx);
 
-                if input.from_vm == "svm" {
-                    (svm_part.to_string(), evm_part.to_string())
-                } else {
-                    (svm_part.to_string(), evm_part.to_string())
-                }
+                (svm_part.to_string(), evm_part.to_string())
             }
             Err(_) => {
                 // Fallback to simple transaction data splitting
                 if input.from_vm == "svm" {
-                    (
-                        input.transaction_data.clone(),
-                        {
-                            let hash = sha2::Sha256::digest(input.transaction_data.as_bytes());
-                            format!("0x{}", hex::encode(hash))
-                        },
-                    )
+                    (input.transaction_data.clone(), {
+                        let hash = sha2::Sha256::digest(input.transaction_data.as_bytes());
+                        format!("0x{}", hex::encode(hash))
+                    })
                 } else {
                     (
                         format!("svm_tx_{}", uuid::Uuid::new_v4()),
@@ -262,14 +252,14 @@ impl MutationResolver {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 Ok(CrossVmTransactionResult {
                     success: true,
                     transaction_id,
                     status: "pending".to_string(),
                     error: None,
                 })
-            },
+            }
             Err(e) => {
                 tracing::error!("Failed to send cross-VM transaction: {}", e);
                 Ok(CrossVmTransactionResult {
@@ -351,35 +341,34 @@ impl MutationResolver {
                     }
                 }
             }
-            "evm" => {
-                match state
-                    .gateway
-                    .send_raw_transaction(&transaction_data)
-                    .await
-                {
-                    Ok(simulation_result) => {
-                        let _result_data = &simulation_result.data;
-                        Ok(SimulationResult {
-                            success: true,
-                            logs: vec!["EVM simulation log".to_string()],
-                            units_consumed: Some(21000),
-                            return_data: Some("0x".to_string()),
-                            error: None,
-                        })
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to simulate EVM transaction: {}", e);
-                        Ok(SimulationResult {
-                            success: false,
-                            logs: vec![],
-                            units_consumed: None,
-                            return_data: None,
-                            error: Some(e.to_string()),
-                        })
-                    }
+            "evm" => match state.gateway.send_raw_transaction(&transaction_data).await {
+                Ok(simulation_result) => {
+                    let _result_data = &simulation_result.data;
+                    Ok(SimulationResult {
+                        success: true,
+                        logs: vec!["EVM simulation log".to_string()],
+                        units_consumed: Some(21000),
+                        return_data: Some("0x".to_string()),
+                        error: None,
+                    })
                 }
+                Err(e) => {
+                    tracing::error!("Failed to simulate EVM transaction: {}", e);
+                    Ok(SimulationResult {
+                        success: false,
+                        logs: vec![],
+                        units_consumed: None,
+                        return_data: None,
+                        error: Some(e.to_string()),
+                    })
+                }
+            },
+            _ => {
+                tracing::error!("Invalid VM type '{}' passed validation", vm_type);
+                Err(async_graphql::Error::new(format!(
+                    "Unsupported VM type: {vm_type}"
+                )))
             }
-            _ => unreachable!(), // Already validated above
         }
     }
 }

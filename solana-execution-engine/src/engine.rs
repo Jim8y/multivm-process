@@ -1,3 +1,9 @@
+//! Solana Execution Engine Implementation
+//!
+//! This module provides the core execution engine for processing Solana transactions
+//! within the MultiVM system. It manages the Solana runtime, transaction processing,
+//! and state management.
+
 use std::{
     path::PathBuf,
     process::Stdio,
@@ -818,14 +824,27 @@ impl ExecutionEngine for SolanaExecutionEngine {
         });
 
         // Start the server
+        let rpc_addr_clone = rpc_bind_address.clone();
         tokio::spawn(async move {
-            let server = ServerBuilder::new(io)
-                .rest_api(RestApi::Unsecure)
-                .start_http(&rpc_bind_address.parse().unwrap())
-                .expect("Failed to start RPC server");
-
-            info!("Solana RPC server listening on {}", rpc_bind_address);
-            server.wait();
+            match rpc_addr_clone.parse() {
+                Ok(addr) => {
+                    match ServerBuilder::new(io)
+                        .rest_api(RestApi::Unsecure)
+                        .start_http(&addr)
+                    {
+                        Ok(server) => {
+                            info!("Solana RPC server listening on {}", rpc_addr_clone);
+                            server.wait();
+                        }
+                        Err(e) => {
+                            error!("Failed to start RPC server: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to parse RPC address '{}': {}", rpc_addr_clone, e);
+                }
+            }
         });
 
         // Give the server a moment to start
@@ -1090,7 +1109,7 @@ pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> Solana
         block_time: Some(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                 .as_secs() as i64,
         ),
         previous_blockhash: Hash::new_from_array([1u8; 32]),

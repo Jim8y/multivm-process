@@ -1,11 +1,10 @@
 //! Real Reth execution engine implementation
-//! 
+//!
 //! This module provides the production-ready Reth node integration via the Engine API.
 //! It replaces the mock implementation with actual Reth node communication for
 //! production-grade EVM transaction execution and state management.
 
-use crate::engine::{Block, RethExecutionResult, RethEngineError};
-use multivm_common::*;
+use crate::engine::{Block, RethEngineError, RethExecutionResult};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -22,21 +21,21 @@ pub struct RealRethEngine {
     pub(crate) rpc_port: u16,
     pub(crate) engine_port: u16,
     pub(crate) chain_id: u64,
-    
+
     /// Process management
     pub(crate) reth_process: Arc<RwLock<Option<Child>>>,
-    
+
     /// Network clients
     pub(crate) rpc_client: Arc<RwLock<Option<Client>>>,
     pub(crate) engine_client: Arc<RwLock<Option<Client>>>,
     pub(crate) jwt_secret: Arc<RwLock<Option<String>>>,
-    
+
     /// State tracking
     pub(crate) current_block: Arc<RwLock<u64>>,
     pub(crate) blocks_processed: Arc<RwLock<u64>>,
-    pub(crate) start_time: Instant,
+    pub(crate) _start_time: Instant,
     pub(crate) is_running: Arc<RwLock<bool>>,
-    
+
     /// Connection configuration
     pub(crate) connection_config: ConnectionConfig,
 }
@@ -88,7 +87,7 @@ impl RealRethEngine {
 
         // Create directories
         std::fs::create_dir_all(&data_dir).map_err(|e| {
-            RethEngineError::Configuration(format!("Failed to create data directory: {}", e))
+            RethEngineError::Configuration(format!("Failed to create data directory: {e}"))
         })?;
 
         Ok(Self {
@@ -102,7 +101,7 @@ impl RealRethEngine {
             jwt_secret: Arc::new(RwLock::new(None)),
             current_block: Arc::new(RwLock::new(0)),
             blocks_processed: Arc::new(RwLock::new(0)),
-            start_time: Instant::now(),
+            _start_time: Instant::now(),
             is_running: Arc::new(RwLock::new(false)),
             connection_config,
         })
@@ -143,7 +142,6 @@ impl RealRethEngine {
             // Data directory
             .arg("--datadir")
             .arg(&self.data_dir)
-            
             // HTTP RPC configuration
             .arg("--http")
             .arg("--http.port")
@@ -154,7 +152,6 @@ impl RealRethEngine {
             .arg("engine,eth,net,web3,debug,trace")
             .arg("--http.corsdomain")
             .arg("*")
-            
             // Engine API configuration
             .arg("--authrpc.port")
             .arg(self.engine_port.to_string())
@@ -162,7 +159,6 @@ impl RealRethEngine {
             .arg("127.0.0.1")
             .arg("--authrpc.jwtsecret")
             .arg(self.data_dir.join("jwt.hex"))
-            
             // Disable P2P for execution-only mode
             .arg("--no-discovery")
             .arg("--port")
@@ -171,37 +167,32 @@ impl RealRethEngine {
             .arg("0")
             .arg("--max-inbound-peers")
             .arg("0")
-            
             // Chain configuration
             .arg("--chain")
             .arg(self.get_chain_name())
-            
             // Performance optimizations
             .arg("--max-block-gas-limit")
             .arg("30000000")
             .arg("--block-time")
             .arg("12") // 12 second blocks
-            
             // Execution optimizations
             .arg("--execution-block-cache-size")
             .arg("1000")
             .arg("--execution-receipt-cache-size")
             .arg("1000")
-            
             // Logging
             .arg("--log.stdout.format")
             .arg("json")
             .arg("--log.stdout.filter")
             .arg("info,reth=debug,engine=debug,evm=debug")
-            
             // Process management
             .kill_on_drop(true);
 
         debug!("Reth command: {:?}", cmd);
 
-        let child = cmd.spawn().map_err(|e| {
-            RethEngineError::Process(format!("Failed to start Reth node: {}", e))
-        })?;
+        let child = cmd
+            .spawn()
+            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?;
 
         let pid = child.id();
         *self.reth_process.write().await = Some(child);
@@ -227,7 +218,7 @@ impl RealRethEngine {
             .pool_idle_timeout(Duration::from_secs(30))
             .tcp_keepalive(Duration::from_secs(60))
             .build()
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to create RPC client: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Failed to create RPC client: {e}")))?;
 
         // Create Engine API client with authentication
         let engine_client = Client::builder()
@@ -236,7 +227,7 @@ impl RealRethEngine {
             .pool_idle_timeout(Duration::from_secs(30))
             .tcp_keepalive(Duration::from_secs(60))
             .build()
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to create Engine client: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Failed to create Engine client: {e}")))?;
 
         *self.rpc_client.write().await = Some(rpc_client);
         *self.engine_client.write().await = Some(engine_client);
@@ -251,7 +242,7 @@ impl RealRethEngine {
 
         // Verify RPC connection
         self.verify_rpc_connection().await?;
-        
+
         // Verify Engine API connection
         self.verify_engine_connection().await?;
 
@@ -280,18 +271,29 @@ impl RealRethEngine {
                 Ok(response) if response.status().is_success() => {
                     match response.json::<Value>().await {
                         Ok(result) => {
-                            if let Some(chain_id_hex) = result.get("result").and_then(|r| r.as_str()) {
-                                let chain_id = u64::from_str_radix(chain_id_hex.trim_start_matches("0x"), 16)
-                                    .map_err(|e| RethEngineError::Rpc(format!("Invalid chain ID: {}", e)))?;
-                                
+                            if let Some(chain_id_hex) =
+                                result.get("result").and_then(|r| r.as_str())
+                            {
+                                let chain_id =
+                                    u64::from_str_radix(chain_id_hex.trim_start_matches("0x"), 16)
+                                        .map_err(|e| {
+                                            RethEngineError::Rpc(format!("Invalid chain ID: {e}"))
+                                        })?;
+
                                 info!("RPC connection verified, chain ID: {}", chain_id);
                                 return Ok(());
                             }
                         }
-                        Err(e) => warn!("Failed to parse RPC response on attempt {}: {}", attempt, e),
+                        Err(e) => {
+                            warn!("Failed to parse RPC response on attempt {}: {}", attempt, e)
+                        }
                     }
                 }
-                Ok(response) => warn!("RPC returned error status on attempt {}: {}", attempt, response.status()),
+                Ok(response) => warn!(
+                    "RPC returned error status on attempt {}: {}",
+                    attempt,
+                    response.status()
+                ),
                 Err(e) => warn!("RPC connection failed on attempt {}: {}", attempt, e),
             }
 
@@ -300,7 +302,9 @@ impl RealRethEngine {
             }
         }
 
-        Err(RethEngineError::Rpc("Failed to verify RPC connection after retries".to_string()))
+        Err(RethEngineError::Rpc(
+            "Failed to verify RPC connection after retries".to_string(),
+        ))
     }
 
     /// Verify Engine API connection
@@ -310,7 +314,10 @@ impl RealRethEngine {
             .as_ref()
             .ok_or_else(|| RethEngineError::Rpc("Engine client not initialized".to_string()))?;
 
-        let jwt_secret = self.jwt_secret.read().await
+        let jwt_secret = self
+            .jwt_secret
+            .read()
+            .await
             .as_ref()
             .ok_or_else(|| RethEngineError::Configuration("JWT secret not loaded".to_string()))?
             .clone();
@@ -330,7 +337,7 @@ impl RealRethEngine {
 
             match client
                 .post(&engine_url)
-                .header("Authorization", format!("Bearer {}", jwt_token))
+                .header("Authorization", format!("Bearer {jwt_token}"))
                 .json(&rpc_request)
                 .send()
                 .await
@@ -339,7 +346,11 @@ impl RealRethEngine {
                     info!("Engine API connection verified");
                     return Ok(());
                 }
-                Ok(response) => warn!("Engine API returned error status on attempt {}: {}", attempt, response.status()),
+                Ok(response) => warn!(
+                    "Engine API returned error status on attempt {}: {}",
+                    attempt,
+                    response.status()
+                ),
                 Err(e) => warn!("Engine API connection failed on attempt {}: {}", attempt, e),
             }
 
@@ -348,7 +359,9 @@ impl RealRethEngine {
             }
         }
 
-        Err(RethEngineError::Rpc("Failed to verify Engine API connection after retries".to_string()))
+        Err(RethEngineError::Rpc(
+            "Failed to verify Engine API connection after retries".to_string(),
+        ))
     }
 
     /// Start health monitoring background task
@@ -364,10 +377,10 @@ impl RealRethEngine {
             let mut health_interval = tokio::time::interval(interval);
             loop {
                 health_interval.tick().await;
-                
+
                 // Check RPC health
                 if let Some(client) = rpc_client.read().await.as_ref() {
-                    let rpc_url = format!("http://127.0.0.1:{}", rpc_port);
+                    let rpc_url = format!("http://127.0.0.1:{rpc_port}");
                     let health_request = json!({
                         "jsonrpc": "2.0",
                         "id": "health_check",
@@ -391,10 +404,10 @@ impl RealRethEngine {
                 // Check Engine API health
                 if let (Some(client), Some(secret)) = (
                     engine_client.read().await.as_ref(),
-                    jwt_secret.read().await.as_ref()
+                    jwt_secret.read().await.as_ref(),
                 ) {
                     if let Ok(jwt_token) = Self::create_jwt_token_static(secret) {
-                        let engine_url = format!("http://127.0.0.1:{}", engine_port);
+                        let engine_url = format!("http://127.0.0.1:{engine_port}");
                         let health_request = json!({
                             "jsonrpc": "2.0",
                             "id": "engine_health",
@@ -404,7 +417,7 @@ impl RealRethEngine {
 
                         match client
                             .post(&engine_url)
-                            .header("Authorization", format!("Bearer {}", jwt_token))
+                            .header("Authorization", format!("Bearer {jwt_token}"))
                             .json(&health_request)
                             .send()
                             .await
@@ -428,12 +441,19 @@ impl RealRethEngine {
     }
 
     /// Process a block using the real Reth node
-    pub async fn process_block_real(&mut self, block: Block) -> Result<RethExecutionResult, RethEngineError> {
+    pub async fn process_block_real(
+        &mut self,
+        block: Block,
+    ) -> Result<RethExecutionResult, RethEngineError> {
         let start_time = Instant::now();
         let block_number = block.number;
         let block_hash = block.hash_slow();
 
-        info!("Processing block {} with hash {:?} via real Reth node", block_number, hex::encode(block_hash));
+        info!(
+            "Processing block {} with hash {:?} via real Reth node",
+            block_number,
+            hex::encode(block_hash)
+        );
 
         // Submit block to Reth via Engine API
         self.submit_block_via_engine_api(&block).await?;
@@ -489,7 +509,10 @@ impl RealRethEngine {
         // Validate fork choice response
         self.validate_fork_choice_response(&fork_choice_response)?;
 
-        info!("Successfully submitted block {} via Engine API", block.number);
+        info!(
+            "Successfully submitted block {} via Engine API",
+            block.number
+        );
         Ok(())
     }
 
@@ -521,8 +544,8 @@ impl RealRethEngine {
             "blockHash": format!("0x{}", hex::encode(block.hash_slow())),
             "transactions": transactions,
             "withdrawals": block.header.withdrawals_root.map(|_| json!([])),
-            "blobGasUsed": block.header.blob_gas_used.map(|v| format!("0x{:x}", v)),
-            "excessBlobGas": block.header.excess_blob_gas.map(|v| format!("0x{:x}", v)),
+            "blobGasUsed": block.header.blob_gas_used.map(|v| format!("0x{v:x}")),
+            "excessBlobGas": block.header.excess_blob_gas.map(|v| format!("0x{v:x}")),
             "parentBeaconBlockRoot": block.header.parent_beacon_block_root.map(|root| format!("0x{}", hex::encode(root)))
         });
 
@@ -536,7 +559,10 @@ impl RealRethEngine {
             .as_ref()
             .ok_or_else(|| RethEngineError::Rpc("Engine client not initialized".to_string()))?;
 
-        let jwt_secret = self.jwt_secret.read().await
+        let jwt_secret = self
+            .jwt_secret
+            .read()
+            .await
             .as_ref()
             .ok_or_else(|| RethEngineError::Configuration("JWT secret not loaded".to_string()))?
             .clone();
@@ -553,50 +579,68 @@ impl RealRethEngine {
         let engine_url = format!("http://127.0.0.1:{}", self.engine_port);
 
         for attempt in 1..=self.connection_config.max_retries {
-            match client
+            let result = client
                 .post(&engine_url)
-                .header("Authorization", format!("Bearer {}", jwt_token))
+                .header("Authorization", format!("Bearer {jwt_token}"))
                 .json(&rpc_request)
                 .send()
-                .await
-            {
+                .await;
+
+            match result {
                 Ok(response) if response.status().is_success() => {
                     let result: Value = response.json().await.map_err(|e| {
-                        RethEngineError::Rpc(format!("Failed to parse Engine API response: {}", e))
+                        RethEngineError::Rpc(format!("Failed to parse Engine API response: {e}"))
                     })?;
                     return Ok(result);
                 }
                 Ok(response) => {
-                    warn!("Engine API payload submission failed on attempt {}: {}", attempt, response.status());
+                    let error_msg =
+                        format!("Engine API returned error status: {}", response.status());
+                    warn!(
+                        "Engine API payload submission failed on attempt {}: {}",
+                        attempt,
+                        response.status()
+                    );
+
                     if attempt == self.connection_config.max_retries {
-                        return Err(RethEngineError::Rpc(format!(
-                            "Engine API returned error status: {}",
-                            response.status()
-                        )));
+                        return Err(RethEngineError::Rpc(error_msg));
                     }
                 }
                 Err(e) => {
+                    let error_msg = format!("Engine API request failed: {e}");
                     warn!("Engine API request failed on attempt {}: {}", attempt, e);
+
                     if attempt == self.connection_config.max_retries {
-                        return Err(RethEngineError::Rpc(format!("Engine API request failed: {}", e)));
+                        return Err(RethEngineError::Rpc(error_msg));
                     }
                 }
             }
 
-            tokio::time::sleep(self.connection_config.retry_delay).await;
+            if attempt < self.connection_config.max_retries {
+                tokio::time::sleep(self.connection_config.retry_delay).await;
+            }
         }
 
-        unreachable!()
+        // This should never be reached due to the logic above, but just in case
+        Err(RethEngineError::Rpc(
+            "All retry attempts exhausted".to_string(),
+        ))
     }
 
     /// Update fork choice via engine_forkchoiceUpdatedV3
-    async fn update_fork_choice_v3(&self, fork_choice_state: &Value) -> Result<Value, RethEngineError> {
+    async fn update_fork_choice_v3(
+        &self,
+        fork_choice_state: &Value,
+    ) -> Result<Value, RethEngineError> {
         let client_guard = self.engine_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| RethEngineError::Rpc("Engine client not initialized".to_string()))?;
 
-        let jwt_secret = self.jwt_secret.read().await
+        let jwt_secret = self
+            .jwt_secret
+            .read()
+            .await
             .as_ref()
             .ok_or_else(|| RethEngineError::Configuration("JWT secret not loaded".to_string()))?
             .clone();
@@ -613,40 +657,54 @@ impl RealRethEngine {
         let engine_url = format!("http://127.0.0.1:{}", self.engine_port);
 
         for attempt in 1..=self.connection_config.max_retries {
-            match client
+            let result = client
                 .post(&engine_url)
-                .header("Authorization", format!("Bearer {}", jwt_token))
+                .header("Authorization", format!("Bearer {jwt_token}"))
                 .json(&rpc_request)
                 .send()
-                .await
-            {
+                .await;
+
+            match result {
                 Ok(response) if response.status().is_success() => {
                     let result: Value = response.json().await.map_err(|e| {
-                        RethEngineError::Rpc(format!("Failed to parse fork choice response: {}", e))
+                        RethEngineError::Rpc(format!("Failed to parse fork choice response: {e}"))
                     })?;
                     return Ok(result);
                 }
                 Ok(response) => {
-                    warn!("Fork choice update failed on attempt {}: {}", attempt, response.status());
+                    let error_msg = format!(
+                        "Fork choice update returned error status: {}",
+                        response.status()
+                    );
+                    warn!(
+                        "Fork choice update failed on attempt {}: {}",
+                        attempt,
+                        response.status()
+                    );
+
                     if attempt == self.connection_config.max_retries {
-                        return Err(RethEngineError::Rpc(format!(
-                            "Fork choice update returned error status: {}",
-                            response.status()
-                        )));
+                        return Err(RethEngineError::Rpc(error_msg));
                     }
                 }
                 Err(e) => {
+                    let error_msg = format!("Fork choice update failed: {e}");
                     warn!("Fork choice request failed on attempt {}: {}", attempt, e);
+
                     if attempt == self.connection_config.max_retries {
-                        return Err(RethEngineError::Rpc(format!("Fork choice update failed: {}", e)));
+                        return Err(RethEngineError::Rpc(error_msg));
                     }
                 }
             }
 
-            tokio::time::sleep(self.connection_config.retry_delay).await;
+            if attempt < self.connection_config.max_retries {
+                tokio::time::sleep(self.connection_config.retry_delay).await;
+            }
         }
 
-        unreachable!()
+        // This should never be reached due to the logic above, but just in case
+        Err(RethEngineError::Rpc(
+            "All fork choice retry attempts exhausted".to_string(),
+        ))
     }
 
     /// Create fork choice state from block
@@ -664,8 +722,7 @@ impl RealRethEngine {
     fn validate_payload_response(&self, response: &Value) -> Result<(), RethEngineError> {
         if let Some(error) = response.get("error") {
             return Err(RethEngineError::Rpc(format!(
-                "Engine API payload error: {}",
-                error
+                "Engine API payload error: {error}"
             )));
         }
 
@@ -674,24 +731,23 @@ impl RealRethEngine {
                 match status {
                     "VALID" => Ok(()),
                     "INVALID" => Err(RethEngineError::Rpc(
-                        "Engine API rejected payload as invalid".to_string()
+                        "Engine API rejected payload as invalid".to_string(),
                     )),
                     "SYNCING" => Err(RethEngineError::Rpc(
-                        "Engine API is syncing, cannot process payload".to_string()
+                        "Engine API is syncing, cannot process payload".to_string(),
                     )),
                     _ => Err(RethEngineError::Rpc(format!(
-                        "Unknown payload status: {}",
-                        status
+                        "Unknown payload status: {status}"
                     ))),
                 }
             } else {
                 Err(RethEngineError::Rpc(
-                    "Engine API response missing status field".to_string()
+                    "Engine API response missing status field".to_string(),
                 ))
             }
         } else {
             Err(RethEngineError::Rpc(
-                "Engine API response missing result field".to_string()
+                "Engine API response missing result field".to_string(),
             ))
         }
     }
@@ -700,8 +756,7 @@ impl RealRethEngine {
     fn validate_fork_choice_response(&self, response: &Value) -> Result<(), RethEngineError> {
         if let Some(error) = response.get("error") {
             return Err(RethEngineError::Rpc(format!(
-                "Engine API fork choice error: {}",
-                error
+                "Engine API fork choice error: {error}"
             )));
         }
 
@@ -711,29 +766,28 @@ impl RealRethEngine {
                     match status {
                         "VALID" => Ok(()),
                         "INVALID" => Err(RethEngineError::Rpc(
-                            "Engine API rejected fork choice as invalid".to_string()
+                            "Engine API rejected fork choice as invalid".to_string(),
                         )),
                         "SYNCING" => Err(RethEngineError::Rpc(
-                            "Engine API is syncing, cannot update fork choice".to_string()
+                            "Engine API is syncing, cannot update fork choice".to_string(),
                         )),
                         _ => Err(RethEngineError::Rpc(format!(
-                            "Unknown fork choice status: {}",
-                            status
+                            "Unknown fork choice status: {status}"
                         ))),
                     }
                 } else {
                     Err(RethEngineError::Rpc(
-                        "Fork choice response missing status field".to_string()
+                        "Fork choice response missing status field".to_string(),
                     ))
                 }
             } else {
                 Err(RethEngineError::Rpc(
-                    "Fork choice response missing payloadStatus field".to_string()
+                    "Fork choice response missing payloadStatus field".to_string(),
                 ))
             }
         } else {
             Err(RethEngineError::Rpc(
-                "Fork choice response missing result field".to_string()
+                "Fork choice response missing result field".to_string(),
             ))
         }
     }

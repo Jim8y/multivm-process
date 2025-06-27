@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, Mutex};
+use tokio::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tokio::time::{timeout, Duration, Instant};
-use tracing::{debug, warn, error};
+use tracing::{debug, error, warn};
 
 /// Lock ordering levels (lower numbers must be acquired first)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -84,22 +84,28 @@ pub struct LockStats {
 }
 
 /// Global lock statistics
-static LOCK_STATS: std::sync::OnceLock<Arc<Mutex<HashMap<LockLevel, LockStats>>>> = std::sync::OnceLock::new();
+static LOCK_STATS: std::sync::OnceLock<Arc<Mutex<HashMap<LockLevel, LockStats>>>> =
+    std::sync::OnceLock::new();
 
 /// Get lock statistics
 pub async fn get_lock_stats() -> HashMap<LockLevel, LockStats> {
     let stats_map = LOCK_STATS.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
     let guard = stats_map.lock().await;
-    
+
     let mut result = HashMap::new();
     for (level, stats) in guard.iter() {
-        result.insert(*level, LockStats {
-            acquisitions: AtomicU64::new(stats.acquisitions.load(Ordering::Relaxed)),
-            timeouts: AtomicU64::new(stats.timeouts.load(Ordering::Relaxed)),
-            contentions: AtomicU64::new(stats.contentions.load(Ordering::Relaxed)),
-            total_wait_time_ms: AtomicU64::new(stats.total_wait_time_ms.load(Ordering::Relaxed)),
-            max_wait_time_ms: AtomicU64::new(stats.max_wait_time_ms.load(Ordering::Relaxed)),
-        });
+        result.insert(
+            *level,
+            LockStats {
+                acquisitions: AtomicU64::new(stats.acquisitions.load(Ordering::Relaxed)),
+                timeouts: AtomicU64::new(stats.timeouts.load(Ordering::Relaxed)),
+                contentions: AtomicU64::new(stats.contentions.load(Ordering::Relaxed)),
+                total_wait_time_ms: AtomicU64::new(
+                    stats.total_wait_time_ms.load(Ordering::Relaxed),
+                ),
+                max_wait_time_ms: AtomicU64::new(stats.max_wait_time_ms.load(Ordering::Relaxed)),
+            },
+        );
     }
     result
 }
@@ -109,22 +115,24 @@ async fn update_lock_stats(level: LockLevel, wait_time: Duration, timed_out: boo
     let stats_map = LOCK_STATS.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
     let mut guard = stats_map.lock().await;
     let stats = guard.entry(level).or_insert_with(LockStats::default);
-    
+
     if timed_out {
         stats.timeouts.fetch_add(1, Ordering::Relaxed);
     } else {
         stats.acquisitions.fetch_add(1, Ordering::Relaxed);
     }
-    
+
     let wait_ms = wait_time.as_millis() as u64;
-    stats.total_wait_time_ms.fetch_add(wait_ms, Ordering::Relaxed);
-    
+    stats
+        .total_wait_time_ms
+        .fetch_add(wait_ms, Ordering::Relaxed);
+
     // Update max wait time
     let current_max = stats.max_wait_time_ms.load(Ordering::Relaxed);
     if wait_ms > current_max {
         stats.max_wait_time_ms.store(wait_ms, Ordering::Relaxed);
     }
-    
+
     if wait_time > Duration::from_millis(100) {
         stats.contentions.fetch_add(1, Ordering::Relaxed);
     }
@@ -139,52 +147,58 @@ pub async fn acquire_write_lock<T>(
     let config = get_lock_config();
     let timeout_duration = timeout_duration.unwrap_or(config.default_timeout);
     let start_time = Instant::now();
-    
-    debug!("Acquiring write lock for {:?} with timeout {:?}", level, timeout_duration);
-    
+
+    debug!(
+        "Acquiring write lock for {:?} with timeout {:?}",
+        level, timeout_duration
+    );
+
     let mut attempts = 0;
     let mut backoff = Duration::from_millis(10);
-    
+
     while attempts < config.max_retries {
         let attempt_start = Instant::now();
-        
+
         match timeout(timeout_duration, lock.write()).await {
             Ok(guard) => {
                 let wait_time = start_time.elapsed();
                 update_lock_stats(level, wait_time, false).await;
-                
-                debug!("Successfully acquired write lock for {:?} after {:?}", level, wait_time);
+
+                debug!(
+                    "Successfully acquired write lock for {:?} after {:?}",
+                    level, wait_time
+                );
                 return Ok(guard);
             }
             Err(_) => {
                 attempts += 1;
                 let wait_time = attempt_start.elapsed();
-                
+
                 warn!(
                     "Write lock acquisition timeout for {:?} (attempt {}/{}), waited {:?}",
                     level, attempts, config.max_retries, wait_time
                 );
-                
+
                 if attempts < config.max_retries {
                     tokio::time::sleep(backoff).await;
                     backoff = Duration::from_millis(
-                        (backoff.as_millis() as f64 * config.backoff_multiplier) as u64
+                        (backoff.as_millis() as f64 * config.backoff_multiplier) as u64,
                     );
                 }
             }
         }
     }
-    
+
     let total_wait_time = start_time.elapsed();
     update_lock_stats(level, total_wait_time, true).await;
-    
+
     error!(
         "Failed to acquire write lock for {:?} after {} attempts, total wait time: {:?}",
         level, config.max_retries, total_wait_time
     );
-    
+
     Err(MultivmError::Timeout {
-        operation: format!("write_lock_acquisition_{:?}", level),
+        operation: format!("write_lock_acquisition_{level:?}"),
         timeout: timeout_duration,
         partial_result: Some(format!("Thread {:?}", thread::current().id())),
     })
@@ -199,52 +213,58 @@ pub async fn acquire_read_lock<T>(
     let config = get_lock_config();
     let timeout_duration = timeout_duration.unwrap_or(config.default_timeout);
     let start_time = Instant::now();
-    
-    debug!("Acquiring read lock for {:?} with timeout {:?}", level, timeout_duration);
-    
+
+    debug!(
+        "Acquiring read lock for {:?} with timeout {:?}",
+        level, timeout_duration
+    );
+
     let mut attempts = 0;
     let mut backoff = Duration::from_millis(10);
-    
+
     while attempts < config.max_retries {
         let attempt_start = Instant::now();
-        
+
         match timeout(timeout_duration, lock.read()).await {
             Ok(guard) => {
                 let wait_time = start_time.elapsed();
                 update_lock_stats(level, wait_time, false).await;
-                
-                debug!("Successfully acquired read lock for {:?} after {:?}", level, wait_time);
+
+                debug!(
+                    "Successfully acquired read lock for {:?} after {:?}",
+                    level, wait_time
+                );
                 return Ok(guard);
             }
             Err(_) => {
                 attempts += 1;
                 let wait_time = attempt_start.elapsed();
-                
+
                 warn!(
                     "Read lock acquisition timeout for {:?} (attempt {}/{}), waited {:?}",
                     level, attempts, config.max_retries, wait_time
                 );
-                
+
                 if attempts < config.max_retries {
                     tokio::time::sleep(backoff).await;
                     backoff = Duration::from_millis(
-                        (backoff.as_millis() as f64 * config.backoff_multiplier) as u64
+                        (backoff.as_millis() as f64 * config.backoff_multiplier) as u64,
                     );
                 }
             }
         }
     }
-    
+
     let total_wait_time = start_time.elapsed();
     update_lock_stats(level, total_wait_time, true).await;
-    
+
     error!(
         "Failed to acquire read lock for {:?} after {} attempts, total wait time: {:?}",
         level, config.max_retries, total_wait_time
     );
-    
+
     Err(MultivmError::Timeout {
-        operation: format!("read_lock_acquisition_{:?}", level),
+        operation: format!("read_lock_acquisition_{level:?}"),
         timeout: timeout_duration,
         partial_result: Some(format!("Thread {:?}", thread::current().id())),
     })
@@ -284,17 +304,17 @@ impl OrderedLockGuard {
                     new_level, self.current_level
                 ),
                 current_state: Some(format!("{:?}", self.current_level)),
-                expected_state: Some(format!("{:?}", new_level)),
+                expected_state: Some(format!("{new_level:?}")),
             });
         }
         Ok(())
     }
-    
+
     /// Get the current lock level
     pub fn current_level(&self) -> LockLevel {
         self.current_level
     }
-    
+
     /// Get how long this lock has been held
     pub fn held_duration(&self) -> Duration {
         self.acquired_at.elapsed()
@@ -331,14 +351,14 @@ impl DeadlockDetector {
             active_locks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-    
+
     /// Register lock acquisition
     pub async fn register_lock(&self, level: LockLevel) -> MultivmResult<()> {
         let thread_id = thread::current().id();
         let mut locks = self.active_locks.lock().await;
-        
+
         let thread_locks = locks.entry(thread_id).or_insert_with(Vec::new);
-        
+
         // Check for potential deadlock
         if let Some(&last_level) = thread_locks.last() {
             if level <= last_level {
@@ -348,24 +368,23 @@ impl DeadlockDetector {
                 );
                 return Err(MultivmError::InvalidState {
                     message: format!(
-                        "Potential deadlock: acquiring {:?} after {:?}",
-                        level, last_level
+                        "Potential deadlock: acquiring {level:?} after {last_level:?}"
                     ),
-                    current_state: Some(format!("{:?}", last_level)),
-                    expected_state: Some(format!("{:?}", level)),
+                    current_state: Some(format!("{last_level:?}")),
+                    expected_state: Some(format!("{level:?}")),
                 });
             }
         }
-        
+
         thread_locks.push(level);
         Ok(())
     }
-    
+
     /// Unregister lock release
     pub async fn unregister_lock(&self, level: LockLevel) {
         let thread_id = thread::current().id();
         let mut locks = self.active_locks.lock().await;
-        
+
         if let Some(thread_locks) = locks.get_mut(&thread_id) {
             thread_locks.retain(|&l| l != level);
             if thread_locks.is_empty() {
@@ -373,7 +392,7 @@ impl DeadlockDetector {
             }
         }
     }
-    
+
     /// Get current lock state for debugging
     pub async fn get_lock_state(&self) -> HashMap<thread::ThreadId, Vec<LockLevel>> {
         self.active_locks.lock().await.clone()
@@ -396,7 +415,7 @@ pub async fn acquire_write_lock_safe<T>(
 ) -> MultivmResult<RwLockWriteGuard<'_, T>> {
     let detector = get_deadlock_detector();
     detector.register_lock(level).await?;
-    
+
     match acquire_write_lock(lock, level, timeout_duration).await {
         Ok(guard) => Ok(guard),
         Err(e) => {
@@ -414,7 +433,7 @@ pub async fn acquire_read_lock_safe<T>(
 ) -> MultivmResult<RwLockReadGuard<'_, T>> {
     let detector = get_deadlock_detector();
     detector.register_lock(level).await?;
-    
+
     match acquire_read_lock(lock, level, timeout_duration).await {
         Ok(guard) => Ok(guard),
         Err(e) => {
@@ -479,7 +498,7 @@ impl LockScope {
             detector: get_deadlock_detector(),
         }
     }
-    
+
     pub async fn acquire_write<'a, T>(
         &mut self,
         lock: &'a Arc<RwLock<T>>,
@@ -498,7 +517,7 @@ impl LockScope {
             }
         }
     }
-    
+
     pub async fn acquire_read<'a, T>(
         &mut self,
         lock: &'a Arc<RwLock<T>>,
@@ -524,7 +543,7 @@ impl Drop for LockScope {
         // Note: We can't await in Drop, so we spawn a task
         let levels = std::mem::take(&mut self.levels);
         let detector = self.detector;
-        
+
         tokio::spawn(async move {
             for level in levels {
                 detector.unregister_lock(level).await;
@@ -532,4 +551,3 @@ impl Drop for LockScope {
         });
     }
 }
-

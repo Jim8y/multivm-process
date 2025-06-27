@@ -666,4 +666,3 @@ pub struct LoadBalancingStats {
     pub success_rate: f64,
     pub avg_response_time_ms: f64,
 }
-

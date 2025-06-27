@@ -134,7 +134,7 @@ impl ValidatorPublicKey {
     /// Parse from hex string
     pub fn from_hex(hex_str: &str) -> ConsensusResult<Self> {
         let bytes = hex::decode(hex_str)
-            .map_err(|e| ConsensusError::Crypto(format!("Invalid hex string: {}", e)))?;
+            .map_err(|e| ConsensusError::Crypto(format!("Invalid hex string: {e}")))?;
         Self::from_bytes(bytes)
     }
 }
@@ -169,7 +169,7 @@ impl ConsensusSignature {
     /// Parse from hex string
     pub fn from_hex(hex_str: &str) -> ConsensusResult<Self> {
         let bytes = hex::decode(hex_str)
-            .map_err(|e| ConsensusError::Crypto(format!("Invalid hex string: {}", e)))?;
+            .map_err(|e| ConsensusError::Crypto(format!("Invalid hex string: {e}")))?;
         Self::from_bytes(bytes)
     }
 }

@@ -160,12 +160,12 @@ impl SystemResourceMonitor {
         .await
         .map_err(|e| MultivmError::Process {
             process_id: "resource_monitor".to_string(),
-            message: format!("Task join error: {}", e),
+            message: format!("Task join error: {e}"),
             exit_code: None,
         })?
         .map_err(|e| MultivmError::Storage {
             operation: "calculate_directory_size".to_string(),
-            message: format!("IO error calculating directory size: {}", e),
+            message: format!("IO error calculating directory size: {e}"),
             path: None,
         })?;
 

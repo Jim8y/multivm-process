@@ -1,3 +1,9 @@
+//! Common Traits Module
+//!
+//! This module defines the core traits used throughout the MultiVM system,
+//! providing standard interfaces for execution engines, monitoring, storage,
+//! and inter-process communication.
+
 pub mod events;
 pub mod execution;
 pub mod monitoring;

@@ -1,11 +1,12 @@
 # MultiVM Process - Multi-stage Docker Build
-FROM rust:1.70-slim as builder
+FROM rust:1.81-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     build-essential \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -13,10 +14,19 @@ WORKDIR /app
 
 # Copy workspace files
 COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
+COPY multivm-common ./multivm-common
+COPY multivm-consensus ./multivm-consensus
+COPY multivm-p2p ./multivm-p2p
+COPY multivm-process-manager ./multivm-process-manager
+COPY multivm-account-mapping ./multivm-account-mapping
+COPY multivm-application ./multivm-application
+COPY multivm-cli ./multivm-cli
+COPY reth-execution-engine ./reth-execution-engine
+COPY solana-execution-engine ./solana-execution-engine
+COPY multivm-mock-processes ./multivm-mock-processes
 
 # Build the application
-RUN cargo build --release --bin multivm-node
+RUN cargo build --release --bin multivm-application
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -36,7 +46,7 @@ RUN mkdir -p /opt/multivm/{bin,config,data,logs} && \
     chown -R multivm:multivm /opt/multivm
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/multivm-node /opt/multivm/bin/
+COPY --from=builder /app/target/release/multivm-application /opt/multivm/bin/
 
 # Copy configuration templates
 COPY docker/config/ /opt/multivm/config/
@@ -61,4 +71,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command
+ENTRYPOINT ["/bin/bash"]
 CMD ["/opt/multivm/bin/start.sh"]

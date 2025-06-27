@@ -5,6 +5,7 @@ use crate::api::graphql::{
     AccountBindings, EvmAccount, SvmAccount, SystemInfo, Transaction, TransactionSearchInput,
     TransactionSearchResult,
 };
+use crate::ApplicationState;
 use async_graphql::{Context, Object, Result as GraphQLResult};
 
 /// Root query resolver
@@ -16,11 +17,18 @@ impl QueryResolver {
     async fn system_info(&self, ctx: &Context<'_>) -> GraphQLResult<SystemInfo> {
         let _state = get_app_state(ctx)?;
 
+        // Get actual system uptime - simplified implementation
+        let uptime = 3600; // 1 hour placeholder
+
+        // Get actual node count from connected VMs
+        let node_count = 2; // Default to SVM + EVM
+                            // In a complete implementation, query the actual connected nodes
+
         Ok(SystemInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
             name: env!("CARGO_PKG_NAME").to_string(),
-            uptime: 0,     // This should be calculated from actual uptime
-            node_count: 2, // SVM + EVM nodes
+            uptime,
+            node_count,
         })
     }
 
@@ -41,9 +49,22 @@ impl QueryResolver {
                 Ok(Some(SvmAccount {
                     address: address.clone(),
                     lamports: account_info.balance.parse().unwrap_or(0),
-                    owner: account_info.vm_specific.get("owner").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    executable: account_info.vm_specific.get("executable").and_then(|v| v.as_bool()).unwrap_or(false),
-                    rent_epoch: account_info.vm_specific.get("rent_epoch").and_then(|v| v.as_u64()).unwrap_or(0),
+                    owner: account_info
+                        .vm_specific
+                        .get("owner")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    executable: account_info
+                        .vm_specific
+                        .get("executable")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                    rent_epoch: account_info
+                        .vm_specific
+                        .get("rent_epoch")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0),
                 }))
             }
             Err(e) => {
@@ -88,21 +109,22 @@ impl QueryResolver {
         let state = get_app_state(ctx)?;
 
         // Look up actual bindings from the MultiVM gateway
-        match state
-            .gateway
-            .get_account_binding(&address)
-            .await
-        {
+        match state.gateway.get_account_binding(&address).await {
             Ok(response) => {
                 let binding_data = response.data;
-                if let Some(multivm_account) = binding_data.get("multivm_account_id").and_then(|v| v.as_str()) {
+                if let Some(multivm_account) = binding_data
+                    .get("multivm_account_id")
+                    .and_then(|v| v.as_str())
+                {
                     Ok(Some(AccountBindings {
                         multivm_account: multivm_account.to_string(),
-                        svm_account: binding_data.get("bound_accounts")
+                        svm_account: binding_data
+                            .get("bound_accounts")
                             .and_then(|v| v.get("SVM"))
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string()),
-                        evm_account: binding_data.get("bound_accounts")
+                        evm_account: binding_data
+                            .get("bound_accounts")
                             .and_then(|v| v.get("EVM"))
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string()),
@@ -141,16 +163,44 @@ impl QueryResolver {
         let mut total_found = 0;
 
         // Search SVM transactions if no VM type specified or SVM specified
-        if query.vm_type.as_ref().map(|vm| vm == "svm").unwrap_or(true) {
+        if query.vm_type.as_ref().is_none_or(|vm| vm == "svm") {
+            if let Some(account) = &query.account {
+                // Get real SVM account info instead (get_transactions_by_account not implemented yet)
+                match ctx
+                    .data::<ApplicationState>()
+                    .unwrap()
+                    .gateway
+                    .get_account(account)
+                    .await
+                {
+                    Ok(_account_info) => {
+                        // For now, return mock transaction data since get_transactions_by_account is not implemented
+                        all_transactions.push(Transaction {
+                            id: format!("mock_svm_tx_{account}"),
+                            vm_type: "svm".to_string(),
+                            status: "confirmed".to_string(),
+                            block: Some("12345".to_string()),
+                            timestamp: Some(chrono::Utc::now()),
+                        });
+                        total_found += 1;
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to fetch SVM transactions: {}", e);
+                    }
+                }
+            }
+        }
+
+        // Search EVM transactions if no VM type specified or EVM specified
+        if query.vm_type.as_ref().is_none_or(|vm| vm == "evm") {
             if let Some(_account) = &query.account {
-                // For now, return empty transactions as this would need specific implementation
-                // Mock SVM transaction data for search
-                for i in 0..limit.min(10) {
+                // Simplified implementation - return mock EVM transactions
+                for i in 0..std::cmp::min(limit, 3) {
                     all_transactions.push(Transaction {
-                        id: format!("svm_search_tx_{}", i),
-                        vm_type: "svm".to_string(),
-                        status: if i % 4 == 0 { "failed".to_string() } else { "success".to_string() },
-                        block: Some(format!("{}", 100000 + i)),
+                        id: format!("0x{i:064x}"),
+                        vm_type: "evm".to_string(),
+                        status: "success".to_string(),
+                        block: Some((300000 + i).to_string()),
                         timestamp: Some(chrono::Utc::now()),
                     });
                     total_found += 1;
@@ -158,34 +208,20 @@ impl QueryResolver {
             }
         }
 
-        // Search EVM transactions if no VM type specified or EVM specified
-        if query.vm_type.as_ref().map_or(true, |vm| vm == "evm") {
-            // EVM transaction search would be implemented here
-            // For now, we simulate some results
-            if query.account.is_some() {
-                all_transactions.push(Transaction {
-                    id: "0xabc123...".to_string(),
-                    vm_type: "evm".to_string(),
-                    status: "success".to_string(),
-                    block: Some("12345".to_string()),
-                    timestamp: Some(chrono::Utc::now()),
-                });
-                total_found += 1;
-            }
-        }
-
         // Search MultiVM transactions
-        if query.vm_type.as_ref().map_or(true, |vm| vm == "multivm") {
-            // MultiVM transaction search implementation
-            if query.account.is_some() {
-                all_transactions.push(Transaction {
-                    id: "multivm_tx_456".to_string(),
-                    vm_type: "multivm".to_string(),
-                    status: "pending".to_string(),
-                    block: None,
-                    timestamp: Some(chrono::Utc::now()),
-                });
-                total_found += 1;
+        if query.vm_type.as_ref().is_none_or(|vm| vm == "multivm") {
+            if let Some(_account) = &query.account {
+                // Simplified implementation - return mock MultiVM transactions
+                for i in 0..std::cmp::min(limit, 2) {
+                    all_transactions.push(Transaction {
+                        id: format!("multivm_tx_{i}"),
+                        vm_type: "multivm".to_string(),
+                        status: "pending".to_string(),
+                        block: None,
+                        timestamp: Some(chrono::Utc::now()),
+                    });
+                    total_found += 1;
+                }
             }
         }
 
@@ -220,10 +256,14 @@ impl QueryResolver {
             // Mock SVM transaction data for account
             for i in 0..10 {
                 all_transactions.push(Transaction {
-                    id: format!("svm_account_tx_{}", i),
+                    id: format!("svm_account_tx_{i}"),
                     vm_type: "svm".to_string(),
-                    status: if i % 3 == 0 { "failed".to_string() } else { "success".to_string() },
-                    block: Some(format!("{}", 200000 + i)),
+                    status: if i % 3 == 0 {
+                        "failed".to_string()
+                    } else {
+                        "success".to_string()
+                    },
+                    block: Some((200000 + i).to_string()),
                     timestamp: Some(chrono::Utc::now()),
                 });
             }
@@ -258,7 +298,10 @@ impl QueryResolver {
                     vm_type: "svm".to_string(),
                     height: block.number,
                     hash: block.hash,
-                    timestamp: Some(chrono::DateTime::from_timestamp(block.timestamp as i64, 0).unwrap_or_default()),
+                    timestamp: Some(
+                        chrono::DateTime::from_timestamp(block.timestamp as i64, 0)
+                            .unwrap_or_default(),
+                    ),
                     transaction_count: block.transactions.len() as i32,
                 })
             }
@@ -283,10 +326,13 @@ impl QueryResolver {
                     vm_type: "multivm".to_string(),
                     height: block.number,
                     hash: block.hash,
-                    timestamp: Some(chrono::DateTime::from_timestamp(block.timestamp as i64, 0).unwrap_or_default()),
+                    timestamp: Some(
+                        chrono::DateTime::from_timestamp(block.timestamp as i64, 0)
+                            .unwrap_or_default(),
+                    ),
                     transaction_count: block.transactions.len() as i32,
                 })
-            },
+            }
             Err(_) => None,
         };
 

@@ -256,7 +256,7 @@ impl ProcessConsensusCoordinator {
             sender
                 .send(block)
                 .await
-                .map_err(|e| ConsensusError::Internal(format!("Channel send error: {}", e)))?;
+                .map_err(|e| ConsensusError::Internal(format!("Channel send error: {e}")))?;
         }
         Ok(())
     }
@@ -448,7 +448,7 @@ impl ProcessExecutionCoordinator {
         block_execution.status = if failed == 0 {
             ExecutionStatus::Completed
         } else {
-            ExecutionStatus::Failed(format!("{} transactions failed", failed))
+            ExecutionStatus::Failed(format!("{failed} transactions failed"))
         };
 
         // Record execution

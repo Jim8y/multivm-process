@@ -29,6 +29,7 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod connection_manager;
 pub mod discovery;
+pub mod dos_protection;
 pub mod encryption;
 pub mod error;
 pub mod gossip;
@@ -46,54 +47,62 @@ pub mod transport;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod message_tests;
+
+#[cfg(test)]
+mod network_tests;
+
 #[cfg(feature = "metrics")]
 pub mod metrics;
 
 #[cfg(not(feature = "metrics"))]
 pub mod metrics {
     //! Stub metrics module when metrics feature is disabled
-    
+
     /// Stub for init_metrics when metrics are disabled
     pub fn init_metrics() {}
-    
+
     /// Stub for record_message_sent when metrics are disabled
     pub fn record_message_sent(_message_type: &str, _target_type: &str) {}
-    
+
     /// Stub for record_message_received when metrics are disabled
     pub fn record_message_received(_message_type: &str, _source_peer: &str) {}
-    
+
     /// Stub for record_processing_duration when metrics are disabled
     pub fn record_processing_duration(_message_type: &str, _duration: f64) {}
-    
+
     /// Stub for update_active_peers when metrics are disabled
     pub fn update_active_peers(_peer_type: &str, _connection_status: &str, _count: f64) {}
-    
+
     /// Stub for update_bandwidth when metrics are disabled
     pub fn update_bandwidth(_direction: &str, _protocol: &str, _bytes_per_sec: f64) {}
-    
+
     /// Stub for record_protocol_translation when metrics are disabled
     pub fn record_protocol_translation(_source_vm: &str, _target_vm: &str, _status: &str) {}
-    
+
     /// Stub for record_routing_decision when metrics are disabled
     pub fn record_routing_decision(_strategy: &str, _message_type: &str, _result: &str) {}
-    
+
     /// Stub for record_peer_discovery when metrics are disabled
     pub fn record_peer_discovery(_method: &str, _result: &str) {}
-    
+
     /// Stub for update_network_health when metrics are disabled
     pub fn update_network_health(_component: &str, _status: f64) {}
-    
+
     /// Stub for update_connection_pool when metrics are disabled
     pub fn update_connection_pool(_pool_type: &str, _status: &str, _count: f64) {}
-    
+
     /// Stub for update_queue_depth when metrics are disabled
     pub fn update_queue_depth(_queue_type: &str, _priority: &str, _depth: f64) {}
-    
+
     /// Stub for record_network_error when metrics are disabled
     pub fn record_network_error(_error_type: &str, _severity: &str) {}
-    
+
     /// Stub for health_status_to_metric when metrics are disabled
-    pub fn health_status_to_metric(_status: &crate::network::NetworkHealthStatus) -> f64 { 0.0 }
+    pub fn health_status_to_metric(_status: &crate::network::NetworkHealthStatus) -> f64 {
+        0.0
+    }
 }
 
 // Test modules
@@ -133,19 +142,27 @@ pub use multivm_common::traits::monitoring::NetworkStats;
 
 // Re-export message types for external use
 pub use messages::{
-    ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget,
-    MultiVmMessage, NetworkMessage, NodeStatus, VmType
+    ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget, MultiVmMessage,
+    NetworkMessage, NodeStatus, VmType,
 };
 
 // Re-export network types
-pub use network::{P2PNetwork, NetworkConfig, NetworkHealthReport, NetworkHealthStatus};
+pub use network::{NetworkConfig, NetworkHealthReport, NetworkHealthStatus, P2PNetwork};
 
 // Define the P2P network layer trait for consensus compatibility
 #[async_trait::async_trait]
 pub trait P2PNetworkLayer: Send + Sync {
     async fn subscribe_to_topic(&mut self, topic: &str) -> multivm_common::MultivmResult<()>;
-    async fn broadcast_message(&mut self, message: messages::NetworkMessage, topic: Option<String>) -> multivm_common::MultivmResult<()>;
-    async fn send_message(&mut self, peer_id: String, message: messages::NetworkMessage) -> multivm_common::MultivmResult<()>;
+    async fn broadcast_message(
+        &mut self,
+        message: messages::NetworkMessage,
+        topic: Option<String>,
+    ) -> multivm_common::MultivmResult<()>;
+    async fn send_message(
+        &mut self,
+        peer_id: String,
+        message: messages::NetworkMessage,
+    ) -> multivm_common::MultivmResult<()>;
 }
 
 // Implement the trait for P2PNetwork
@@ -155,11 +172,15 @@ impl P2PNetworkLayer for P2PNetwork {
         self.subscribe_topic(topic).await
     }
 
-    async fn broadcast_message(&mut self, message: messages::NetworkMessage, topic: Option<String>) -> multivm_common::MultivmResult<()> {
+    async fn broadcast_message(
+        &mut self,
+        message: messages::NetworkMessage,
+        topic: Option<String>,
+    ) -> multivm_common::MultivmResult<()> {
         if let Some(topic_name) = topic {
             let data = bincode::serialize(&message).map_err(|e| {
                 multivm_common::MultivmError::Network {
-                    message: format!("Serialization failed: {}", e),
+                    message: format!("Serialization failed: {e}"),
                     endpoint: None,
                     retry_after: None,
                 }
@@ -170,7 +191,11 @@ impl P2PNetworkLayer for P2PNetwork {
         }
     }
 
-    async fn send_message(&mut self, peer_id: String, message: messages::NetworkMessage) -> multivm_common::MultivmResult<()> {
+    async fn send_message(
+        &mut self,
+        peer_id: String,
+        message: messages::NetworkMessage,
+    ) -> multivm_common::MultivmResult<()> {
         self.send_to_peer(peer_id, message).await
     }
 }

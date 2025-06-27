@@ -52,8 +52,7 @@ impl CacheLayer {
         let memory_cache = Arc::new(MemoryCache::new(&config.memory).await?);
 
         // Initialize Redis cache
-        let redis_cache = if !config.redis.url.is_empty()
-        {
+        let redis_cache = if !config.redis.url.is_empty() {
             Some(Arc::new(RedisCache::new(&config.redis).await?))
         } else {
             None
@@ -61,12 +60,11 @@ impl CacheLayer {
 
         // Initialize production cache if enabled
         #[cfg(feature = "cache")]
-        let production_cache =
-            if !config.redis.url.is_empty() {
-                Some(Arc::new(ProductionRedisCache::new(&config.redis).await?))
-            } else {
-                None
-            };
+        let production_cache = if !config.redis.url.is_empty() {
+            Some(Arc::new(ProductionRedisCache::new(&config.redis).await?))
+        } else {
+            None
+        };
 
         Ok(Self {
             memory_cache,
@@ -92,7 +90,7 @@ impl CacheLayer {
         if let Some(production_cache) = &self.production_cache {
             if let Some(value) = production_cache.get::<T>(key).await? {
                 // Store in memory cache for faster access next time
-                let ttl = self.config.default_ttl;
+                let ttl = Duration::from_secs(self.config.default_ttl_seconds);
                 self.memory_cache.set(key, &value, Some(ttl)).await?;
                 return Ok(Some(value));
             }
@@ -179,11 +177,12 @@ impl CacheLayer {
     /// Get cache statistics
     pub async fn get_stats(&self) -> CacheResult<CacheStats> {
         let memory_stats = self.memory_cache.get_stats().await?;
-        let redis_stats: Option<crate::cache::redis::RedisStats> = if let Some(redis_cache) = &self.redis_cache {
-            Some(redis_cache.get_stats().await?)
-        } else {
-            None
-        };
+        let redis_stats: Option<crate::cache::redis::RedisStats> =
+            if let Some(redis_cache) = &self.redis_cache {
+                Some(redis_cache.get_stats().await?)
+            } else {
+                None
+            };
 
         let total_requests = memory_stats.hits
             + memory_stats.misses
@@ -223,7 +222,12 @@ impl CacheLayer {
     where
         T: Clone + Serialize + Send + Sync + 'static,
     {
-        self.set(key, value, Duration::from_secs(self.config.default_ttl_seconds)).await
+        self.set(
+            key,
+            value,
+            Duration::from_secs(self.config.default_ttl_seconds),
+        )
+        .await
     }
 
     /// Get TTL for specific data types

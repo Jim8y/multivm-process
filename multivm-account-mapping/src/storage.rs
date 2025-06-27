@@ -259,7 +259,7 @@ impl AccountMappingLayer for MemoryStorage {
             self.store_binding(&binding).await
         } else {
             Err(AccountMappingError::Internal {
-                message: format!("Binding not found: {}", multivm_id),
+                message: format!("Binding not found: {multivm_id}"),
             })
         }
     }
@@ -378,7 +378,7 @@ impl FileStorage {
                 fs::create_dir_all(parent)
                     .await
                     .map_err(|e| AccountMappingError::Internal {
-                        message: format!("Failed to create storage directory: {}", e),
+                        message: format!("Failed to create storage directory: {e}"),
                     })?;
             }
             // Create empty file with empty bindings
@@ -388,7 +388,7 @@ impl FileStorage {
 
         let contents = fs::read_to_string(&self.file_path).await.map_err(|e| {
             AccountMappingError::Internal {
-                message: format!("Failed to read storage file: {}", e),
+                message: format!("Failed to read storage file: {e}"),
             }
         })?;
 
@@ -398,7 +398,7 @@ impl FileStorage {
 
         let stored_bindings: Vec<AccountBinding> =
             serde_json::from_str(&contents).map_err(|e| AccountMappingError::Internal {
-                message: format!("Failed to deserialize storage file: {}", e),
+                message: format!("Failed to deserialize storage file: {e}"),
             })?;
 
         let mut bindings = self.bindings.write().await;
@@ -427,14 +427,14 @@ impl FileStorage {
 
         let contents = serde_json::to_string_pretty(&bindings_vec).map_err(|e| {
             AccountMappingError::Internal {
-                message: format!("Failed to serialize bindings: {}", e),
+                message: format!("Failed to serialize bindings: {e}"),
             }
         })?;
 
         fs::write(&self.file_path, contents)
             .await
             .map_err(|e| AccountMappingError::Internal {
-                message: format!("Failed to write storage file: {}", e),
+                message: format!("Failed to write storage file: {e}"),
             })?;
 
         Ok(())
@@ -587,7 +587,7 @@ impl AccountMappingLayer for FileStorage {
             self.store_binding(&binding).await
         } else {
             Err(AccountMappingError::Internal {
-                message: format!("Binding not found: {}", multivm_id),
+                message: format!("Binding not found: {multivm_id}"),
             })
         }
     }
@@ -688,7 +688,7 @@ impl RocksDBStorage {
         opts.create_if_missing(true);
 
         let db = DB::open(&opts, db_path).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to open RocksDB: {}", e),
+            message: format!("Failed to open RocksDB: {e}"),
         })?;
 
         Ok(Self { db: Arc::new(db) })
@@ -711,35 +711,35 @@ impl RocksDBStorage {
     /// Serialize binding to bytes
     fn serialize_binding(binding: &AccountBinding) -> AccountMappingResult<Vec<u8>> {
         bincode::serialize(binding).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to serialize binding: {}", e),
+            message: format!("Failed to serialize binding: {e}"),
         })
     }
 
     /// Deserialize binding from bytes
     fn deserialize_binding(data: &[u8]) -> AccountMappingResult<AccountBinding> {
         bincode::deserialize(data).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to deserialize binding: {}", e),
+            message: format!("Failed to deserialize binding: {e}"),
         })
     }
 
     /// Serialize account address to bytes
     fn serialize_address(address: &AccountAddress) -> AccountMappingResult<Vec<u8>> {
         bincode::serialize(address).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to serialize address: {}", e),
+            message: format!("Failed to serialize address: {e}"),
         })
     }
 
     /// Serialize multivm account id to bytes
     fn serialize_multivm_id(id: &MultivmAccountId) -> AccountMappingResult<Vec<u8>> {
         bincode::serialize(id).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to serialize multivm ID: {}", e),
+            message: format!("Failed to serialize multivm ID: {e}"),
         })
     }
 
     /// Deserialize multivm account id from bytes
     fn deserialize_multivm_id(data: &[u8]) -> AccountMappingResult<MultivmAccountId> {
         bincode::deserialize(data).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to deserialize multivm ID: {}", e),
+            message: format!("Failed to deserialize multivm ID: {e}"),
         })
     }
 }
@@ -755,7 +755,7 @@ impl AccountMappingStorage for RocksDBStorage {
         self.db
             .put(&binding_key, &binding_value)
             .map_err(|e| AccountMappingError::Internal {
-                message: format!("Failed to store binding: {}", e),
+                message: format!("Failed to store binding: {e}"),
             })?;
 
         // Update reverse lookup
@@ -764,7 +764,7 @@ impl AccountMappingStorage for RocksDBStorage {
             self.db
                 .put(&key, &multivm_id_bytes)
                 .map_err(|e| AccountMappingError::Internal {
-                    message: format!("Failed to store reverse lookup: {}", e),
+                    message: format!("Failed to store reverse lookup: {e}"),
                 })?;
         }
 
@@ -773,7 +773,7 @@ impl AccountMappingStorage for RocksDBStorage {
             self.db
                 .put(&key, &multivm_id_bytes)
                 .map_err(|e| AccountMappingError::Internal {
-                    message: format!("Failed to store reverse lookup: {}", e),
+                    message: format!("Failed to store reverse lookup: {e}"),
                 })?;
         }
 
@@ -794,7 +794,7 @@ impl AccountMappingStorage for RocksDBStorage {
             }
             Ok(None) => Ok(None),
             Err(e) => Err(AccountMappingError::Internal {
-                message: format!("Failed to get binding: {}", e),
+                message: format!("Failed to get binding: {e}"),
             }),
         }
     }
@@ -813,7 +813,7 @@ impl AccountMappingStorage for RocksDBStorage {
             }
             Ok(None) => Ok(None),
             Err(e) => Err(AccountMappingError::Internal {
-                message: format!("Failed to get binding by account: {}", e),
+                message: format!("Failed to get binding by account: {e}"),
             }),
         }
     }
@@ -832,7 +832,7 @@ impl AccountMappingStorage for RocksDBStorage {
             self.db
                 .delete(&binding_key)
                 .map_err(|e| AccountMappingError::Internal {
-                    message: format!("Failed to delete binding: {}", e),
+                    message: format!("Failed to delete binding: {e}"),
                 })?;
 
             // Delete reverse lookups
@@ -841,7 +841,7 @@ impl AccountMappingStorage for RocksDBStorage {
                 self.db
                     .delete(&key)
                     .map_err(|e| AccountMappingError::Internal {
-                        message: format!("Failed to delete reverse lookup: {}", e),
+                        message: format!("Failed to delete reverse lookup: {e}"),
                     })?;
             }
 
@@ -850,7 +850,7 @@ impl AccountMappingStorage for RocksDBStorage {
                 self.db
                     .delete(&key)
                     .map_err(|e| AccountMappingError::Internal {
-                        message: format!("Failed to delete reverse lookup: {}", e),
+                        message: format!("Failed to delete reverse lookup: {e}"),
                     })?;
             }
         }
@@ -878,7 +878,7 @@ impl AccountMappingStorage for RocksDBStorage {
                         }
                     }
                     Err(e) => Some(Err(AccountMappingError::Internal {
-                        message: format!("Iterator error: {}", e),
+                        message: format!("Iterator error: {e}"),
                     })),
                 }
             })
@@ -907,7 +907,7 @@ impl AccountMappingStorage for RocksDBStorage {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
             Err(e) => Err(AccountMappingError::Internal {
-                message: format!("Failed to check binding existence: {}", e),
+                message: format!("Failed to check binding existence: {e}"),
             }),
         }
     }
@@ -926,7 +926,7 @@ impl AccountMappingStorage for RocksDBStorage {
             }
             Ok(None) => Ok(None),
             Err(e) => Err(AccountMappingError::Internal {
-                message: format!("Failed to resolve multivm account: {}", e),
+                message: format!("Failed to resolve multivm account: {e}"),
             }),
         }
     }
@@ -972,7 +972,7 @@ impl AccountMappingLayer for RocksDBStorage {
             self.store_binding(&binding).await
         } else {
             Err(AccountMappingError::Internal {
-                message: format!("Binding not found: {}", multivm_id),
+                message: format!("Binding not found: {multivm_id}"),
             })
         }
     }

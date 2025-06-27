@@ -261,8 +261,7 @@ impl ConnectionPoolManager {
         }
 
         Err(P2PError::connection_error(format!(
-            "Connection not found for peer {} at {}",
-            peer_id, address
+            "Connection not found for peer {peer_id} at {address}"
         )))
     }
 
@@ -365,8 +364,7 @@ impl ConnectionPoolManager {
         }
 
         Err(P2PError::connection_error(format!(
-            "Connection not found for peer {} at {}",
-            peer_id, address
+            "Connection not found for peer {peer_id} at {address}"
         )))
     }
 
@@ -518,4 +516,3 @@ impl ConnectionPoolManager {
         lowest_index
     }
 }
-

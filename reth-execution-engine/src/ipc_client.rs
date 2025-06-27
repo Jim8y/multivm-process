@@ -33,7 +33,7 @@ impl RethIpcClient {
             Self::connect_tcp(address).await
         } else {
             // Assume it's a port number
-            let tcp_address = format!("127.0.0.1:{}", address);
+            let tcp_address = format!("127.0.0.1:{address}");
             Self::connect_tcp(&tcp_address).await
         }
     }
@@ -77,22 +77,24 @@ impl RethIpcClient {
         match &mut self.stream {
             #[cfg(unix)]
             IpcStream::Unix { reader, .. } => {
-                reader.read_exact(&mut len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut len_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to read message length: {}", e),
+                        message: format!("Failed to read message length: {e}"),
                         retry_count: Some(0),
-                    }
-                })?;
+                    })?;
             }
             IpcStream::Tcp { reader, .. } => {
-                reader.read_exact(&mut len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut len_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to read message length: {}", e),
+                        message: format!("Failed to read message length: {e}"),
                         retry_count: Some(0),
-                    }
-                })?;
+                    })?;
             }
         }
 
@@ -104,30 +106,32 @@ impl RethIpcClient {
         match &mut self.stream {
             #[cfg(unix)]
             IpcStream::Unix { reader, .. } => {
-                reader.read_exact(&mut message_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut message_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to read message data: {}", e),
+                        message: format!("Failed to read message data: {e}"),
                         retry_count: Some(0),
-                    }
-                })?;
+                    })?;
             }
             IpcStream::Tcp { reader, .. } => {
-                reader.read_exact(&mut message_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut message_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to read message data: {}", e),
+                        message: format!("Failed to read message data: {e}"),
                         retry_count: Some(0),
-                    }
-                })?;
+                    })?;
             }
         }
 
         // Deserialize message
-        let message: IpcMessage = bincode::deserialize(&message_bytes)
-            .map_err(|e| MultivmError::Ipc {
+        let message: IpcMessage =
+            bincode::deserialize(&message_bytes).map_err(|e| MultivmError::Ipc {
                 endpoint: "ipc_client".to_string(),
-                message: format!("Failed to deserialize message: {}", e),
+                message: format!("Failed to deserialize message: {e}"),
                 retry_count: Some(0),
             })?;
 
@@ -139,12 +143,11 @@ impl RethIpcClient {
         tracing::trace!("Sending IPC response: {:?}", response);
 
         // Serialize response
-        let response_bytes = bincode::serialize(&response)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: "ipc_client".to_string(),
-                message: format!("Failed to serialize response: {}", e),
-                retry_count: Some(0),
-            })?;
+        let response_bytes = bincode::serialize(&response).map_err(|e| MultivmError::Ipc {
+            endpoint: "ipc_client".to_string(),
+            message: format!("Failed to serialize response: {e}"),
+            retry_count: Some(0),
+        })?;
 
         // Send message length
         let len_bytes = (response_bytes.len() as u32).to_be_bytes();
@@ -152,56 +155,54 @@ impl RethIpcClient {
         match &mut self.stream {
             #[cfg(unix)]
             IpcStream::Unix { writer, .. } => {
-                writer.write_all(&len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to write response length: {}", e),
-                        retry_count: Some(0),
-                    }
-                })?;
-
-                writer.write_all(&response_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to write response data: {}", e),
-                        retry_count: Some(0),
-                    }
-                })?;
-
                 writer
-                    .flush()
+                    .write_all(&len_bytes)
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to flush response: {}", e),
+                        message: format!("Failed to write response length: {e}"),
                         retry_count: Some(0),
                     })?;
+
+                writer
+                    .write_all(&response_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: "unix_socket".to_string(),
+                        message: format!("Failed to write response data: {e}"),
+                        retry_count: Some(0),
+                    })?;
+
+                writer.flush().await.map_err(|e| MultivmError::Ipc {
+                    endpoint: "unix_socket".to_string(),
+                    message: format!("Failed to flush response: {e}"),
+                    retry_count: Some(0),
+                })?;
             }
             IpcStream::Tcp { writer, .. } => {
-                writer.write_all(&len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to write response length: {}", e),
-                        retry_count: Some(0),
-                    }
-                })?;
-
-                writer.write_all(&response_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to write response data: {}", e),
-                        retry_count: Some(0),
-                    }
-                })?;
-
                 writer
-                    .flush()
+                    .write_all(&len_bytes)
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to flush response: {}", e),
+                        message: format!("Failed to write response length: {e}"),
                         retry_count: Some(0),
                     })?;
+
+                writer
+                    .write_all(&response_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: "tcp_socket".to_string(),
+                        message: format!("Failed to write response data: {e}"),
+                        retry_count: Some(0),
+                    })?;
+
+                writer.flush().await.map_err(|e| MultivmError::Ipc {
+                    endpoint: "tcp_socket".to_string(),
+                    message: format!("Failed to flush response: {e}"),
+                    retry_count: Some(0),
+                })?;
             }
         }
 

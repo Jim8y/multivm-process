@@ -97,11 +97,13 @@ impl Manager for MonitoringService {
     type State = ManagerState;
 
     async fn initialize(config: Self::Config) -> MultivmResult<Self> {
-        Self::new(&config).await.map_err(|e| multivm_common::MultivmError::Internal {
-            component: "monitoring_service".to_string(),
-            message: e.to_string(),
-            error_code: None,
-        })
+        Self::new(&config)
+            .await
+            .map_err(|e| multivm_common::MultivmError::Internal {
+                component: "monitoring_service".to_string(),
+                message: e.to_string(),
+                error_code: None,
+            })
     }
 
     async fn start(&mut self) -> MultivmResult<()> {
@@ -111,7 +113,7 @@ impl Manager for MonitoringService {
         }
 
         *state = ManagerState::Initializing;
-        
+
         // Start metrics server
         if let Err(e) = self.start_metrics_server().await {
             *state = ManagerState::Error("Failed to start metrics server".to_string());
@@ -169,8 +171,12 @@ impl Manager for MonitoringService {
         let state = self.get_state().await;
         Ok(match state {
             ManagerState::Running => multivm_common::HealthStatus::Healthy,
-            ManagerState::Initializing | ManagerState::Stopping => multivm_common::HealthStatus::Degraded,
-            ManagerState::Stopped | ManagerState::Error(_) => multivm_common::HealthStatus::Unhealthy,
+            ManagerState::Initializing | ManagerState::Stopping => {
+                multivm_common::HealthStatus::Degraded
+            }
+            ManagerState::Stopped | ManagerState::Error(_) => {
+                multivm_common::HealthStatus::Unhealthy
+            }
             ManagerState::Uninitialized => multivm_common::HealthStatus::Unhealthy,
         })
     }

@@ -5,7 +5,7 @@
 
 pub mod resolvers;
 
-use crate::{ApplicationResult, ApplicationState};
+use crate::{validation, ApplicationResult, ApplicationState};
 use async_graphql::{Context, EmptySubscription, Object, Result as GraphQLResult, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
@@ -99,6 +99,10 @@ impl QueryRoot {
         ctx: &Context<'_>,
         address: String,
     ) -> GraphQLResult<Option<SvmAccount>> {
+        // Validate address format
+        validation::address::validate_address(&address, "solana")
+            .map_err(|e| async_graphql::Error::new(format!("Invalid address: {e}")))?;
+
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         match state.gateway.get_svm_account_info(&address).await {
@@ -106,10 +110,23 @@ impl QueryRoot {
                 let account_info = gateway_response.data;
                 Ok(Some(SvmAccount {
                     address: address.clone(),
-                    lamports: account_info.get("lamports").and_then(|v| v.as_u64()).unwrap_or(0),
-                    owner: account_info.get("owner").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    executable: account_info.get("executable").and_then(|v| v.as_bool()).unwrap_or(false),
-                    rent_epoch: account_info.get("rent_epoch").and_then(|v| v.as_u64()).unwrap_or(0),
+                    lamports: account_info
+                        .get("lamports")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0),
+                    owner: account_info
+                        .get("owner")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    executable: account_info
+                        .get("executable")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                    rent_epoch: account_info
+                        .get("rent_epoch")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0),
                 }))
             }
             Err(_) => Ok(None),
@@ -122,6 +139,10 @@ impl QueryRoot {
         ctx: &Context<'_>,
         address: String,
     ) -> GraphQLResult<Option<EvmAccount>> {
+        // Validate address format
+        validation::address::validate_address(&address, "ethereum")
+            .map_err(|e| async_graphql::Error::new(format!("Invalid address: {e}")))?;
+
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         match state.gateway.get_evm_account(&address).await {
@@ -142,24 +163,29 @@ impl QueryRoot {
         ctx: &Context<'_>,
         address: String,
     ) -> GraphQLResult<Option<AccountBindings>> {
+        // Validate address format (try both VM types for MultiVM)
+        validation::address::validate_address(&address, "multivm")
+            .map_err(|e| async_graphql::Error::new(format!("Invalid address: {e}")))?;
+
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         // Parse the address and look up actual bindings from the MultiVM gateway
-        match state
-            .gateway
-            .get_account_binding(&address)
-            .await
-        {
+        match state.gateway.get_account_binding(&address).await {
             Ok(response) => {
                 let binding_data = response.data;
-                if let Some(multivm_account) = binding_data.get("multivm_account_id").and_then(|v| v.as_str()) {
+                if let Some(multivm_account) = binding_data
+                    .get("multivm_account_id")
+                    .and_then(|v| v.as_str())
+                {
                     Ok(Some(AccountBindings {
                         multivm_account: multivm_account.to_string(),
-                        svm_account: binding_data.get("bound_accounts")
+                        svm_account: binding_data
+                            .get("bound_accounts")
                             .and_then(|v| v.get("SVM"))
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string()),
-                        evm_account: binding_data.get("bound_accounts")
+                        evm_account: binding_data
+                            .get("bound_accounts")
                             .and_then(|v| v.get("EVM"))
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string()),
@@ -177,8 +203,33 @@ impl QueryRoot {
     async fn search_transactions(
         &self,
         ctx: &Context<'_>,
-        _query: TransactionSearchInput,
+        query: TransactionSearchInput,
     ) -> GraphQLResult<TransactionSearchResult> {
+        // Validate pagination parameters
+        let (_limit, _offset) =
+            validation::pagination::validate_pagination(query.limit, query.offset)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid pagination: {e}")))?;
+
+        // Validate VM type if provided
+        if let Some(vm_type) = &query.vm_type {
+            validation::vm_type::validate_vm_type(vm_type)
+                .map_err(|e| async_graphql::Error::new(format!("Invalid VM type: {e}")))?;
+        }
+
+        // Validate account address if provided
+        if let Some(account) = &query.account {
+            if let Some(vm_type) = &query.vm_type {
+                validation::address::validate_address(account, vm_type).map_err(|e| {
+                    async_graphql::Error::new(format!("Invalid account address: {e}"))
+                })?;
+            } else {
+                // Default to multivm validation if no VM type specified
+                validation::address::validate_address(account, "multivm").map_err(|e| {
+                    async_graphql::Error::new(format!("Invalid account address: {e}"))
+                })?;
+            }
+        }
+
         let _state = ctx.data::<Arc<ApplicationState>>()?;
 
         // Placeholder implementation
@@ -198,6 +249,10 @@ impl MutationRoot {
         ctx: &Context<'_>,
         transaction_data: String,
     ) -> GraphQLResult<TransactionResult> {
+        // Validate transaction data size
+        validation::transaction::validate_transaction_size(transaction_data.as_bytes())
+            .map_err(|e| async_graphql::Error::new(format!("Invalid transaction data: {e}")))?;
+
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         match state.gateway.send_svm_transaction(&transaction_data).await {
@@ -220,13 +275,13 @@ impl MutationRoot {
         ctx: &Context<'_>,
         transaction_data: String,
     ) -> GraphQLResult<TransactionResult> {
+        // Validate EVM transaction data format and size
+        validation::transaction::validate_ethereum_transaction_data(&transaction_data)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid transaction data: {e}")))?;
+
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
-        match state
-            .gateway
-            .send_evm_transaction(&transaction_data)
-            .await
-        {
+        match state.gateway.send_evm_transaction(&transaction_data).await {
             Ok(response) => Ok(TransactionResult {
                 success: true,
                 transaction_id: response.data,
@@ -246,6 +301,17 @@ impl MutationRoot {
         ctx: &Context<'_>,
         input: AccountBindingInput,
     ) -> GraphQLResult<AccountBindingResult> {
+        // Validate account addresses if provided
+        if let Some(svm_account) = &input.svm_account {
+            validation::address::validate_address(svm_account, "solana")
+                .map_err(|e| async_graphql::Error::new(format!("Invalid SVM address: {e}")))?;
+        }
+
+        if let Some(evm_account) = &input.evm_account {
+            validation::address::validate_address(evm_account, "ethereum")
+                .map_err(|e| async_graphql::Error::new(format!("Invalid EVM address: {e}")))?;
+        }
+
         let state = ctx.data::<Arc<ApplicationState>>()?;
 
         let svm_addr = input.svm_account.clone().unwrap_or_default();
@@ -258,18 +324,19 @@ impl MutationRoot {
         {
             Ok(response) => {
                 let binding_data = response.data;
-                let binding_id = binding_data.get("binding_id")
+                let binding_id = binding_data
+                    .get("binding_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 Ok(AccountBindingResult {
                     success: true,
-                    multivm_account: format!("{}:{}", svm_addr, evm_addr),
+                    multivm_account: format!("{svm_addr}:{evm_addr}"),
                     binding_id,
                     error: None,
                 })
-            },
+            }
             Err(e) => Ok(AccountBindingResult {
                 success: false,
                 multivm_account: String::new(),

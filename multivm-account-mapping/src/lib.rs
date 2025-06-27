@@ -190,7 +190,7 @@ impl AccountMappingConfig {
     pub fn from_file(path: &std::path::Path) -> AccountMappingResult<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: Self = toml::from_str(&content).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to parse config: {}", e),
+            message: format!("Failed to parse config: {e}"),
         })?;
         Ok(config)
     }
@@ -198,7 +198,7 @@ impl AccountMappingConfig {
     /// Save configuration to file
     pub fn to_file(&self, path: &std::path::Path) -> AccountMappingResult<()> {
         let content = toml::to_string_pretty(self).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to serialize config: {}", e),
+            message: format!("Failed to serialize config: {e}"),
         })?;
         std::fs::write(path, content)?;
         Ok(())
@@ -378,3 +378,6 @@ mod tests {
         assert_eq!(id.len(), 72); // "multivm_" + 64 hex chars
     }
 }
+
+#[cfg(test)]
+mod address_tests;

@@ -3,9 +3,7 @@
 //! Handlers for Solana Virtual Machine operations.
 
 use super::{calculate_response_time, start_request_timer, success_response};
-use crate::{
-    ApplicationState,
-};
+use crate::ApplicationState;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
@@ -132,7 +130,10 @@ pub async fn get_account_transactions(
     let start_time = start_request_timer();
 
     // For now, return empty transactions as this would need specific implementation
-    let gateway_response: Result<crate::gateway::unified::GatewayResponse<Vec<String>>, crate::error::ApplicationError> = Ok(crate::gateway::unified::GatewayResponse {
+    let gateway_response: Result<
+        crate::gateway::unified::GatewayResponse<Vec<String>>,
+        crate::error::ApplicationError,
+    > = Ok(crate::gateway::unified::GatewayResponse {
         data: Vec::<String>::new(),
         metadata: crate::gateway::unified::ResponseMetadata {
             vm_type: multivm_common::VmType::Svm,
@@ -153,13 +154,16 @@ pub async fn get_account_transactions(
 
     let transactions = gateway_response.data;
     let transaction_list = SvmTransactionList {
-        transactions: transactions.iter().map(|_tx| SvmTransactionInfo {
-            signature: "mock_signature".to_string(),
-            slot: 0,
-            block_time: None,
-            confirmations: None,
-            err: None,
-        }).collect(),
+        transactions: transactions
+            .iter()
+            .map(|_tx| SvmTransactionInfo {
+                signature: "mock_signature".to_string(),
+                slot: 0,
+                block_time: None,
+                confirmations: None,
+                err: None,
+            })
+            .collect(),
         total: transactions.len(),
         limit: params.limit,
         offset: params.offset,
@@ -218,19 +222,31 @@ pub async fn get_transaction(
     };
 
     let response_time = calculate_response_time(start_time);
-    let tx_data = transaction.data.map(|tx| SvmTransactionInfo {
-        signature: tx.hash,
-        slot: tx.vm_specific.get("slot").and_then(|v| v.as_u64()).unwrap_or(0),
-        block_time: Some(tx.vm_specific.get("block_time").and_then(|v| v.as_i64()).unwrap_or(chrono::Utc::now().timestamp())),
-        confirmations: tx.vm_specific.get("confirmations").and_then(|v| v.as_u64()),
-        err: None,
-    }).unwrap_or_else(|| SvmTransactionInfo {
-        signature: "not_found".to_string(),
-        slot: 0,
-        block_time: None,
-        confirmations: None,
-        err: Some(serde_json::json!({"error": "Transaction not found"})),
-    });
+    let tx_data = transaction
+        .data
+        .map(|tx| SvmTransactionInfo {
+            signature: tx.hash,
+            slot: tx
+                .vm_specific
+                .get("slot")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            block_time: Some(
+                tx.vm_specific
+                    .get("block_time")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(chrono::Utc::now().timestamp()),
+            ),
+            confirmations: tx.vm_specific.get("confirmations").and_then(|v| v.as_u64()),
+            err: None,
+        })
+        .unwrap_or_else(|| SvmTransactionInfo {
+            signature: "not_found".to_string(),
+            slot: 0,
+            block_time: None,
+            confirmations: None,
+            err: Some(serde_json::json!({"error": "Transaction not found"})),
+        });
     success_response(tx_data, request_id, response_time).into_response()
 }
 
@@ -329,7 +345,10 @@ pub async fn get_block_transactions(
     let start_time = start_request_timer();
 
     // For now, return empty transactions as this would need specific implementation
-    let transactions: Result<crate::gateway::unified::GatewayResponse<Vec<String>>, crate::error::ApplicationError> = Ok(crate::gateway::unified::GatewayResponse {
+    let transactions: Result<
+        crate::gateway::unified::GatewayResponse<Vec<String>>,
+        crate::error::ApplicationError,
+    > = Ok(crate::gateway::unified::GatewayResponse {
         data: Vec::<String>::new(),
         metadata: crate::gateway::unified::ResponseMetadata {
             vm_type: multivm_common::VmType::Svm,
@@ -350,13 +369,16 @@ pub async fn get_block_transactions(
 
     let tx_data = transactions.data;
     let transaction_list = SvmTransactionList {
-        transactions: tx_data.iter().map(|_tx| SvmTransactionInfo {
-            signature: "mock_signature".to_string(),
-            slot: 0,
-            block_time: None,
-            confirmations: None,
-            err: None,
-        }).collect(),
+        transactions: tx_data
+            .iter()
+            .map(|_tx| SvmTransactionInfo {
+                signature: "mock_signature".to_string(),
+                slot: 0,
+                block_time: None,
+                confirmations: None,
+                err: None,
+            })
+            .collect(),
         total: tx_data.len(),
         limit: 50, // Default limit
         offset: 0, // Default offset
@@ -376,7 +398,10 @@ pub async fn get_program_accounts(
     let start_time = start_request_timer();
 
     // For now, return empty accounts as this would need specific implementation
-    let accounts: Result<crate::gateway::unified::GatewayResponse<Vec<String>>, crate::error::ApplicationError> = Ok(crate::gateway::unified::GatewayResponse {
+    let accounts: Result<
+        crate::gateway::unified::GatewayResponse<Vec<String>>,
+        crate::error::ApplicationError,
+    > = Ok(crate::gateway::unified::GatewayResponse {
         data: Vec::<String>::new(),
         metadata: crate::gateway::unified::ResponseMetadata {
             vm_type: multivm_common::VmType::Svm,
@@ -409,7 +434,10 @@ pub async fn get_token_accounts(
     let start_time = start_request_timer();
 
     // For now, return empty accounts as this would need specific implementation
-    let accounts: Result<crate::gateway::unified::GatewayResponse<Vec<String>>, crate::error::ApplicationError> = Ok(crate::gateway::unified::GatewayResponse {
+    let accounts: Result<
+        crate::gateway::unified::GatewayResponse<Vec<String>>,
+        crate::error::ApplicationError,
+    > = Ok(crate::gateway::unified::GatewayResponse {
         data: Vec::<String>::new(),
         metadata: crate::gateway::unified::ResponseMetadata {
             vm_type: multivm_common::VmType::Svm,
@@ -456,24 +484,28 @@ pub async fn get_token_accounts(
 
 /// Get token supply
 pub async fn get_token_supply(
-    State(_state): State<Arc<ApplicationState>>,
-    Path(_mint): Path<String>,
+    State(state): State<Arc<ApplicationState>>,
+    Path(mint): Path<String>,
     headers: HeaderMap,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
     let start_time = start_request_timer();
 
-    // For now, return mock supply as this would need specific implementation
-    let supply: Result<crate::gateway::unified::GatewayResponse<serde_json::Value>, crate::error::ApplicationError> = Ok(crate::gateway::unified::GatewayResponse {
-        data: serde_json::json!({"value": {"amount": "1000000", "decimals": 6}}),
-        metadata: crate::gateway::unified::ResponseMetadata {
-            vm_type: multivm_common::VmType::Svm,
-            cached: false,
-            response_time_ms: 0,
-            request_id: request_id.clone(),
-            endpoint_used: "unified_gateway".to_string(),
-        },
-    });
+    // Get real token supply data from the gateway
+    let supply = state
+        .gateway
+        .get_token_supply(multivm_common::VmType::Svm, &mint.to_string())
+        .await
+        .map(|response| crate::gateway::unified::GatewayResponse {
+            data: response.data,
+            metadata: crate::gateway::unified::ResponseMetadata {
+                vm_type: multivm_common::VmType::Svm,
+                cached: response.metadata.cached,
+                response_time_ms: response.metadata.response_time_ms,
+                request_id: request_id.clone(),
+                endpoint_used: response.metadata.endpoint_used,
+            },
+        });
     let supply = match supply {
         Ok(supply) => supply,
         Err(e) => {

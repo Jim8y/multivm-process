@@ -5,7 +5,7 @@ use crate::{
     error::{AccountMappingError, AccountMappingResult},
     mapping::{AccountBinding, BindingProof, ProofType},
 };
-use ed25519_dalek::{PublicKey as VerifyingKey, Signature};
+use ed25519_dalek::{Signature, VerifyingKey};
 use hex;
 use sha2::{Digest, Sha256};
 use std::time::{Duration, SystemTime};
@@ -299,16 +299,20 @@ impl AccountBindingValidator {
                     reason: "Failed to parse Ed25519 signature: invalid length".to_string(),
                 })?;
 
-        let parsed_signature = Signature::from_bytes(signature_bytes).map_err(|e| {
-            AccountMappingError::InvalidBindingProof {
-                reason: format!("Failed to parse Ed25519 signature: {}", e),
-            }
-        })?;
+        let parsed_signature = if signature_bytes.len() == 64 {
+            let mut sig_bytes = [0u8; 64];
+            sig_bytes.copy_from_slice(signature_bytes);
+            Signature::from_bytes(&sig_bytes)
+        } else {
+            return Err(AccountMappingError::InvalidBindingProof {
+                reason: "Ed25519 signature must be 64 bytes".to_string(),
+            });
+        };
 
         // Validate and parse the public key
         let public_key = VerifyingKey::from_bytes(&addr.0).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: format!("Invalid Solana public key: {}", e),
+                reason: format!("Invalid Solana public key: {e}"),
             }
         })?;
 
@@ -318,7 +322,7 @@ impl AccountBindingValidator {
         // Perform cryptographic verification with timing attack resistance
         public_key.verify(message, &parsed_signature).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: format!("Solana signature verification failed: {}", e),
+                reason: format!("Solana signature verification failed: {e}"),
             }
         })?;
 
@@ -443,7 +447,7 @@ impl AccountBindingValidator {
 
         let ecdsa_signature = Signature::from_scalars(r_bytes, s_bytes).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: format!("Invalid ECDSA signature: {}", e),
+                reason: format!("Invalid ECDSA signature: {e}"),
             }
         })?;
 
@@ -451,21 +455,21 @@ impl AccountBindingValidator {
         let recovery_id = if v >= 27 { v - 27 } else { v };
         let recovery_id = k256::ecdsa::RecoveryId::try_from(recovery_id).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: format!("Invalid recovery ID: {}", e),
+                reason: format!("Invalid recovery ID: {e}"),
             }
         })?;
 
         let verifying_key =
             VerifyingKey::recover_from_prehash(&message_hash, &ecdsa_signature, recovery_id)
                 .map_err(|e| AccountMappingError::InvalidBindingProof {
-                    reason: format!("Failed to recover verifying key: {}", e),
+                    reason: format!("Failed to recover verifying key: {e}"),
                 })?;
 
         // Verify the signature using the recovered key
         verifying_key
             .verify_prehash(&message_hash, &ecdsa_signature)
             .map_err(|e| AccountMappingError::InvalidBindingProof {
-                reason: format!("ECDSA signature verification failed: {}", e),
+                reason: format!("ECDSA signature verification failed: {e}"),
             })?;
 
         // Production signature verification passed
@@ -523,20 +527,20 @@ impl AccountBindingValidator {
         // Create signature and recovery ID
         let sig = Signature::from_scalars(r_bytes, s_bytes).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: format!("Invalid signature scalars: {}", e),
+                reason: format!("Invalid signature scalars: {e}"),
             }
         })?;
 
         let recovery_id = RecoveryId::try_from(recovery_id).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
-                reason: format!("Invalid recovery ID: {}", e),
+                reason: format!("Invalid recovery ID: {e}"),
             }
         })?;
 
         // Recover the public key
         let verifying_key = VerifyingKey::recover_from_prehash(&message_hash, &sig, recovery_id)
             .map_err(|e| AccountMappingError::InvalidBindingProof {
-                reason: format!("Failed to recover public key: {}", e),
+                reason: format!("Failed to recover public key: {e}"),
             })?;
 
         // Get the uncompressed public key point
@@ -717,7 +721,7 @@ impl AccountBindingValidator {
         // Step 3: Validate transaction exists
         if mock_transaction_response["hash"].is_null() {
             return Err(AccountMappingError::InvalidProof {
-                message: format!("Transaction {} not found on Ethereum blockchain", tx_hash),
+                message: format!("Transaction {tx_hash} not found on Ethereum blockchain"),
             });
         }
 
@@ -732,8 +736,7 @@ impl AccountBindingValidator {
         if actual_block_hash != expected_block_hash {
             return Err(AccountMappingError::InvalidProof {
                 message: format!(
-                    "Block hash mismatch: expected {}, got {}",
-                    expected_block_hash, actual_block_hash
+                    "Block hash mismatch: expected {expected_block_hash}, got {actual_block_hash}"
                 ),
             });
         }
@@ -822,17 +825,14 @@ impl AccountBindingValidator {
         // Step 3: Validate transaction exists and succeeded
         if mock_transaction_response["signature"].is_null() {
             return Err(AccountMappingError::InvalidProof {
-                message: format!(
-                    "Transaction {} not found on Solana blockchain",
-                    tx_signature
-                ),
+                message: format!("Transaction {tx_signature} not found on Solana blockchain"),
             });
         }
 
         // Check if transaction failed
         if !mock_transaction_response["meta"]["err"].is_null() {
             return Err(AccountMappingError::InvalidProof {
-                message: format!("Transaction {} failed on Solana blockchain", tx_signature),
+                message: format!("Transaction {tx_signature} failed on Solana blockchain"),
             });
         }
 

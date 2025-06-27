@@ -10,14 +10,14 @@ edition = "2021"
 license = "Apache-2.0"
 
 [features]
-default = []
+default = ["real-validator"]
 simple = []
 mock = []
 real-validator = ["solana-sdk", "solana-client", "solana-transaction-status"]
 
 [dependencies]
 # Minimal internal dependencies to avoid ed25519-dalek conflicts
-# multivm-common = { path = "../multivm-common" }
+multivm-common = { path = "../multivm-common" }
 
 # Async runtime and utilities
 tokio = { version = "1.35", features = ["full"] }

@@ -5,7 +5,7 @@
 
 use crate::{
     error::{P2PError, P2PResult},
-    messages::{NetworkMessage, MessageType, Priority},
+    messages::{MessageType, NetworkMessage, Priority},
     rate_limiter::RateLimiter,
 };
 use libp2p::{gossipsub, PeerId};
@@ -199,6 +199,7 @@ pub enum GossipCommand {
 
 /// Events emitted by gossip protocol
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum GossipEvent {
     /// Message received and validated
     MessageReceived {
@@ -216,17 +217,14 @@ pub enum GossipEvent {
         from_peer: PeerId,
     },
     /// Peer became active/inactive
-    PeerStatusChanged {
-        peer_id: PeerId,
-        is_active: bool,
-    },
+    PeerStatusChanged { peer_id: PeerId, is_active: bool },
 }
 
 impl GossipProtocol {
     /// Create a new gossip protocol instance
     pub fn new(config: GossipConfig, local_peer_id: PeerId) -> (Self, mpsc::Receiver<GossipEvent>) {
         let (event_sender, event_receiver) = mpsc::channel(1000);
-        
+
         let rate_limiter = RateLimiter::new(100, Duration::from_secs(1)); // 100 messages per second
 
         let protocol = Self {
@@ -294,7 +292,8 @@ impl GossipProtocol {
                 pending_messages,
                 stats,
                 config,
-            ).await;
+            )
+            .await;
         });
 
         // Start maintenance task
@@ -315,17 +314,23 @@ impl GossipProtocol {
     pub async fn broadcast(&self, message: NetworkMessage, priority: Priority) -> P2PResult<()> {
         if let Some(sender) = &self.command_sender {
             let (response_sender, response_receiver) = tokio::sync::oneshot::channel();
-            
-            sender.send(GossipCommand::Broadcast {
-                message,
-                priority,
-                response: response_sender,
-            }).await.map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
 
-            response_receiver.await
+            sender
+                .send(GossipCommand::Broadcast {
+                    message,
+                    priority,
+                    response: response_sender,
+                })
+                .await
+                .map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
+
+            response_receiver
+                .await
                 .map_err(|_| P2PError::Internal("Response channel closed".to_string()))?
         } else {
-            Err(P2PError::Internal("Gossip protocol not started".to_string()))
+            Err(P2PError::Internal(
+                "Gossip protocol not started".to_string(),
+            ))
         }
     }
 
@@ -333,16 +338,22 @@ impl GossipProtocol {
     pub async fn add_peer(&self, peer_id: PeerId) -> P2PResult<()> {
         if let Some(sender) = &self.command_sender {
             let (response_sender, response_receiver) = tokio::sync::oneshot::channel();
-            
-            sender.send(GossipCommand::AddPeer {
-                peer_id,
-                response: response_sender,
-            }).await.map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
 
-            response_receiver.await
+            sender
+                .send(GossipCommand::AddPeer {
+                    peer_id,
+                    response: response_sender,
+                })
+                .await
+                .map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
+
+            response_receiver
+                .await
                 .map_err(|_| P2PError::Internal("Response channel closed".to_string()))?
         } else {
-            Err(P2PError::Internal("Gossip protocol not started".to_string()))
+            Err(P2PError::Internal(
+                "Gossip protocol not started".to_string(),
+            ))
         }
     }
 
@@ -350,34 +361,50 @@ impl GossipProtocol {
     pub async fn remove_peer(&self, peer_id: PeerId) -> P2PResult<()> {
         if let Some(sender) = &self.command_sender {
             let (response_sender, response_receiver) = tokio::sync::oneshot::channel();
-            
-            sender.send(GossipCommand::RemovePeer {
-                peer_id,
-                response: response_sender,
-            }).await.map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
 
-            response_receiver.await
+            sender
+                .send(GossipCommand::RemovePeer {
+                    peer_id,
+                    response: response_sender,
+                })
+                .await
+                .map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
+
+            response_receiver
+                .await
                 .map_err(|_| P2PError::Internal("Response channel closed".to_string()))?
         } else {
-            Err(P2PError::Internal("Gossip protocol not started".to_string()))
+            Err(P2PError::Internal(
+                "Gossip protocol not started".to_string(),
+            ))
         }
     }
 
     /// Process incoming gossip message
-    pub async fn process_message(&self, message: GossipMessage, from_peer: PeerId) -> P2PResult<()> {
+    pub async fn process_message(
+        &self,
+        message: GossipMessage,
+        from_peer: PeerId,
+    ) -> P2PResult<()> {
         if let Some(sender) = &self.command_sender {
             let (response_sender, response_receiver) = tokio::sync::oneshot::channel();
-            
-            sender.send(GossipCommand::ProcessMessage {
-                message,
-                from_peer,
-                response: response_sender,
-            }).await.map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
 
-            response_receiver.await
+            sender
+                .send(GossipCommand::ProcessMessage {
+                    message,
+                    from_peer,
+                    response: response_sender,
+                })
+                .await
+                .map_err(|_| P2PError::Internal("Command channel closed".to_string()))?;
+
+            response_receiver
+                .await
                 .map_err(|_| P2PError::Internal("Response channel closed".to_string()))?
         } else {
-            Err(P2PError::Internal("Gossip protocol not started".to_string()))
+            Err(P2PError::Internal(
+                "Gossip protocol not started".to_string(),
+            ))
         }
     }
 
@@ -385,10 +412,14 @@ impl GossipProtocol {
     pub async fn get_stats(&self) -> GossipStats {
         if let Some(sender) = &self.command_sender {
             let (response_sender, response_receiver) = tokio::sync::oneshot::channel();
-            
-            if sender.send(GossipCommand::GetStats {
-                response: response_sender,
-            }).await.is_ok() {
+
+            if sender
+                .send(GossipCommand::GetStats {
+                    response: response_sender,
+                })
+                .await
+                .is_ok()
+            {
                 if let Ok(stats) = response_receiver.await {
                     return stats;
                 }
@@ -410,7 +441,11 @@ impl GossipProtocol {
             }
 
             match command {
-                GossipCommand::Broadcast { message, priority, response } => {
+                GossipCommand::Broadcast {
+                    message,
+                    priority,
+                    response,
+                } => {
                     let result = Self::handle_broadcast(
                         message,
                         priority,
@@ -419,7 +454,8 @@ impl GossipProtocol {
                         &ctx.stats,
                         &ctx.config,
                         ctx.local_peer_id,
-                    ).await;
+                    )
+                    .await;
                     let _ = response.send(result);
                 }
                 GossipCommand::AddPeer { peer_id, response } => {
@@ -430,7 +466,11 @@ impl GossipProtocol {
                     let result = Self::handle_remove_peer(peer_id, &ctx.peer_states).await;
                     let _ = response.send(result);
                 }
-                GossipCommand::ProcessMessage { message, from_peer, response } => {
+                GossipCommand::ProcessMessage {
+                    message,
+                    from_peer,
+                    response,
+                } => {
                     let msg_ctx = MessageProcessingContext {
                         message_cache: &ctx.message_cache,
                         peer_states: &ctx.peer_states,
@@ -475,16 +515,20 @@ impl GossipProtocol {
         // Add to cache
         {
             let mut cache = message_cache.write().await;
-            cache.insert(gossip_message.id.clone(), CacheEntry {
-                message: gossip_message.clone(),
-                first_seen: Instant::now(),
-                propagated_to: HashSet::new(),
-                propagation_count: 0,
-            });
+            cache.insert(
+                gossip_message.id.clone(),
+                CacheEntry {
+                    message: gossip_message.clone(),
+                    first_seen: Instant::now(),
+                    propagated_to: HashSet::new(),
+                    propagation_count: 0,
+                },
+            );
 
             // Cleanup old entries if cache is full
             if cache.len() > config.max_cache_size {
-                let oldest_key = cache.iter()
+                let oldest_key = cache
+                    .iter()
                     .min_by_key(|(_, entry)| entry.first_seen)
                     .map(|(key, _)| key.clone());
                 if let Some(key) = oldest_key {
@@ -515,14 +559,17 @@ impl GossipProtocol {
         peer_states: &Arc<RwLock<HashMap<PeerId, PeerGossipState>>>,
     ) -> P2PResult<()> {
         let mut states = peer_states.write().await;
-        states.insert(peer_id, PeerGossipState {
+        states.insert(
             peer_id,
-            last_heartbeat: Instant::now(),
-            messages_sent: 0,
-            messages_received: 0,
-            reliability_score: 1.0,
-            is_active: true,
-        });
+            PeerGossipState {
+                peer_id,
+                last_heartbeat: Instant::now(),
+                messages_sent: 0,
+                messages_received: 0,
+                reliability_score: 1.0,
+                is_active: true,
+            },
+        );
 
         debug!("Added peer to gossip network: {}", peer_id);
         Ok(())
@@ -560,10 +607,12 @@ impl GossipProtocol {
             if cache.contains_key(&message.id) {
                 ctx.stats.write().await.duplicates_filtered += 1;
                 if let Some(sender) = ctx.event_sender {
-                    let _ = sender.send(GossipEvent::DuplicateDetected {
-                        message_id: message.id,
-                        from_peer,
-                    }).await;
+                    let _ = sender
+                        .send(GossipEvent::DuplicateDetected {
+                            message_id: message.id,
+                            from_peer,
+                        })
+                        .await;
                 }
                 return Ok(());
             }
@@ -587,12 +636,15 @@ impl GossipProtocol {
         // Add to cache
         {
             let mut cache = ctx.message_cache.write().await;
-            cache.insert(message.id.clone(), CacheEntry {
-                message: message.clone(),
-                first_seen: Instant::now(),
-                propagated_to: HashSet::new(),
-                propagation_count: 0,
-            });
+            cache.insert(
+                message.id.clone(),
+                CacheEntry {
+                    message: message.clone(),
+                    first_seen: Instant::now(),
+                    propagated_to: HashSet::new(),
+                    propagation_count: 0,
+                },
+            );
         }
 
         // Forward message if TTL allows
@@ -613,10 +665,12 @@ impl GossipProtocol {
 
         // Send event
         if let Some(sender) = ctx.event_sender {
-            let _ = sender.send(GossipEvent::MessageReceived {
-                message: message.payload,
-                from_peer,
-            }).await;
+            let _ = sender
+                .send(GossipEvent::MessageReceived {
+                    message: message.payload,
+                    from_peer,
+                })
+                .await;
         }
 
         Ok(())
@@ -643,13 +697,8 @@ impl GossipProtocol {
             };
 
             if let Some(message) = message_to_propagate {
-                Self::propagate_message(
-                    message,
-                    &message_cache,
-                    &peer_states,
-                    &stats,
-                    &config,
-                ).await;
+                Self::propagate_message(message, &message_cache, &peer_states, &stats, &config)
+                    .await;
             }
         }
     }
@@ -665,7 +714,8 @@ impl GossipProtocol {
         // Select peers for propagation
         let selected_peers = {
             let states = peer_states.read().await;
-            let active_peers: Vec<PeerId> = states.values()
+            let active_peers: Vec<PeerId> = states
+                .values()
                 .filter(|state| state.is_active)
                 .map(|state| state.peer_id)
                 .collect();
@@ -673,12 +723,16 @@ impl GossipProtocol {
             // Select fanout number of peers
             let mut selected = Vec::new();
             let fanout = config.fanout.min(active_peers.len());
-            
+
             if config.enable_priority_propagation {
                 // Priority-based selection (select most reliable peers for high priority)
                 let mut sorted_peers: Vec<_> = states.values().collect();
-                sorted_peers.sort_by(|a, b| b.reliability_score.partial_cmp(&a.reliability_score).unwrap());
-                
+                sorted_peers.sort_by(|a, b| {
+                    b.reliability_score
+                        .partial_cmp(&a.reliability_score)
+                        .unwrap()
+                });
+
                 for peer in sorted_peers.iter().take(fanout) {
                     selected.push(peer.peer_id);
                 }
@@ -711,7 +765,11 @@ impl GossipProtocol {
             stats.messages_sent += selected_peers.len() as u64;
         }
 
-        debug!("Propagated message {} to {} peers", message.id, selected_peers.len());
+        debug!(
+            "Propagated message {} to {} peers",
+            message.id,
+            selected_peers.len()
+        );
     }
 
     /// Start maintenance task
@@ -759,4 +817,3 @@ impl GossipProtocol {
         });
     }
 }
-

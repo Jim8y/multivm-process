@@ -218,4 +218,3 @@ pub fn health_status_to_metric(status: &crate::network::NetworkHealthStatus) -> 
         crate::network::NetworkHealthStatus::Critical => 0.0,
     }
 }
-

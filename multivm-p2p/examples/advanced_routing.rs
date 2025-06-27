@@ -72,11 +72,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (i, msg) in messages.iter().enumerate() {
         let msg_type = msg.infer_type();
         let routing_strategy = determine_routing_strategy(&msg_type);
-        
+
         println!("Message {}: {:?}", i + 1, msg.id);
-        println!("  Type: {:?}", msg_type);
+        println!("  Type: {msg_type:?}");
         println!("  Target: {:?}", msg.target);
-        println!("  Routing Strategy: {:?}", routing_strategy);
+        println!("  Routing Strategy: {routing_strategy:?}");
         println!("  Size: {} bytes", msg.estimated_size());
         println!();
     }
@@ -85,7 +85,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Message Filtering:");
     let high_priority_messages: Vec<_> = messages
         .iter()
-        .filter(|msg| matches!(msg.infer_type(), MessageType::Control | MessageType::Discovery))
+        .filter(|msg| {
+            matches!(
+                msg.infer_type(),
+                MessageType::Control | MessageType::Discovery
+            )
+        })
         .collect();
 
     println!("High priority messages: {}", high_priority_messages.len());
@@ -99,15 +104,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example 4: Create targeted messages
     println!("\nTargeted Message Examples:");
-    
+
     let peer_message = NetworkMessage::new(
         MessagePayload::Control(ControlMessage::StatusRequest),
         MessageSource::NetworkLayer,
         MessageTarget::Peer("specific_peer_123".to_string()),
     );
-    
+
     println!("Peer message target: {:?}", peer_message.target_peer());
-    
+
     let local_message = NetworkMessage::new(
         MessagePayload::Svm(SvmMessage::Transaction {
             transaction_data: Box::new(vec![9, 10, 11]),
@@ -116,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         MessageSource::NetworkLayer,
         MessageTarget::Local(VmType::Svm),
     );
-    
+
     println!("Local message for VM: {:?}", local_message.is_local());
 
     println!("\nAdvanced routing examples completed successfully!");

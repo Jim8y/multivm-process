@@ -262,7 +262,12 @@ impl ProductionRedisCache {
     }
 
     /// Set value with circuit breaker
-    pub async fn set<T>(&self, key: &str, value: &T, _ttl: Option<Duration>) -> ApplicationResult<()>
+    pub async fn set<T>(
+        &self,
+        key: &str,
+        value: &T,
+        _ttl: Option<Duration>,
+    ) -> ApplicationResult<()>
     where
         T: Serialize,
     {
@@ -821,7 +826,8 @@ impl ProductionRedisCache {
         // Check if we should transition to half-open
         if state.state == CircuitBreakerState::Open {
             if let Some(last_failure) = state.last_failure {
-                if last_failure.elapsed() > Duration::from_secs(self.config.circuit_breaker_timeout) {
+                if last_failure.elapsed() > Duration::from_secs(self.config.circuit_breaker_timeout)
+                {
                     state.state = CircuitBreakerState::HalfOpen;
                     info!("Circuit breaker half-open, allowing test request");
                 }

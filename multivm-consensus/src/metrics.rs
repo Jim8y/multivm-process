@@ -472,7 +472,7 @@ pub struct JsonExporter;
 impl MetricsExporter for JsonExporter {
     async fn export(&self, metrics: &AggregatedMetrics) -> Result<String, String> {
         serde_json::to_string_pretty(metrics)
-            .map_err(|e| format!("Failed to serialize metrics: {}", e))
+            .map_err(|e| format!("Failed to serialize metrics: {e}"))
     }
 }
 

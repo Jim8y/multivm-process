@@ -4,15 +4,15 @@
 //! It collects transactions from memory pools, prioritizes them, and builds candidate blocks
 //! for consensus processing.
 
-use multivm_common::{MultivmError, MultivmResult};
-use multivm_consensus::block::{MultiVMBlock, SvmTransaction, EvmTransaction};
 use multivm_account_mapping::special_tx::SpecialTransaction;
-use std::collections::{BinaryHeap, HashMap};
-use std::cmp::Ordering;
-use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, RwLock, Mutex};
-use tracing::{debug, error, info, warn};
+use multivm_common::{MultivmError, MultivmResult};
+use multivm_consensus::block::{EvmTransaction, MultiVMBlock, SvmTransaction};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, Mutex, RwLock};
+use tracing::{debug, error, info, warn};
 
 /// Transaction batcher configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,12 +193,12 @@ impl PrioritizedTransaction {
             Transaction::Svm(svm_tx) => svm_tx.id.to_string(),
             Transaction::Evm(evm_tx) => evm_tx.hash.clone(),
             Transaction::MultiVm(mv_tx) => {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 let serialized = serde_json::to_string(mv_tx).unwrap_or_default();
                 let mut hasher = Sha256::new();
                 hasher.update(serialized.as_bytes());
                 format!("multivm_{:x}", hasher.finalize())
-            },
+            }
         }
     }
 
@@ -273,7 +273,7 @@ impl TransactionBatcher {
     /// Start transaction batcher
     pub async fn start(&mut self) -> MultivmResult<()> {
         info!("Starting transaction batcher");
-        
+
         {
             let mut running = self.is_running.write().await;
             if *running {
@@ -305,8 +305,8 @@ impl TransactionBatcher {
 
                 // Process batch request
                 Some(batch_request) = self.batch_receiver.recv() => {
-                    let result = self.build_batch(batch_request.block_height, 
-                                                 batch_request.parent_hash, 
+                    let result = self.build_batch(batch_request.block_height,
+                                                 batch_request.parent_hash,
                                                  batch_request.proposer).await;
                     let _ = batch_request.response.send(result);
                 }
@@ -347,8 +347,10 @@ impl TransactionBatcher {
         // Pre-validation (if enabled)
         let mut prioritized_tx = prioritized_tx;
         if self.config.enable_prevalidation {
-            prioritized_tx.prevalidation_status = self.prevalidate_transaction(&prioritized_tx.transaction).await;
-            
+            prioritized_tx.prevalidation_status = self
+                .prevalidate_transaction(&prioritized_tx.transaction)
+                .await;
+
             if let PrevalidationStatus::Invalid(reason) = &prioritized_tx.prevalidation_status {
                 warn!("Transaction prevalidation failed: {} - {}", tx_hash, reason);
                 return Ok(());
@@ -379,13 +381,18 @@ impl TransactionBatcher {
     }
 
     /// Build transaction batch
-    async fn build_batch(&self, block_height: u64, parent_hash: String, proposer: String) -> MultivmResult<BatchResult> {
+    async fn build_batch(
+        &self,
+        block_height: u64,
+        parent_hash: String,
+        proposer: String,
+    ) -> MultivmResult<BatchResult> {
         let start_time = Instant::now();
         info!("Building batch for block height: {}", block_height);
 
         // Create new block
         let mut block = MultiVMBlock::new(block_height, parent_hash, proposer, vec![]);
-        
+
         let mut transaction_count = 0;
         let mut current_size = 0;
         let mut discarded_transactions = Vec::new();
@@ -397,28 +404,35 @@ impl TransactionBatcher {
             &mut transaction_count,
             &mut current_size,
             &mut discarded_transactions,
-        ).await?;
+        )
+        .await?;
 
         // Collect EVM transactions
-        if transaction_count < self.config.max_batch_size && current_size < self.config.max_block_size {
+        if transaction_count < self.config.max_batch_size
+            && current_size < self.config.max_block_size
+        {
             self.collect_transactions_from_queue(
                 &self.evm_priority_queue,
                 &mut block,
                 &mut transaction_count,
                 &mut current_size,
                 &mut discarded_transactions,
-            ).await?;
+            )
+            .await?;
         }
 
         // Collect SVM transactions
-        if transaction_count < self.config.max_batch_size && current_size < self.config.max_block_size {
+        if transaction_count < self.config.max_batch_size
+            && current_size < self.config.max_block_size
+        {
             self.collect_transactions_from_queue(
                 &self.svm_priority_queue,
                 &mut block,
                 &mut transaction_count,
                 &mut current_size,
                 &mut discarded_transactions,
-            ).await?;
+            )
+            .await?;
         }
 
         // Complete block construction
@@ -427,8 +441,10 @@ impl TransactionBatcher {
         let build_duration = start_time.elapsed();
         let block_size = block.size_bytes();
 
-        info!("Batch built: {} transactions, {} bytes, {:?} duration", 
-              transaction_count, block_size, build_duration);
+        info!(
+            "Batch built: {} transactions, {} bytes, {:?} duration",
+            transaction_count, block_size, build_duration
+        );
 
         Ok(BatchResult {
             block,
@@ -472,14 +488,17 @@ impl TransactionBatcher {
 
             // Check if transaction is expired
             if prioritized_tx.arrival_time.elapsed() > self.config.max_wait_time {
-                discarded.push((prioritized_tx.transaction, "Transaction expired".to_string()));
+                discarded.push((
+                    prioritized_tx.transaction,
+                    "Transaction expired".to_string(),
+                ));
                 continue;
             }
 
             // Extract needed values before moving transaction
             let tx_size = prioritized_tx.get_size();
             let tx_hash = prioritized_tx.get_hash();
-            
+
             // Add transaction to block
             match prioritized_tx.transaction {
                 Transaction::Svm(svm_tx) => {
@@ -607,7 +626,11 @@ impl TransactionBatcher {
         let mut oldest_time = Instant::now();
 
         // Check all queues
-        for queue in [&self.svm_priority_queue, &self.evm_priority_queue, &self.multivm_priority_queue] {
+        for queue in [
+            &self.svm_priority_queue,
+            &self.evm_priority_queue,
+            &self.multivm_priority_queue,
+        ] {
             let queue_guard = queue.lock().await;
             for tx in queue_guard.iter() {
                 total_priority += tx.priority;
@@ -674,7 +697,9 @@ pub struct TransactionBatcherHandle {
 impl TransactionBatcherHandle {
     /// Submit new transaction
     pub async fn submit_transaction(&self, transaction: Transaction) -> MultivmResult<()> {
-        self.transaction_sender.send(transaction).await
+        self.transaction_sender
+            .send(transaction)
+            .await
             .map_err(|_| MultivmError::Network {
                 message: "Failed to send transaction".to_string(),
                 endpoint: None,
@@ -683,9 +708,14 @@ impl TransactionBatcherHandle {
     }
 
     /// Request batch construction
-    pub async fn request_batch(&self, block_height: u64, parent_hash: String, proposer: String) -> MultivmResult<BatchResult> {
+    pub async fn request_batch(
+        &self,
+        block_height: u64,
+        parent_hash: String,
+        proposer: String,
+    ) -> MultivmResult<BatchResult> {
         let (response_sender, response_receiver) = tokio::sync::oneshot::channel();
-        
+
         let request = BatchRequest {
             block_height,
             parent_hash,
@@ -693,19 +723,20 @@ impl TransactionBatcherHandle {
             response: response_sender,
         };
 
-        self.batch_sender.send(request).await
+        self.batch_sender
+            .send(request)
+            .await
             .map_err(|_| MultivmError::Network {
                 message: "Failed to send batch request".to_string(),
                 endpoint: None,
                 retry_after: None,
             })?;
 
-        response_receiver.await
-            .map_err(|_| MultivmError::Network {
-                message: "Failed to receive batch response".to_string(),
-                endpoint: None,
-                retry_after: None,
-            })?
+        response_receiver.await.map_err(|_| MultivmError::Network {
+            message: "Failed to receive batch response".to_string(),
+            endpoint: None,
+            retry_after: None,
+        })?
     }
 
     /// Get memory pool statistics
@@ -718,4 +749,3 @@ impl TransactionBatcherHandle {
         *self.is_running.read().await
     }
 }
-

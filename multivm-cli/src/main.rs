@@ -92,16 +92,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if matches.get_flag("migrate-config") {
         return handle_config_migration(&config_path).await;
     }
-    
+
     // Handle database operations
     if matches.get_flag("db-info") {
         return handle_db_info(&data_dir).await;
     }
-    
+
     if matches.get_flag("db-cleanup") {
         return handle_db_cleanup(&data_dir).await;
     }
-    
+
     if let Some(backup_dir) = matches.get_one::<String>("db-backup") {
         return handle_db_backup(&data_dir, backup_dir).await;
     }
@@ -122,17 +122,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Consensus functionality temporarily disabled due to dependency conflicts
     info!("Starting in minimal mode (consensus disabled)");
-    
+
     // Initialize process manager with the loaded config
     let manager = MultivmProcessManager::new(_unified_config).await?;
     info!("Process manager initialized");
-    
+
     // Basic block generation parameters
     let block_interval_ms = std::env::var("BLOCK_INTERVAL_MS")
         .unwrap_or_else(|_| "2000".to_string())
         .parse()
         .unwrap_or(2000);
-    
+
     // Validate block interval for security
     let validated_interval = validation::validate_block_interval(block_interval_ms)?;
     let block_interval = validated_interval;
@@ -141,7 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("MultiVM Node is running in minimal mode...");
     info!("Using data directory: {:?}", data_dir);
     info!("Block interval configured: {} ms", block_interval);
-    
+
     // Note: Consensus and block generation disabled until dependency conflicts are resolved
     info!("Note: Consensus and automatic block generation are temporarily disabled");
 
@@ -151,10 +151,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown
     info!("Shutting down MultiVM Node...");
-    
+
     // Shutdown process manager
     manager.shutdown(true).await?;
-    
+
     info!("MultiVM Node stopped successfully");
 
     Ok(())
@@ -225,7 +225,7 @@ async fn handle_config_migration(config_path: &Path) -> Result<(), Box<dyn std::
     if !migration_result.warnings.is_empty() {
         println!("⚠️  Migration warnings:");
         for warning in &migration_result.warnings {
-            println!("   • {}", warning);
+            println!("   • {warning}");
         }
         println!();
     }
@@ -242,8 +242,7 @@ async fn handle_config_migration(config_path: &Path) -> Result<(), Box<dyn std::
 
     println!("✅ Configuration migration completed!");
     println!(
-        "📄 Unified configuration saved to: {:?}",
-        unified_config_path
+        "📄 Unified configuration saved to: {unified_config_path:?}"
     );
 
     // Generate migration report
@@ -251,7 +250,7 @@ async fn handle_config_migration(config_path: &Path) -> Result<(), Box<dyn std::
     let report_path = unified_config_path.with_file_name("migration-report.md");
     tokio::fs::write(&report_path, report).await?;
 
-    println!("📋 Migration report saved to: {:?}", report_path);
+    println!("📋 Migration report saved to: {report_path:?}");
     println!();
     println!("🚀 Next steps:");
     println!("   1. Review the generated unified configuration");
@@ -264,16 +263,16 @@ async fn handle_config_migration(config_path: &Path) -> Result<(), Box<dyn std::
 
 async fn handle_db_info(data_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     info!("Checking RocksDB database information...");
-    
+
     let account_mapping_db = data_dir.join("account_mapping.db");
     let consensus_state_db = data_dir.join("consensus_state.db");
-    
+
     println!("\n=== MultiVM RocksDB Database Information ===\n");
-    
+
     // Check account mapping database
     if account_mapping_db.exists() {
         println!("Account Mapping Database:");
-        println!("  Path: {:?}", account_mapping_db);
+        println!("  Path: {account_mapping_db:?}");
         if let Ok(size) = get_directory_size(&account_mapping_db) {
             println!("  Size: {:.2} MB", size as f64 / 1_048_576.0);
         }
@@ -282,11 +281,11 @@ async fn handle_db_info(data_dir: &Path) -> Result<(), Box<dyn std::error::Error
         println!("Account Mapping Database: Not found");
         println!();
     }
-    
+
     // Check consensus state database
     if consensus_state_db.exists() {
         println!("Consensus State Database:");
-        println!("  Path: {:?}", consensus_state_db);
+        println!("  Path: {consensus_state_db:?}");
         if let Ok(size) = get_directory_size(&consensus_state_db) {
             println!("  Size: {:.2} MB", size as f64 / 1_048_576.0);
         }
@@ -295,85 +294,88 @@ async fn handle_db_info(data_dir: &Path) -> Result<(), Box<dyn std::error::Error
         println!("Consensus State Database: Not found");
         println!();
     }
-    
+
     println!("Total Databases: 2");
-    
+
     Ok(())
 }
 
 async fn handle_db_cleanup(_data_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting RocksDB cleanup...");
-    
+
     // In a production system, this would:
     // 1. Open each RocksDB instance
     // 2. Run compaction
     // 3. Delete old checkpoints
     // 4. Optimize storage
-    
+
     println!("Database cleanup completed successfully!");
     println!("Note: Full cleanup requires the node to be stopped.");
-    
+
     Ok(())
 }
 
-async fn handle_db_backup(data_dir: &Path, backup_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_db_backup(
+    data_dir: &Path,
+    backup_dir: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting RocksDB backup to: {}", backup_dir);
-    
+
     let backup_path = Path::new(backup_dir);
     std::fs::create_dir_all(backup_path)?;
-    
+
     let account_mapping_db = data_dir.join("account_mapping.db");
     let consensus_state_db = data_dir.join("consensus_state.db");
-    
+
     // Copy databases to backup directory
     if account_mapping_db.exists() {
         let target = backup_path.join("account_mapping.db");
         info!("Backing up account mapping database...");
         copy_dir_all(&account_mapping_db, &target)?;
     }
-    
+
     if consensus_state_db.exists() {
         let target = backup_path.join("consensus_state.db");
         info!("Backing up consensus state database...");
         copy_dir_all(&consensus_state_db, &target)?;
     }
-    
+
     println!("Database backup completed successfully!");
-    println!("Backup location: {}", backup_dir);
-    
+    println!("Backup location: {backup_dir}");
+
     Ok(())
 }
 
 fn get_directory_size(path: &Path) -> std::io::Result<u64> {
     let mut size = 0;
-    
+
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let metadata = entry.metadata()?;
-        
+
         if metadata.is_file() {
             size += metadata.len();
         } else if metadata.is_dir() {
             size += get_directory_size(&entry.path())?;
         }
     }
-    
+
     Ok(size)
 }
 
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
-    
+
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let ty = entry.file_type()?;
-        
+
         if ty.is_dir() {
             copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
         } else {
             std::fs::copy(entry.path(), dst.join(entry.file_name()))?;
         }
     }
-    
+
     Ok(())
 }

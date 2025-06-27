@@ -1,5 +1,5 @@
 use crate::ProcessHandle;
-use multivm_common::{*, HealthInfo};
+use multivm_common::{HealthInfo, *};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -20,10 +20,7 @@ impl HealthMonitor {
     }
 
     /// Check the health of a specific process
-    pub async fn check_process_health(
-        &self,
-        handle: &ProcessHandle,
-    ) -> MultivmResult<HealthInfo> {
+    pub async fn check_process_health(&self, handle: &ProcessHandle) -> MultivmResult<HealthInfo> {
         let process_id = handle.process_id;
 
         // Check if process is still running
@@ -77,7 +74,7 @@ impl HealthMonitor {
                     cpu_usage_percent: 0.0,
                     rpc_active: false,
                     errors_count: 1,
-                    last_error: Some(format!("IPC health check failed: {}", e)),
+                    last_error: Some(format!("IPC health check failed: {e}")),
                     timestamp: std::time::SystemTime::now(),
                 })
             }

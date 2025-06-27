@@ -1,6 +1,6 @@
 use multivm_common::{
+    config::{BlockchainClientConfig, IpcConfig, IpcTransportConfig},
     *,
-    config::{BlockchainClientConfig, IpcConfig, IpcTransportConfig}
 };
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -143,9 +143,12 @@ impl ProcessHandle {
 
         // Check if we're in test mode (binary not found is ok for tests)
         let is_test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok() || cfg!(test);
-        
+
         if is_test_mode && !self.binary_path.exists() {
-            tracing::info!("Running in test mode - skipping actual process spawn for {}", self.process_id);
+            tracing::info!(
+                "Running in test mode - skipping actual process spawn for {}",
+                self.process_id
+            );
             // Record the start time for accurate uptime calculation
             *self.start_time.lock().await = Some(Instant::now());
             // Mark the end of any ongoing downtime period
@@ -154,12 +157,10 @@ impl ProcessHandle {
         }
 
         // Ensure working directory exists
-        std::fs::create_dir_all(&self.working_dir).map_err(|e| {
-            MultivmError::Process {
-                process_id: format!("{:?}", self.process_id),
-                message: format!("Failed to create working directory: {}", e),
-                exit_code: None,
-            }
+        std::fs::create_dir_all(&self.working_dir).map_err(|e| MultivmError::Process {
+            process_id: format!("{:?}", self.process_id),
+            message: format!("Failed to create working directory: {e}"),
+            exit_code: None,
         })?;
 
         let mut cmd = Command::new(&self.binary_path);
@@ -170,13 +171,11 @@ impl ProcessHandle {
             .stdin(Stdio::null())
             .kill_on_drop(true);
 
-        let child = cmd
-            .spawn()
-            .map_err(|e| MultivmError::Process {
-                process_id: format!("{:?}", self.process_id),
-                message: format!("Failed to spawn process: {}", e),
-                exit_code: None,
-            })?;
+        let child = cmd.spawn().map_err(|e| MultivmError::Process {
+            process_id: format!("{:?}", self.process_id),
+            message: format!("Failed to spawn process: {e}"),
+            exit_code: None,
+        })?;
 
         let pid = child.id();
         *self.child.write().await = Some(child);
@@ -195,12 +194,12 @@ impl ProcessHandle {
     pub async fn is_running(&self) -> bool {
         // Check if we're in test mode
         let is_test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok() || cfg!(test);
-        
+
         if is_test_mode {
             // In test mode, consider process as running if start time is set
             return self.start_time.lock().await.is_some();
         }
-        
+
         let mut child_guard = self.child.write().await;
         if let Some(child) = child_guard.as_mut() {
             match child.try_wait() {
@@ -232,10 +231,13 @@ impl ProcessHandle {
 
         // Check if we're in test mode
         let is_test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok() || cfg!(test);
-        
+
         if is_test_mode {
             // In test mode, simulate successful command execution
-            tracing::debug!("Test mode: simulating successful command execution for {}", self.process_id);
+            tracing::debug!(
+                "Test mode: simulating successful command execution for {}",
+                self.process_id
+            );
             return Ok(IpcResponse::Ack);
         }
 
@@ -243,7 +245,10 @@ impl ProcessHandle {
         if !self.is_running().await {
             return Err(MultivmError::Process {
                 process_id: format!("{:?}", self.process_id),
-                message: format!("Cannot send command to stopped process: {}", self.process_id),
+                message: format!(
+                    "Cannot send command to stopped process: {}",
+                    self.process_id
+                ),
                 exit_code: None,
             });
         }
@@ -352,14 +357,14 @@ impl ProcessHandle {
 
         // Check if we're in test mode
         let is_test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok() || cfg!(test);
-        
+
         let is_running = if is_test_mode {
             // In test mode, consider process running if start_time is set
             self.start_time.lock().await.is_some()
         } else {
             self.is_running().await
         };
-        
+
         let rpc_responsive = if is_running && !is_test_mode {
             self.check_rpc_responsiveness().await.unwrap_or(false)
         } else if is_test_mode {
@@ -385,7 +390,7 @@ impl ProcessHandle {
             .build()
             .map_err(|e| MultivmError::Process {
                 process_id: format!("{:?}", self.process_id),
-                message: format!("Failed to create HTTP client: {}", e),
+                message: format!("Failed to create HTTP client: {e}"),
                 exit_code: None,
             })?;
 
@@ -649,7 +654,7 @@ impl ProcessHandle {
 fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
     // Check if we're in test mode
     let is_test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok() || cfg!(test);
-    
+
     // First, try to find it in the current workspace target directory
     let workspace_binary = PathBuf::from("target").join("debug").join(binary_name);
 
@@ -663,7 +668,7 @@ fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
     if release_binary.exists() {
         return Ok(release_binary.canonicalize().unwrap_or(release_binary));
     }
-    
+
     // In test mode, return a dummy path that will be handled by start()
     if is_test_mode {
         return Ok(PathBuf::from("/tmp").join(binary_name));
@@ -689,7 +694,10 @@ fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
 
             // If this Cargo.toml doesn't have our binaries, continue searching up
         }
-        current_dir = current_dir.parent().unwrap().to_path_buf();
+        current_dir = match current_dir.parent() {
+            Some(parent) => parent.to_path_buf(),
+            None => break, // Reached root directory
+        };
     }
 
     // Try system PATH
@@ -699,7 +707,7 @@ fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
 
     Err(MultivmError::Process {
         process_id: "unknown".to_string(),
-        message: format!("Could not find binary: {}", binary_name),
+        message: format!("Could not find binary: {binary_name}"),
         exit_code: None,
     })
 }
@@ -720,7 +728,7 @@ fn get_ipc_address(process_id: &ProcessId, ipc_config: &IpcConfig) -> String {
                 ProcessId::Ethereum => port + 2,
                 ProcessId::Main => *port,
             };
-            format!("{}:{}", host, process_port)
+            format!("{host}:{process_port}")
         }
     }
 }

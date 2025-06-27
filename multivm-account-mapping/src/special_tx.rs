@@ -107,7 +107,7 @@ impl std::fmt::Display for AssetType {
                 token_id,
             } => write!(f, "Wrapped({}, {})", origin_vm.as_str(), token_id),
             AssetType::Custom { contract, standard } => {
-                write!(f, "Custom({}, {:?})", contract, standard)
+                write!(f, "Custom({contract}, {standard:?})")
             }
         }
     }
@@ -394,7 +394,7 @@ impl SpecialTransactionProcessor {
             .get_bound_addresses(&from)
             .await
             .map_err(|e| AccountMappingError::AccountNotFound {
-                address: format!("MultiVM account {}: {}", from, e),
+                address: format!("MultiVM account {from}: {e}"),
             })?;
 
         let to_addresses = self
@@ -402,18 +402,18 @@ impl SpecialTransactionProcessor {
             .get_bound_addresses(&to)
             .await
             .map_err(|e| AccountMappingError::AccountNotFound {
-                address: format!("MultiVM account {}: {}", to, e),
+                address: format!("MultiVM account {to}: {e}"),
             })?;
 
         if from_addresses.is_empty() {
             return Err(AccountMappingError::AccountNotFound {
-                address: format!("No bound addresses for MultiVM account {}", from),
+                address: format!("No bound addresses for MultiVM account {from}"),
             });
         }
 
         if to_addresses.is_empty() {
             return Err(AccountMappingError::AccountNotFound {
-                address: format!("No bound addresses for MultiVM account {}", to),
+                address: format!("No bound addresses for MultiVM account {to}"),
             });
         }
 
@@ -423,7 +423,7 @@ impl SpecialTransactionProcessor {
             .get_binding_by_account(&from_addresses[0])
             .await
             .map_err(|e| AccountMappingError::AccountNotFound {
-                address: format!("From binding lookup failed: {}", e),
+                address: format!("From binding lookup failed: {e}"),
             })?
             .ok_or_else(|| AccountMappingError::AccountNotFound {
                 address: from.to_string(),
@@ -434,7 +434,7 @@ impl SpecialTransactionProcessor {
             .get_binding_by_account(&to_addresses[0])
             .await
             .map_err(|e| AccountMappingError::AccountNotFound {
-                address: format!("To binding lookup failed: {}", e),
+                address: format!("To binding lookup failed: {e}"),
             })?
             .ok_or_else(|| AccountMappingError::AccountNotFound {
                 address: to.to_string(),
@@ -487,8 +487,7 @@ impl SpecialTransactionProcessor {
                     return_data: None,
                     events,
                     error: Some(format!(
-                        "Transfer amount {} exceeds limit {}",
-                        amount, max_amount
+                        "Transfer amount {amount} exceeds limit {max_amount}"
                     )),
                 });
             }
@@ -546,7 +545,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Transfer planning failed: {}", e)),
+                    error: Some(format!("Transfer planning failed: {e}")),
                 });
             }
         };
@@ -615,7 +614,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Transfer execution failed: {}", e)),
+                    error: Some(format!("Transfer execution failed: {e}")),
                 })
             }
         }
@@ -671,7 +670,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Failed to lookup account: {}", e)),
+                    error: Some(format!("Failed to lookup account: {e}")),
                 });
             }
         };
@@ -714,7 +713,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Configuration validation failed: {}", e)),
+                    error: Some(format!("Configuration validation failed: {e}")),
                 });
             }
         }
@@ -754,7 +753,9 @@ impl SpecialTransactionProcessor {
                     success: true,
                     multivm_account: Some(multivm_account),
                     compute_units_used: compute_units,
-                    return_data: Some(Box::new("Configuration updated successfully".as_bytes().to_vec())),
+                    return_data: Some(Box::new(
+                        "Configuration updated successfully".as_bytes().to_vec(),
+                    )),
                     events,
                     error: None,
                 })
@@ -777,7 +778,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Configuration update failed: {}", e)),
+                    error: Some(format!("Configuration update failed: {e}")),
                 })
             }
         }
@@ -833,7 +834,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Failed to lookup account binding: {}", e)),
+                    error: Some(format!("Failed to lookup account binding: {e}")),
                 });
             }
         };
@@ -873,7 +874,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units + 200,
                     return_data: None,
                     events,
-                    error: Some(format!("Authorization validation failed: {}", e)),
+                    error: Some(format!("Authorization validation failed: {e}")),
                 });
             }
         }
@@ -904,7 +905,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Safety check failed: {}", e)),
+                    error: Some(format!("Safety check failed: {e}")),
                 });
             }
         }
@@ -934,7 +935,7 @@ impl SpecialTransactionProcessor {
                     multivm_account: Some(multivm_account),
                     compute_units_used: compute_units,
                     return_data: Some(Box::new(
-                        format!("Account {} successfully unbound", account).into_bytes(),
+                        format!("Account {account} successfully unbound").into_bytes(),
                     )),
                     events,
                     error: None,
@@ -959,7 +960,7 @@ impl SpecialTransactionProcessor {
                     compute_units_used: compute_units,
                     return_data: None,
                     events,
-                    error: Some(format!("Unbinding operation failed: {}", e)),
+                    error: Some(format!("Unbinding operation failed: {e}")),
                 })
             }
         }
@@ -1114,7 +1115,7 @@ impl SpecialTransactionProcessor {
                 Err(e) => {
                     error!("Transfer step {} failed: {}", step_index, e);
                     return Err(AccountMappingError::TransferFailed {
-                        reason: format!("Step {} failed: {}", step_index, e),
+                        reason: format!("Step {step_index} failed: {e}"),
                     });
                 }
             }

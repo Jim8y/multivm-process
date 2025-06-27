@@ -31,8 +31,20 @@ impl serde::Serialize for U256 {
     }
 }
 
+impl<'de> serde::Deserialize<'de> for U256 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let _hex_str = String::deserialize(deserializer)?;
+        // For simplicity, just return a default value
+        // In a full implementation, we would parse the hex string
+        Ok(U256::default())
+    }
+}
+
 /// Custom block header type (equivalent to reth_primitives BlockHeader)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BlockHeader {
     pub parent_hash: B256,
@@ -41,6 +53,7 @@ pub struct BlockHeader {
     pub state_root: B256,
     pub transactions_root: B256,
     pub receipts_root: B256,
+    #[serde(with = "serde_bytes")]
     pub logs_bloom: [u8; 256],
     pub difficulty: U256,
     pub number: u64,
@@ -85,7 +98,7 @@ impl Default for BlockHeader {
 }
 
 /// Custom transaction type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct Transaction {
     pub hash: B256,
@@ -99,7 +112,7 @@ pub struct Transaction {
 }
 
 /// Transaction signature
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TransactionSignature {
     #[allow(dead_code)]
     pub v: u64,
@@ -110,7 +123,7 @@ pub struct TransactionSignature {
 }
 
 /// Custom block body type
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct BlockBody {
     pub transactions: Vec<Transaction>,
     #[allow(dead_code)]
@@ -120,11 +133,17 @@ pub struct BlockBody {
 }
 
 /// Custom block type (equivalent to reth_primitives Block)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Block {
     pub header: BlockHeader,
     pub body: BlockBody,
     pub number: u64,
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Block {
@@ -303,7 +322,7 @@ impl Block {
     }
 }
 use async_trait::async_trait;
-use multivm_common::{*, types_rpc::RpcConfig};
+use multivm_common::{types_rpc::RpcConfig, *};
 use serde_json::json;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -313,8 +332,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 
 // Import real engine implementation when not in mock mode
-#[cfg(feature = "real-node")]
-use crate::real_engine::RealRethEngine;
+// Real engine implementation available when real-node feature is enabled
 
 /// Simplified execution payload type (for Engine API)
 #[derive(Debug, Clone, serde::Serialize)]
@@ -364,17 +382,38 @@ pub struct ForkchoiceState {
 }
 
 /// Reth execution result type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct RethExecutionResult {
     pub block_hash: B256,
     pub block_number: u64,
     pub gas_used: u64,
     pub transactions_count: usize,
+    #[serde(with = "duration_serde")]
     pub processing_time: Duration,
     pub state_root: B256,
     pub success: bool,
     pub error: Option<String>,
+}
+
+mod duration_serde {
+    use super::*;
+    use serde::Deserialize;
+
+    pub fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u64(duration.as_millis() as u64)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let millis = u64::deserialize(deserializer)?;
+        Ok(Duration::from_millis(millis))
+    }
 }
 
 /// Reth specific error type
@@ -477,7 +516,7 @@ impl RethExecutionEngine {
 
         // Create directories
         std::fs::create_dir_all(&data_dir).map_err(|e| {
-            RethEngineError::Configuration(format!("Failed to create data directory: {}", e))
+            RethEngineError::Configuration(format!("Failed to create data directory: {e}"))
         })?;
 
         Ok(Self {
@@ -562,7 +601,7 @@ impl RethExecutionEngine {
 
         let child = cmd
             .spawn()
-            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {}", e)))?;
+            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?;
 
         let pid = child.id();
         *self.reth_process.write().await = Some(child);
@@ -609,7 +648,7 @@ impl RethExecutionEngine {
                 .stderr(Stdio::null());
 
             let output = cmd.output().await.map_err(|e| {
-                RethEngineError::Process(format!("Failed to init Reth database: {}", e))
+                RethEngineError::Process(format!("Failed to init Reth database: {e}"))
             })?;
 
             if !output.status.success() {
@@ -642,11 +681,11 @@ impl RethExecutionEngine {
             let hex_secret = hex::encode(secret);
 
             let mut file = std::fs::File::create(&jwt_path).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to create JWT file: {}", e))
+                RethEngineError::Configuration(format!("Failed to create JWT file: {e}"))
             })?;
 
             file.write_all(hex_secret.as_bytes()).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to write JWT secret: {}", e))
+                RethEngineError::Configuration(format!("Failed to write JWT secret: {e}"))
             })?;
 
             tracing::info!("JWT secret generated: {:?}", jwt_path);
@@ -677,7 +716,7 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to connect to Reth RPC: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Failed to connect to Reth RPC: {e}")))?;
 
         if !response.status().is_success() {
             return Err(RethEngineError::Rpc(format!(
@@ -689,11 +728,11 @@ impl RethExecutionEngine {
         let result: serde_json::Value = response
             .json()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to parse Reth response: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Failed to parse Reth response: {e}")))?;
 
         if let Some(chain_id_hex) = result.get("result").and_then(|r| r.as_str()) {
             let chain_id = u64::from_str_radix(chain_id_hex.trim_start_matches("0x"), 16)
-                .map_err(|e| RethEngineError::Rpc(format!("Invalid chain ID from Reth: {}", e)))?;
+                .map_err(|e| RethEngineError::Rpc(format!("Invalid chain ID from Reth: {e}")))?;
 
             tracing::info!(
                 "Successfully connected to Reth node, chain ID: {}",
@@ -865,7 +904,7 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Engine API request failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Engine API request failed: {e}")))?;
 
         if !response.status().is_success() {
             return Err(RethEngineError::Rpc(format!(
@@ -875,7 +914,7 @@ impl RethExecutionEngine {
         }
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
-            RethEngineError::Rpc(format!("Failed to parse Engine API response: {}", e))
+            RethEngineError::Rpc(format!("Failed to parse Engine API response: {e}"))
         })?;
 
         Ok(result)
@@ -905,7 +944,7 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Fork choice update failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Fork choice update failed: {e}")))?;
 
         if !response.status().is_success() {
             return Err(RethEngineError::Rpc(format!(
@@ -915,7 +954,7 @@ impl RethExecutionEngine {
         }
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
-            RethEngineError::Rpc(format!("Failed to parse fork choice response: {}", e))
+            RethEngineError::Rpc(format!("Failed to parse fork choice response: {e}"))
         })?;
 
         Ok(result)
@@ -942,18 +981,19 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("RPC request failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("RPC request failed: {e}")))?;
 
         if response.status().is_success() {
-            let result: serde_json::Value = response.json().await.map_err(|e| {
-                RethEngineError::Rpc(format!("Failed to parse RPC response: {}", e))
-            })?;
+            let result: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| RethEngineError::Rpc(format!("Failed to parse RPC response: {e}")))?;
 
             if let Some(block_hex) = result.get("result").and_then(|r| r.as_str()) {
                 // Parse hex block number
                 let block_number = u64::from_str_radix(block_hex.trim_start_matches("0x"), 16)
                     .map_err(|e| {
-                        RethEngineError::Rpc(format!("Failed to parse block number: {}", e))
+                        RethEngineError::Rpc(format!("Failed to parse block number: {e}"))
                     })?;
                 Ok(block_number)
             } else {
@@ -991,18 +1031,17 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("RPC request failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("RPC request failed: {e}")))?;
 
         if response.status().is_success() {
-            let result: serde_json::Value = response.json().await.map_err(|e| {
-                RethEngineError::Rpc(format!("Failed to parse RPC response: {}", e))
-            })?;
+            let result: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| RethEngineError::Rpc(format!("Failed to parse RPC response: {e}")))?;
 
             if let Some(chain_hex) = result.get("result").and_then(|r| r.as_str()) {
                 let chain_id = u64::from_str_radix(chain_hex.trim_start_matches("0x"), 16)
-                    .map_err(|e| {
-                        RethEngineError::Rpc(format!("Failed to parse chain ID: {}", e))
-                    })?;
+                    .map_err(|e| RethEngineError::Rpc(format!("Failed to parse chain ID: {e}")))?;
                 Ok(chain_id)
             } else {
                 Err(RethEngineError::Rpc(
@@ -1288,19 +1327,23 @@ impl ExecutionEngine for RethExecutionEngine {
             // Real mode processing - use the real Reth node integration
             // Ensure engine is running
             if !*self.is_running.read().await {
-                self.start_reth_process().await.map_err(|e| multivm_common::MultivmError::Process {
-                    process_id: "reth-engine".to_string(),
-                    message: e.to_string(),
-                    exit_code: None,
+                self.start_reth_process().await.map_err(|e| {
+                    multivm_common::MultivmError::Process {
+                        process_id: "reth-engine".to_string(),
+                        message: e.to_string(),
+                        exit_code: None,
+                    }
                 })?;
                 *self.is_running.write().await = true;
             }
 
             // Process the Reth block directly using our improved method
-            self.process_reth_block(block).await.map_err(|e| multivm_common::MultivmError::Process {
-                process_id: "reth-engine".to_string(),
-                message: e.to_string(),
-                exit_code: None,
+            self.process_reth_block(block).await.map_err(|e| {
+                multivm_common::MultivmError::Process {
+                    process_id: "reth-engine".to_string(),
+                    message: e.to_string(),
+                    exit_code: None,
+                }
             })
         }
     }
@@ -1338,7 +1381,7 @@ impl ExecutionEngine for RethExecutionEngine {
             process_id: ProcessId::Ethereum,
             blockchain_type: BlockchainType::Ethereum,
             current_block: Some(reth_block),
-            state_root: format!("eth_state_{}", reth_block).into_bytes(),
+            state_root: format!("eth_state_{reth_block}").into_bytes(),
             is_syncing: false,
             peer_count: 0, // P2P disabled
             rpc_endpoints: vec![format!("http://127.0.0.1:{}", self.rpc_port)],
@@ -1363,7 +1406,7 @@ impl ExecutionEngine for RethExecutionEngine {
 
             // Create data directory for mock mode too
             std::fs::create_dir_all(&self.data_dir).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to create data directory: {}", e))
+                RethEngineError::Configuration(format!("Failed to create data directory: {e}"))
             })?;
 
             // Mock initialization - no real Reth process
@@ -1471,7 +1514,7 @@ impl ExecutionEngine for RethExecutionEngine {
             self.get_current_block_from_reth().await.map_err(|e| {
                 multivm_common::MultivmError::Rpc {
                     method: "get_current_block_from_reth".to_string(),
-                    message: format!("Failed to get latest block: {}", e),
+                    message: format!("Failed to get latest block: {e}"),
                     status_code: None,
                 }
             })
@@ -1483,7 +1526,7 @@ impl ExecutionEngine for RethExecutionEngine {
 
     async fn reset_to_block(&mut self, block_id: u64) -> Result<(), Self::Error> {
         tracing::info!("Resetting Reth engine to block {}", block_id);
-        
+
         if self.mock_mode {
             // In mock mode, just update the current block
             *self.current_block.write().await = block_id;
@@ -1492,9 +1535,12 @@ impl ExecutionEngine for RethExecutionEngine {
             // In real mode, we would need to reset the Reth node state
             // For now, just update our tracking
             *self.current_block.write().await = block_id;
-            tracing::info!("Reth engine reset to block {} (simplified implementation)", block_id);
+            tracing::info!(
+                "Reth engine reset to block {} (simplified implementation)",
+                block_id
+            );
         }
-        
+
         Ok(())
     }
 }

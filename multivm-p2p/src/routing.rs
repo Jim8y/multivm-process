@@ -331,9 +331,9 @@ impl MessageRouter {
                 if let Ok(peer_id) = peer_id_str.parse() {
                     self.direct_message(message, peer_id).await
                 } else {
-                    Err(P2PError::Internal(format!("Invalid peer ID: {}", peer_id_str)).into())
+                    Err(P2PError::Internal(format!("Invalid peer ID: {peer_id_str}")).into())
                 }
-            },
+            }
             RoutingStrategy::DHT(key) => self.dht_route_message(message, key).await,
             RoutingStrategy::Gossip(topic) => self.gossip_message(message, topic).await,
             RoutingStrategy::Random(count) => self.random_route_message(message, count).await,
@@ -388,7 +388,7 @@ impl MessageRouter {
         self.message_sender
             .send((peer_id, message))
             .await
-            .map_err(|e| P2PError::Internal(format!("Failed to send direct message: {}", e)).into())
+            .map_err(|e| P2PError::Internal(format!("Failed to send direct message: {e}")).into())
     }
 
     /// Route message using DHT

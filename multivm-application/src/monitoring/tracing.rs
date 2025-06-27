@@ -31,7 +31,10 @@ impl TracingService {
         tracing::info!(
             "Initializing distributed tracing: service_name={}, endpoint={:?}",
             "multivm-application",
-            self.config.prometheus_endpoint.as_deref().unwrap_or("http://localhost:9090")
+            self.config
+                .prometheus_endpoint
+                .as_deref()
+                .unwrap_or("http://localhost:9090")
         );
 
         // Set up OpenTelemetry tracing backend

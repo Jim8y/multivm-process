@@ -1,3 +1,9 @@
+//! Solana RPC Server
+//!
+//! This module implements the JSON-RPC server for the Solana execution engine,
+//! providing standard Solana RPC methods for transaction submission, account queries,
+//! and blockchain state inspection.
+
 use jsonrpc_core::{Error as JsonRpcError, IoHandler, Params, Value};
 use jsonrpc_http_server::{RestApi, ServerBuilder};
 use crate::common::*;

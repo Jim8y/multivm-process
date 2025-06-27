@@ -3,9 +3,9 @@
 //! This module contains helper functions for JWT authentication, transaction encoding,
 //! database initialization, and other utility operations.
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use crate::engine::{RethEngineError, Transaction};
 use crate::real_engine::RealRethEngine;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::process::Command;
@@ -30,7 +30,7 @@ impl RealRethEngine {
                 .stderr(std::process::Stdio::null());
 
             let output = cmd.output().await.map_err(|e| {
-                RethEngineError::Process(format!("Failed to init Reth database: {}", e))
+                RethEngineError::Process(format!("Failed to init Reth database: {e}"))
             })?;
 
             if !output.status.success() {
@@ -60,11 +60,11 @@ impl RealRethEngine {
             let hex_secret = hex::encode(secret);
 
             let mut file = std::fs::File::create(&jwt_path).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to create JWT file: {}", e))
+                RethEngineError::Configuration(format!("Failed to create JWT file: {e}"))
             })?;
 
             file.write_all(hex_secret.as_bytes()).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to write JWT secret: {}", e))
+                RethEngineError::Configuration(format!("Failed to write JWT secret: {e}"))
             })?;
 
             info!("JWT secret generated: {:?}", jwt_path);
@@ -72,7 +72,7 @@ impl RealRethEngine {
 
         // Load the JWT secret into memory
         let jwt_content = std::fs::read_to_string(&jwt_path).map_err(|e| {
-            RethEngineError::Configuration(format!("Failed to read JWT secret: {}", e))
+            RethEngineError::Configuration(format!("Failed to read JWT secret: {e}"))
         })?;
 
         *self.jwt_secret.write().await = Some(jwt_content.trim().to_string());
@@ -99,7 +99,7 @@ impl RealRethEngine {
         // Create JWT payload with current timestamp
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_err(|e| RethEngineError::Configuration(format!("System time error: {}", e)))?
+            .map_err(|e| RethEngineError::Configuration(format!("System time error: {e}")))?
             .as_secs();
 
         let payload = serde_json::json!({
@@ -110,34 +110,37 @@ impl RealRethEngine {
         // Encode header and payload
         let header_b64 = URL_SAFE_NO_PAD.encode(
             serde_json::to_string(&header)
-                .map_err(|e| RethEngineError::Configuration(format!("Failed to serialize header: {}", e)))?
+                .map_err(|e| {
+                    RethEngineError::Configuration(format!("Failed to serialize header: {e}"))
+                })?
                 .as_bytes(),
         );
 
         let payload_b64 = URL_SAFE_NO_PAD.encode(
             serde_json::to_string(&payload)
-                .map_err(|e| RethEngineError::Configuration(format!("Failed to serialize payload: {}", e)))?
+                .map_err(|e| {
+                    RethEngineError::Configuration(format!("Failed to serialize payload: {e}"))
+                })?
                 .as_bytes(),
         );
 
         // Create signature
-        let message = format!("{}.{}", header_b64, payload_b64);
+        let message = format!("{header_b64}.{payload_b64}");
         let secret_bytes = hex::decode(secret).map_err(|e| {
-            RethEngineError::Configuration(format!("Invalid JWT secret format: {}", e))
+            RethEngineError::Configuration(format!("Invalid JWT secret format: {e}"))
         })?;
 
-        let mut mac = hmac::Hmac::<Sha256>::new_from_slice(&secret_bytes).map_err(|e| {
-            RethEngineError::Configuration(format!("Failed to create HMAC: {}", e))
-        })?;
+        let mut mac = hmac::Hmac::<Sha256>::new_from_slice(&secret_bytes)
+            .map_err(|e| RethEngineError::Configuration(format!("Failed to create HMAC: {e}")))?;
 
         use hmac::Mac;
         mac.update(message.as_bytes());
         let signature = mac.finalize().into_bytes();
 
-        let signature_b64 = URL_SAFE_NO_PAD.encode(&signature);
+        let signature_b64 = URL_SAFE_NO_PAD.encode(signature);
 
         // Combine into final JWT
-        let jwt = format!("{}.{}.{}", header_b64, payload_b64, signature_b64);
+        let jwt = format!("{header_b64}.{payload_b64}.{signature_b64}");
         Ok(jwt)
     }
 
@@ -172,17 +175,18 @@ impl RealRethEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("RPC request failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("RPC request failed: {e}")))?;
 
         if response.status().is_success() {
-            let result: Value = response.json().await.map_err(|e| {
-                RethEngineError::Rpc(format!("Failed to parse RPC response: {}", e))
-            })?;
+            let result: Value = response
+                .json()
+                .await
+                .map_err(|e| RethEngineError::Rpc(format!("Failed to parse RPC response: {e}")))?;
 
             if let Some(block_hex) = result.get("result").and_then(|r| r.as_str()) {
                 let block_number = u64::from_str_radix(block_hex.trim_start_matches("0x"), 16)
                     .map_err(|e| {
-                        RethEngineError::Rpc(format!("Failed to parse block number: {}", e))
+                        RethEngineError::Rpc(format!("Failed to parse block number: {e}"))
                     })?;
                 Ok(block_number)
             } else {
@@ -218,17 +222,17 @@ impl RealRethEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Gas estimation request failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Gas estimation request failed: {e}")))?;
 
         if response.status().is_success() {
             let result: Value = response.json().await.map_err(|e| {
-                RethEngineError::Rpc(format!("Failed to parse gas estimation response: {}", e))
+                RethEngineError::Rpc(format!("Failed to parse gas estimation response: {e}"))
             })?;
 
             if let Some(gas_hex) = result.get("result").and_then(|r| r.as_str()) {
                 let gas_estimate = u64::from_str_radix(gas_hex.trim_start_matches("0x"), 16)
                     .map_err(|e| {
-                        RethEngineError::Rpc(format!("Failed to parse gas estimate: {}", e))
+                        RethEngineError::Rpc(format!("Failed to parse gas estimate: {e}"))
                     })?;
                 Ok(gas_estimate)
             } else {
@@ -264,19 +268,18 @@ impl RealRethEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Transaction submission failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Transaction submission failed: {e}")))?;
 
         if response.status().is_success() {
             let result: Value = response.json().await.map_err(|e| {
-                RethEngineError::Rpc(format!("Failed to parse transaction response: {}", e))
+                RethEngineError::Rpc(format!("Failed to parse transaction response: {e}"))
             })?;
 
             if let Some(tx_hash) = result.get("result").and_then(|r| r.as_str()) {
                 Ok(tx_hash.to_string())
             } else if let Some(error) = result.get("error") {
                 Err(RethEngineError::Rpc(format!(
-                    "Transaction rejected: {}",
-                    error
+                    "Transaction rejected: {error}"
                 )))
             } else {
                 Err(RethEngineError::Rpc(
@@ -292,7 +295,10 @@ impl RealRethEngine {
     }
 
     /// Get transaction receipt
-    pub async fn get_transaction_receipt(&self, tx_hash: &str) -> Result<Option<Value>, RethEngineError> {
+    pub async fn get_transaction_receipt(
+        &self,
+        tx_hash: &str,
+    ) -> Result<Option<Value>, RethEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -311,11 +317,11 @@ impl RealRethEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::Rpc(format!("Receipt request failed: {}", e)))?;
+            .map_err(|e| RethEngineError::Rpc(format!("Receipt request failed: {e}")))?;
 
         if response.status().is_success() {
             let result: Value = response.json().await.map_err(|e| {
-                RethEngineError::Rpc(format!("Failed to parse receipt response: {}", e))
+                RethEngineError::Rpc(format!("Failed to parse receipt response: {e}"))
             })?;
 
             if let Some(receipt) = result.get("result") {
@@ -545,7 +551,10 @@ impl RealRethEngine {
     }
 
     /// Gracefully shutdown the real Reth engine
-    pub async fn shutdown(&mut self, timeout: Option<std::time::Duration>) -> Result<(), RethEngineError> {
+    pub async fn shutdown(
+        &mut self,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<(), RethEngineError> {
         info!("Shutting down real Reth execution engine");
 
         *self.is_running.write().await = false;

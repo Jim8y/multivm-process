@@ -65,24 +65,44 @@ async fn setup_shutdown_signal() {
 
     #[cfg(unix)]
     {
-        let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("Failed to install SIGTERM handler");
-        let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())
-            .expect("Failed to install SIGINT handler");
-
-        tokio::select! {
-            _ = sigterm.recv() => {
-                info!("Received SIGTERM");
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut sigterm) => {
+                match signal::unix::signal(signal::unix::SignalKind::interrupt()) {
+                    Ok(mut sigint) => {
+                        tokio::select! {
+                            _ = sigterm.recv() => {
+                                info!("Received SIGTERM");
+                            }
+                            _ = sigint.recv() => {
+                                info!("Received SIGINT");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to install SIGINT handler: {}", e);
+                        // Fall back to just waiting for SIGTERM
+                        let _ = sigterm.recv().await;
+                        info!("Received SIGTERM");
+                    }
+                }
             }
-            _ = sigint.recv() => {
-                info!("Received SIGINT");
+            Err(e) => {
+                error!(
+                    "Failed to install signal handlers: {}. Shutting down immediately.",
+                    e
+                );
             }
         }
     }
 
     #[cfg(not(unix))]
     {
-        signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
-        info!("Received Ctrl+C");
+        match signal::ctrl_c().await {
+            Ok(()) => info!("Received Ctrl+C"),
+            Err(e) => error!(
+                "Failed to listen for ctrl+c: {}. Shutting down immediately.",
+                e
+            ),
+        }
     }
 }

@@ -92,75 +92,145 @@ pub async fn create_app(state: Arc<ApplicationState>) -> ApplicationResult<Route
 // UI Handlers
 
 /// Admin dashboard
-async fn admin_dashboard(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(r#"<!DOCTYPE html>
+async fn admin_dashboard(State(state): State<Arc<ApplicationState>>) -> Html<String> {
+    // Get system status
+    let system_status = get_system_status(&state).await;
+    let nodes_status = get_nodes_status(&state).await;
+
+    Html(format!(
+        r#"<!DOCTYPE html>
 <html>
-<head><title>MultiVM Admin Dashboard</title></head>
+<head>
+    <title>MultiVM Admin Dashboard</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        .status-card {{ border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }}
+        .status-ok {{ background-color: #d4edda; }}
+        .status-warning {{ background-color: #fff3cd; }}
+        .status-error {{ background-color: #f8d7da; }}
+        .nav {{ background-color: #f8f9fa; padding: 10px; margin-bottom: 20px; }}
+        .nav a {{ margin-right: 15px; text-decoration: none; color: #007bff; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+    </style>
+</head>
 <body>
-<h1>MultiVM Admin Dashboard</h1>
-<p>Dashboard functionality temporarily disabled.</p>
+    <div class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/nodes">Nodes</a>
+        <a href="/admin/transactions">Transactions</a>
+        <a href="/admin/metrics">Metrics</a>
+        <a href="/admin/settings">Settings</a>
+        <a href="/admin/backup">Backup</a>
+    </div>
+    
+    <h1>MultiVM Admin Dashboard</h1>
+    
+    <div class="status-card status-{}">
+        <h3>System Status</h3>
+        <p><strong>Overall:</strong> {}</p>
+        <p><strong>Uptime:</strong> {} seconds</p>
+        <p><strong>Version:</strong> {}</p>
+    </div>
+    
+    <div class="status-card">
+        <h3>Node Status</h3>
+        <table>
+            <tr><th>Node Type</th><th>Status</th><th>Blocks</th><th>Peers</th></tr>
+            {}
+        </table>
+    </div>
+    
+    <div class="status-card">
+        <h3>Quick Actions</h3>
+        <button onclick="location.href='/admin/nodes/restart-all'">Restart All Nodes</button>
+        <button onclick="location.href='/admin/backup/create'">Create Backup</button>
+        <button onclick="location.href='/admin/metrics'">View Metrics</button>
+    </div>
 </body>
-</html>"#.to_string())
+</html>"#,
+        system_status.status_class,
+        system_status.status,
+        system_status.uptime,
+        system_status.version,
+        nodes_status.join("")
+    ))
 }
 
 /// Nodes management page
 async fn nodes_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
 <html>
 <head><title>Nodes Management</title></head>
 <body>
 <h1>Nodes Management</h1>
 <p>Nodes management functionality temporarily disabled.</p>
 </body>
-</html>"#.to_string())
+</html>"#
+            .to_string(),
+    )
 }
 
 /// Transactions page
 async fn transactions_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
 <html>
 <head><title>Transactions</title></head>
 <body>
 <h1>Transactions</h1>
 <p>Transactions view temporarily disabled.</p>
 </body>
-</html>"#.to_string())
+</html>"#
+            .to_string(),
+    )
 }
 
 /// Accounts page
 async fn accounts_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
 <html>
 <head><title>Accounts</title></head>
 <body>
 <h1>Accounts</h1>
 <p>Accounts view temporarily disabled.</p>
 </body>
-</html>"#.to_string())
+</html>"#
+            .to_string(),
+    )
 }
 
 /// System page
 async fn system_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
 <html>
 <head><title>System</title></head>
 <body>
 <h1>System Information</h1>
 <p>System information temporarily disabled.</p>
 </body>
-</html>"#.to_string())
+</html>"#
+            .to_string(),
+    )
 }
 
 /// Logs page
 async fn logs_page(State(_state): State<Arc<ApplicationState>>) -> Html<String> {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
 <html>
 <head><title>Logs</title></head>
 <body>
 <h1>System Logs</h1>
 <p>Logs view temporarily disabled.</p>
 </body>
-</html>"#.to_string())
+</html>"#
+            .to_string(),
+    )
 }
 
 // API Handlers
@@ -303,7 +373,14 @@ async fn api_restart_node(
                 tracing::info!("MultiVM consensus restart completed");
             });
         }
-        _ => unreachable!(),
+        _ => {
+            // This should never happen due to validation above, but handle gracefully
+            return Ok(Json(OperationResult {
+                success: false,
+                message: format!("Unexpected node name: {}", request.node_name),
+                operation_id,
+            }));
+        }
     }
 
     Ok(Json(OperationResult {
@@ -366,10 +443,7 @@ async fn api_update_config(
             if port < 1024 {
                 return Ok(Json(OperationResult {
                     success: false,
-                    message: format!(
-                        "Invalid port number: {}. Must be 1024 or higher",
-                        port
-                    ),
+                    message: format!("Invalid port number: {port}. Must be 1024 or higher"),
                     operation_id,
                 }));
             }
@@ -495,7 +569,7 @@ async fn api_create_backup(
     let backup_id = uuid::Uuid::new_v4().to_string();
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
     let backup_filename = format!("multivm_backup_{}_{}.tar.gz", timestamp, &backup_id[..8]);
-    let backup_path = format!("/var/backups/multivm/{}", backup_filename);
+    let backup_path = format!("/var/backups/multivm/{backup_filename}");
 
     // In a production implementation, this would:
     // 1. Create a consistent snapshot of the database
@@ -745,4 +819,48 @@ pub struct BackupResult {
 #[derive(Debug, Deserialize)]
 pub struct RestoreBackupRequest {
     pub backup_id: String,
+}
+
+/// Get system status for dashboard
+async fn get_system_status(state: &ApplicationState) -> DashboardSystemStatus {
+    let uptime = state.start_time.elapsed().as_secs();
+
+    DashboardSystemStatus {
+        status: "Running".to_string(),
+        status_class: "ok".to_string(),
+        uptime,
+        version: crate::VERSION.to_string(),
+    }
+}
+
+/// Get nodes status for dashboard
+async fn get_nodes_status(state: &ApplicationState) -> Vec<String> {
+    let mut rows = Vec::new();
+
+    // Check execution engines status
+    if let Ok(engine_manager) = state.execution_engines.try_read() {
+        if let Ok(readiness) = engine_manager.are_engines_ready().await {
+            for (blockchain_type, is_ready) in readiness {
+                let status = if is_ready { "Ready" } else { "Not Ready" };
+                let row = format!(
+                    "<tr><td>{blockchain_type:?}</td><td>{status}</td><td>N/A</td><td>N/A</td></tr>"
+                );
+                rows.push(row);
+            }
+        }
+    }
+
+    if rows.is_empty() {
+        rows.push("<tr><td colspan='4'>No execution engines found</td></tr>".to_string());
+    }
+
+    rows
+}
+
+#[derive(Debug)]
+struct DashboardSystemStatus {
+    status: String,
+    status_class: String,
+    uptime: u64,
+    version: String,
 }

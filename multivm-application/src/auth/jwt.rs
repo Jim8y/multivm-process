@@ -1,15 +1,16 @@
 use super::permissions::Permission;
+use super::secret_manager::{JwtSecretManager, SecretManagerConfig};
 use crate::error::{ApplicationError, AuthResult};
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-/// JWT authentication handler
+/// JWT authentication handler with secret management
 pub struct JwtAuth {
-    encoding_key: EncodingKey,
-    decoding_key: DecodingKey,
+    secret_manager: Arc<JwtSecretManager>,
     algorithm: Algorithm,
     expiration: Duration,
 }
@@ -46,6 +47,10 @@ pub struct TokenClaims {
 
     /// Additional user metadata
     pub metadata: TokenMetadata,
+
+    /// Key ID used to sign this token
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_id: Option<String>,
 }
 
 /// Additional token metadata
@@ -91,8 +96,36 @@ pub struct ValidatedToken {
 }
 
 impl JwtAuth {
-    /// Create a new JWT authentication handler
-    pub fn new(secret: &str, expiration: Duration) -> AuthResult<Self> {
+    /// Create a new JWT authentication handler with secret management
+    pub fn new(
+        secret_manager_config: SecretManagerConfig,
+        expiration: Duration,
+    ) -> AuthResult<Self> {
+        let secret_manager = Arc::new(JwtSecretManager::new(secret_manager_config)?);
+
+        Ok(Self {
+            secret_manager,
+            algorithm: Algorithm::HS256,
+            expiration,
+        })
+    }
+
+    /// Create a new JWT authentication handler with existing secret manager
+    pub fn with_secret_manager(
+        secret_manager: Arc<JwtSecretManager>,
+        expiration: Duration,
+    ) -> Self {
+        Self {
+            secret_manager,
+            algorithm: Algorithm::HS256,
+            expiration,
+        }
+    }
+
+    /// Create a simple JWT handler (for backward compatibility)
+    pub fn simple(secret: &str, expiration: Duration) -> AuthResult<Self> {
+        use super::secret_manager::{StorageBackend, StorageConfig};
+
         if secret.len() < 32 {
             return Err(ApplicationError::ConfigurationError {
                 component: "jwt".to_string(),
@@ -100,15 +133,16 @@ impl JwtAuth {
             });
         }
 
-        let encoding_key = EncodingKey::from_secret(secret.as_bytes());
-        let decoding_key = DecodingKey::from_secret(secret.as_bytes());
+        // Set environment variable for simple mode
+        std::env::set_var("MULTIVM_JWT_SECRET", secret);
 
-        Ok(Self {
-            encoding_key,
-            decoding_key,
-            algorithm: Algorithm::HS256,
-            expiration,
-        })
+        let config = SecretManagerConfig {
+            storage_backend: StorageBackend::Environment,
+            storage_config: StorageConfig::default(),
+            ..Default::default()
+        };
+
+        Self::new(config, expiration)
     }
 
     /// Generate a new JWT token
@@ -125,6 +159,10 @@ impl JwtAuth {
             }
         })?;
 
+        // Get current active secret
+        let current_secret = self.secret_manager.get_current_secret()?;
+        let encoding_key = EncodingKey::from_secret(current_secret.secret.as_bytes());
+
         let claims = TokenClaims {
             sub: user_id.to_string(),
             iat: now.as_secs(),
@@ -133,11 +171,13 @@ impl JwtAuth {
             iss: "multivm-application".to_string(),
             permissions,
             metadata,
+            // Store the key ID in claims for validation
+            key_id: Some(current_secret.id),
         };
 
         let header = Header::new(self.algorithm);
 
-        encode(&header, &claims, &self.encoding_key).map_err(|e| {
+        encode(&header, &claims, &encoding_key).map_err(|e| {
             ApplicationError::AuthenticationFailed {
                 reason: format!("Failed to encode JWT: {}", e),
             }
@@ -146,17 +186,60 @@ impl JwtAuth {
 
     /// Validate and decode a JWT token
     pub fn validate_token(&self, token: &str) -> AuthResult<ValidatedToken> {
+        // First decode without verification to get key_id
+        let token_data = decode::<TokenClaims>(
+            token,
+            &DecodingKey::from_secret(b"dummy"), // Dummy key for header extraction
+            &Validation::new(self.algorithm),
+        );
+
+        // If decoding fails, try with any available secret (backward compatibility)
+        let (claims, decoding_key) = if let Ok(data) = token_data {
+            if let Some(key_id) = &data.claims.key_id {
+                // Try to get the specific secret
+                if let Some(secret) = self.secret_manager.get_secret(key_id)? {
+                    let decoding_key = DecodingKey::from_secret(secret.secret.as_bytes());
+                    (data.claims, decoding_key)
+                } else {
+                    return Err(ApplicationError::AuthenticationFailed {
+                        reason: format!("Secret with key_id '{}' not found", key_id),
+                    });
+                }
+            } else {
+                // No key_id, try current secret (backward compatibility)
+                let current_secret = self.secret_manager.get_current_secret()?;
+                let decoding_key = DecodingKey::from_secret(current_secret.secret.as_bytes());
+                (data.claims, decoding_key)
+            }
+        } else {
+            // Failed to decode, try with current secret
+            let current_secret = self.secret_manager.get_current_secret()?;
+            let decoding_key = DecodingKey::from_secret(current_secret.secret.as_bytes());
+
+            let mut validation = Validation::new(self.algorithm);
+            validation.set_issuer(&["multivm-application"]);
+
+            let token_data =
+                decode::<TokenClaims>(token, &decoding_key, &validation).map_err(|e| {
+                    ApplicationError::AuthenticationFailed {
+                        reason: format!("Invalid JWT token: {}", e),
+                    }
+                })?;
+
+            (token_data.claims, decoding_key)
+        };
+
+        // Now validate with the correct key
         let mut validation = Validation::new(self.algorithm);
         validation.set_issuer(&["multivm-application"]);
 
-        let token_data =
-            decode::<TokenClaims>(token, &self.decoding_key, &validation).map_err(|e| {
+        let _validated_token =
+            decode::<TokenClaims>(token, &decoding_key, &validation).map_err(|e| {
                 ApplicationError::AuthenticationFailed {
                     reason: format!("Invalid JWT token: {}", e),
                 }
             })?;
 
-        let claims = token_data.claims;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -244,6 +327,32 @@ impl JwtAuth {
         };
 
         self.generate_token(user_id, Permission::power_user(), metadata)
+    }
+
+    /// Check if JWT secrets need rotation
+    pub fn needs_rotation(&self) -> AuthResult<bool> {
+        self.secret_manager.needs_rotation()
+    }
+
+    /// Rotate JWT secrets
+    pub fn rotate_secrets(&self) -> AuthResult<()> {
+        self.secret_manager.rotate_secret()?;
+        Ok(())
+    }
+
+    /// Get secret management statistics
+    pub fn get_secret_statistics(&self) -> AuthResult<super::secret_manager::SecretStatistics> {
+        self.secret_manager.get_statistics()
+    }
+
+    /// Clean up expired secrets
+    pub fn cleanup_expired_secrets(&self) -> AuthResult<u32> {
+        self.secret_manager.cleanup_expired_secrets()
+    }
+
+    /// Get the secret manager (for advanced operations)
+    pub fn secret_manager(&self) -> &Arc<JwtSecretManager> {
+        &self.secret_manager
     }
 }
 
@@ -343,4 +452,3 @@ impl Default for ClientInfo {
         }
     }
 }
-

@@ -1,3 +1,9 @@
+//! RPC Configuration Module
+//!
+//! This module defines the configuration for RPC servers used by various MultiVM
+//! components. It includes settings for connection management, timeouts, and
+//! protocol-specific parameters.
+
 use crate::MultivmError;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;

@@ -40,6 +40,12 @@ pub trait ConsensusStateStorage: Send + Sync {
 
     /// Get storage statistics
     async fn get_stats(&self) -> ConsensusResult<StorageStats>;
+
+    /// Get raw data by key
+    async fn get(&self, key: &[u8]) -> ConsensusResult<Option<Vec<u8>>>;
+
+    /// Store raw data by key
+    async fn put(&self, key: &[u8], value: &[u8]) -> ConsensusResult<()>;
 }
 
 /// Storage statistics for monitoring
@@ -63,13 +69,13 @@ impl RocksDBConsensusStorage {
         opts.create_if_missing(true);
 
         let db = DB::open(&opts, db_path)
-            .map_err(|e| ConsensusError::Storage(format!("Failed to open RocksDB: {}", e)))?;
+            .map_err(|e| ConsensusError::Storage(format!("Failed to open RocksDB: {e}")))?;
 
         Ok(Self { db: Arc::new(db) })
     }
 
     fn height_key(height: u64) -> String {
-        format!("consensus_state:{:020}", height)
+        format!("consensus_state:{height:020}")
     }
 }
 
@@ -78,11 +84,11 @@ impl ConsensusStateStorage for RocksDBConsensusStorage {
     async fn store_state(&self, height: u64, state: &ConsensusState) -> ConsensusResult<()> {
         let key = Self::height_key(height);
         let value = bincode::serialize(state)
-            .map_err(|e| ConsensusError::Storage(format!("Serialization error: {}", e)))?;
+            .map_err(|e| ConsensusError::Storage(format!("Serialization error: {e}")))?;
 
         self.db
             .put(key.as_bytes(), &value)
-            .map_err(|e| ConsensusError::Storage(format!("Failed to store state: {}", e)))?;
+            .map_err(|e| ConsensusError::Storage(format!("Failed to store state: {e}")))?;
 
         Ok(())
     }
@@ -93,12 +99,11 @@ impl ConsensusStateStorage for RocksDBConsensusStorage {
         match self
             .db
             .get(key.as_bytes())
-            .map_err(|e| ConsensusError::Storage(format!("Failed to get state: {}", e)))?
+            .map_err(|e| ConsensusError::Storage(format!("Failed to get state: {e}")))?
         {
             Some(value) => {
-                let state = bincode::deserialize(&value).map_err(|e| {
-                    ConsensusError::Storage(format!("Deserialization error: {}", e))
-                })?;
+                let state = bincode::deserialize(&value)
+                    .map_err(|e| ConsensusError::Storage(format!("Deserialization error: {e}")))?;
                 Ok(Some(state))
             }
             None => Ok(None),
@@ -131,7 +136,7 @@ impl ConsensusStateStorage for RocksDBConsensusStorage {
         let key = Self::height_key(height);
         self.db
             .delete(key.as_bytes())
-            .map_err(|e| ConsensusError::Storage(format!("Failed to delete state: {}", e)))?;
+            .map_err(|e| ConsensusError::Storage(format!("Failed to delete state: {e}")))?;
         Ok(())
     }
 
@@ -162,6 +167,20 @@ impl ConsensusStateStorage for RocksDBConsensusStorage {
             oldest_height: heights.first().copied(),
             newest_height: heights.last().copied(),
         })
+    }
+
+    async fn get(&self, key: &[u8]) -> ConsensusResult<Option<Vec<u8>>> {
+        match self.db.get(key) {
+            Ok(Some(value)) => Ok(Some(value.to_vec())),
+            Ok(None) => Ok(None),
+            Err(e) => Err(ConsensusError::Storage(format!("Failed to get key: {e}"))),
+        }
+    }
+
+    async fn put(&self, key: &[u8], value: &[u8]) -> ConsensusResult<()> {
+        self.db
+            .put(key, value)
+            .map_err(|e| ConsensusError::Storage(format!("Failed to put key: {e}")))
     }
 }
 
@@ -305,6 +324,59 @@ impl PersistentCrossVMStateManager {
         self.memory_manager
             .validate_cross_vm_transaction(transaction)
             .await
+    }
+
+    /// Check if a node is a validator
+    pub async fn is_validator(&self, validator_id: &str) -> ConsensusResult<bool> {
+        // For now, we use a simple validator set stored in the state
+        // This could be enhanced to use on-chain validator registry
+        let validators = self.get_validator_set().await?;
+        Ok(validators.contains(&validator_id.to_string()))
+    }
+
+    /// Get validator's public key
+    pub async fn get_validator_pubkey(
+        &self,
+        validator_id: &str,
+    ) -> ConsensusResult<Option<Vec<u8>>> {
+        // Retrieve validator public key from storage
+        let key = format!("validator:pubkey:{validator_id}");
+        match self.storage.get(key.as_bytes()).await? {
+            Some(pubkey) => Ok(Some(pubkey)),
+            None => Ok(None),
+        }
+    }
+
+    /// Get current validator set
+    pub async fn get_validator_set(&self) -> ConsensusResult<Vec<String>> {
+        // Retrieve current validator set from storage
+        let key = b"validators:current";
+        match self.storage.get(key).await? {
+            Some(data) => {
+                let validators: Vec<String> = bincode::deserialize(&data).map_err(|e| {
+                    ConsensusError::Storage(format!("Failed to deserialize validators: {e}"))
+                })?;
+                Ok(validators)
+            }
+            None => {
+                // Return default validator set if none exists
+                Ok(vec!["validator1".to_string(), "validator2".to_string()])
+            }
+        }
+    }
+
+    /// Update validator set
+    pub async fn update_validator_set(&self, validators: Vec<String>) -> ConsensusResult<()> {
+        let key = b"validators:current";
+        let data = bincode::serialize(&validators)
+            .map_err(|e| ConsensusError::Storage(format!("Failed to serialize validators: {e}")))?;
+
+        self.storage
+            .put(key, &data)
+            .await
+            .map_err(|e| ConsensusError::Storage(format!("Failed to store validators: {e}")))?;
+
+        Ok(())
     }
 }
 
@@ -773,10 +845,10 @@ impl CrossVMStateManager {
         let mut hasher = Sha256::new();
         hasher.update(change.target.as_bytes());
         hasher.update(&serde_json::to_vec(&change.change_type).map_err(|e| {
-            ConsensusError::StateError(format!("Failed to serialize change type: {}", e))
+            ConsensusError::StateError(format!("Failed to serialize change type: {e}"))
         })?);
         hasher.update(&serde_json::to_vec(&change.new_value).map_err(|e| {
-            ConsensusError::StateError(format!("Failed to serialize new value: {}", e))
+            ConsensusError::StateError(format!("Failed to serialize new value: {e}"))
         })?);
 
         // Include current state roots in computation
@@ -1599,7 +1671,7 @@ impl CrossVMStateManager {
         let _persistence = StatePersistenceManager::new(persistence_config)
             .await
             .map_err(|e| {
-                ConsensusError::Internal(format!("Failed to create persistence manager: {}", e))
+                ConsensusError::Internal(format!("Failed to create persistence manager: {e}"))
             })?;
 
         // Integration with persistence would happen here

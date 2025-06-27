@@ -23,6 +23,7 @@ libp2p = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bincode = { workspace = true }
+base64 = "0.21"
 
 # Error handling and logging
 thiserror = { workspace = true }
@@ -36,7 +37,7 @@ ed25519-dalek = { workspace = true }
 x25519-dalek = "2.0"
 rand_chacha = "0.3"
 anyhow = { workspace = true }
-# chacha20poly1305 = "0.10"  # Temporarily commented to resolve zeroize conflict
+chacha20poly1305 = "0.10"
 
 # Rate limiting
 governor = { workspace = true }

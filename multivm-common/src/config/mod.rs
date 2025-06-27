@@ -548,14 +548,14 @@ impl MultivmConfig {
         let content =
             std::fs::read_to_string(path).map_err(|e| crate::MultivmError::Configuration {
                 component: "config".to_string(),
-                message: format!("Failed to read config file: {}", e),
+                message: format!("Failed to read config file: {e}"),
                 validation_errors: None,
             })?;
 
         let config: Self =
             toml::from_str(&content).map_err(|e| crate::MultivmError::Configuration {
                 component: "config".to_string(),
-                message: format!("Failed to parse config: {}", e),
+                message: format!("Failed to parse config: {e}"),
                 validation_errors: None,
             })?;
 
@@ -568,13 +568,13 @@ impl MultivmConfig {
         let content =
             toml::to_string_pretty(self).map_err(|e| crate::MultivmError::Configuration {
                 component: "config".to_string(),
-                message: format!("Failed to serialize config: {}", e),
+                message: format!("Failed to serialize config: {e}"),
                 validation_errors: None,
             })?;
 
         std::fs::write(path, content).map_err(|e| crate::MultivmError::Configuration {
             component: "config".to_string(),
-            message: format!("Failed to write config file: {}", e),
+            message: format!("Failed to write config file: {e}"),
             validation_errors: None,
         })?;
 
@@ -601,7 +601,7 @@ impl MultivmConfig {
             if !used_ports.insert(port) {
                 return Err(crate::MultivmError::Configuration {
                     component: "config".to_string(),
-                    message: format!("Port conflict: {} port {} is already in use", name, port),
+                    message: format!("Port conflict: {name} port {port} is already in use"),
                     validation_errors: None,
                 });
             }

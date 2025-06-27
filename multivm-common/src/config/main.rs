@@ -1,3 +1,9 @@
+//! Main Configuration Module
+//!
+//! This module defines the root configuration structure for the MultiVM system,
+//! aggregating all component-specific configurations including system settings,
+//! blockchain configurations, IPC settings, and logging preferences.
+
 use crate::config::{EthereumConfig, LegacyIpcConfig, LegacyLoggingConfig, LegacySystemConfig};
 use crate::{MultivmError};
 use crate::config::SolanaExecutionConfig;

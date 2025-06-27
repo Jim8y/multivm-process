@@ -116,8 +116,7 @@ impl ProtocolTranslator {
             converter.convert(message, &target_format)
         } else {
             Err(P2PError::ProtocolTranslation(format!(
-                "No converter available for {} to {:?}",
-                converter_name, target_vm
+                "No converter available for {converter_name} to {target_vm:?}"
             )))
         }
     }

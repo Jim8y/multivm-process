@@ -69,7 +69,10 @@ use std::time::Duration;
 ///
 ///     async fn process_block(&mut self, block: Self::BlockType) -> Result<Self::ExecutionResult, Self::Error> {
 ///         // Process the block and return results
-///         todo!("Implementation specific block processing")
+///         self.validate_block(&block)?;
+///         let result = self.execute_transactions(block.transactions).await?;
+///         self.update_state(result.state_changes).await?;
+///         Ok(result)
 ///     }
 ///
 ///     fn blockchain_type(&self) -> BlockchainType {
@@ -77,43 +80,58 @@ use std::time::Duration;
 ///     }
 ///
 ///     async fn get_health(&self) -> Result<HealthStatus, Self::Error> {
-///         todo!()
+///         Ok(HealthStatus::Healthy)
 ///     }
 ///
 ///     async fn get_state(&self) -> Result<EngineState, Self::Error> {
-///         todo!()
+///         Ok(EngineState {
+///             latest_block: self.get_latest_block_id().await?,
+///             is_syncing: false,
+///             peer_count: 0,
+///         })
 ///     }
 ///
 ///     async fn start_rpc_server(&self, config: RpcConfig) -> Result<(), Self::Error> {
-///         todo!()
+///         self.rpc_server.start(config).await
 ///     }
 ///
 ///     async fn stop_rpc_server(&self) -> Result<(), Self::Error> {
-///         todo!()
+///         self.rpc_server.stop().await
 ///     }
 ///
 ///     async fn initialize(&mut self) -> Result<(), Self::Error> {
-///         todo!()
+///         self.load_configuration()?;
+///         self.connect_to_network().await?;
+///         self.sync_initial_state().await?;
+///         Ok(())
 ///     }
 ///
 ///     async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), Self::Error> {
-///         todo!()
+///         let timeout = timeout.unwrap_or(Duration::from_secs(30));
+///         tokio::time::timeout(timeout, self.graceful_shutdown()).await??;
+///         Ok(())
 ///     }
 ///
 ///     async fn is_ready(&self) -> bool {
-///         todo!()
+///         self.is_initialized && self.is_synced
 ///     }
 ///
 ///     async fn get_metrics(&self) -> Result<ProcessingMetrics, Self::Error> {
-///         todo!()
+///         Ok(ProcessingMetrics {
+///             blocks_processed: self.metrics.blocks_processed,
+///             transactions_processed: self.metrics.transactions_processed,
+///             average_block_time: self.metrics.average_block_time,
+///         })
 ///     }
 ///
 ///     async fn get_latest_block_id(&self) -> Result<u64, Self::Error> {
-///         todo!()
+///         Ok(self.state.latest_block_height)
 ///     }
 ///
 ///     async fn reset_to_block(&mut self, block_id: u64) -> Result<(), Self::Error> {
-///         todo!()
+///         self.state.reset_to_height(block_id).await?;
+///         self.clear_pending_transactions();
+///         Ok(())
 ///     }
 /// }
 /// ```

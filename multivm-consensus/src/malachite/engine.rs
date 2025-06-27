@@ -224,6 +224,52 @@ impl MalachiteEngine {
             None
         }
     }
+
+    /// Record a vote for a specific round and block hash
+    pub async fn record_vote(
+        &mut self,
+        _validator_id: String,
+        _round: u64,
+        _block_hash: String,
+    ) -> ConsensusResult<()> {
+        // Simplified implementation - in a full implementation this would:
+        // 1. Validate the vote signature
+        // 2. Check if the vote is for the current round
+        // 3. Store the vote in the vote tracker
+        // 4. Check if we have enough votes for consensus
+        debug!(
+            "Recording vote from validator {} for round {}",
+            _validator_id, _round
+        );
+        Ok(())
+    }
+
+    /// Get pending transactions to include in the next block
+    pub async fn get_pending_transactions(&self) -> ConsensusResult<Vec<MalachiteTransaction>> {
+        // Simplified implementation - return empty transaction list
+        // In a full implementation this would query the transaction pool
+        Ok(Vec::new())
+    }
+
+    /// Finalize a block after consensus is reached
+    pub async fn finalize_block(
+        &mut self,
+        _round: u64,
+        _block: MalachiteBlock,
+    ) -> ConsensusResult<()> {
+        let mut state = self.state.write().await;
+
+        // Update engine state
+        state.current_height = _block.height;
+        state.blocks_processed += 1;
+        state.last_block_time = Some(std::time::Instant::now());
+
+        debug!(
+            "Block finalized at height {} for round {}",
+            _block.height, _round
+        );
+        Ok(())
+    }
 }
 
 /// Engine metrics for monitoring
@@ -276,15 +322,15 @@ impl ConsensusEngine for MalachiteEngine {
 
     async fn initialize(&mut self, config: Self::Config) -> ConsensusResult<()> {
         self.config = config;
-        self.initialize().await.map_err(|e| e.into())
+        self.initialize().await
     }
 
     async fn start(&mut self) -> ConsensusResult<()> {
-        self.start().await.map_err(|e| e.into())
+        self.start().await
     }
 
     async fn stop(&mut self) -> ConsensusResult<()> {
-        self.stop().await.map_err(|e| e.into())
+        self.stop().await
     }
 
     fn is_running(&self) -> bool {
@@ -320,7 +366,7 @@ impl ConsensusEngine for MalachiteEngine {
     }
 
     async fn commit_block(&mut self, block: Self::Block) -> ConsensusResult<()> {
-        self.process_block(block.data).await.map_err(|e| e.into())
+        self.process_block(block.data).await
     }
 
     async fn get_current_height(&self) -> ConsensusResult<u64> {

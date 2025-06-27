@@ -592,4 +592,3 @@ pub struct CircuitBreakerSummary {
     pub success_rate: f64,
     pub total_failures: u64,
 }
-

@@ -1,3 +1,10 @@
+//! Blockchain Configuration Module
+//!
+//! This module provides configuration structures for different blockchain engines
+//! supported by MultiVM, including Ethereum (via Reth) and Solana configurations.
+//! Each blockchain has its own specific settings for RPC endpoints, data directories,
+//! and runtime parameters.
+
 use crate::{MultivmError, RpcConfig};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

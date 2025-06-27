@@ -1,0 +1,413 @@
+//! Execution Engine Management
+//!
+//! This module provides unified management for both Solana and Ethereum execution engines,
+//! allowing the MultiVM application to coordinate between different blockchain VMs.
+
+pub mod coordination;
+pub mod ethereum;
+
+use multivm_common::{
+    types::BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmResult,
+    ProcessingMetrics,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Configuration for execution engine management
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionEngineConfig {
+    /// Ethereum execution engine configuration
+    pub ethereum: EthereumEngineConfig,
+    /// Global execution settings
+    pub global: GlobalExecutionConfig,
+}
+
+/// Ethereum execution engine configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EthereumEngineConfig {
+    /// Enable Ethereum execution engine
+    pub enabled: bool,
+    /// Data directory for Reth node
+    pub data_dir: String,
+    /// RPC port for Reth node
+    pub rpc_port: u16,
+    /// Chain ID (1 = mainnet, 11155111 = sepolia, etc.)
+    pub chain_id: u64,
+    /// Enable mock mode for testing
+    pub mock_mode: bool,
+    /// Auto-start the engine when application starts
+    pub auto_start: bool,
+}
+
+/// Global execution settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalExecutionConfig {
+    /// Maximum concurrent block processing
+    pub max_concurrent_blocks: usize,
+    /// Block processing timeout in seconds
+    pub block_timeout_seconds: u64,
+    /// Health check interval in seconds
+    pub health_check_interval_seconds: u64,
+    /// Enable cross-VM coordination
+    pub enable_cross_vm_coordination: bool,
+}
+
+impl Default for ExecutionEngineConfig {
+    fn default() -> Self {
+        Self {
+            ethereum: EthereumEngineConfig::default(),
+            global: GlobalExecutionConfig::default(),
+        }
+    }
+}
+
+impl Default for EthereumEngineConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            data_dir: "/tmp/multivm/ethereum".to_string(),
+            rpc_port: 8545,
+            chain_id: 1337,   // Local development chain
+            mock_mode: false, // Use real execution engines for production
+            auto_start: true,
+        }
+    }
+}
+
+impl Default for GlobalExecutionConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_blocks: 10,
+            block_timeout_seconds: 30,
+            health_check_interval_seconds: 10,
+            enable_cross_vm_coordination: true,
+        }
+    }
+}
+
+/// Unified execution engine manager
+pub struct ExecutionEngineManager {
+    config: ExecutionEngineConfig,
+    ethereum_engine: Option<Arc<RwLock<reth_execution_engine::engine::RethExecutionEngine>>>,
+    coordination: coordination::CrossVmCoordinator,
+    is_running: Arc<RwLock<bool>>,
+}
+
+impl std::fmt::Debug for ExecutionEngineManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionEngineManager")
+            .field("config", &self.config)
+            .field(
+                "ethereum_engine",
+                &self.ethereum_engine.as_ref().map(|_| "RethExecutionEngine"),
+            )
+            .field("coordination", &self.coordination)
+            .field("is_running", &self.is_running)
+            .finish()
+    }
+}
+
+impl ExecutionEngineManager {
+    /// Create a new execution engine manager
+    pub async fn new(config: ExecutionEngineConfig) -> MultivmResult<Self> {
+        let coordination = coordination::CrossVmCoordinator::new(config.global.clone()).await?;
+
+        Ok(Self {
+            config,
+            ethereum_engine: None,
+            coordination,
+            is_running: Arc::new(RwLock::new(false)),
+        })
+    }
+
+    /// Initialize all enabled execution engines
+    pub async fn initialize(&mut self) -> MultivmResult<()> {
+        tracing::info!("Initializing execution engines");
+
+        // Initialize Ethereum engine if enabled
+        if self.config.ethereum.enabled {
+            self.initialize_ethereum_engine().await?;
+        }
+
+        *self.is_running.write().await = true;
+        tracing::info!("Execution engine manager initialized successfully");
+        Ok(())
+    }
+
+    /// Initialize the Ethereum execution engine
+    async fn initialize_ethereum_engine(&mut self) -> MultivmResult<()> {
+        use std::path::PathBuf;
+
+        tracing::info!("Initializing Ethereum execution engine (Reth)");
+
+        let data_dir = PathBuf::from(&self.config.ethereum.data_dir);
+        let mut engine = reth_execution_engine::engine::RethExecutionEngine::new_with_mode(
+            data_dir,
+            self.config.ethereum.rpc_port,
+            self.config.ethereum.chain_id,
+            self.config.ethereum.mock_mode,
+        )
+        .await
+        .map_err(|e| multivm_common::MultivmError::Process {
+            process_id: "reth-engine".to_string(),
+            message: format!("Failed to create Reth execution engine: {}", e),
+            exit_code: None,
+        })?;
+
+        // Initialize the engine
+        engine
+            .initialize()
+            .await
+            .map_err(|e| multivm_common::MultivmError::Process {
+                process_id: "reth-engine".to_string(),
+                message: format!("Failed to initialize Reth execution engine: {}", e),
+                exit_code: None,
+            })?;
+
+        self.ethereum_engine = Some(Arc::new(RwLock::new(engine)));
+
+        tracing::info!("Ethereum execution engine initialized successfully");
+        Ok(())
+    }
+
+    /// Get health status of all execution engines
+    pub async fn get_health_status(&self) -> MultivmResult<HashMap<BlockchainType, HealthStatus>> {
+        let mut health_status = HashMap::new();
+
+        // Check Ethereum engine health
+        if let Some(engine) = &self.ethereum_engine {
+            let engine_guard = engine.read().await;
+            let health = engine_guard.get_health().await.map_err(|e| {
+                multivm_common::MultivmError::Process {
+                    process_id: "reth-engine".to_string(),
+                    message: format!("Failed to get Reth health: {}", e),
+                    exit_code: None,
+                }
+            })?;
+            health_status.insert(BlockchainType::Ethereum, health);
+        }
+
+        Ok(health_status)
+    }
+
+    /// Get state of all execution engines
+    pub async fn get_engine_states(&self) -> MultivmResult<HashMap<BlockchainType, EngineState>> {
+        let mut engine_states = HashMap::new();
+
+        // Get Ethereum engine state
+        if let Some(engine) = &self.ethereum_engine {
+            let engine_guard = engine.read().await;
+            let state = engine_guard.get_state().await.map_err(|e| {
+                multivm_common::MultivmError::Process {
+                    process_id: "reth-engine".to_string(),
+                    message: format!("Failed to get Reth state: {}", e),
+                    exit_code: None,
+                }
+            })?;
+            engine_states.insert(BlockchainType::Ethereum, state);
+        }
+
+        Ok(engine_states)
+    }
+
+    /// Get metrics from all execution engines
+    pub async fn get_metrics(&self) -> MultivmResult<HashMap<BlockchainType, ProcessingMetrics>> {
+        let mut metrics = HashMap::new();
+
+        // Get Ethereum engine metrics
+        if let Some(engine) = &self.ethereum_engine {
+            let engine_guard = engine.read().await;
+            let engine_metrics = engine_guard.get_metrics().await.map_err(|e| {
+                multivm_common::MultivmError::Process {
+                    process_id: "reth-engine".to_string(),
+                    message: format!("Failed to get Reth metrics: {}", e),
+                    exit_code: None,
+                }
+            })?;
+            metrics.insert(BlockchainType::Ethereum, engine_metrics);
+        }
+
+        Ok(metrics)
+    }
+
+    /// Process a block on the appropriate execution engine
+    pub async fn process_block(
+        &self,
+        blockchain_type: BlockchainType,
+        block_data: Vec<u8>,
+    ) -> MultivmResult<Vec<u8>> {
+        match blockchain_type {
+            BlockchainType::Ethereum => {
+                if let Some(engine) = &self.ethereum_engine {
+                    self.process_ethereum_block(engine, block_data).await
+                } else {
+                    Err(multivm_common::MultivmError::Process {
+                        process_id: "ethereum-engine".to_string(),
+                        message: "Ethereum execution engine not initialized".to_string(),
+                        exit_code: None,
+                    })
+                }
+            }
+            BlockchainType::Solana => {
+                // Solana engine would be handled here when integrated
+                Err(multivm_common::MultivmError::Process {
+                    process_id: "solana-engine".to_string(),
+                    message: "Solana execution engine not yet integrated".to_string(),
+                    exit_code: None,
+                })
+            }
+        }
+    }
+
+    /// Process a block on the Ethereum execution engine
+    async fn process_ethereum_block(
+        &self,
+        engine: &Arc<RwLock<reth_execution_engine::engine::RethExecutionEngine>>,
+        block_data: Vec<u8>,
+    ) -> MultivmResult<Vec<u8>> {
+        // Deserialize block data into Reth Block format
+        let block: reth_execution_engine::engine::Block = bincode::deserialize(&block_data)
+            .map_err(|e| multivm_common::MultivmError::Process {
+                process_id: "ethereum-engine".to_string(),
+                message: format!("Failed to deserialize Ethereum block: {}", e),
+                exit_code: None,
+            })?;
+
+        // Process the block
+        let mut engine_guard = engine.write().await;
+        let result = engine_guard.process_block(block).await.map_err(|e| {
+            multivm_common::MultivmError::Process {
+                process_id: "ethereum-engine".to_string(),
+                message: format!("Failed to process Ethereum block: {}", e),
+                exit_code: None,
+            }
+        })?;
+
+        // Serialize the result
+        bincode::serialize(&result).map_err(|e| multivm_common::MultivmError::Process {
+            process_id: "ethereum-engine".to_string(),
+            message: format!("Failed to serialize Ethereum block result: {}", e),
+            exit_code: None,
+        })
+    }
+
+    /// Reset an execution engine to a specific block
+    pub async fn reset_engine_to_block(
+        &self,
+        blockchain_type: BlockchainType,
+        block_id: u64,
+    ) -> MultivmResult<()> {
+        match blockchain_type {
+            BlockchainType::Ethereum => {
+                if let Some(engine) = &self.ethereum_engine {
+                    let mut engine_guard = engine.write().await;
+                    engine_guard.reset_to_block(block_id).await.map_err(|e| {
+                        multivm_common::MultivmError::Process {
+                            process_id: "ethereum-engine".to_string(),
+                            message: format!("Failed to reset Ethereum engine: {}", e),
+                            exit_code: None,
+                        }
+                    })
+                } else {
+                    Err(multivm_common::MultivmError::Process {
+                        process_id: "ethereum-engine".to_string(),
+                        message: "Ethereum execution engine not initialized".to_string(),
+                        exit_code: None,
+                    })
+                }
+            }
+            BlockchainType::Solana => Err(multivm_common::MultivmError::Process {
+                process_id: "solana-engine".to_string(),
+                message: "Solana execution engine not yet integrated".to_string(),
+                exit_code: None,
+            }),
+        }
+    }
+
+    /// Get the latest block ID from an execution engine
+    pub async fn get_latest_block_id(&self, blockchain_type: BlockchainType) -> MultivmResult<u64> {
+        match blockchain_type {
+            BlockchainType::Ethereum => {
+                if let Some(engine) = &self.ethereum_engine {
+                    let engine_guard = engine.read().await;
+                    engine_guard.get_latest_block_id().await.map_err(|e| {
+                        multivm_common::MultivmError::Process {
+                            process_id: "ethereum-engine".to_string(),
+                            message: format!("Failed to get latest Ethereum block: {}", e),
+                            exit_code: None,
+                        }
+                    })
+                } else {
+                    Err(multivm_common::MultivmError::Process {
+                        process_id: "ethereum-engine".to_string(),
+                        message: "Ethereum execution engine not initialized".to_string(),
+                        exit_code: None,
+                    })
+                }
+            }
+            BlockchainType::Solana => Err(multivm_common::MultivmError::Process {
+                process_id: "solana-engine".to_string(),
+                message: "Solana execution engine not yet integrated".to_string(),
+                exit_code: None,
+            }),
+        }
+    }
+
+    /// Check if the manager is running
+    pub async fn is_running(&self) -> bool {
+        *self.is_running.read().await
+    }
+
+    /// Check if specific execution engines are ready
+    pub async fn are_engines_ready(&self) -> MultivmResult<HashMap<BlockchainType, bool>> {
+        let mut readiness = HashMap::new();
+
+        // Check Ethereum engine readiness
+        if let Some(engine) = &self.ethereum_engine {
+            let engine_guard = engine.read().await;
+            let is_ready = engine_guard.is_ready().await;
+            readiness.insert(BlockchainType::Ethereum, is_ready);
+        } else {
+            readiness.insert(BlockchainType::Ethereum, false);
+        }
+
+        // Solana engine would be checked here when integrated
+        readiness.insert(BlockchainType::Solana, false);
+
+        Ok(readiness)
+    }
+
+    /// Shutdown all execution engines
+    pub async fn shutdown(&mut self, timeout_secs: Option<u64>) -> MultivmResult<()> {
+        tracing::info!("Shutting down execution engine manager");
+
+        *self.is_running.write().await = false;
+
+        let timeout = timeout_secs.map(std::time::Duration::from_secs);
+
+        // Shutdown Ethereum engine
+        if let Some(engine) = self.ethereum_engine.take() {
+            let mut engine_guard = engine.write().await;
+            engine_guard.shutdown(timeout).await.map_err(|e| {
+                multivm_common::MultivmError::Process {
+                    process_id: "ethereum-engine".to_string(),
+                    message: format!("Failed to shutdown Ethereum engine: {}", e),
+                    exit_code: None,
+                }
+            })?;
+        }
+
+        // Shutdown coordination
+        self.coordination.shutdown().await?;
+
+        tracing::info!("Execution engine manager shutdown completed");
+        Ok(())
+    }
+}
+
+/// Generate a mock Ethereum block for testing
+pub fn generate_mock_ethereum_block(block_number: u64) -> reth_execution_engine::engine::Block {
+    reth_execution_engine::engine::generate_mock_reth_block(block_number, 5)
+}

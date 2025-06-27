@@ -1,0 +1,323 @@
+version: '3.8'
+
+networks:
+  multivm-testnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # Node 1 - Genesis Validator
+  node1:
+    build: .
+    container_name: multivm-node1
+    hostname: node1
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.11
+    ports:
+      - "8080:8080"   # REST API
+      - "8081:8081"   # GraphQL
+      - "8082:8082"   # WebSocket
+      - "8083:8083"   # Admin
+      - "26656:26656" # P2P
+      - "26657:26657" # Consensus RPC
+    environment:
+      - NODE_ID=node1
+      - NODE_TYPE=validator
+      - IS_GENESIS_VALIDATOR=true
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.11:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node1:/opt/multivm/data
+      - ./testnet/configs/node1:/opt/multivm/config
+    command: >
+      bash -c "
+        echo 'Starting Node 1 as genesis validator...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Node 2 - Validator
+  node2:
+    build: .
+    container_name: multivm-node2
+    hostname: node2
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.12
+    ports:
+      - "8180:8080"
+      - "8181:8081"
+      - "8182:8082"
+      - "8183:8083"
+      - "26756:26656"
+      - "26757:26657"
+    environment:
+      - NODE_ID=node2
+      - NODE_TYPE=validator
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.12:26656
+      - MULTIVM_P2P_SEEDS=node1@172.20.0.11:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node2:/opt/multivm/data
+      - ./testnet/configs/node2:/opt/multivm/config
+    depends_on:
+      - node1
+    command: >
+      bash -c "
+        sleep 5 &&
+        echo 'Starting Node 2 as validator...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Node 3 - Validator
+  node3:
+    build: .
+    container_name: multivm-node3
+    hostname: node3
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.13
+    ports:
+      - "8280:8080"
+      - "8281:8081"
+      - "8282:8082"
+      - "8283:8083"
+      - "26856:26656"
+      - "26857:26657"
+    environment:
+      - NODE_ID=node3
+      - NODE_TYPE=validator
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.13:26656
+      - MULTIVM_P2P_SEEDS=node1@172.20.0.11:26656,node2@172.20.0.12:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node3:/opt/multivm/data
+      - ./testnet/configs/node3:/opt/multivm/config
+    depends_on:
+      - node1
+      - node2
+    command: >
+      bash -c "
+        sleep 10 &&
+        echo 'Starting Node 3 as validator...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Node 4 - Validator
+  node4:
+    build: .
+    container_name: multivm-node4
+    hostname: node4
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.14
+    ports:
+      - "8380:8080"
+      - "8381:8081"
+      - "8382:8082"
+      - "8383:8083"
+      - "26956:26656"
+      - "26957:26657"
+    environment:
+      - NODE_ID=node4
+      - NODE_TYPE=validator
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.14:26656
+      - MULTIVM_P2P_SEEDS=node1@172.20.0.11:26656,node2@172.20.0.12:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node4:/opt/multivm/data
+      - ./testnet/configs/node4:/opt/multivm/config
+    depends_on:
+      - node1
+      - node2
+    command: >
+      bash -c "
+        sleep 15 &&
+        echo 'Starting Node 4 as validator...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Node 5 - Validator
+  node5:
+    build: .
+    container_name: multivm-node5
+    hostname: node5
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.15
+    ports:
+      - "8480:8080"
+      - "8481:8081"
+      - "8482:8082"
+      - "8483:8083"
+      - "27056:26656"
+      - "27057:26657"
+    environment:
+      - NODE_ID=node5
+      - NODE_TYPE=validator
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.15:26656
+      - MULTIVM_P2P_SEEDS=node1@172.20.0.11:26656,node3@172.20.0.13:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node5:/opt/multivm/data
+      - ./testnet/configs/node5:/opt/multivm/config
+    depends_on:
+      - node1
+      - node3
+    command: >
+      bash -c "
+        sleep 20 &&
+        echo 'Starting Node 5 as validator...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Node 6 - Non-validator (Full Node)
+  node6:
+    build: .
+    container_name: multivm-node6
+    hostname: node6
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.16
+    ports:
+      - "8580:8080"
+      - "8581:8081"
+      - "8582:8082"
+      - "8583:8083"
+      - "27156:26656"
+      - "27157:26657"
+    environment:
+      - NODE_ID=node6
+      - NODE_TYPE=full
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.16:26656
+      - MULTIVM_P2P_SEEDS=node1@172.20.0.11:26656,node4@172.20.0.14:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node6:/opt/multivm/data
+      - ./testnet/configs/node6:/opt/multivm/config
+    depends_on:
+      - node1
+      - node4
+    command: >
+      bash -c "
+        sleep 25 &&
+        echo 'Starting Node 6 as full node...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Node 7 - Non-validator (Full Node)
+  node7:
+    build: .
+    container_name: multivm-node7
+    hostname: node7
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.17
+    ports:
+      - "8680:8080"
+      - "8681:8081"
+      - "8682:8082"
+      - "8683:8083"
+      - "27256:26656"
+      - "27257:26657"
+    environment:
+      - NODE_ID=node7
+      - NODE_TYPE=full
+      - MULTIVM_JWT_SECRET=test-secret-key-for-development-only-32chars
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_P2P_LISTEN_ADDRESS=0.0.0.0:26656
+      - MULTIVM_P2P_EXTERNAL_ADDRESS=172.20.0.17:26656
+      - MULTIVM_P2P_SEEDS=node1@172.20.0.11:26656,node5@172.20.0.15:26656
+      - MULTIVM_CONSENSUS_LISTEN_ADDRESS=0.0.0.0:26657
+      - MULTIVM_REST_PORT=8080
+      - MULTIVM_ADMIN_PORT=8083
+      - RUST_LOG=info,multivm_consensus=debug,multivm_p2p=debug
+    volumes:
+      - ./testnet/node7:/opt/multivm/data
+      - ./testnet/configs/node7:/opt/multivm/config
+    depends_on:
+      - node1
+      - node5
+    command: >
+      bash -c "
+        sleep 30 &&
+        echo 'Starting Node 7 as full node...' &&
+        /opt/multivm/bin/multivm-application
+      "
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: multivm-prometheus
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.100
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./testnet/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: multivm-grafana
+    networks:
+      multivm-testnet:
+        ipv4_address: 172.20.0.101
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./testnet/grafana:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -23,6 +23,7 @@ futures = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_bytes = "0.11"
 bincode = { workspace = true }
 
 # Error handling
@@ -53,13 +54,13 @@ hmac = "0.12"
 base64 = "0.21"
 jsonwebtoken = "9.2"
 
-# Basic Ethereum utilities (avoiding version conflicts for now)
-# alloy-primitives = "0.7"
-# alloy-consensus = "0.1" 
-# alloy-rlp = "0.3"
+# Basic Ethereum utilities for real implementation
+alloy-primitives = "0.7"
+alloy-consensus = "0.1" 
+alloy-rlp = "0.3"
 
-# EVM for execution (simplified initial implementation)
-# revm = "12.1"
+# EVM for execution
+revm = "12.1"
 
 # JSON RPC (using current stable versions)
 jsonrpsee = { workspace = true }

@@ -1,3 +1,9 @@
+//! RPC Traits
+//!
+//! This module defines traits for implementing RPC (Remote Procedure Call) handlers
+//! and servers within the MultiVM system. These traits provide a common interface
+//! for handling JSON-RPC requests across different components.
+
 use crate::MultivmError;
 use async_trait::async_trait;
 

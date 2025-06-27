@@ -189,18 +189,23 @@ impl ManagedConnection {
     /// Send a message through this connection
     pub async fn send_message(&mut self, message: IpcMessage) -> MultivmResult<()> {
         // Acquire semaphore permit for rate limiting
-        let _permit = self.semaphore.acquire().await.map_err(|e| {
-            MultivmError::Ipc {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|e| MultivmError::Ipc {
                 endpoint: "connection_permit".to_string(),
-                message: format!("Failed to acquire connection permit: {}", e),
+                message: format!("Failed to acquire connection permit: {e}"),
                 retry_count: None,
-            }
-        })?;
+            })?;
 
         if self.state != ConnectionState::Connected {
             return Err(MultivmError::Ipc {
                 endpoint: self.id.clone(),
-                message: format!("Connection {} is not in connected state: {:?}", self.id, self.state),
+                message: format!(
+                    "Connection {} is not in connected state: {:?}",
+                    self.id, self.state
+                ),
                 retry_count: None,
             });
         }
@@ -227,7 +232,7 @@ impl ManagedConnection {
                 self.state = ConnectionState::Failed;
                 Err(MultivmError::Ipc {
                     endpoint: self.id.clone(),
-                    message: format!("Failed to send message: {}", e),
+                    message: format!("Failed to send message: {e}"),
                     retry_count: None,
                 })
             }
@@ -378,16 +383,17 @@ impl IpcConnectionManager {
 
     /// Get a connection for the specified process with reduced lock scope
     async fn get_available_connection(&self, process_id: ProcessId) -> MultivmResult<usize> {
-        use crate::lock_ordering::{acquire_write_lock_safe, LockLevel, get_lock_config};
-        
+        use crate::lock_ordering::{acquire_write_lock_safe, get_lock_config, LockLevel};
+
         // First, try to find an available connection with minimal lock time
         {
             let mut pools = acquire_write_lock_safe(
                 &self.pools,
                 LockLevel::ConnectionPools,
-                Some(get_lock_config().default_timeout)
-            ).await?;
-            
+                Some(get_lock_config().default_timeout),
+            )
+            .await?;
+
             let pool = pools.entry(process_id).or_insert_with(Vec::new);
 
             // Find an available healthy connection
@@ -403,48 +409,53 @@ impl IpcConnectionManager {
                 let index = pool.len();
                 // Release lock before creating connection (I/O operation)
                 drop(pools);
-                
+
                 // Create connection outside of lock
                 let connection = self.create_connection(process_id).await?;
-                
+
                 // Re-acquire lock to add connection
                 let mut pools = acquire_write_lock_safe(
                     &self.pools,
                     LockLevel::ConnectionPools,
-                    Some(get_lock_config().default_timeout)
-                ).await?;
-                
+                    Some(get_lock_config().default_timeout),
+                )
+                .await?;
+
                 let pool = pools.entry(process_id).or_insert_with(Vec::new);
                 pool.push(connection);
                 return Ok(index);
             }
         }
-        
+
         Err(MultivmError::Ipc {
-            endpoint: format!("process_{}", process_id),
-            message: format!("No available connections for process {} (pool exhausted)", process_id),
+            endpoint: format!("process_{process_id}"),
+            message: format!(
+                "No available connections for process {process_id} (pool exhausted)"
+            ),
             retry_count: None,
         })
     }
 
     /// Return a connection to the pool by index with reduced lock scope
     async fn return_connection_by_index(&self, process_id: ProcessId, index: usize) {
-        use crate::lock_ordering::{acquire_write_lock_safe, LockLevel, get_lock_config};
-        
+        use crate::lock_ordering::{acquire_write_lock_safe, get_lock_config, LockLevel};
+
         // Update connection state with minimal lock time
         let (messages_sent, messages_received) = {
             let mut pools = match acquire_write_lock_safe(
                 &self.pools,
                 LockLevel::ConnectionPools,
-                Some(get_lock_config().default_timeout)
-            ).await {
+                Some(get_lock_config().default_timeout),
+            )
+            .await
+            {
                 Ok(pools) => pools,
                 Err(_) => {
                     warn!("Failed to acquire pools lock for returning connection");
                     return;
                 }
             };
-            
+
             if let Some(pool) = pools.get_mut(&process_id) {
                 if let Some(connection) = pool.get_mut(index) {
                     connection.state = if connection.is_healthy() {
@@ -455,7 +466,8 @@ impl IpcConnectionManager {
 
                     // Get stats before releasing lock
                     let messages_sent = connection.stats.messages_sent.load(Ordering::Relaxed);
-                    let messages_received = connection.stats.messages_received.load(Ordering::Relaxed);
+                    let messages_received =
+                        connection.stats.messages_received.load(Ordering::Relaxed);
                     (messages_sent, messages_received)
                 } else {
                     return;
@@ -469,14 +481,20 @@ impl IpcConnectionManager {
         if let Ok(mut global_stats) = acquire_write_lock_safe(
             &self.global_stats,
             LockLevel::ConnectionPools,
-            Some(get_lock_config().background_timeout)
-        ).await {
+            Some(get_lock_config().background_timeout),
+        )
+        .await
+        {
             let process_stats = global_stats
                 .entry(process_id)
                 .or_insert_with(ConnectionStats::default);
 
-            process_stats.messages_sent.fetch_add(messages_sent, Ordering::Relaxed);
-            process_stats.messages_received.fetch_add(messages_received, Ordering::Relaxed);
+            process_stats
+                .messages_sent
+                .fetch_add(messages_sent, Ordering::Relaxed);
+            process_stats
+                .messages_received
+                .fetch_add(messages_received, Ordering::Relaxed);
         }
     }
 
@@ -511,8 +529,11 @@ impl IpcConnectionManager {
         }
 
         Err(MultivmError::Ipc {
-            endpoint: format!("process_{}", process_id),
-            message: format!("Failed to send message to {} after {} attempts", process_id, self.config.max_retry_attempts),
+            endpoint: format!("process_{process_id}"),
+            message: format!(
+                "Failed to send message to {} after {} attempts",
+                process_id, self.config.max_retry_attempts
+            ),
             retry_count: Some(self.config.max_retry_attempts),
         })
     }
@@ -546,7 +567,7 @@ impl IpcConnectionManager {
                 }
             } else {
                 return Err(MultivmError::Ipc {
-                    endpoint: format!("process_{}", process_id),
+                    endpoint: format!("process_{process_id}"),
                     message: "Process pool not found".to_string(),
                     retry_count: None,
                 });
@@ -701,13 +722,14 @@ impl ConnectionFactory for TcpConnectionFactory {
         mpsc::UnboundedSender<IpcMessage>,
         mpsc::UnboundedReceiver<IpcResponse>,
     )> {
-        let port = self.port_mapping.get(&process_id).ok_or_else(|| {
-            MultivmError::Ipc {
-                endpoint: format!("process_{}", process_id),
-                message: format!("No port mapping for process {}", process_id),
+        let port = self
+            .port_mapping
+            .get(&process_id)
+            .ok_or_else(|| MultivmError::Ipc {
+                endpoint: format!("process_{process_id}"),
+                message: format!("No port mapping for process {process_id}"),
                 retry_count: None,
-            }
-        })?;
+            })?;
 
         let address = format!("{}:{}", self.base_address, port);
         let stream = timeout(Duration::from_secs(5), TcpStream::connect(&address))
@@ -719,7 +741,7 @@ impl ConnectionFactory for TcpConnectionFactory {
             })?
             .map_err(|e| MultivmError::Ipc {
                 endpoint: address.clone(),
-                message: format!("Failed to connect to {}: {}", address, e),
+                message: format!("Failed to connect to {address}: {e}"),
                 retry_count: None,
             })?;
 
@@ -754,12 +776,10 @@ impl ConnectionFactory for UnixConnectionFactory {
                 message: "Connection timeout".to_string(),
                 retry_count: None,
             })?
-            .map_err(|e| {
-                MultivmError::Ipc {
-                    endpoint: socket_path.to_string(),
-                    message: format!("Failed to connect to {}: {}", socket_path, e),
-                    retry_count: None,
-                }
+            .map_err(|e| MultivmError::Ipc {
+                endpoint: socket_path.to_string(),
+                message: format!("Failed to connect to {socket_path}: {e}"),
+                retry_count: None,
             })?;
 
         // Perform secure handshake protocol
@@ -790,12 +810,11 @@ impl TcpConnectionFactory {
             auth_token: self.generate_auth_token(&process_id).await?,
         };
 
-        let init_data = serde_json::to_vec(&handshake_init)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: "handshake".to_string(),
-                message: format!("Failed to serialize handshake init: {}", e),
-                retry_count: None,
-            })?;
+        let init_data = serde_json::to_vec(&handshake_init).map_err(|e| MultivmError::Ipc {
+            endpoint: "handshake".to_string(),
+            message: format!("Failed to serialize handshake init: {e}"),
+            retry_count: None,
+        })?;
 
         // Send length-prefixed message
         let len = init_data.len() as u32;
@@ -804,7 +823,7 @@ impl TcpConnectionFactory {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: "handshake".to_string(),
-                message: format!("Failed to send handshake length: {}", e),
+                message: format!("Failed to send handshake length: {e}"),
                 retry_count: None,
             })?;
         stream
@@ -812,7 +831,7 @@ impl TcpConnectionFactory {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: "handshake".to_string(),
-                message: format!("Failed to send handshake init: {}", e),
+                message: format!("Failed to send handshake init: {e}"),
                 retry_count: None,
             })?;
 
@@ -823,7 +842,7 @@ impl TcpConnectionFactory {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: "handshake".to_string(),
-                message: format!("Failed to read response length: {}", e),
+                message: format!("Failed to read response length: {e}"),
                 retry_count: None,
             })?;
         let response_len = u32::from_be_bytes(len_buf) as usize;
@@ -842,14 +861,14 @@ impl TcpConnectionFactory {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: "handshake".to_string(),
-                message: format!("Failed to read handshake response: {}", e),
+                message: format!("Failed to read handshake response: {e}"),
                 retry_count: None,
             })?;
 
-        let handshake_response: HandshakeMessage = serde_json::from_slice(&response_buf)
-            .map_err(|e| MultivmError::Ipc {
+        let handshake_response: HandshakeMessage =
+            serde_json::from_slice(&response_buf).map_err(|e| MultivmError::Ipc {
                 endpoint: "handshake".to_string(),
-                message: format!("Failed to parse handshake response: {}", e),
+                message: format!("Failed to parse handshake response: {e}"),
                 retry_count: None,
             })?;
 
@@ -880,13 +899,11 @@ impl TcpConnectionFactory {
 
                 Ok((msg_sender, resp_receiver))
             }
-            HandshakeMessage::Reject { reason } => {
-                Err(MultivmError::Ipc {
-                    endpoint: "handshake".to_string(),
-                    message: format!("Handshake rejected: {}", reason),
-                    retry_count: None,
-                })
-            }
+            HandshakeMessage::Reject { reason } => Err(MultivmError::Ipc {
+                endpoint: "handshake".to_string(),
+                message: format!("Handshake rejected: {reason}"),
+                retry_count: None,
+            }),
             _ => Err(MultivmError::Ipc {
                 endpoint: "handshake".to_string(),
                 message: "Invalid handshake response".to_string(),
@@ -938,7 +955,7 @@ impl TcpConnectionFactory {
 
         let token = encode(&header, &claims, &encoding_key).map_err(|e| {
             MultivmError::AuthenticationFailed {
-                reason: format!("JWT encoding failed: {}", e),
+                reason: format!("JWT encoding failed: {e}"),
                 user_id: None,
                 required_permissions: None,
             }
@@ -959,12 +976,14 @@ impl TcpConnectionFactory {
 
         // Add fixed entropy value for now
         // Add dynamic entropy from system state
-        hasher.update(&std::process::id().to_be_bytes());
-        hasher.update(&std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
-            .to_be_bytes());
+        hasher.update(std::process::id().to_be_bytes());
+        hasher.update(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+                .to_be_bytes(),
+        );
 
         Ok(hasher.finalize().to_vec())
     }
@@ -993,7 +1012,7 @@ impl TcpConnectionFactory {
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
             MultivmError::AuthenticationFailed {
-                reason: format!("JWT validation failed: {}", e),
+                reason: format!("JWT validation failed: {e}"),
                 user_id: None,
                 required_permissions: None,
             }
@@ -1004,7 +1023,7 @@ impl TcpConnectionFactory {
         for perm in &required_permissions {
             if !token_data.claims.permissions.contains(perm) {
                 return Err(MultivmError::AuthenticationFailed {
-                    reason: format!("Missing required permission: {}", perm),
+                    reason: format!("Missing required permission: {perm}"),
                     user_id: None,
                     required_permissions: Some(required_permissions.clone()),
                 });
@@ -1052,16 +1071,17 @@ impl TcpConnectionFactory {
                     }
                 };
 
-                // Encrypt message with ChaCha20Poly1305 (DISABLED - placeholder implementation)
-                // PLACEHOLDER: ChaCha20Poly1305 encryption disabled due to dependency conflicts
-                let encrypted_data = {
-                    // Return data with dummy encryption header for format compatibility
-                    let mut result = Vec::with_capacity(12 + message_data.len());
-                    result.extend_from_slice(&[0u8; 12]); // Dummy nonce
-                    result.extend_from_slice(&message_data); // Unencrypted data
-                    result
-                };
-                
+                // Encryption temporarily disabled due to missing implementation
+                let encrypted_data = message_data;
+                // TODO: Re-enable encryption when implementation is complete
+                // let encrypted_data = match Self::encrypt_message(&message_data, &encryption_key) {
+                //     Ok(data) => data,
+                //     Err(e) => {
+                //         error!("Failed to encrypt message: {}", e);
+                //         continue;
+                //     }
+                // };
+
                 /*
                 // Original ChaCha20Poly1305 encryption - disabled
                 let encrypted_data = {
@@ -1246,15 +1266,41 @@ impl UnixConnectionFactory {
         });
     }
 
-    /// Encrypt message data using ChaCha20Poly1305 (DISABLED - placeholder implementation)
-    fn encrypt_message(data: &[u8], _key: &[u8]) -> MultivmResult<Vec<u8>> {
-        // PLACEHOLDER: ChaCha20Poly1305 encryption disabled due to dependency conflicts
-        // Return data with dummy encryption header for format compatibility
-        let mut encrypted = Vec::with_capacity(12 + data.len());
-        encrypted.extend_from_slice(&[0u8; 12]); // Dummy nonce
-        encrypted.extend_from_slice(data); // Unencrypted data
+    /// Encrypt message data using ChaCha20Poly1305
+    fn encrypt_message(data: &[u8], key: &[u8]) -> MultivmResult<Vec<u8>> {
+        use chacha20poly1305::{
+            aead::{Aead, AeadCore, KeyInit, OsRng},
+            ChaCha20Poly1305, Key,
+        };
+
+        if key.len() < 32 {
+            return Err(MultivmError::EncryptionFailed {
+                message: "Encryption key too short".to_string(),
+                algorithm: Some("ChaCha20Poly1305".to_string()),
+            });
+        }
+
+        let cipher_key = Key::from_slice(&key[..32]);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Generate random nonce
+        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+
+        // Encrypt the data
+        let ciphertext =
+            cipher
+                .encrypt(&nonce, data)
+                .map_err(|e| MultivmError::EncryptionFailed {
+                    message: format!("ChaCha20Poly1305 encryption failed: {e}"),
+                    algorithm: Some("ChaCha20Poly1305".to_string()),
+                })?;
+
+        // Prepend nonce to ciphertext
+        let mut encrypted = Vec::with_capacity(12 + ciphertext.len());
+        encrypted.extend_from_slice(&nonce);
+        encrypted.extend_from_slice(&ciphertext);
         Ok(encrypted)
-        
+
         /*
         use chacha20poly1305::{
             aead::{Aead, AeadCore, KeyInit, OsRng},
@@ -1291,20 +1337,45 @@ impl UnixConnectionFactory {
         */
     }
 
-    /// Decrypt message data using ChaCha20Poly1305 (DISABLED - placeholder implementation)
-    fn decrypt_message(encrypted_data: &[u8], _key: &[u8]) -> MultivmResult<Vec<u8>> {
-        // PLACEHOLDER: ChaCha20Poly1305 decryption disabled due to dependency conflicts
-        // Return data after removing dummy nonce header
+    /// Decrypt message data using ChaCha20Poly1305
+    fn decrypt_message(encrypted_data: &[u8], key: &[u8]) -> MultivmResult<Vec<u8>> {
+        use chacha20poly1305::{
+            aead::{Aead, KeyInit},
+            ChaCha20Poly1305, Key, Nonce,
+        };
+
+        if key.len() < 32 {
+            return Err(MultivmError::EncryptionFailed {
+                message: "Decryption key too short".to_string(),
+                algorithm: Some("ChaCha20Poly1305".to_string()),
+            });
+        }
+
         if encrypted_data.len() < 12 {
             return Err(MultivmError::EncryptionFailed {
                 message: "Encrypted data too short".to_string(),
                 algorithm: Some("ChaCha20Poly1305".to_string()),
             });
         }
-        
-        // Skip the dummy nonce and return the unencrypted data
-        Ok(encrypted_data[12..].to_vec())
-        
+
+        let cipher_key = Key::from_slice(&key[..32]);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+
+        // Extract nonce and ciphertext
+        let nonce = Nonce::from_slice(&encrypted_data[..12]);
+        let ciphertext = &encrypted_data[12..];
+
+        // Decrypt the data
+        let plaintext =
+            cipher
+                .decrypt(nonce, ciphertext)
+                .map_err(|e| MultivmError::EncryptionFailed {
+                    message: format!("ChaCha20Poly1305 decryption failed: {e}"),
+                    algorithm: Some("ChaCha20Poly1305".to_string()),
+                })?;
+
+        Ok(plaintext)
+
         /*
         use chacha20poly1305::{
             aead::{Aead, KeyInit},

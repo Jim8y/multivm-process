@@ -7,8 +7,8 @@ pub mod unified;
 
 // Re-export unified types as the primary interface
 pub use unified::{
-    UnifiedGateway, UnifiedGatewayConfig, GatewayResponse, ResponseMetadata,
-    UnifiedBlock, UnifiedTransaction, UnifiedAccount, GatewayStats, GasInfo,
+    GasInfo, GatewayResponse, GatewayStats, ResponseMetadata, UnifiedAccount, UnifiedBlock,
+    UnifiedGateway, UnifiedGatewayConfig, UnifiedTransaction,
 };
 
 use crate::cache::CacheLayer;
@@ -34,7 +34,7 @@ impl GatewayFactory {
             chain_id: 1, // Default EVM chain ID
             production_mode: true,
         };
-        
+
         UnifiedGateway::new(gateway_config, cache).await
     }
 
@@ -52,7 +52,7 @@ impl GatewayFactory {
             chain_id: 0, // Solana doesn't use chain_id
             production_mode: true,
         };
-        
+
         UnifiedGateway::new(gateway_config, cache).await
     }
 
@@ -69,7 +69,7 @@ impl GatewayFactory {
             chain_id: 31337, // Local development chain
             production_mode: false,
         };
-        
+
         UnifiedGateway::new(gateway_config, cache).await
     }
 }
@@ -79,18 +79,21 @@ impl GatewayFactory {
 pub trait VmGateway: Send + Sync {
     /// Get the VM type this gateway handles
     fn vm_type(&self) -> VmType;
-    
+
     /// Check if the backend is healthy
     async fn health_check(&self) -> ApplicationResult<bool>;
-    
+
     /// Get gateway statistics
     async fn get_stats(&self) -> ApplicationResult<GatewayStats>;
-    
+
     /// Get latest block
     async fn get_latest_block(&self) -> ApplicationResult<GatewayResponse<UnifiedBlock>>;
-    
+
     /// Send raw transaction
-    async fn send_raw_transaction(&self, raw_tx: &str) -> ApplicationResult<GatewayResponse<String>>;
+    async fn send_raw_transaction(
+        &self,
+        raw_tx: &str,
+    ) -> ApplicationResult<GatewayResponse<String>>;
 }
 
 #[async_trait::async_trait]
@@ -98,20 +101,23 @@ impl VmGateway for UnifiedGateway {
     fn vm_type(&self) -> VmType {
         self.config.vm_type
     }
-    
+
     async fn health_check(&self) -> ApplicationResult<bool> {
         self.health_check().await
     }
-    
+
     async fn get_stats(&self) -> ApplicationResult<GatewayStats> {
         self.get_stats().await
     }
-    
+
     async fn get_latest_block(&self) -> ApplicationResult<GatewayResponse<UnifiedBlock>> {
         self.get_latest_block().await
     }
-    
-    async fn send_raw_transaction(&self, raw_tx: &str) -> ApplicationResult<GatewayResponse<String>> {
+
+    async fn send_raw_transaction(
+        &self,
+        raw_tx: &str,
+    ) -> ApplicationResult<GatewayResponse<String>> {
         self.send_raw_transaction(raw_tx).await
     }
 }
@@ -139,7 +145,7 @@ pub mod utils {
             chain_id,
             production_mode: false,
         };
-        
+
         UnifiedGateway::new(gateway_config, cache).await
     }
 
@@ -164,7 +170,7 @@ pub mod utils {
             chain_id,
             production_mode: true,
         };
-        
+
         UnifiedGateway::new(gateway_config, cache).await
     }
 

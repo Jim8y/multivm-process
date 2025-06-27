@@ -4,7 +4,11 @@ use crate::ipc::connection_manager::{
 use multivm_common::ipc::secure_transport::{
     AuthManager, EncryptionConfig, RateLimitConfig, RateLimiter, SecureIpcTransport,
 };
-use multivm_common::{*, config::{IpcConfig, IpcTransportConfig}, types_rpc::RpcResponse};
+use multivm_common::{
+    config::{IpcConfig, IpcTransportConfig},
+    types_rpc::RpcResponse,
+    *,
+};
 use sha2::Digest;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -184,12 +188,12 @@ async fn run_secure_ipc_server(
 ) -> MultivmResult<()> {
     match config.transport {
         IpcTransportConfig::TcpSocket { host, port } => {
-            let addr = format!("{}:{}", host, port);
+            let addr = format!("{host}:{port}");
             let listener = TcpListener::bind(&addr)
                 .await
                 .map_err(|e| MultivmError::Ipc {
                     endpoint: addr.clone(),
-                    message: format!("Failed to bind TCP socket: {}", e),
+                    message: format!("Failed to bind TCP socket: {e}"),
                     retry_count: None,
                 })?;
 
@@ -207,6 +211,7 @@ async fn run_secure_ipc_server(
                                 stream,
                                 auth_manager_clone,
                                 rate_limiter_clone,
+                                config.enable_encryption,
                             )
                             .await
                             {
@@ -227,12 +232,11 @@ async fn run_secure_ipc_server(
                 // Remove existing socket file
                 let _ = std::fs::remove_file(&path);
 
-                let listener = UnixListener::bind(&path)
-                    .map_err(|e| MultivmError::Ipc {
-                        endpoint: path.to_string_lossy().to_string(),
-                        message: format!("Failed to bind Unix socket: {}", e),
-                        retry_count: None,
-                    })?;
+                let listener = UnixListener::bind(&path).map_err(|e| MultivmError::Ipc {
+                    endpoint: path.to_string_lossy().to_string(),
+                    message: format!("Failed to bind Unix socket: {e}"),
+                    retry_count: None,
+                })?;
 
                 tracing::info!("IPC server listening on Unix socket: {:?}", path);
 
@@ -248,6 +252,7 @@ async fn run_secure_ipc_server(
                                     stream,
                                     auth_manager_clone,
                                     rate_limiter_clone,
+                                    config.enable_encryption,
                                 )
                                 .await
                                 {
@@ -279,14 +284,21 @@ async fn handle_secure_tcp_connection(
     stream: TcpStream,
     auth_manager: Arc<AuthManager>,
     rate_limiter: Arc<RateLimiter>,
+    encryption_enabled: bool,
 ) -> MultivmResult<()> {
     info!("Secure TCP connection established, initializing secure transport");
 
-    // Create secure transport with encryption disabled for development
+    // Create secure transport with configurable encryption
     let encryption_config = EncryptionConfig {
-        enabled: false, // Can be enabled in production
+        enabled: encryption_enabled,
         ..Default::default()
     };
+
+    if encryption_enabled {
+        info!("IPC encryption enabled with ChaCha20-Poly1305");
+    } else {
+        warn!("IPC encryption disabled - use only for development");
+    }
 
     let mut secure_transport = SecureIpcTransport::new_tcp(
         stream,
@@ -347,14 +359,21 @@ async fn handle_secure_unix_connection(
     stream: UnixStream,
     auth_manager: Arc<AuthManager>,
     rate_limiter: Arc<RateLimiter>,
+    encryption_enabled: bool,
 ) -> MultivmResult<()> {
     info!("Secure Unix socket connection established, initializing secure transport");
 
-    // Create secure transport with encryption disabled for development
+    // Create secure transport with configurable encryption
     let encryption_config = EncryptionConfig {
-        enabled: false, // Can be enabled in production
+        enabled: encryption_enabled,
         ..Default::default()
     };
+
+    if encryption_enabled {
+        info!("IPC encryption enabled with ChaCha20-Poly1305");
+    } else {
+        warn!("IPC encryption disabled - use only for development");
+    }
 
     let mut secure_transport = SecureIpcTransport::new_unix(
         stream,
@@ -538,11 +557,10 @@ async fn process_solana_block_secure(block_data_bytes: &[u8]) -> MultivmResult<V
         "state_commitment": "finalized"
     });
 
-    serde_json::to_vec(&result)
-        .map_err(|e| MultivmError::Serialization {
-            message: format!("Failed to serialize Solana execution result: {}", e),
-            data_type: Some("solana_execution_result".to_string()),
-        })
+    serde_json::to_vec(&result).map_err(|e| MultivmError::Serialization {
+        message: format!("Failed to serialize Solana execution result: {e}"),
+        data_type: Some("solana_execution_result".to_string()),
+    })
 }
 
 /// Process Ethereum block with secure validation
@@ -572,22 +590,20 @@ async fn process_ethereum_block_secure(block_data_bytes: &[u8]) -> MultivmResult
         "timestamp": chrono::Utc::now()
     });
 
-    serde_json::to_vec(&result)
-        .map_err(|e| MultivmError::Serialization {
-            message: format!("Failed to serialize Ethereum execution result: {}", e),
-            data_type: Some("ethereum_execution_result".to_string()),
-        })
+    serde_json::to_vec(&result).map_err(|e| MultivmError::Serialization {
+        message: format!("Failed to serialize Ethereum execution result: {e}"),
+        data_type: Some("ethereum_execution_result".to_string()),
+    })
 }
 
 impl TcpSocketTransport {
     /// Parse handshake message to identify process
     fn parse_handshake(data: &[u8]) -> Result<ProcessId, MultivmError> {
-        let handshake_str = std::str::from_utf8(data)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: "handshake".to_string(),
-                message: format!("Invalid handshake data: {}", e),
-                retry_count: None,
-            })?;
+        let handshake_str = std::str::from_utf8(data).map_err(|e| MultivmError::Ipc {
+            endpoint: "handshake".to_string(),
+            message: format!("Invalid handshake data: {e}"),
+            retry_count: None,
+        })?;
 
         // Expected format: "MULTIVM_HANDSHAKE:<process_id>"
         if let Some(process_part) = handshake_str.strip_prefix("MULTIVM_HANDSHAKE:") {
@@ -597,7 +613,7 @@ impl TcpSocketTransport {
                 "main" => Ok(ProcessId::Main),
                 _ => Err(MultivmError::Ipc {
                     endpoint: "handshake".to_string(),
-                    message: format!("Unknown process ID: {}", process_part),
+                    message: format!("Unknown process ID: {process_part}"),
                     retry_count: None,
                 }),
             }
@@ -618,12 +634,11 @@ impl TcpSocketTransport {
     /// Parse IPC message from bytes
     fn parse_ipc_message(data: &[u8]) -> Result<IpcMessage, MultivmError> {
         // Use bincode for efficient binary serialization
-        bincode::deserialize(data)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: "message_deserialize".to_string(),
-                message: format!("Failed to deserialize message: {}", e),
-                retry_count: None,
-            })
+        bincode::deserialize(data).map_err(|e| MultivmError::Ipc {
+            endpoint: "message_deserialize".to_string(),
+            message: format!("Failed to deserialize message: {e}"),
+            retry_count: None,
+        })
     }
 
     /// Process an IPC message and generate appropriate response
@@ -721,11 +736,10 @@ impl TcpSocketTransport {
                     "execution_time_ms": execution_result.execution_time_ms
                 });
 
-                serde_json::to_vec(&result)
-                    .map_err(|e| MultivmError::Unknown {
-                        message: format!("Serialization error: {}", e),
-                        error_source: Some("ipc_transport".to_string()),
-                    })
+                serde_json::to_vec(&result).map_err(|e| MultivmError::Unknown {
+                    message: format!("Serialization error: {e}"),
+                    error_source: Some("ipc_transport".to_string()),
+                })
             }
             Err(e) => {
                 tracing::error!("Solana transaction execution failed: {}", e);
@@ -770,11 +784,10 @@ impl TcpSocketTransport {
                     "execution_time_ms": execution_result.execution_time_ms
                 });
 
-                serde_json::to_vec(&result)
-                    .map_err(|e| MultivmError::Unknown {
-                        message: format!("Serialization error: {}", e),
-                        error_source: Some("ipc_transport".to_string()),
-                    })
+                serde_json::to_vec(&result).map_err(|e| MultivmError::Unknown {
+                    message: format!("Serialization error: {e}"),
+                    error_source: Some("ipc_transport".to_string()),
+                })
             }
             Err(e) => {
                 tracing::error!("Ethereum transaction execution failed: {}", e);
@@ -821,11 +834,10 @@ impl TcpSocketTransport {
                     "execution_time_ms": execution_result.execution_time_ms
                 });
 
-                serde_json::to_vec(&result)
-                    .map_err(|e| MultivmError::Unknown {
-                        message: format!("Serialization error: {}", e),
-                        error_source: Some("ipc_transport".to_string()),
-                    })
+                serde_json::to_vec(&result).map_err(|e| MultivmError::Unknown {
+                    message: format!("Serialization error: {e}"),
+                    error_source: Some("ipc_transport".to_string()),
+                })
             }
             Err(e) => {
                 tracing::error!("MultiVM transaction execution failed: {}", e);
@@ -836,11 +848,10 @@ impl TcpSocketTransport {
 
     /// Serialize IPC response to bytes
     fn serialize_ipc_response(response: &IpcResponse) -> Result<Vec<u8>, MultivmError> {
-        bincode::serialize(response)
-            .map_err(|e| MultivmError::Unknown {
-                message: format!("Failed to serialize response: {}", e),
-                error_source: Some("ipc_transport".to_string()),
-            })
+        bincode::serialize(response).map_err(|e| MultivmError::Unknown {
+            message: format!("Failed to serialize response: {e}"),
+            error_source: Some("ipc_transport".to_string()),
+        })
     }
 
     /// Create error response
@@ -860,12 +871,11 @@ impl TcpSocketTransport {
     ) -> Result<SolanaBlockData, MultivmError> {
         // Parse Solana block data using appropriate format detection
         // Production implementation would handle both JSON RPC and binary formats
-        let block_data: SolanaBlockData = bincode::deserialize(block_data_bytes).map_err(|e| {
-            MultivmError::Serialization {
-                message: format!("Failed to parse Solana block: {}", e),
+        let block_data: SolanaBlockData =
+            bincode::deserialize(block_data_bytes).map_err(|e| MultivmError::Serialization {
+                message: format!("Failed to parse Solana block: {e}"),
                 data_type: Some("solana_block_data".to_string()),
-            }
-        })?;
+            })?;
 
         tracing::debug!(
             "Parsed Solana block with {} transactions",
@@ -913,11 +923,9 @@ impl TcpSocketTransport {
         // Parse Ethereum block data with proper RLP decoding support
         // Production implementation would handle JSON RPC and binary formats
         let block_data: EthereumBlockData =
-            bincode::deserialize(block_data_bytes).map_err(|e| {
-                MultivmError::Serialization {
-                    message: format!("Failed to parse Ethereum block: {}", e),
-                    data_type: Some("ethereum_block_data".to_string()),
-                }
+            bincode::deserialize(block_data_bytes).map_err(|e| MultivmError::Serialization {
+                message: format!("Failed to parse Ethereum block: {e}"),
+                data_type: Some("ethereum_block_data".to_string()),
             })?;
 
         tracing::debug!(
@@ -948,12 +956,12 @@ impl TcpSocketTransport {
         let state_root = format!(
             "0x{}",
             hex::encode(
-                &sha2::Sha256::digest(format!("state_{}", transactions_processed).as_bytes())[..16]
+                &sha2::Sha256::digest(format!("state_{transactions_processed}").as_bytes())[..16]
             )
         );
         let receipts_root = format!(
             "0x{}",
-            hex::encode(&sha2::Sha256::digest(format!("receipts_{}", gas_used).as_bytes())[..16])
+            hex::encode(&sha2::Sha256::digest(format!("receipts_{gas_used}").as_bytes())[..16])
         );
 
         Ok(EthereumExecutionResult {
@@ -969,12 +977,11 @@ impl TcpSocketTransport {
     async fn parse_multivm_block_data(
         block_data_bytes: &[u8],
     ) -> Result<MultiVmBlockData, MultivmError> {
-        let block_data: MultiVmBlockData = bincode::deserialize(block_data_bytes).map_err(|e| {
-            MultivmError::Serialization {
-                message: format!("Failed to parse MultiVM block: {}", e),
+        let block_data: MultiVmBlockData =
+            bincode::deserialize(block_data_bytes).map_err(|e| MultivmError::Serialization {
+                message: format!("Failed to parse MultiVM block: {e}"),
                 data_type: Some("multivm_block_data".to_string()),
-            }
-        })?;
+            })?;
 
         tracing::debug!(
             "Parsed MultiVM block with {} SVM txs, {} EVM txs, {} special txs",
@@ -1188,7 +1195,7 @@ impl IpcClient {
         if !path.exists() {
             return Err(MultivmError::Ipc {
                 endpoint: socket_path.to_string(),
-                message: format!("Unix socket does not exist: {}", socket_path),
+                message: format!("Unix socket does not exist: {socket_path}"),
                 retry_count: None,
             });
         }
@@ -1233,7 +1240,7 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Failed to connect to Unix socket: {}", e),
+                message: format!("Failed to connect to Unix socket: {e}"),
                 retry_count: None,
             })?;
 
@@ -1243,7 +1250,7 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Handshake failed: {}", e),
+                message: format!("Handshake failed: {e}"),
                 retry_count: None,
             })?;
 
@@ -1254,7 +1261,7 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Failed to read handshake ack: {}", e),
+                message: format!("Failed to read handshake ack: {e}"),
                 retry_count: None,
             })?;
 
@@ -1268,19 +1275,18 @@ impl IpcClient {
 
         // Create and send message
         let message = IpcMessage::new(ProcessId::Main, ProcessId::Main, command);
-        let message_bytes = bincode::serialize(&message)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Failed to serialize message: {}", e),
-                retry_count: None,
-            })?;
+        let message_bytes = bincode::serialize(&message).map_err(|e| MultivmError::Ipc {
+            endpoint: socket_path.to_string_lossy().to_string(),
+            message: format!("Failed to serialize message: {e}"),
+            retry_count: None,
+        })?;
 
         stream
             .write_all(&message_bytes)
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Failed to send message: {}", e),
+                message: format!("Failed to send message: {e}"),
                 retry_count: None,
             })?;
 
@@ -1291,14 +1297,14 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Failed to read response: {}", e),
+                message: format!("Failed to read response: {e}"),
                 retry_count: None,
             })?;
 
-        let response: IpcResponse = bincode::deserialize(&response_buffer[..n])
-            .map_err(|e| MultivmError::Ipc {
+        let response: IpcResponse =
+            bincode::deserialize(&response_buffer[..n]).map_err(|e| MultivmError::Ipc {
                 endpoint: socket_path.to_string_lossy().to_string(),
-                message: format!("Failed to deserialize response: {}", e),
+                message: format!("Failed to deserialize response: {e}"),
                 retry_count: None,
             })?;
 
@@ -1315,7 +1321,7 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: address.to_string(),
-                message: format!("Failed to connect to TCP socket: {}", e),
+                message: format!("Failed to connect to TCP socket: {e}"),
                 retry_count: None,
             })?;
 
@@ -1325,7 +1331,7 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: address.to_string(),
-                message: format!("Handshake failed: {}", e),
+                message: format!("Handshake failed: {e}"),
                 retry_count: None,
             })?;
 
@@ -1336,7 +1342,7 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: address.to_string(),
-                message: format!("Failed to read handshake ack: {}", e),
+                message: format!("Failed to read handshake ack: {e}"),
                 retry_count: None,
             })?;
 
@@ -1350,19 +1356,18 @@ impl IpcClient {
 
         // Create and send message
         let message = IpcMessage::new(ProcessId::Main, ProcessId::Main, command);
-        let message_bytes = bincode::serialize(&message)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: address.to_string(),
-                message: format!("Failed to serialize message: {}", e),
-                retry_count: None,
-            })?;
+        let message_bytes = bincode::serialize(&message).map_err(|e| MultivmError::Ipc {
+            endpoint: address.to_string(),
+            message: format!("Failed to serialize message: {e}"),
+            retry_count: None,
+        })?;
 
         stream
             .write_all(&message_bytes)
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: address.to_string(),
-                message: format!("Failed to send message: {}", e),
+                message: format!("Failed to send message: {e}"),
                 retry_count: None,
             })?;
 
@@ -1373,14 +1378,14 @@ impl IpcClient {
             .await
             .map_err(|e| MultivmError::Ipc {
                 endpoint: address.to_string(),
-                message: format!("Failed to read response: {}", e),
+                message: format!("Failed to read response: {e}"),
                 retry_count: None,
             })?;
 
-        let response: IpcResponse = bincode::deserialize(&response_buffer[..n])
-            .map_err(|e| MultivmError::Ipc {
+        let response: IpcResponse =
+            bincode::deserialize(&response_buffer[..n]).map_err(|e| MultivmError::Ipc {
                 endpoint: address.to_string(),
-                message: format!("Failed to deserialize response: {}", e),
+                message: format!("Failed to deserialize response: {e}"),
                 retry_count: None,
             })?;
 

@@ -223,7 +223,7 @@ impl From<ConsensusError> for MultivmError {
                 partial_result: None,
             },
             other => MultivmError::Unknown {
-                message: format!("Consensus error: {}", other),
+                message: format!("Consensus error: {other}"),
                 error_source: None,
             },
         }

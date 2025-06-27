@@ -3,7 +3,7 @@
 //! This module provides a complete peer-to-peer networking layer for the MultiVM system,
 //! enabling secure, decentralized communication between nodes in the network.
 
-use crate::{NetworkStats, error::P2PError};
+use crate::{error::P2PError, NetworkStats};
 use multivm_common::MultivmResult;
 
 use libp2p::{
@@ -23,8 +23,8 @@ use libp2p::{
     Transport,
 };
 // Using gossipsub for all peer communication which provides reliable message delivery
-use serde::{Deserialize, Serialize};
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
@@ -325,13 +325,13 @@ impl P2PNetwork {
                 MessageId::from(hasher.finalize().to_vec())
             })
             .build()
-            .map_err(|e| format!("Failed to build gossipsub config: {}", e))?;
+            .map_err(|e| format!("Failed to build gossipsub config: {e}"))?;
 
         let gossipsub = gossipsub::Behaviour::new(
             MessageAuthenticity::Signed(local_key.clone()),
             gossipsub_config,
         )
-        .map_err(|e| format!("Failed to create gossipsub behaviour: {}", e))?;
+        .map_err(|e| format!("Failed to create gossipsub behaviour: {e}"))?;
 
         // Configure mDNS if enabled
         let mdns = if config.enable_mdns {
@@ -374,9 +374,9 @@ impl P2PNetwork {
                 noise::Config::new,
                 yamux::Config::default,
             )
-            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {}", e)))?
+            .map_err(|e| P2PError::Internal(format!("Failed to configure TCP: {e}")))?
             .with_behaviour(|_| behaviour)
-            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {}", e)))?
+            .map_err(|e| P2PError::Internal(format!("Failed to set behaviour: {e}")))?
             .with_swarm_config(|c| c.with_idle_connection_timeout(config.connection_timeout))
             .build();
 
@@ -481,12 +481,10 @@ impl P2PNetwork {
                     .gossipsub
                     .subscribe(&topic_ident)
                     .map(|_| ()) // Convert bool to ()
-                    .map_err(|e| {
-                        multivm_common::MultivmError::Network {
-                            message: format!("Failed to subscribe: {}", e),
-                            endpoint: None,
-                            retry_after: None,
-                        }
+                    .map_err(|e| multivm_common::MultivmError::Network {
+                        message: format!("Failed to subscribe: {e}"),
+                        endpoint: None,
+                        retry_after: None,
                     });
 
                 if result.is_ok() {
@@ -502,12 +500,10 @@ impl P2PNetwork {
                     .gossipsub
                     .unsubscribe(&topic_ident)
                     .map(|_| ()) // Convert bool to ()
-                    .map_err(|e| {
-                        multivm_common::MultivmError::Network {
-                            message: format!("Failed to unsubscribe: {}", e),
-                            endpoint: None,
-                            retry_after: None,
-                        }
+                    .map_err(|e| multivm_common::MultivmError::Network {
+                        message: format!("Failed to unsubscribe: {e}"),
+                        endpoint: None,
+                        retry_after: None,
                     });
 
                 if result.is_ok() {
@@ -527,12 +523,10 @@ impl P2PNetwork {
                     .gossipsub
                     .publish(topic_ident, data)
                     .map(|_| ()) // Convert MessageId to ()
-                    .map_err(|e| {
-                        multivm_common::MultivmError::Network {
-                            message: format!("Failed to publish: {}", e),
-                            endpoint: None,
-                            retry_after: None,
-                        }
+                    .map_err(|e| multivm_common::MultivmError::Network {
+                        message: format!("Failed to publish: {e}"),
+                        endpoint: None,
+                        retry_after: None,
                     });
 
                 let _ = response.send(result);
@@ -556,19 +550,17 @@ impl P2PNetwork {
                 // Direct message via gossipsub topic for the peer
 
                 // Use gossipsub for direct messaging (reliable fallback)
-                let topic_name = format!("peer-{}", peer_id);
+                let topic_name = format!("peer-{peer_id}");
                 let topic_ident = IdentTopic::new(&topic_name);
                 let result = swarm
                     .behaviour_mut()
                     .gossipsub
                     .publish(topic_ident, data)
                     .map(|_| ())
-                    .map_err(|e| {
-                        multivm_common::MultivmError::Network {
-                            message: format!("Failed to publish to peer: {}", e),
-                            endpoint: None,
-                            retry_after: None,
-                        }
+                    .map_err(|e| multivm_common::MultivmError::Network {
+                        message: format!("Failed to publish to peer: {e}"),
+                        endpoint: None,
+                        retry_after: None,
                     });
 
                 debug!(
@@ -768,11 +760,16 @@ impl P2PNetwork {
                 }
 
                 // Process the message payload - deserialize and handle based on message type
-                if let Ok(network_message) = serde_json::from_slice::<crate::messages::NetworkMessage>(&message.data) {
+                if let Ok(network_message) =
+                    serde_json::from_slice::<crate::messages::NetworkMessage>(&message.data)
+                {
                     debug!("Processed network message: {:?}", network_message.payload);
                     // Message routing handled by upper layers
                 } else {
-                    debug!("Received non-NetworkMessage data: {} bytes", message.data.len());
+                    debug!(
+                        "Received non-NetworkMessage data: {} bytes",
+                        message.data.len()
+                    );
                 }
             }
             NetworkBehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
@@ -956,21 +953,19 @@ impl P2PNetwork {
                 topic: topic_name.to_string(),
                 response: tx,
             })
-            .map_err(|e| {
-                multivm_common::MultivmError::Network {
-                    message: format!("Failed to send subscribe command: {}", e),
-                    endpoint: None,
-                    retry_after: None,
-                }
-            })?;
-
-        let result = rx.await.map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Failed to receive subscribe response: {}", e),
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to send subscribe command: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
+
+        let result = rx
+            .await
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to receive subscribe response: {e}"),
+                endpoint: None,
+                retry_after: None,
+            })?;
 
         if result.is_ok() {
             info!("Subscribed to topic: {}", topic_name);
@@ -988,21 +983,19 @@ impl P2PNetwork {
                 topic: topic_name.to_string(),
                 response: tx,
             })
-            .map_err(|e| {
-                multivm_common::MultivmError::Network {
-                    message: format!("Failed to send unsubscribe command: {}", e),
-                    endpoint: None,
-                    retry_after: None,
-                }
-            })?;
-
-        let result = rx.await.map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Failed to receive unsubscribe response: {}", e),
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to send unsubscribe command: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
+
+        let result = rx
+            .await
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to receive unsubscribe response: {e}"),
+                endpoint: None,
+                retry_after: None,
+            })?;
 
         if result.is_ok() {
             info!("Unsubscribed from topic: {}", topic_name);
@@ -1021,21 +1014,19 @@ impl P2PNetwork {
                 data: data.clone(),
                 response: tx,
             })
-            .map_err(|e| {
-                multivm_common::MultivmError::Network {
-                    message: format!("Failed to send publish command: {}", e),
-                    endpoint: None,
-                    retry_after: None,
-                }
-            })?;
-
-        let result = rx.await.map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Failed to receive publish response: {}", e),
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to send publish command: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
+
+        let result = rx
+            .await
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to receive publish response: {e}"),
+                endpoint: None,
+                retry_after: None,
+            })?;
 
         if result.is_ok() {
             // Update statistics
@@ -1064,21 +1055,19 @@ impl P2PNetwork {
                 addresses: addresses.clone(),
                 response: tx,
             })
-            .map_err(|e| {
-                multivm_common::MultivmError::Network {
-                    message: format!("Failed to send add peer command: {}", e),
-                    endpoint: None,
-                    retry_after: None,
-                }
-            })?;
-
-        let result = rx.await.map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Failed to receive add peer response: {}", e),
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to send add peer command: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
+
+        let result = rx
+            .await
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to receive add peer response: {e}"),
+                endpoint: None,
+                retry_after: None,
+            })?;
 
         if result.is_ok() {
             for addr in addresses {
@@ -1127,7 +1116,7 @@ impl P2PNetwork {
             issues.push("No active peer connections".to_string());
             status = NetworkHealthStatus::Critical;
         } else if active_peers < 3 {
-            issues.push(format!("Low peer count: {}", active_peers));
+            issues.push(format!("Low peer count: {active_peers}"));
             if status == NetworkHealthStatus::Healthy {
                 status = NetworkHealthStatus::Warning;
             }
@@ -1157,8 +1146,7 @@ impl P2PNetwork {
 
         if failed_peers > active_peers * 2 {
             issues.push(format!(
-                "High failure rate: {} failed vs {} active",
-                failed_peers, active_peers
+                "High failure rate: {failed_peers} failed vs {active_peers} active"
             ));
             if status == NetworkHealthStatus::Healthy {
                 status = NetworkHealthStatus::Warning;
@@ -1196,7 +1184,7 @@ impl P2PNetwork {
                         let result = self.add_peer(peer_id, vec![peer_addr.clone()]).await;
                         if result.is_ok() {
                             healing_actions
-                                .push(format!("Reconnected to bootstrap peer: {}", peer_id));
+                                .push(format!("Reconnected to bootstrap peer: {peer_id}"));
                         }
                     }
                 }
@@ -1211,7 +1199,7 @@ impl P2PNetwork {
                 for topic in essential_topics {
                     let result = self.subscribe_topic(topic).await;
                     if result.is_ok() {
-                        healing_actions.push(format!("Subscribed to essential topic: {}", topic));
+                        healing_actions.push(format!("Subscribed to essential topic: {topic}"));
                     }
                 }
             }
@@ -1231,7 +1219,7 @@ impl P2PNetwork {
                     // Remove oldest failed connections to prevent memory bloat
                     for peer_id in failed_peers.into_iter().take(5) {
                         peers.remove(&peer_id);
-                        healing_actions.push(format!("Cleaned up failed peer: {}", peer_id));
+                        healing_actions.push(format!("Cleaned up failed peer: {peer_id}"));
                     }
                 }
             }
@@ -1291,22 +1279,22 @@ impl P2PNetwork {
         message: crate::messages::NetworkMessage,
     ) -> MultivmResult<()> {
         // Serialize the message
-        let data = bincode::serialize(&message).map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Serialization failed: {}", e),
+        let data =
+            bincode::serialize(&message).map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Serialization failed: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
 
         // Parse peer ID from string
-        let peer_id = peer_id.parse::<PeerId>().map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Invalid peer ID: {}", e),
-                endpoint: None,
-                retry_after: None,
-            }
-        })?;
+        let peer_id =
+            peer_id
+                .parse::<PeerId>()
+                .map_err(|e| multivm_common::MultivmError::Network {
+                    message: format!("Invalid peer ID: {e}"),
+                    endpoint: None,
+                    retry_after: None,
+                })?;
 
         // Use command system to send direct message
         let (tx, rx) = tokio::sync::oneshot::channel();
@@ -1317,21 +1305,19 @@ impl P2PNetwork {
                 data: data.clone(),
                 response: tx,
             })
-            .map_err(|e| {
-                multivm_common::MultivmError::Network {
-                    message: format!("Failed to send direct message command: {}", e),
-                    endpoint: None,
-                    retry_after: None,
-                }
-            })?;
-
-        let result = rx.await.map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Failed to receive direct message response: {}", e),
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to send direct message command: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
+
+        let result = rx
+            .await
+            .map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Failed to receive direct message response: {e}"),
+                endpoint: None,
+                retry_after: None,
+            })?;
 
         if result.is_ok() {
             // Update statistics
@@ -1347,15 +1333,17 @@ impl P2PNetwork {
     }
 
     /// Broadcast a message to all connected peers
-    pub async fn broadcast(&mut self, message: crate::messages::NetworkMessage) -> MultivmResult<()> {
+    pub async fn broadcast(
+        &mut self,
+        message: crate::messages::NetworkMessage,
+    ) -> MultivmResult<()> {
         // Serialize the message
-        let data = bincode::serialize(&message).map_err(|e| {
-            multivm_common::MultivmError::Network {
-                message: format!("Serialization failed: {}", e),
+        let data =
+            bincode::serialize(&message).map_err(|e| multivm_common::MultivmError::Network {
+                message: format!("Serialization failed: {e}"),
                 endpoint: None,
                 retry_after: None,
-            }
-        })?;
+            })?;
 
         // Broadcast on the general topic
         self.publish_message("multivm-broadcast", data).await?;

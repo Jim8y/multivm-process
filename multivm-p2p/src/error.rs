@@ -78,6 +78,9 @@ pub enum P2PError {
     #[error("Unauthorized peer: {0}")]
     UnauthorizedPeer(libp2p::PeerId),
 
+    #[error("Connection blocked: {0}")]
+    ConnectionBlocked(String),
+
     #[error("Serialization error: {message}")]
     Serialization { message: String },
 
@@ -238,6 +241,7 @@ impl P2PError {
             P2PError::UnknownPeer(_) => "peer",
             P2PError::InvalidSignature(_) => "security",
             P2PError::UnauthorizedPeer(_) => "security",
+            P2PError::ConnectionBlocked(_) => "security",
         }
     }
 
@@ -253,4 +257,3 @@ impl P2PError {
         }
     }
 }
-

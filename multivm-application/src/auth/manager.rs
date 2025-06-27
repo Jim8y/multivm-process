@@ -66,7 +66,10 @@ impl AuthManager {
     /// Create a new authentication manager
     pub async fn new(config: &AuthConfig) -> AuthResult<Self> {
         // Initialize JWT authentication
-        let jwt_auth = Arc::new(JwtAuth::new(&config.jwt_secret, Duration::from_secs(config.jwt_expiration_hours as u64 * 3600))?);
+        let jwt_auth = Arc::new(JwtAuth::simple(
+            &config.jwt_secret,
+            Duration::from_secs(config.jwt_expiration_hours as u64 * 3600),
+        )?);
 
         // Initialize API key manager
         let storage_backend = match config.api_key_validation {
@@ -151,13 +154,13 @@ impl AuthManager {
 
     /// Handle anonymous authentication (limited permissions)
     async fn authenticate_anonymous(&self) -> AuthResult<AuthenticationResult> {
-        let permissions = vec![Permission::ReadSystemStatus, Permission::ReadNetworkInfo];
+        let permissions = [Permission::ReadSystemStatus, Permission::ReadNetworkInfo];
 
-        let permission_checker = PermissionChecker::new(permissions.clone());
+        let permission_checker = PermissionChecker::new(permissions.to_vec());
 
         Ok(AuthenticationResult {
             user_id: "anonymous".to_string(),
-            permissions,
+            permissions: permissions.to_vec(),
             permission_checker,
             role: UserRole::Guest,
             auth_method: AuthMethod::Anonymous,
@@ -266,7 +269,7 @@ impl AuthManager {
     /// Check if authentication is required for an endpoint
     pub fn is_auth_required(&self, path: &str, method: &str) -> bool {
         // Define public endpoints that don't require authentication
-        let public_endpoints = vec![
+        let public_endpoints = [
             ("/health", "GET"),
             ("/metrics", "GET"),
             ("/status", "GET"),
@@ -334,4 +337,3 @@ impl std::fmt::Display for AuthMethod {
         }
     }
 }
-

@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use multivm_common::{MultivmError, MultivmResult, config::LoggingConfig};
+use multivm_common::{config::LoggingConfig, MultivmError, MultivmResult};
 
 // pub mod block_generator;  // Temporarily disabled due to dependency conflicts
 // pub mod block_router;  // Temporarily disabled due to dependency conflicts
-// pub mod consensus_block_generator;  // Temporarily disabled due to dependency conflicts  
+// pub mod consensus_block_generator;  // Temporarily disabled due to dependency conflicts
 pub mod coordinator;
 pub mod health;
 pub mod ipc;
@@ -14,9 +14,22 @@ pub mod manager;
 pub mod process;
 pub mod resource_monitor;
 pub mod transaction_batcher;
+pub mod zombie_reaper;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod manager_tests;
+
+#[cfg(test)]
+mod health_tests;
+
+#[cfg(test)]
+mod process_tests;
+
+#[cfg(test)]
+mod resource_monitor_tests;
 
 // Re-export key types
 pub use manager::MultivmProcessManager;
@@ -25,6 +38,7 @@ pub use health::HealthMonitor;
 // pub use block_router::BlockRouter;  // Temporarily disabled
 pub use process::ProcessHandle;
 // pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};  // Temporarily disabled
+pub use zombie_reaper::{ZombieReaper, ZombieReaperConfig, ZombieReaperStats};
 
 /// Initialize logging system
 fn init_logging(config: &LoggingConfig) -> MultivmResult<()> {
@@ -57,7 +71,7 @@ fn init_logging(config: &LoggingConfig) -> MultivmResult<()> {
         std::fs::create_dir_all(&config.log_directory).map_err(|e| {
             MultivmError::Configuration {
                 component: "logging".to_string(),
-                message: format!("Failed to create log directory: {}", e),
+                message: format!("Failed to create log directory: {e}"),
                 validation_errors: None,
             }
         })?;
@@ -68,7 +82,7 @@ fn init_logging(config: &LoggingConfig) -> MultivmResult<()> {
             .open(&file_path)
             .map_err(|e| MultivmError::Configuration {
                 component: "logging".to_string(),
-                message: format!("Failed to open log file: {}", e),
+                message: format!("Failed to open log file: {e}"),
                 validation_errors: None,
             })?;
 
@@ -95,19 +109,16 @@ async fn setup_signal_handlers(manager: &MultivmProcessManager) -> MultivmResult
     {
         use tokio::signal::unix::{signal, SignalKind};
 
-        let mut sigterm = signal(SignalKind::terminate()).map_err(|e| {
-            MultivmError::Process {
-                process_id: "signal_handler".to_string(),
-                message: format!("Failed to setup SIGTERM handler: {}", e),
-                exit_code: None,
-            }
+        let mut sigterm = signal(SignalKind::terminate()).map_err(|e| MultivmError::Process {
+            process_id: "signal_handler".to_string(),
+            message: format!("Failed to setup SIGTERM handler: {e}"),
+            exit_code: None,
         })?;
-        let mut sigint = signal(SignalKind::interrupt())
-            .map_err(|e| MultivmError::Process {
-                process_id: "signal_handler".to_string(),
-                message: format!("Failed to setup SIGINT handler: {}", e),
-                exit_code: None,
-            })?;
+        let mut sigint = signal(SignalKind::interrupt()).map_err(|e| MultivmError::Process {
+            process_id: "signal_handler".to_string(),
+            message: format!("Failed to setup SIGINT handler: {e}"),
+            exit_code: None,
+        })?;
 
         let manager_clone = manager.clone();
         tokio::spawn(async move {
@@ -132,18 +143,15 @@ async fn setup_signal_handlers(manager: &MultivmProcessManager) -> MultivmResult
     {
         use tokio::signal::windows::{ctrl_break, ctrl_c};
 
-        let mut ctrl_c = ctrl_c()
-            .map_err(|e| MultivmError::Process {
-                process_id: "signal_handler".to_string(),
-                message: format!("Failed to setup Ctrl+C handler: {}", e),
-                exit_code: None,
-            })?;
-        let mut ctrl_break = ctrl_break().map_err(|e| {
-            MultivmError::Process {
-                process_id: "signal_handler".to_string(),
-                message: format!("Failed to setup Ctrl+Break handler: {}", e),
-                exit_code: None,
-            }
+        let mut ctrl_c = ctrl_c().map_err(|e| MultivmError::Process {
+            process_id: "signal_handler".to_string(),
+            message: format!("Failed to setup Ctrl+C handler: {}", e),
+            exit_code: None,
+        })?;
+        let mut ctrl_break = ctrl_break().map_err(|e| MultivmError::Process {
+            process_id: "signal_handler".to_string(),
+            message: format!("Failed to setup Ctrl+Break handler: {}", e),
+            exit_code: None,
         })?;
 
         let manager_clone = manager.clone();
@@ -170,4 +178,3 @@ async fn setup_signal_handlers(manager: &MultivmProcessManager) -> MultivmResult
 
 /// Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-

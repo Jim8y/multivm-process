@@ -5,6 +5,7 @@
 
 pub mod handlers;
 pub mod middleware;
+pub mod routes;
 
 use crate::{ApplicationResult, ApplicationState};
 use axum::{extract::DefaultBodyLimit, http::Method, Router};
@@ -105,7 +106,16 @@ pub fn create_app_with_config(state: Arc<ApplicationState>, config: RestApiConfi
         .route("/health", axum::routing::get(handlers::health_check))
         // API versioning
         .nest("/api/v1", create_v1_routes(state.clone()))
-        // Apply middleware stack - minimal for axum 0.8 compatibility
+        // Apply middleware stack
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::security::security_headers_middleware,
+        ))
+        .layer(axum::middleware::from_fn(middleware::request_id_middleware))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::metrics_middleware,
+        ))
         .layer(DefaultBodyLimit::max(config.max_body_size))
         // Add application state
         .with_state(state)
@@ -128,6 +138,13 @@ fn create_v1_routes(_state: Arc<ApplicationState>) -> Router<Arc<ApplicationStat
         .nest("/blocks", create_block_routes())
         // System information
         .nest("/system", create_system_routes())
+        // Security management
+        .nest("/security", routes::security_routes())
+        // Execution engines
+        .nest(
+            "/execution-engines",
+            handlers::execution_engines::execution_engine_routes(),
+        )
 }
 
 /// Create SVM-specific routes

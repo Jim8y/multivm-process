@@ -574,8 +574,7 @@ impl BlockSyncManager {
         if let Some(sender) = &self.request_sender {
             if let Err(e) = sender.send(request.clone()) {
                 return Err(BlockSyncError::NetworkError(format!(
-                    "Failed to send request: {}",
-                    e
+                    "Failed to send request: {e}"
                 )));
             }
         } else {
@@ -620,8 +619,7 @@ impl BlockSyncManager {
             }
             Ok(Err(e)) => Err(e),
             Err(_) => Err(BlockSyncError::SyncTimeout(format!(
-                "Timeout waiting for sync response from peer {}",
-                peer
+                "Timeout waiting for sync response from peer {peer}"
             ))),
         }
     }
@@ -666,8 +664,7 @@ impl BlockSyncManager {
             for block in &response.blocks {
                 if let Err(e) = self.verify_sync_block(block).await {
                     return Err(BlockSyncError::VerificationFailed(format!(
-                        "Block verification failed: {}",
-                        e
+                        "Block verification failed: {e}"
                     )));
                 }
             }

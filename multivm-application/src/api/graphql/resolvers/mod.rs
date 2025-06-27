@@ -26,31 +26,28 @@ pub mod utils {
         match error {
             crate::error::ApplicationError::ValidationError { field, message } => {
                 async_graphql::Error::new(format!(
-                    "Validation error in field '{}': {}",
-                    field, message
+                    "Validation error in field '{field}': {message}"
                 ))
                 .extend_with(|_, e| e.set("code", "VALIDATION_ERROR"))
             }
             crate::error::ApplicationError::AuthenticationFailed { reason } => {
-                async_graphql::Error::new(format!("Authentication error: {}", reason))
+                async_graphql::Error::new(format!("Authentication error: {reason}"))
                     .extend_with(|_, e| e.set("code", "AUTHENTICATION_ERROR"))
             }
             crate::error::ApplicationError::AuthorizationDenied { resource } => {
-                async_graphql::Error::new(format!("Authorization error: {}", resource))
+                async_graphql::Error::new(format!("Authorization error: {resource}"))
                     .extend_with(|_, e| e.set("code", "AUTHORIZATION_ERROR"))
             }
             crate::error::ApplicationError::ResourceNotFound {
                 resource_type,
                 identifier,
             } => async_graphql::Error::new(format!(
-                "{} with id '{}' not found",
-                resource_type, identifier
+                "{resource_type} with id '{identifier}' not found"
             ))
             .extend_with(|_, e| e.set("code", "NOT_FOUND")),
             crate::error::ApplicationError::RateLimitExceeded { limit, window } => {
                 async_graphql::Error::new(format!(
-                    "Rate limit of {} requests per {} seconds exceeded",
-                    limit, window
+                    "Rate limit of {limit} requests per {window} seconds exceeded"
                 ))
                 .extend_with(|_, e| e.set("code", "RATE_LIMIT_EXCEEDED"))
             }
@@ -65,7 +62,7 @@ pub mod utils {
         value: &'a Option<String>,
     ) -> GraphQLResult<&'a String> {
         value.as_ref().ok_or_else(|| {
-            async_graphql::Error::new(format!("Field '{}' is required", field_name))
+            async_graphql::Error::new(format!("Field '{field_name}' is required"))
                 .extend_with(|_, e| e.set("code", "REQUIRED_FIELD"))
         })
     }

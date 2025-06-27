@@ -13,8 +13,12 @@ mod tests {
     #[tokio::test]
     async fn test_coordinator_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db").to_string_lossy().to_string();
-        
+        let db_path = temp_dir
+            .path()
+            .join("test.db")
+            .to_string_lossy()
+            .to_string();
+
         let config = CoordinatorConfig {
             consensus: MalachiteConfig::default(),
             health_check_interval: Duration::from_millis(100),
@@ -44,7 +48,7 @@ mod tests {
     #[tokio::test]
     async fn test_concurrent_health_monitor_creation() {
         let mut handles = Vec::new();
-        
+
         for i in 0..5 {
             let handle = tokio::spawn(async move {
                 let _health_monitor = HealthMonitor::new(Duration::from_millis(100 + i * 10));
@@ -52,7 +56,7 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all to complete
         for (expected_i, handle) in handles.into_iter().enumerate() {
             let result = handle.await;
@@ -78,7 +82,7 @@ mod tests {
                 // Test passes
             }
             Err(e) => {
-                println!("Edge case test failed with error: {:?}", e);
+                println!("Edge case test failed with error: {e:?}");
                 // For now, let's just pass this test since edge cases may legitimately fail
                 return;
             }
@@ -90,8 +94,12 @@ mod tests {
         // Test creating multiple coordinators with different configs
         for i in 0..3 {
             let temp_dir = TempDir::new().unwrap();
-            let db_path = temp_dir.path().join(format!("test_{}.db", i)).to_string_lossy().to_string();
-            
+            let db_path = temp_dir
+                .path()
+                .join(format!("test_{i}.db"))
+                .to_string_lossy()
+                .to_string();
+
             let config = CoordinatorConfig {
                 consensus: MalachiteConfig::default(),
                 health_check_interval: Duration::from_millis(100 + i * 50),
@@ -102,7 +110,7 @@ mod tests {
             };
 
             let result = MultivmCoordinator::new(config).await;
-            assert!(result.is_ok(), "Failed to create coordinator {}", i);
+            assert!(result.is_ok(), "Failed to create coordinator {i}");
         }
     }
 
@@ -110,7 +118,7 @@ mod tests {
     async fn test_stress_creation() {
         // Create many health monitors rapidly
         let mut handles = Vec::new();
-        
+
         for i in 0..50 {
             let handle = tokio::spawn(async move {
                 let _health_monitor = HealthMonitor::new(Duration::from_millis(10 + i));
@@ -118,14 +126,17 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         let mut success_count = 0;
         for handle in handles {
             if let Ok(true) = handle.await {
                 success_count += 1;
             }
         }
-        
-        assert_eq!(success_count, 50, "All health monitor creations should succeed");
+
+        assert_eq!(
+            success_count, 50,
+            "All health monitor creations should succeed"
+        );
     }
 }

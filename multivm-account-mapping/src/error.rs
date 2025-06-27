@@ -59,7 +59,7 @@ impl From<AccountMappingError> for MultivmError {
                 value: Some(address),
             },
             AccountMappingError::AccountAlreadyBound { address } => MultivmError::InvalidState {
-                message: format!("Account {} is already bound", address),
+                message: format!("Account {address} is already bound"),
                 current_state: Some("bound".to_string()),
                 expected_state: Some("unbound".to_string()),
             },
@@ -76,7 +76,7 @@ impl From<AccountMappingError> for MultivmError {
             }
             AccountMappingError::TransferFailed { reason } => MultivmError::VmEngine {
                 vm_type: "cross_vm".to_string(),
-                message: format!("Transfer failed: {}", reason),
+                message: format!("Transfer failed: {reason}"),
                 block_info: None,
                 transaction_info: None,
             },
@@ -102,7 +102,7 @@ impl From<AccountMappingError> for MultivmError {
             },
             AccountMappingError::UnsupportedAccountType { account_type } => {
                 MultivmError::NotImplemented {
-                    feature: format!("Account type: {}", account_type),
+                    feature: format!("Account type: {account_type}"),
                     alternatives: None,
                 }
             }
@@ -160,7 +160,7 @@ impl From<std::io::Error> for AccountMappingError {
 impl From<serde_json::Error> for AccountMappingError {
     fn from(err: serde_json::Error) -> Self {
         AccountMappingError::Internal {
-            message: format!("JSON serialization error: {}", err),
+            message: format!("JSON serialization error: {err}"),
         }
     }
 }
@@ -168,7 +168,7 @@ impl From<serde_json::Error> for AccountMappingError {
 impl From<bincode::Error> for AccountMappingError {
     fn from(err: bincode::Error) -> Self {
         AccountMappingError::Internal {
-            message: format!("Binary serialization error: {}", err),
+            message: format!("Binary serialization error: {err}"),
         }
     }
 }
@@ -237,40 +237,40 @@ pub mod utils {
     pub fn user_message(error: &AccountMappingError) -> String {
         match error {
             AccountMappingError::AccountNotFound { address } => {
-                format!("Account {} was not found", address)
+                format!("Account {address} was not found")
             }
             AccountMappingError::InvalidAddress { address } => {
-                format!("The address {} is not valid", address)
+                format!("The address {address} is not valid")
             }
             AccountMappingError::AccountAlreadyBound { address } => {
-                format!("Account {} is already bound to another account", address)
+                format!("Account {address} is already bound to another account")
             }
             AccountMappingError::InvalidBindingProof { reason } => {
-                format!("The binding proof is invalid: {}", reason)
+                format!("The binding proof is invalid: {reason}")
             }
             AccountMappingError::UnsupportedOperation { operation } => {
-                format!("The operation {} is not supported", operation)
+                format!("The operation {operation} is not supported")
             }
             AccountMappingError::TransferFailed { reason } => {
-                format!("Transfer failed: {}", reason)
+                format!("Transfer failed: {reason}")
             }
             AccountMappingError::InvalidBinding { reason } => {
-                format!("Invalid binding: {}", reason)
+                format!("Invalid binding: {reason}")
             }
             AccountMappingError::Storage { message } => {
-                format!("Storage error: {}", message)
+                format!("Storage error: {message}")
             }
             AccountMappingError::IpcError { message } => {
-                format!("Communication error: {}", message)
+                format!("Communication error: {message}")
             }
             AccountMappingError::Internal { message } => {
-                format!("Internal error: {}", message)
+                format!("Internal error: {message}")
             }
             AccountMappingError::UnsupportedAccountType { account_type } => {
-                format!("Account type {} is not supported", account_type)
+                format!("Account type {account_type} is not supported")
             }
             AccountMappingError::InvalidProof { message } => {
-                format!("Invalid proof: {}", message)
+                format!("Invalid proof: {message}")
             }
         }
     }

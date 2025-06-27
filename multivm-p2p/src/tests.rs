@@ -3,13 +3,13 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{P2PConfig, NetworkConfig};
-    use crate::network::{P2PNetwork, NetworkConfig as NetConfig};
-    use crate::messages::{NetworkMessage, MessagePayload, MessageSource, MessageTarget, VmType};
+    use crate::config::{NetworkConfig, P2PConfig};
+    use crate::gossip::{GossipConfig, GossipProtocol};
+    use crate::messages::{MessagePayload, MessageSource, MessageTarget, NetworkMessage, VmType};
+    use crate::network::{NetworkConfig as NetConfig, P2PNetwork};
     use crate::security::SecurityManager;
-    use crate::gossip::{GossipProtocol, GossipConfig};
-    use std::time::Duration;
     use std::collections::HashMap;
+    use std::time::Duration;
     use tempfile::TempDir;
     use tokio::time::timeout;
 
@@ -28,24 +28,30 @@ mod tests {
     async fn test_p2p_network_creation() {
         let config = create_test_config();
         let result = P2PNetwork::new(config).await;
-        assert!(result.is_ok(), "Failed to create P2P network: {:?}", result);
+        assert!(result.is_ok(), "Failed to create P2P network: {result:?}");
     }
 
     #[tokio::test]
     async fn test_p2p_network_start_stop() {
         let config = create_test_config();
         let mut network = P2PNetwork::new(config).await.unwrap();
-        
+
         // Test start
         let start_result = network.start().await;
-        assert!(start_result.is_ok(), "Failed to start P2P network: {:?}", start_result);
+        assert!(
+            start_result.is_ok(),
+            "Failed to start P2P network: {start_result:?}"
+        );
 
         // Give it a moment to start
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Test stop
         let stop_result = network.stop().await;
-        assert!(stop_result.is_ok(), "Failed to stop P2P network: {:?}", stop_result);
+        assert!(
+            stop_result.is_ok(),
+            "Failed to stop P2P network: {stop_result:?}"
+        );
     }
 
     #[tokio::test]
@@ -69,12 +75,18 @@ mod tests {
 
         // Test serialization
         let serialized = serde_json::to_vec(&test_message);
-        assert!(serialized.is_ok(), "Failed to serialize message: {:?}", serialized);
+        assert!(
+            serialized.is_ok(),
+            "Failed to serialize message: {serialized:?}"
+        );
 
         // Test deserialization
         let deserialized = serde_json::from_slice::<NetworkMessage>(&serialized.unwrap());
-        assert!(deserialized.is_ok(), "Failed to deserialize message: {:?}", deserialized);
-        
+        assert!(
+            deserialized.is_ok(),
+            "Failed to deserialize message: {deserialized:?}"
+        );
+
         let deserialized_msg = deserialized.unwrap();
         assert_eq!(deserialized_msg.id, test_message.id);
         assert_eq!(deserialized_msg.version, test_message.version);
@@ -116,7 +128,7 @@ mod tests {
 
         let local_peer_id = libp2p::PeerId::random();
         let (gossip, _receiver) = GossipProtocol::new(config, local_peer_id);
-        
+
         // Create a test network message
         let network_message = NetworkMessage {
             id: "test-message-1".to_string(),
@@ -145,19 +157,19 @@ mod tests {
         assert_eq!(test_message.ttl, 300);
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_rate_limiting() {
         let config = create_test_config();
         let mut network = P2PNetwork::new(config).await.unwrap();
-        
+
         // Start the network
         network.start().await.unwrap();
-        
+
         // Test multiple rapid requests (should be rate limited)
         let mut success_count = 0;
         for i in 0..20 {
             let test_message = NetworkMessage {
-                id: format!("test-message-{}", i),
+                id: format!("test-message-{i}"),
                 payload: MessagePayload::Control(crate::messages::ControlMessage::StatusRequest),
                 source: MessageSource::NetworkLayer,
                 target: MessageTarget::Broadcast,
@@ -165,21 +177,21 @@ mod tests {
                 version: 1,
                 metadata: HashMap::new(),
             };
-            
-            let result = timeout(
-                Duration::from_millis(100),
-                network.broadcast(test_message)
-            ).await;
-            
+
+            let result = timeout(Duration::from_millis(100), network.broadcast(test_message)).await;
+
             if result.is_ok() && result.unwrap().is_ok() {
                 success_count += 1;
             }
         }
-        
+
         // Should have some rate limiting effect - but since we're using broadcast, some may succeed
-        assert!(success_count <= 20, "Rate limiting should prevent all requests from succeeding");
+        assert!(
+            success_count <= 20,
+            "Rate limiting should prevent all requests from succeeding"
+        );
         // Note: In test environment, rate limiting behavior may vary
-        
+
         // Stop the network
         network.stop().await.unwrap();
     }
@@ -188,13 +200,13 @@ mod tests {
     async fn test_peer_discovery() {
         let config = create_test_config();
         let mut network = P2PNetwork::new(config).await.unwrap();
-        
+
         // Start the network
         network.start().await.unwrap();
-        
+
         // Simple test - just verify network started successfully
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Stop the network
         network.stop().await.unwrap();
     }
@@ -203,13 +215,13 @@ mod tests {
     async fn test_concurrent_operations() {
         let config = create_test_config();
         let mut network = P2PNetwork::new(config).await.unwrap();
-        
+
         // Start the network
         network.start().await.unwrap();
-        
+
         // Run multiple concurrent operations
         let mut handles = Vec::new();
-        
+
         for i in 0..5 {
             let handle = tokio::spawn(async move {
                 // Simple concurrent operation
@@ -218,15 +230,15 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all to complete
         for (i, handle) in handles.into_iter().enumerate() {
             let result = timeout(Duration::from_secs(1), handle).await;
-            assert!(result.is_ok(), "Concurrent operation {} timed out", i);
+            assert!(result.is_ok(), "Concurrent operation {i} timed out");
             let value = result.unwrap().unwrap();
             assert_eq!(value, i);
         }
-        
+
         // Stop the network
         network.stop().await.unwrap();
     }
@@ -235,12 +247,15 @@ mod tests {
     async fn test_error_recovery() {
         let mut config = create_test_config();
         config.listen_addresses = vec!["/ip4/127.0.0.1/tcp/1".parse().unwrap()]; // Invalid port
-        
+
         let result = P2PNetwork::new(config).await;
         // This might succeed or fail depending on permissions, but shouldn't panic
         if let Err(e) = result {
             // Error should be meaningful
-            assert!(!e.to_string().is_empty(), "Error message should not be empty");
+            assert!(
+                !e.to_string().is_empty(),
+                "Error message should not be empty"
+            );
         }
     }
 }

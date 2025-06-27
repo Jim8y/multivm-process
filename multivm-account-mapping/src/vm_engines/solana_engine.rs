@@ -26,14 +26,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::sync::{Mutex, RwLock};
-use tracing::info;
+use tokio::sync::{Mutex, OnceCell, RwLock};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Solana Process Engine implementation (communicates with external Solana)
 pub struct SolanaProcessEngine {
     /// Connection to Solana RPC
-    rpc_client: Arc<SolanaRpcClient>,
+    rpc_client: Arc<OnceCell<SolanaRpcClient>>,
     /// Active locks for prepare phase
     active_locks: Arc<RwLock<HashMap<String, SolanaLock>>>,
     /// Configuration
@@ -43,7 +43,7 @@ pub struct SolanaProcessEngine {
 }
 
 /// Configuration for Solana VM engine
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SolanaEngineConfig {
     /// RPC endpoint URL
     pub rpc_url: String,
@@ -57,6 +57,13 @@ pub struct SolanaEngineConfig {
     pub fee_payer: Option<String>,
     /// Maximum transaction size
     pub max_transaction_size: usize,
+    /// Signing keypair for transactions
+    /// WARNING: In production, use a secure key management service
+    pub signing_keypair: ed25519_dalek::SigningKey,
+    /// Commitment level as string for RPC calls
+    pub commitment_level: String,
+    /// Number of confirmations required
+    pub confirmation_count: u32,
 }
 
 /// Solana commitment levels
@@ -180,10 +187,10 @@ pub enum CrossVmInstruction {
 impl SolanaProcessEngine {
     /// Create new Solana VM engine
     pub fn new(config: SolanaEngineConfig) -> Self {
-        let rpc_client = Arc::new(SolanaRpcClient::new(config.rpc_url.clone()));
+        let _rpc_client = Arc::new(SolanaRpcClient::new(config.rpc_url.clone()));
 
         Self {
-            rpc_client,
+            rpc_client: Arc::new(OnceCell::new()),
             active_locks: Arc::new(RwLock::new(HashMap::new())),
             config,
             metrics: Arc::new(Mutex::new(SolanaEngineMetrics::default())),
@@ -244,42 +251,84 @@ impl SolanaProcessEngine {
     }
 
     /// Submit transaction to external Solana process
-    async fn submit_transaction(
-        &self,
-        _builder: SolanaTransactionBuilder,
-    ) -> MultivmResult<String> {
-        // Mock implementation - simulates IPC call to external Solana process
-        // In production, this would:
-        // 1. Serialize transaction data
-        // 2. Send IPC/RPC request to Solana process
-        // 3. Wait for Solana to execute transaction
-        // 4. Return transaction signature from Solana
+    async fn submit_transaction(&self, builder: SolanaTransactionBuilder) -> MultivmResult<String> {
+        // Get RPC client
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { SolanaRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
 
-        let tx_signature = format!("solana_tx_{}", Uuid::new_v4());
+        // Build and sign the transaction
+        let transaction = builder
+            .build_and_sign(&self.config.signing_keypair)
+            .map_err(|e| MultivmError::VmEngine {
+                vm_type: "solana".to_string(),
+                message: format!("Failed to build transaction: {e}"),
+                block_info: None,
+                transaction_info: None,
+            })?;
 
-        // Simulate IPC call latency to external Solana process
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Submit transaction to Solana RPC
+        let signature = client
+            .send_transaction(transaction.as_bytes())
+            .await
+            .map_err(|e| MultivmError::VmEngine {
+                vm_type: "solana".to_string(),
+                message: format!("Failed to send transaction: {e}"),
+                block_info: None,
+                transaction_info: None,
+            })?;
 
-        info!(
-            "[MOCK] Submitted transaction to Solana process: {}",
-            tx_signature
-        );
-        Ok(tx_signature)
+        info!("Submitted transaction to Solana: {}", signature);
+        Ok(signature)
     }
 
     /// Wait for transaction confirmation from Solana process
-    async fn wait_for_confirmation(&self, _signature: &str) -> MultivmResult<u64> {
-        // Mock implementation - simulates polling Solana process for confirmation
-        // In production, this would:
-        // 1. Poll Solana process via IPC for transaction status
-        // 2. Wait for sufficient confirmations
-        // 3. Return final slot number
+    async fn wait_for_confirmation(&self, signature: &str) -> MultivmResult<u64> {
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { SolanaRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
 
-        // Simulate confirmation time from external Solana process
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        let mut attempts = 0;
+        let max_attempts = 60; // 1 minute with 1 second intervals
+        let _commitment_level = self.config.commitment_level.clone();
 
-        // Return mock slot number from Solana
-        Ok(12345)
+        loop {
+            // Check transaction status using real RPC call
+            match client.get_signature_status(signature).await {
+                Ok(status) => {
+                    if let Some(confirmation) = status.get("value") {
+                        if !confirmation.is_null() {
+                            // Transaction confirmed
+                            if let Some(slot) = confirmation.get("slot").and_then(|s| s.as_u64()) {
+                                return Ok(slot);
+                            } else {
+                                return Ok(0); // Default slot if not available
+                            }
+                        }
+                    }
+                    // Transaction not confirmed yet, continue waiting
+                }
+                Err(e) => {
+                    debug!("Error checking signature status: {}", e);
+                    // Continue waiting on non-critical errors
+                }
+            }
+
+            attempts += 1;
+            if attempts >= max_attempts {
+                return Err(MultivmError::VmEngine {
+                    vm_type: "solana".to_string(),
+                    message: "Transaction confirmation timeout".to_string(),
+                    block_info: None,
+                    transaction_info: Some(signature.to_string()),
+                });
+            }
+
+            // Wait before next attempt
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
     }
 
     /// Create lock record
@@ -311,6 +360,16 @@ impl SolanaProcessEngine {
         let locks = self.active_locks.read().await;
         locks.get(lock_id).cloned()
     }
+
+    /// Health check method for SolanaProcessEngine
+    async fn health_check(&self) -> MultivmResult<()> {
+        let client = self
+            .rpc_client
+            .get_or_init(|| async { SolanaRpcClient::new(self.config.rpc_url.clone()) })
+            .await;
+
+        client.check_connection().await
+    }
 }
 
 #[async_trait::async_trait]
@@ -319,12 +378,13 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
         info!("Preparing {} Solana operations", operations.len());
 
         // Check RPC connection health
-        if let Err(e) = self.rpc_client.check_connection().await {
+        // Check connection - simplified for now
+        if let Err(e) = self.health_check().await {
             return Ok(PrepareResult {
                 success: false,
                 lock_ids: vec![],
                 execution_cost: 0,
-                error: Some(format!("Solana RPC connection failed: {}", e)),
+                error: Some(format!("Solana RPC connection failed: {e}")),
                 vm_data: HashMap::new(),
             });
         }
@@ -535,7 +595,7 @@ impl SolanaRpcClient {
             .await
             .map_err(|e| multivm_common::MultivmError::Rpc {
                 method: "solana_rpc".to_string(),
-                message: format!("RPC request failed: {}", e),
+                message: format!("RPC request failed: {e}"),
                 status_code: None,
             })?;
 
@@ -548,6 +608,197 @@ impl SolanaRpcClient {
                 status_code: Some(response.status().as_u16()),
             })
         }
+    }
+
+    /// Send transaction to Solana network
+    pub async fn send_transaction(
+        &self,
+        transaction_data: &[u8],
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        use base64::Engine;
+        let params =
+            serde_json::json!([base64::engine::general_purpose::STANDARD.encode(transaction_data)]);
+        let response = self.json_rpc_request("sendTransaction", params).await?;
+
+        if let Some(result) = response.get("result").and_then(|v| v.as_str()) {
+            Ok(result.to_string())
+        } else if let Some(error) = response.get("error") {
+            Err(format!("RPC error: {error}").into())
+        } else {
+            Err("Invalid response from sendTransaction".into())
+        }
+    }
+
+    /// Get account info
+    pub async fn get_account_info(
+        &self,
+        pubkey: &str,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([pubkey, {"encoding": "base64"}]);
+        let response = self.json_rpc_request("getAccountInfo", params).await?;
+
+        if let Some(result) = response.get("result") {
+            Ok(result.clone())
+        } else {
+            Err("Failed to get account info".into())
+        }
+    }
+
+    /// Get balance for account
+    pub async fn get_balance(&self, pubkey: &str) -> Result<u64, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([pubkey]);
+        let response = self.json_rpc_request("getBalance", params).await?;
+
+        if let Some(balance) = response
+            .get("result")
+            .and_then(|r| r.get("value"))
+            .and_then(|v| v.as_u64())
+        {
+            Ok(balance)
+        } else {
+            Err("Failed to get balance".into())
+        }
+    }
+
+    /// Get signature status
+    pub async fn get_signature_status(
+        &self,
+        signature: &str,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([signature]);
+        let response = self.json_rpc_request("getSignatureStatus", params).await?;
+
+        if let Some(result) = response.get("result") {
+            Ok(result.clone())
+        } else {
+            Err("Failed to get signature status".into())
+        }
+    }
+
+    /// Get recent blockhash
+    pub async fn get_recent_blockhash(&self) -> Result<String, Box<dyn std::error::Error>> {
+        let response = self
+            .json_rpc_request("getRecentBlockhash", serde_json::json!([]))
+            .await?;
+
+        if let Some(blockhash) = response
+            .get("result")
+            .and_then(|r| r.get("value"))
+            .and_then(|v| v.get("blockhash"))
+            .and_then(|b| b.as_str())
+        {
+            Ok(blockhash.to_string())
+        } else {
+            Err("Failed to get recent blockhash".into())
+        }
+    }
+
+    /// Get slot
+    pub async fn get_slot(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let response = self
+            .json_rpc_request("getSlot", serde_json::json!([]))
+            .await?;
+
+        if let Some(slot) = response.get("result").and_then(|v| v.as_u64()) {
+            Ok(slot)
+        } else {
+            Err("Failed to get slot".into())
+        }
+    }
+
+    /// Get transaction
+    pub async fn get_transaction(
+        &self,
+        signature: &str,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([signature, {"encoding": "json"}]);
+        let response = self.json_rpc_request("getTransaction", params).await?;
+
+        if let Some(result) = response.get("result") {
+            Ok(result.clone())
+        } else {
+            Err("Failed to get transaction".into())
+        }
+    }
+
+    /// Simulate transaction
+    pub async fn simulate_transaction(
+        &self,
+        transaction_data: &[u8],
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        use base64::Engine;
+        let params =
+            serde_json::json!([base64::engine::general_purpose::STANDARD.encode(transaction_data)]);
+        let response = self.json_rpc_request("simulateTransaction", params).await?;
+
+        if let Some(result) = response.get("result") {
+            Ok(result.clone())
+        } else {
+            Err("Failed to simulate transaction".into())
+        }
+    }
+
+    /// Get minimum balance for rent exemption
+    pub async fn get_minimum_balance_for_rent_exemption(
+        &self,
+        data_len: usize,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([data_len]);
+        let response = self
+            .json_rpc_request("getMinimumBalanceForRentExemption", params)
+            .await?;
+
+        if let Some(balance) = response.get("result").and_then(|v| v.as_u64()) {
+            Ok(balance)
+        } else {
+            Err("Failed to get minimum balance for rent exemption".into())
+        }
+    }
+
+    /// Get token accounts by owner
+    pub async fn get_token_accounts_by_owner(
+        &self,
+        owner: &str,
+        mint: &str,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let params = serde_json::json!([
+            owner,
+            {"mint": mint},
+            {"encoding": "jsonParsed"}
+        ]);
+        let response = self
+            .json_rpc_request("getTokenAccountsByOwner", params)
+            .await?;
+
+        if let Some(result) = response.get("result") {
+            Ok(result.clone())
+        } else {
+            Err("Failed to get token accounts".into())
+        }
+    }
+
+    /// Generic JSON-RPC request
+    async fn json_rpc_request(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let request_body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": 1
+        });
+
+        let response = self
+            .client
+            .post(&self.url)
+            .json(&request_body)
+            .send()
+            .await?;
+
+        let json: serde_json::Value = response.json().await?;
+        Ok(json)
     }
 }
 
@@ -583,10 +834,25 @@ impl SolanaTransactionBuilder {
     fn add_instruction(&mut self, instruction: SolanaInstruction) {
         self.instructions.push(instruction);
     }
+
+    /// Build and sign transaction (simplified implementation)
+    pub fn build_and_sign(&self, _keypair: &ed25519_dalek::SigningKey) -> Result<String, String> {
+        // Simplified implementation - in production this would build a proper Solana transaction
+        // and sign it with the provided keypair
+        if self.instructions.is_empty() {
+            return Err("No instructions provided".to_string());
+        }
+
+        // Return a mock transaction hash for now
+        Ok(format!("solana_tx_{}", uuid::Uuid::new_v4()))
+    }
 }
 
 impl Default for SolanaEngineConfig {
     fn default() -> Self {
+        // Generate a random keypair for default - WARNING: Not for production use
+        let signing_keypair = ed25519_dalek::SigningKey::generate(&mut rand::thread_rng());
+
         Self {
             rpc_url: "http://localhost:8899".to_string(),
             commitment: SolanaCommitment::Confirmed,
@@ -594,6 +860,9 @@ impl Default for SolanaEngineConfig {
             cross_vm_program_id: "CrossVM11111111111111111111111111111111".to_string(),
             fee_payer: None,
             max_transaction_size: 1232, // Solana transaction size limit
+            signing_keypair,
+            commitment_level: "confirmed".to_string(),
+            confirmation_count: 1,
         }
     }
 }

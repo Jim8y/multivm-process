@@ -5,6 +5,7 @@
 pub mod accounts;
 pub mod blocks;
 pub mod evm;
+pub mod execution_engines;
 pub mod multivm;
 pub mod svm;
 pub mod system;

@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 
 /// IPC message types for account mapping operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum AccountMappingIpcMessage {
     /// Request to bind accounts across VMs
     BindAccounts {
