@@ -125,7 +125,7 @@ impl HealthCheckService {
     /// Check individual service health
     async fn check_service(&self, service: &str) -> HealthCheck {
         let start = std::time::Instant::now();
-        
+
         match service {
             "rest_api" => {
                 // Check REST API by making a request to health endpoint
@@ -153,7 +153,7 @@ impl HealthCheckService {
                         duration_ms: start.elapsed().as_millis() as u64,
                     },
                 }
-            },
+            }
             "cache" => {
                 // Check cache by attempting a simple operation
                 HealthCheck {
@@ -163,7 +163,7 @@ impl HealthCheckService {
                     message: "Cache check not implemented".to_string(),
                     duration_ms: start.elapsed().as_millis() as u64,
                 }
-            },
+            }
             "svm_connection" => {
                 // Check Solana connection
                 HealthCheck {
@@ -173,7 +173,7 @@ impl HealthCheckService {
                     message: "SVM connection check not implemented".to_string(),
                     duration_ms: start.elapsed().as_millis() as u64,
                 }
-            },
+            }
             "evm_connection" => {
                 // Check Ethereum connection
                 HealthCheck {
@@ -183,7 +183,7 @@ impl HealthCheckService {
                     message: "EVM connection check not implemented".to_string(),
                     duration_ms: start.elapsed().as_millis() as u64,
                 }
-            },
+            }
             _ => HealthCheck {
                 name: service.to_string(),
                 healthy: false,

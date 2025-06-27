@@ -6,16 +6,24 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// Check cache health by performing a test operation
-pub async fn check_cache_health(state: &Arc<ApplicationState>) -> ApplicationResult<(bool, String)> {
+pub async fn check_cache_health(
+    state: &Arc<ApplicationState>,
+) -> ApplicationResult<(bool, String)> {
     let test_key = "health_check_test";
     let test_value = "ok";
-    
+
     // Try to set a value with short TTL
-    match state.cache.set(test_key, &test_value, Duration::from_secs(1)).await {
+    match state
+        .cache
+        .set(test_key, &test_value, Duration::from_secs(1))
+        .await
+    {
         Ok(_) => {
             // Try to get it back
             match state.cache.get::<String>(test_key).await {
-                Ok(Some(val)) if val == test_value => Ok((true, "Cache is operational".to_string())),
+                Ok(Some(val)) if val == test_value => {
+                    Ok((true, "Cache is operational".to_string()))
+                }
                 Ok(_) => Ok((false, "Cache read/write mismatch".to_string())),
                 Err(e) => Ok((false, format!("Cache read failed: {}", e))),
             }
@@ -50,14 +58,18 @@ pub async fn check_evm_health(state: &Arc<ApplicationState>) -> ApplicationResul
 }
 
 /// Check database connection health
-pub async fn check_database_health(state: &Arc<ApplicationState>) -> ApplicationResult<(bool, String)> {
+pub async fn check_database_health(
+    state: &Arc<ApplicationState>,
+) -> ApplicationResult<(bool, String)> {
     // Would perform actual database health check
     // For now, return a placeholder
     Ok((true, "Database check not implemented".to_string()))
 }
 
 /// Check process manager health
-pub async fn check_process_manager_health(state: &Arc<ApplicationState>) -> ApplicationResult<(bool, String)> {
+pub async fn check_process_manager_health(
+    state: &Arc<ApplicationState>,
+) -> ApplicationResult<(bool, String)> {
     // Check if process manager is responsive
     if let Ok(manager) = state.process_manager.try_read() {
         // Could check active processes, resource usage, etc.
@@ -68,19 +80,23 @@ pub async fn check_process_manager_health(state: &Arc<ApplicationState>) -> Appl
 }
 
 /// Check consensus health
-pub async fn check_consensus_health(state: &Arc<ApplicationState>) -> ApplicationResult<(bool, String)> {
+pub async fn check_consensus_health(
+    state: &Arc<ApplicationState>,
+) -> ApplicationResult<(bool, String)> {
     // Would check consensus status, validator participation, etc.
     Ok((true, "Consensus check not implemented".to_string()))
 }
 
 /// Comprehensive system health check
-pub async fn perform_full_health_check(state: &Arc<ApplicationState>) -> ApplicationResult<FullHealthReport> {
+pub async fn perform_full_health_check(
+    state: &Arc<ApplicationState>,
+) -> ApplicationResult<FullHealthReport> {
     let mut report = FullHealthReport {
         timestamp: chrono::Utc::now(),
         overall_health: true,
         checks: vec![],
     };
-    
+
     // Run all health checks
     let checks = vec![
         ("cache", check_cache_health(state).await),
@@ -90,7 +106,7 @@ pub async fn perform_full_health_check(state: &Arc<ApplicationState>) -> Applica
         ("process_manager", check_process_manager_health(state).await),
         ("consensus", check_consensus_health(state).await),
     ];
-    
+
     for (name, result) in checks {
         match result {
             Ok((healthy, message)) => {
@@ -113,7 +129,7 @@ pub async fn perform_full_health_check(state: &Arc<ApplicationState>) -> Applica
             }
         }
     }
-    
+
     Ok(report)
 }
 
