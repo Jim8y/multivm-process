@@ -1,0 +1,165 @@
+# MultiVM Production Configuration Template
+# Copy this file to production.toml and adjust values for your environment
+
+[blockchain.solana]
+rpc_url = "https://your-solana-rpc-endpoint.com"
+ws_url = "wss://your-solana-websocket-endpoint.com"
+commitment_level = "finalized"
+timeout_seconds = 30
+max_retries = 3
+
+[blockchain.ethereum]
+rpc_url = "https://your-ethereum-rpc-endpoint.com"
+ws_url = "wss://your-ethereum-websocket-endpoint.com"
+chain_id = 1  # Mainnet
+timeout_seconds = 30
+max_retries = 3
+
+[database]
+connection_url = "postgresql://user:password@localhost/multivm_production"
+max_connections = 100
+min_connections = 10
+connection_timeout_seconds = 10
+idle_timeout_seconds = 300
+
+[cache.redis]
+url = "redis://localhost:6379"
+password = "${REDIS_PASSWORD}"  # Use environment variable
+database = 0
+pool_size = 50
+connection_timeout_ms = 5000
+command_timeout_ms = 1000
+max_retries = 3
+retry_delay_ms = 100
+enable_connection_pooling = true
+enable_pipelining = true
+key_prefix = "multivm:prod:"
+default_ttl_seconds = 300
+
+[consensus]
+# Validator configuration - MUST be properly configured for production
+validators = [
+    "validator-pubkey-1@host1:port",
+    "validator-pubkey-2@host2:port",
+    "validator-pubkey-3@host3:port"
+]
+# Minimum 3 validators recommended for production
+min_validators = 3
+block_interval_ms = 3000
+view_timeout_ms = 10000
+checkpoint_interval = 100
+enable_persistence = true
+persistence_path = "/var/lib/multivm/consensus"
+
+[p2p]
+listen_addresses = ["/ip4/0.0.0.0/tcp/8801"]
+external_addresses = ["${EXTERNAL_IP}/tcp/8801"]  # Set your external IP
+bootstrap_peers = []  # Add your bootstrap peers
+enable_mdns = false  # Disable for production
+enable_kad = true
+enable_identify = true
+enable_ping = true
+enable_relay = false
+max_connections = 200
+connection_timeout_seconds = 30
+
+[ipc]
+# IPC encryption is REQUIRED for production
+encryption_algorithm = "ChaCha20Poly1305"
+encryption_key_size = 32
+enable_compression = true
+compression_algorithm = "zstd"
+socket_dir = "/var/run/multivm"
+connection_timeout_ms = 5000
+max_message_size_bytes = 10485760  # 10MB
+pool_size = 10
+
+[process_manager]
+binary_dir = "/opt/multivm/bin"
+working_dir = "/var/lib/multivm"
+log_dir = "/var/log/multivm"
+max_restarts = 5
+restart_delay_seconds = 10
+health_check_interval_seconds = 30
+resource_monitoring_interval_seconds = 60
+max_cpu_percent = 80
+max_memory_mb = 8192
+enable_zombie_reaper = true
+zombie_check_interval_seconds = 300
+
+[monitoring]
+enable_metrics = true
+metrics_port = 9090
+enable_tracing = true
+tracing_endpoint = "http://localhost:4317"  # OpenTelemetry endpoint
+log_level = "info"
+enable_structured_logging = true
+health_check_port = 8080
+enable_profiling = false  # Enable only for debugging
+
+[security]
+# JWT configuration
+jwt_secret = "${JWT_SECRET}"  # Use environment variable
+jwt_expiry_seconds = 3600
+jwt_refresh_expiry_seconds = 86400
+
+# API key configuration
+enable_api_keys = true
+api_key_header = "X-API-Key"
+api_key_prefix = "mvk_"
+
+# CORS configuration
+cors_allowed_origins = ["https://your-frontend.com"]
+cors_allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+cors_allowed_headers = ["Content-Type", "Authorization", "X-API-Key"]
+cors_max_age_seconds = 86400
+
+# Rate limiting
+enable_rate_limiting = true
+rate_limit_requests_per_minute = 1000
+rate_limit_burst_size = 100
+
+# Admin interface
+admin_require_auth = true
+admin_allowed_ips = ["10.0.0.0/8", "172.16.0.0/12"]  # Internal networks only
+
+[server.rest]
+host = "0.0.0.0"
+port = 8000
+request_timeout_seconds = 30
+body_limit_bytes = 10485760  # 10MB
+enable_compression = true
+enable_request_id = true
+
+[server.graphql]
+host = "0.0.0.0"
+port = 8001
+enable_playground = false  # Disable in production
+enable_introspection = false  # Disable in production
+max_query_depth = 10
+max_query_complexity = 1000
+
+[server.websocket]
+host = "0.0.0.0"
+port = 8002
+max_connections = 10000
+ping_interval_seconds = 30
+max_message_size_bytes = 1048576  # 1MB
+
+[server.admin]
+host = "127.0.0.1"  # Local only
+port = 8003
+enable_ui = true
+enable_api = true
+session_timeout_seconds = 3600
+
+# Environment-specific overrides
+[production]
+log_level = "info"
+enable_debug_endpoints = false
+enable_profiling = false
+
+[staging]
+log_level = "debug"
+enable_debug_endpoints = true
+enable_profiling = true

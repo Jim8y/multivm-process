@@ -124,35 +124,72 @@ impl HealthCheckService {
 
     /// Check individual service health
     async fn check_service(&self, service: &str) -> HealthCheck {
-        // Mock implementation - would perform actual health checks
+        let start = std::time::Instant::now();
+        
         match service {
-            "rest_api" | "graphql" | "websocket" => HealthCheck {
-                name: service.to_string(),
-                healthy: true,
-                severity: CheckSeverity::Critical,
-                message: "Service is running".to_string(),
-                duration_ms: 5,
+            "rest_api" => {
+                // Check REST API by making a request to health endpoint
+                let url = format!("http://localhost:{}/health", self.config.health_check_port);
+                match reqwest::get(&url).await {
+                    Ok(response) if response.status().is_success() => HealthCheck {
+                        name: service.to_string(),
+                        healthy: true,
+                        severity: CheckSeverity::Critical,
+                        message: "REST API is responding".to_string(),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    },
+                    Ok(response) => HealthCheck {
+                        name: service.to_string(),
+                        healthy: false,
+                        severity: CheckSeverity::Critical,
+                        message: format!("REST API returned status: {}", response.status()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    },
+                    Err(e) => HealthCheck {
+                        name: service.to_string(),
+                        healthy: false,
+                        severity: CheckSeverity::Critical,
+                        message: format!("REST API check failed: {}", e),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    },
+                }
             },
-            "cache" => HealthCheck {
-                name: service.to_string(),
-                healthy: true,
-                severity: CheckSeverity::Warning,
-                message: "Cache is operational".to_string(),
-                duration_ms: 10,
+            "cache" => {
+                // Check cache by attempting a simple operation
+                HealthCheck {
+                    name: service.to_string(),
+                    healthy: true, // Would check actual cache connection
+                    severity: CheckSeverity::Warning,
+                    message: "Cache check not implemented".to_string(),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                }
             },
-            "svm_connection" | "evm_connection" => HealthCheck {
-                name: service.to_string(),
-                healthy: true,
-                severity: CheckSeverity::Critical,
-                message: "Connection established".to_string(),
-                duration_ms: 20,
+            "svm_connection" => {
+                // Check Solana connection
+                HealthCheck {
+                    name: service.to_string(),
+                    healthy: true, // Would check actual RPC connection
+                    severity: CheckSeverity::Critical,
+                    message: "SVM connection check not implemented".to_string(),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                }
+            },
+            "evm_connection" => {
+                // Check Ethereum connection
+                HealthCheck {
+                    name: service.to_string(),
+                    healthy: true, // Would check actual RPC connection
+                    severity: CheckSeverity::Critical,
+                    message: "EVM connection check not implemented".to_string(),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                }
             },
             _ => HealthCheck {
                 name: service.to_string(),
                 healthy: false,
                 severity: CheckSeverity::Warning,
-                message: "Unknown service".to_string(),
-                duration_ms: 0,
+                message: format!("Unknown service: {}", service),
+                duration_ms: start.elapsed().as_millis() as u64,
             },
         }
     }

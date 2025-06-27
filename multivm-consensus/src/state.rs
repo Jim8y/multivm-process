@@ -359,14 +359,23 @@ impl PersistentCrossVMStateManager {
                 Ok(validators)
             }
             None => {
-                // Return default validator set if none exists
-                Ok(vec!["validator1".to_string(), "validator2".to_string()])
+                // Return empty validator set if none configured
+                // This ensures consensus cannot proceed without proper validator configuration
+                warn!("No validator set configured - consensus will not be able to proceed");
+                Ok(vec![])
             }
         }
     }
 
     /// Update validator set
     pub async fn update_validator_set(&self, validators: Vec<String>) -> ConsensusResult<()> {
+        // Validate that we have at least one validator
+        if validators.is_empty() {
+            return Err(ConsensusError::Configuration(
+                "Cannot set empty validator set".to_string(),
+            ));
+        }
+        
         let key = b"validators:current";
         let data = bincode::serialize(&validators)
             .map_err(|e| ConsensusError::Storage(format!("Failed to serialize validators: {e}")))?;
@@ -376,6 +385,27 @@ impl PersistentCrossVMStateManager {
             .await
             .map_err(|e| ConsensusError::Storage(format!("Failed to store validators: {e}")))?;
 
+        info!("Updated validator set with {} validators", validators.len());
+        Ok(())
+    }
+    
+    /// Initialize validator set from configuration
+    pub async fn initialize_validators(&self, validators: Vec<String>) -> ConsensusResult<()> {
+        // Check if validators are already configured
+        let existing = self.get_validator_set().await?;
+        if !existing.is_empty() {
+            info!("Validator set already initialized with {} validators", existing.len());
+            return Ok(());
+        }
+        
+        // Initialize with provided validators
+        if validators.is_empty() {
+            return Err(ConsensusError::Configuration(
+                "No validators provided for initialization".to_string(),
+            ));
+        }
+        
+        self.update_validator_set(validators).await?;
         Ok(())
     }
 }
