@@ -33,6 +33,9 @@ pub enum P2PError {
     #[error("Configuration error: {message}")]
     ConfigurationError { message: String },
 
+    #[error("Connection failed: {reason}")]
+    ConnectionFailed { reason: String },
+
     #[error("Timeout error: operation timed out after {duration:?}")]
     TimeoutError { duration: std::time::Duration },
 
@@ -242,6 +245,7 @@ impl P2PError {
             P2PError::InvalidSignature(_) => "security",
             P2PError::UnauthorizedPeer(_) => "security",
             P2PError::ConnectionBlocked(_) => "security",
+            P2PError::ConnectionFailed { .. } => "connection",
         }
     }
 

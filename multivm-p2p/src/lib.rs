@@ -26,6 +26,7 @@
 // Remove global allow for production - clean up dead code instead
 #![cfg_attr(debug_assertions, allow(dead_code, unused_variables, unused_imports))]
 
+pub mod admin;
 pub mod circuit_breaker;
 pub mod config;
 pub mod connection_manager;
@@ -37,6 +38,7 @@ pub mod gossip;
 pub mod load_balancer;
 pub mod manager;
 pub mod messages;
+pub mod monitoring;
 pub mod network;
 pub mod protocol;
 pub mod rate_limiter;
@@ -54,8 +56,12 @@ mod message_tests;
 #[cfg(test)]
 mod network_tests;
 
+#[cfg(test)]
+mod security_tests;
+
 #[cfg(feature = "metrics")]
 pub mod metrics;
+
 
 #[cfg(not(feature = "metrics"))]
 pub mod metrics {

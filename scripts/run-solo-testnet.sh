@@ -95,6 +95,16 @@ init_directories() {
     mkdir -p "$DATA_DIR"/{consensus,ethereum,solana,account-mapping}
     mkdir -p "$CONFIG_DIR"
     
+    # Initialize Reth database directory
+    mkdir -p "$DATA_DIR/ethereum/reth"
+    mkdir -p "$DATA_DIR/ethereum/reth/db"
+    mkdir -p "$DATA_DIR/ethereum/reth/static_files"
+    
+    # Initialize Solana validator directory
+    mkdir -p "$DATA_DIR/solana/validator"
+    mkdir -p "$DATA_DIR/solana/accounts"
+    mkdir -p "$DATA_DIR/solana/ledger"
+    
     print_success "Directories initialized at $TESTNET_DIR"
 }
 
