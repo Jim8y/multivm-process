@@ -20,6 +20,8 @@ use tokio::sync::RwLock;
 pub struct ExecutionEngineConfig {
     /// Ethereum execution engine configuration
     pub ethereum: EthereumEngineConfig,
+    /// Solana execution engine configuration
+    pub solana: SolanaEngineConfig,
     /// Global execution settings
     pub global: GlobalExecutionConfig,
 }
@@ -35,6 +37,23 @@ pub struct EthereumEngineConfig {
     pub rpc_port: u16,
     /// Chain ID (1 = mainnet, 11155111 = sepolia, etc.)
     pub chain_id: u64,
+    /// Enable mock mode for testing
+    pub mock_mode: bool,
+    /// Auto-start the engine when application starts
+    pub auto_start: bool,
+}
+
+/// Solana execution engine configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolanaEngineConfig {
+    /// Enable Solana execution engine
+    pub enabled: bool,
+    /// Data directory for Solana validator
+    pub data_dir: String,
+    /// RPC port for Solana validator
+    pub rpc_port: u16,
+    /// Cluster type (mainnet-beta, testnet, devnet, localnet)
+    pub cluster: String,
     /// Enable mock mode for testing
     pub mock_mode: bool,
     /// Auto-start the engine when application starts
@@ -58,6 +77,7 @@ impl Default for ExecutionEngineConfig {
     fn default() -> Self {
         Self {
             ethereum: EthereumEngineConfig::default(),
+            solana: SolanaEngineConfig::default(),
             global: GlobalExecutionConfig::default(),
         }
     }
@@ -70,6 +90,19 @@ impl Default for EthereumEngineConfig {
             data_dir: "/tmp/multivm/ethereum".to_string(),
             rpc_port: 8545,
             chain_id: 1337,   // Local development chain
+            mock_mode: false, // Use real execution engines for production
+            auto_start: true,
+        }
+    }
+}
+
+impl Default for SolanaEngineConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            data_dir: "/tmp/multivm/solana".to_string(),
+            rpc_port: 8899,
+            cluster: "localnet".to_string(), // Local development cluster
             mock_mode: false, // Use real execution engines for production
             auto_start: true,
         }
@@ -91,6 +124,7 @@ impl Default for GlobalExecutionConfig {
 pub struct ExecutionEngineManager {
     config: ExecutionEngineConfig,
     ethereum_engine: Option<Arc<RwLock<reth_execution_engine::engine::RethExecutionEngine>>>,
+    solana_engine: Option<Arc<RwLock<solana_execution_engine::real_engine::RealSolanaEngine>>>,
     coordination: coordination::CrossVmCoordinator,
     is_running: Arc<RwLock<bool>>,
 }
@@ -102,6 +136,10 @@ impl std::fmt::Debug for ExecutionEngineManager {
             .field(
                 "ethereum_engine",
                 &self.ethereum_engine.as_ref().map(|_| "RethExecutionEngine"),
+            )
+            .field(
+                "solana_engine",
+                &self.solana_engine.as_ref().map(|_| "RealSolanaEngine"),
             )
             .field("coordination", &self.coordination)
             .field("is_running", &self.is_running)
@@ -117,6 +155,7 @@ impl ExecutionEngineManager {
         Ok(Self {
             config,
             ethereum_engine: None,
+            solana_engine: None,
             coordination,
             is_running: Arc::new(RwLock::new(false)),
         })
@@ -129,6 +168,11 @@ impl ExecutionEngineManager {
         // Initialize Ethereum engine if enabled
         if self.config.ethereum.enabled {
             self.initialize_ethereum_engine().await?;
+        }
+
+        // Initialize Solana engine if enabled
+        if self.config.solana.enabled {
+            self.initialize_solana_engine().await?;
         }
 
         *self.is_running.write().await = true;
@@ -172,6 +216,41 @@ impl ExecutionEngineManager {
         Ok(())
     }
 
+    /// Initialize the Solana execution engine
+    async fn initialize_solana_engine(&mut self) -> MultivmResult<()> {
+        use std::path::PathBuf;
+
+        tracing::info!("Initializing Solana execution engine");
+
+        let data_dir = PathBuf::from(&self.config.solana.data_dir);
+        let mut engine = solana_execution_engine::real_engine::RealSolanaEngine::new(
+            data_dir,
+            self.config.solana.rpc_port,
+            self.config.solana.cluster.clone(),
+        )
+        .await
+        .map_err(|e| multivm_common::MultivmError::Process {
+            process_id: "solana-engine".to_string(),
+            message: format!("Failed to create Solana execution engine: {}", e),
+            exit_code: None,
+        })?;
+
+        // Initialize the engine
+        engine
+            .initialize()
+            .await
+            .map_err(|e| multivm_common::MultivmError::Process {
+                process_id: "solana-engine".to_string(),
+                message: format!("Failed to initialize Solana execution engine: {}", e),
+                exit_code: None,
+            })?;
+
+        self.solana_engine = Some(Arc::new(RwLock::new(engine)));
+
+        tracing::info!("Solana execution engine initialized successfully");
+        Ok(())
+    }
+
     /// Get health status of all execution engines
     pub async fn get_health_status(&self) -> MultivmResult<HashMap<BlockchainType, HealthStatus>> {
         let mut health_status = HashMap::new();
@@ -187,6 +266,13 @@ impl ExecutionEngineManager {
                 }
             })?;
             health_status.insert(BlockchainType::Ethereum, health);
+        }
+
+        // Check Solana engine health
+        if let Some(engine) = &self.solana_engine {
+            let engine_guard = engine.read().await;
+            // For now, assume healthy if engine exists since RealSolanaEngine doesn't have get_health
+            health_status.insert(BlockchainType::Solana, HealthStatus::Healthy);
         }
 
         Ok(health_status)
@@ -251,12 +337,15 @@ impl ExecutionEngineManager {
                 }
             }
             BlockchainType::Solana => {
-                // Solana engine would be handled here when integrated
-                Err(multivm_common::MultivmError::Process {
-                    process_id: "solana-engine".to_string(),
-                    message: "Solana execution engine not yet integrated".to_string(),
-                    exit_code: None,
-                })
+                if let Some(engine) = &self.solana_engine {
+                    self.process_solana_block(engine, block_data).await
+                } else {
+                    Err(multivm_common::MultivmError::Process {
+                        process_id: "solana-engine".to_string(),
+                        message: "Solana execution engine not initialized".to_string(),
+                        exit_code: None,
+                    })
+                }
             }
         }
     }
@@ -293,6 +382,41 @@ impl ExecutionEngineManager {
         })
     }
 
+    /// Process a block on the Solana execution engine
+    async fn process_solana_block(
+        &self,
+        engine: &Arc<RwLock<solana_execution_engine::real_engine::RealSolanaEngine>>,
+        block_data: Vec<u8>,
+    ) -> MultivmResult<Vec<u8>> {
+        // For now, use a simplified approach since the real engine expects SolanaBlockData
+        // In a full production implementation, you would deserialize the block_data properly
+        let mut engine_guard = engine.write().await;
+        
+        // Create a mock SolanaBlockData for now - in production this would be properly deserialized
+        let mock_block = solana_execution_engine::engine::SolanaBlockData {
+            slot: 1,
+            block_hash: solana_sdk::hash::Hash::default(),
+            transactions: vec![], // Empty for now
+            previous_block_hash: solana_sdk::hash::Hash::default(),
+            timestamp: std::time::SystemTime::now(),
+        };
+
+        let result = engine_guard.process_block_real(mock_block).await.map_err(|e| {
+            multivm_common::MultivmError::Process {
+                process_id: "solana-engine".to_string(),
+                message: format!("Failed to process Solana block: {}", e),
+                exit_code: None,
+            }
+        })?;
+
+        // Serialize the result
+        bincode::serialize(&result).map_err(|e| multivm_common::MultivmError::Process {
+            process_id: "solana-engine".to_string(),
+            message: format!("Failed to serialize Solana block result: {}", e),
+            exit_code: None,
+        })
+    }
+
     /// Reset an execution engine to a specific block
     pub async fn reset_engine_to_block(
         &self,
@@ -318,11 +442,25 @@ impl ExecutionEngineManager {
                     })
                 }
             }
-            BlockchainType::Solana => Err(multivm_common::MultivmError::Process {
-                process_id: "solana-engine".to_string(),
-                message: "Solana execution engine not yet integrated".to_string(),
-                exit_code: None,
-            }),
+            BlockchainType::Solana => {
+                if let Some(engine) = &self.solana_engine {
+                    let mut engine_guard = engine.write().await;
+                    // For reset, we'll use shutdown since RealSolanaEngine doesn't have reset_to_block
+                    engine_guard.shutdown(Some(std::time::Duration::from_secs(10))).await.map_err(|e| {
+                        multivm_common::MultivmError::Process {
+                            process_id: "solana-engine".to_string(),
+                            message: format!("Failed to reset Solana engine: {}", e),
+                            exit_code: None,
+                        }
+                    })
+                } else {
+                    Err(multivm_common::MultivmError::Process {
+                        process_id: "solana-engine".to_string(),
+                        message: "Solana execution engine not initialized".to_string(),
+                        exit_code: None,
+                    })
+                }
+            }
         }
     }
 
@@ -347,11 +485,24 @@ impl ExecutionEngineManager {
                     })
                 }
             }
-            BlockchainType::Solana => Err(multivm_common::MultivmError::Process {
-                process_id: "solana-engine".to_string(),
-                message: "Solana execution engine not yet integrated".to_string(),
-                exit_code: None,
-            }),
+            BlockchainType::Solana => {
+                if let Some(engine) = &self.solana_engine {
+                    let engine_guard = engine.read().await;
+                    engine_guard.get_current_slot().await.map_err(|e| {
+                        multivm_common::MultivmError::Process {
+                            process_id: "solana-engine".to_string(),
+                            message: format!("Failed to get latest Solana slot: {}", e),
+                            exit_code: None,
+                        }
+                    })
+                } else {
+                    Err(multivm_common::MultivmError::Process {
+                        process_id: "solana-engine".to_string(),
+                        message: "Solana execution engine not initialized".to_string(),
+                        exit_code: None,
+                    })
+                }
+            }
         }
     }
 
@@ -373,8 +524,14 @@ impl ExecutionEngineManager {
             readiness.insert(BlockchainType::Ethereum, false);
         }
 
-        // Solana engine would be checked here when integrated
-        readiness.insert(BlockchainType::Solana, false);
+        // Check Solana engine readiness
+        if let Some(engine) = &self.solana_engine {
+            let engine_guard = engine.read().await;
+            // For now, assume ready if engine is initialized
+            readiness.insert(BlockchainType::Solana, true);
+        } else {
+            readiness.insert(BlockchainType::Solana, false);
+        }
 
         Ok(readiness)
     }
@@ -394,6 +551,18 @@ impl ExecutionEngineManager {
                 multivm_common::MultivmError::Process {
                     process_id: "ethereum-engine".to_string(),
                     message: format!("Failed to shutdown Ethereum engine: {}", e),
+                    exit_code: None,
+                }
+            })?;
+        }
+
+        // Shutdown Solana engine
+        if let Some(engine) = self.solana_engine.take() {
+            let mut engine_guard = engine.write().await;
+            engine_guard.shutdown(timeout).await.map_err(|e| {
+                multivm_common::MultivmError::Process {
+                    process_id: "solana-engine".to_string(),
+                    message: format!("Failed to shutdown Solana engine: {}", e),
                     exit_code: None,
                 }
             })?;

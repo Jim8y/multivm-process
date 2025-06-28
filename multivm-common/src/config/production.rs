@@ -419,7 +419,7 @@ impl Default for ProductionVmConfigs {
 impl Default for ProductionEvmConfig {
     fn default() -> Self {
         Self {
-            rpc_url: "http://localhost:8545".to_string(),
+            rpc_url: std::env::var("ETHEREUM_RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string()),
             backup_rpc_urls: vec![],
             engine_url: None,
             jwt_secret: None,
@@ -436,8 +436,8 @@ impl Default for ProductionEvmConfig {
 impl Default for ProductionSvmConfig {
     fn default() -> Self {
         Self {
-            rpc_url: "http://localhost:8899".to_string(),
-            ws_url: Some("ws://localhost:8900".to_string()),
+            rpc_url: std::env::var("SOLANA_RPC_URL").unwrap_or_else(|_| "http://localhost:8899".to_string()),
+            ws_url: std::env::var("SOLANA_WS_URL").ok().or_else(|| Some("ws://localhost:8900".to_string())),
             backup_rpc_urls: vec![],
             commitment: CommitmentLevel::Confirmed,
             request_timeout: Duration::from_secs(30),
@@ -561,7 +561,7 @@ impl Default for ProductionCacheConfig {
 impl Default for ProductionRedisConfig {
     fn default() -> Self {
         Self {
-            url: "redis://localhost:6379".to_string(),
+            url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string()),
             max_connections: 10,
             connection_timeout: Duration::from_secs(5),
             command_timeout: Duration::from_secs(5),
@@ -619,7 +619,7 @@ impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            endpoint: "0.0.0.0:9090".to_string(),
+            endpoint: std::env::var("METRICS_ENDPOINT").unwrap_or_else(|_| "0.0.0.0:9090".to_string()),
             collection_interval: Duration::from_secs(60),
             retention_period: Duration::from_secs(86400 * 7), // 7 days
             enable_prometheus: true,
@@ -654,7 +654,7 @@ impl Default for TracingConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            endpoint: "http://localhost:14268/api/traces".to_string(),
+            endpoint: std::env::var("JAEGER_ENDPOINT").unwrap_or_else(|_| "http://localhost:14268/api/traces".to_string()),
             sample_rate: 0.1,
             enable_jaeger: true,
         }

@@ -3,13 +3,14 @@
 //! This crate provides a unified consensus layer for the MultiVM architecture,
 //! supporting multiple consensus algorithms and ensuring cross-VM state consistency.
 
-#![allow(
+// Only allow dead code and warnings in debug builds
+#![cfg_attr(debug_assertions, allow(
     dead_code,
     unused_variables,
     clippy::op_ref,
     clippy::unused_enumerate_index,
     clippy::useless_vec
-)]
+))]
 
 pub mod block;
 pub mod crypto;

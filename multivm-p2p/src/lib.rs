@@ -23,7 +23,8 @@
 //! └─────────────────┴─────────────────┴─────────────────────────┘
 //! ```
 
-#![allow(dead_code, unused_variables, unused_imports)]
+// Remove global allow for production - clean up dead code instead
+#![cfg_attr(debug_assertions, allow(dead_code, unused_variables, unused_imports))]
 
 pub mod circuit_breaker;
 pub mod config;
