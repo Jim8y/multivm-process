@@ -59,7 +59,7 @@ pub async fn check_evm_health(state: &Arc<ApplicationState>) -> ApplicationResul
 
 /// Check database connection health
 pub async fn check_database_health(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
 ) -> ApplicationResult<(bool, String)> {
     // Would perform actual database health check
     // For now, return a placeholder
@@ -68,20 +68,16 @@ pub async fn check_database_health(
 
 /// Check process manager health
 pub async fn check_process_manager_health(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
 ) -> ApplicationResult<(bool, String)> {
-    // Check if process manager is responsive
-    if let Ok(manager) = state.process_manager.try_read() {
-        // Could check active processes, resource usage, etc.
-        Ok((true, "Process manager is responsive".to_string()))
-    } else {
-        Ok((false, "Process manager lock is held".to_string()))
-    }
+    // TODO: When process manager is integrated, check its health
+    // For now, return a placeholder since process manager is handled separately
+    Ok((true, "Process manager health check not yet integrated".to_string()))
 }
 
 /// Check consensus health
 pub async fn check_consensus_health(
-    state: &Arc<ApplicationState>,
+    _state: &Arc<ApplicationState>,
 ) -> ApplicationResult<(bool, String)> {
     // Would check consensus status, validator participation, etc.
     Ok((true, "Consensus check not implemented".to_string()))

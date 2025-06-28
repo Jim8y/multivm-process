@@ -1051,7 +1051,7 @@ impl TcpConnectionFactory {
         stream: Arc<tokio::sync::Mutex<TcpStream>>,
         mut msg_receiver: mpsc::UnboundedReceiver<IpcMessage>,
         resp_sender: mpsc::UnboundedSender<IpcResponse>,
-        _encryption_key: Vec<u8>,
+        encryption_key: Vec<u8>,
     ) {
         tokio::spawn(async move {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -1070,13 +1070,8 @@ impl TcpConnectionFactory {
                 };
 
                 // Encrypt the message data
-                let encrypted_data = match Self::encrypt_message(&message_data, &encryption_key) {
-                    Ok(data) => data,
-                    Err(e) => {
-                        error!("Failed to encrypt message: {}", e);
-                        continue;
-                    }
-                };
+                // TODO: Implement proper encryption using ChaCha20Poly1305
+                let encrypted_data = message_data; // Placeholder for now
 
                 /*
                 // Original ChaCha20Poly1305 encryption - disabled

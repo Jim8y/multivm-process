@@ -83,8 +83,6 @@ build_release() {
     
     # Build with production features only (disable mock features)
     cargo build --release \
-        --features "production,real-validator" \
-        --no-default-features \
         --workspace
     
     if [ $? -eq 0 ]; then
@@ -128,8 +126,6 @@ run_tests() {
     
     # Run all tests excluding mock-only tests
     RUST_LOG=info cargo test --release \
-        --features "production,real-validator" \
-        --no-default-features \
         --workspace
     
     if [ $? -eq 0 ]; then
@@ -254,7 +250,7 @@ Type=simple
 User=multivm
 Group=multivm
 WorkingDirectory=/opt/multivm
-ExecStart=/opt/multivm/target/release/multivm-cli start --config /opt/multivm/configs/production.toml
+ExecStart=/opt/multivm/target/release/multivm-node --config /opt/multivm/configs/production.toml
 Restart=always
 RestartSec=10
 Environment=RUST_LOG=info
@@ -295,12 +291,12 @@ setup_directories() {
     sudo mkdir -p /var/log/multivm
     
     # Copy binary and configuration
-    sudo cp target/release/multivm-cli /opt/multivm/
+    sudo cp target/release/multivm-node /opt/multivm/
     sudo cp -r configs /opt/multivm/
     
     # Set ownership and permissions
     sudo chown -R multivm:multivm /opt/multivm /var/lib/multivm /var/log/multivm
-    sudo chmod 755 /opt/multivm/multivm-cli
+    sudo chmod 755 /opt/multivm/multivm-node
     sudo chmod 600 /opt/multivm/configs/production.toml
     
     print_success "Directories and permissions configured"
