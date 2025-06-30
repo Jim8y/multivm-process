@@ -13,7 +13,8 @@ use multivm_p2p::{
     protocol::messages::{
         ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget,
         MultiVmMessage, NetworkMessage, NetworkStats, NodeStatus, PeerInfo, VmType,
-    }, P2PNetwork,
+    },
+    P2PNetwork,
 };
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
