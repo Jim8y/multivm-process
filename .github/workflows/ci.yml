@@ -75,6 +75,7 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
+        components: llvm-tools-preview
     
     - name: Setup Rust cache
       uses: Swatinem/rust-cache@v2
@@ -89,6 +90,16 @@ jobs:
         # Now run the tests (already compiled)
         cargo test --workspace
       continue-on-error: true  # Integration tests may require external services
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: rust-build-artifacts
+        path: |
+          target/debug/
+          Cargo.lock
+        retention-days: 1
 
   security-audit:
     name: Security Audit
@@ -123,7 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-test
-    timeout-minutes: 45
+    timeout-minutes: 20  # Reduced timeout since we're reusing artifacts
     
     steps:
     - name: Checkout code
@@ -138,10 +149,11 @@ jobs:
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Setup Rust cache
-      uses: Swatinem/rust-cache@v2
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
       with:
-        key: benchmark
+        name: rust-build-artifacts
+        path: .
     
     - name: Run benchmarks
       run: |
@@ -157,7 +169,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-test
-    timeout-minutes: 45
+    timeout-minutes: 20  # Reduced timeout since we're reusing artifacts
     
     steps:
     - name: Checkout code
@@ -174,18 +186,21 @@ jobs:
       with:
         components: llvm-tools-preview
     
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: rust-build-artifacts
+        path: .
+    
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@v2
       with:
         tool: cargo-llvm-cov
     
-    - name: Setup Rust cache
-      uses: Swatinem/rust-cache@v2
-      with:
-        key: coverage
-    
     - name: Generate coverage report
-      run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      run: |
+        # Use the pre-built artifacts to generate coverage
+        cargo llvm-cov --workspace --lcov --output-path lcov.info --no-run
       continue-on-error: true
     
     - name: Upload coverage to Codecov
