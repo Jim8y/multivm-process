@@ -17,7 +17,7 @@ use multivm_p2p::{
 };
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, warn};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> P2PResult<()> {
@@ -200,7 +200,7 @@ async fn demonstrate_security_features(handle: &ManagerHandle) -> P2PResult<()> 
     // This is more of a demonstration of security-related messages
 
     // 1. Authentication challenge
-    let auth_challenge = NetworkMessage::new(
+    let _auth_challenge = NetworkMessage::new(
         MessagePayload::Control(ControlMessage::StatusRequest),
         MessageSource::NetworkLayer,
         MessageTarget::Peer("example_peer".to_string()),

@@ -13,8 +13,7 @@ use multivm_p2p::{
     protocol::messages::{
         ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget,
         MultiVmMessage, NetworkMessage, NetworkStats, NodeStatus, PeerInfo, VmType,
-    },
-    P2PManager, P2PNetwork,
+    }, P2PNetwork,
 };
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -334,7 +333,7 @@ impl MultiVMConsensusManager {
     ) -> ConsensusResult<()> {
         // Subscribe to consensus-related topics
         {
-            let mut net = network.write().await;
+            let net = network.write().await;
             net.subscribe_topic("consensus.proposals")
                 .await
                 .map_err(|e| {
@@ -2137,7 +2136,7 @@ impl MultiVMConsensusManager {
                 let pooled_txs = tx_pool.get_transactions_for_block(max_txs).await;
 
                 // Convert PooledTransactions to mock data for now
-                let mut transactions = if pooled_txs.is_empty() {
+                let transactions = if pooled_txs.is_empty() {
                     // Generate at least 50 mock transactions
                     let tx_count = std::cmp::max(50, std::cmp::min(60, max_txs));
                     let mock_txs = Self::generate_mock_transactions(tx_count);
