@@ -351,7 +351,7 @@ impl ConsensusEngine for MalachiteEngine {
         transactions: Vec<Self::Transaction>,
     ) -> ConsensusResult<Self::Block> {
         let height = self.current_height().await + 1;
-        
+
         // Create a proper MultiVMBlock structure
         let mut multivm_block = crate::block::MultiVMBlock {
             header: crate::block::BlockHeader {
@@ -373,12 +373,15 @@ impl ConsensusEngine for MalachiteEngine {
 
         // Update the transaction root hash to match what validation expects
         multivm_block.update_transactions_root();
-        // Update the state root hash to match what validation expects  
+        // Update the state root hash to match what validation expects
         multivm_block.update_state_root();
 
         // Serialize the MultiVMBlock to JSON
         let data = serde_json::to_vec(&multivm_block).map_err(|e| {
-            crate::error::ConsensusError::SerializationError(format!("Failed to serialize block: {}", e))
+            crate::error::ConsensusError::SerializationError(format!(
+                "Failed to serialize block: {}",
+                e
+            ))
         })?;
 
         Ok(MalachiteBlock {

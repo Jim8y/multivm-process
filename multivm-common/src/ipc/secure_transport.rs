@@ -1156,7 +1156,7 @@ impl SecureIpcTransport {
     async fn receive_bytes(&mut self) -> MultivmResult<Vec<u8>> {
         // Read length header first
         let mut len_bytes = [0u8; 4];
-        
+
         // Add timeout to prevent hanging
         let timeout_duration = Duration::from_secs(10);
 
