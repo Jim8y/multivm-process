@@ -102,10 +102,10 @@ mod metrics_impl {
                 .map_err(|e| P2PError::ConfigurationError {
                     message: format!("metrics: {}", e.to_string()),
                 })?,
-                connection_duration: Histogram::new(
+                connection_duration: Histogram::with_opts(prometheus::HistogramOpts::new(
                     "p2p_connection_duration_seconds",
                     "Connection duration",
-                )
+                ))
                 .map_err(|e| P2PError::ConfigurationError {
                     message: format!("metrics: {}", e.to_string()),
                 })?,
@@ -118,17 +118,20 @@ mod metrics_impl {
                     .map_err(|e| P2PError::ConfigurationError {
                         message: format!("metrics: {}", e.to_string()),
                     })?,
-                message_processing_time: Histogram::new(
+                message_processing_time: Histogram::with_opts(prometheus::HistogramOpts::new(
                     "p2p_message_processing_seconds",
                     "Message processing time",
-                )
+                ))
                 .map_err(|e| P2PError::ConfigurationError {
                     message: format!("metrics: {}", e.to_string()),
                 })?,
-                message_size: Histogram::new("p2p_message_size_bytes", "Message size in bytes")
-                    .map_err(|e| P2PError::ConfigurationError {
-                        message: format!("metrics: {}", e.to_string()),
-                    })?,
+                message_size: Histogram::with_opts(prometheus::HistogramOpts::new(
+                    "p2p_message_size_bytes",
+                    "Message size in bytes",
+                ))
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?
                 network_health_score: Gauge::new(
                     "p2p_network_health_score",
                     "Network health score (0-1)",
@@ -182,8 +185,11 @@ mod metrics_impl {
                     .map_err(|e| P2PError::ConfigurationError {
                         message: format!("metrics: {}", e.to_string()),
                     })?,
-                network_latency: Histogram::new("p2p_network_latency_seconds", "Network latency")
-                    .map_err(|e| P2PError::ConfigurationError {
+                network_latency: Histogram::with_opts(prometheus::HistogramOpts::new(
+                    "p2p_network_latency_seconds",
+                    "Network latency",
+                ))
+                .map_err(|e| P2PError::ConfigurationError {
                     message: format!("metrics: {}", e.to_string()),
                 })?,
                 throughput: Gauge::new("p2p_throughput_messages_per_second", "Message throughput")
@@ -248,7 +254,7 @@ mod metrics_impl {
             let score = match status {
                 NetworkHealthStatus::Healthy => 1.0,
                 NetworkHealthStatus::Warning => 0.7,
-                NetworkHealthStatus::Critical => 0.3,
+                NetworkHealthStatus::Critical => 0.0,
             };
             self.metrics.network_health_score.set(score);
         }

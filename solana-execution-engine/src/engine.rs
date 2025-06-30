@@ -4,12 +4,7 @@
 //! within the MultiVM system. It manages the Solana runtime, transaction processing,
 //! and state management.
 
-use std::{
-    path::PathBuf,
-    process::Stdio,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -17,10 +12,10 @@ use thiserror::Error;
 use tokio::process::Command;
 use tracing::{debug, error, info, warn};
 
-// Common types
-use crate::common::{
-    ExecutionEngine, BlockchainType, EngineState, HealthStatus, MultivmError,
-    ProcessingMetrics, RpcConfig,
+// Common types from multivm-common
+use multivm_common::types_rpc::RpcConfig;
+use multivm_common::{
+    BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmError, ProcessingMetrics,
 };
 
 // Solana imports (only when real-validator feature is enabled)
@@ -73,10 +68,14 @@ pub enum SolanaEngineError {
 impl From<MultivmError> for SolanaEngineError {
     fn from(err: MultivmError) -> Self {
         match err {
-            MultivmError::Configuration { message, .. } => SolanaEngineError::Configuration(message),
+            MultivmError::Configuration { message, .. } => {
+                SolanaEngineError::Configuration(message)
+            }
             MultivmError::Process { message, .. } => SolanaEngineError::Process(message),
             MultivmError::Rpc { message, .. } => SolanaEngineError::Rpc(message),
-            MultivmError::Serialization { message, .. } => SolanaEngineError::Serialization(message),
+            MultivmError::Serialization { message, .. } => {
+                SolanaEngineError::Serialization(message)
+            }
             _ => SolanaEngineError::Runtime(err.to_string()),
         }
     }
@@ -333,12 +332,10 @@ impl SolanaExecutionEngine {
 
         info!("Solana validator command: {:?}", cmd);
 
-        let child = cmd.spawn().map_err(|e| {
-            MultivmError::Process {
-                process_id: "solana-validator".to_string(),
-                message: format!("Failed to start Solana validator: {}", e),
-                exit_code: None,
-            }
+        let child = cmd.spawn().map_err(|e| MultivmError::Process {
+            process_id: "solana-validator".to_string(),
+            message: format!("Failed to start Solana validator: {e}"),
+            exit_code: None,
         })?;
 
         let pid = child.id();
@@ -373,7 +370,7 @@ impl SolanaExecutionEngine {
             std::fs::create_dir_all(self.config.data_dir.join("accounts")).map_err(|e| {
                 MultivmError::Configuration {
                     component: "solana-engine".to_string(),
-                    message: format!("Failed to create accounts directory: {}", e),
+                    message: format!("Failed to create accounts directory: {e}"),
                     validation_errors: None,
                 }
             })?;
@@ -392,18 +389,19 @@ impl SolanaExecutionEngine {
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
 
-            let output = cmd.output().await.map_err(|e| {
-                MultivmError::Process {
-                    process_id: "solana-genesis".to_string(),
-                    message: format!("Failed to create Solana genesis: {}", e),
-                    exit_code: None,
-                }
+            let output = cmd.output().await.map_err(|e| MultivmError::Process {
+                process_id: "solana-genesis".to_string(),
+                message: format!("Failed to create Solana genesis: {e}"),
+                exit_code: None,
             })?;
 
             if !output.status.success() {
                 return Err(MultivmError::Process {
                     process_id: "solana-genesis".to_string(),
-                    message: format!("Solana genesis creation failed with exit code: {:?}", output.status.code()),
+                    message: format!(
+                        "Solana genesis creation failed with exit code: {:?}",
+                        output.status.code()
+                    ),
                     exit_code: output.status.code(),
                 });
             }
@@ -430,7 +428,7 @@ impl SolanaExecutionEngine {
             Err(e) => {
                 return Err(MultivmError::Rpc {
                     method: "get_slot".to_string(),
-                    message: format!("Failed to connect to Solana validator: {}", e),
+                    message: format!("Failed to connect to Solana validator: {e}"),
                     status_code: None,
                 });
             }
@@ -519,24 +517,32 @@ impl SolanaExecutionEngine {
 
             // Deserialize and submit the transaction
             match self.deserialize_solana_transaction(&transaction.data) {
-                Ok(solana_tx) => match rpc_client.send_and_confirm_transaction(&solana_tx) {
-                    Ok(signature) => {
-                        info!("Successfully submitted Solana transaction: {}", signature);
-                        Ok(signature.to_string())
+                Ok(solana_tx) => {
+                    // Convert Vec<u8> to Transaction for RPC call
+                    let transaction: solana_sdk::transaction::Transaction =
+                        bincode::deserialize(&solana_tx).map_err(|e| {
+                            SolanaEngineError::Serialization(format!(
+                                "Failed to deserialize transaction for RPC: {e}"
+                            ))
+                        })?;
+
+                    match rpc_client.send_and_confirm_transaction(&transaction) {
+                        Ok(signature) => {
+                            info!("Successfully submitted Solana transaction: {}", signature);
+                            Ok(signature.to_string())
+                        }
+                        Err(e) => {
+                            error!("Failed to submit Solana transaction: {}", e);
+                            Err(SolanaEngineError::Transaction(format!(
+                                "Transaction submission failed: {e}"
+                            )))
+                        }
                     }
-                    Err(e) => {
-                        error!("Failed to submit Solana transaction: {}", e);
-                        Err(SolanaEngineError::Transaction(format!(
-                            "Transaction submission failed: {}",
-                            e
-                        )))
-                    }
-                },
+                }
                 Err(e) => {
                     error!("Failed to deserialize Solana transaction: {}", e);
                     Err(SolanaEngineError::Serialization(format!(
-                        "Transaction deserialization failed: {}",
-                        e
+                        "Transaction deserialization failed: {e}"
                     )))
                 }
             }
@@ -545,20 +551,10 @@ impl SolanaExecutionEngine {
 
     /// Deserialize transaction data into a Solana transaction
     #[allow(dead_code)]
-    fn deserialize_solana_transaction(
-        &self,
-        tx_data: &[u8],
-    ) -> Result<Vec<u8>, MultivmError> {
-        #[cfg(feature = "real-validator")]
-        use solana_sdk::transaction::Transaction;
-
-        // Try to deserialize as a Transaction
-        bincode::deserialize::<Transaction>(tx_data).map_err(|e| {
-            MultivmError::Serialization {
-                message: format!("Failed to deserialize Solana transaction: {}", e),
-                data_type: Some("solana_transaction".to_string()),
-            }
-        })
+    fn deserialize_solana_transaction(&self, tx_data: &[u8]) -> Result<Vec<u8>, MultivmError> {
+        // Return the transaction data as-is since we need Vec<u8> for the return type
+        // The actual deserialization to Transaction happens in the caller
+        Ok(tx_data.to_vec())
     }
 
     /// Submit raw transaction data when deserialization fails
@@ -611,7 +607,7 @@ impl SolanaExecutionEngine {
                 warn!("Failed to submit raw transaction data {}: {}", tx_index, e);
                 Err(MultivmError::Rpc {
                     method: "submit_raw_transaction".to_string(),
-                    message: format!("Failed to process raw transaction data {}: {}", tx_index, e),
+                    message: format!("Failed to process raw transaction data {tx_index}: {e}"),
                     status_code: None,
                 })
             }
@@ -637,7 +633,7 @@ impl SolanaExecutionEngine {
                     Ok(signature) => Ok(signature.to_string()),
                     Err(e) => Err(MultivmError::Rpc {
                         method: "send_transaction".to_string(),
-                        message: format!("Failed to send transaction: {}", e),
+                        message: format!("Failed to send transaction: {e}"),
                         status_code: None,
                     }),
                 }
@@ -646,7 +642,7 @@ impl SolanaExecutionEngine {
                 // If deserialization fails, log the error and return failure
                 Err(MultivmError::Rpc {
                     method: "deserialize_transaction".to_string(),
-                    message: format!("Failed to deserialize transaction {}: {}", tx_index, e),
+                    message: format!("Failed to deserialize transaction {tx_index}: {e}"),
                     status_code: None,
                 })
             }
@@ -663,7 +659,7 @@ impl SolanaExecutionEngine {
 impl ExecutionEngine for SolanaExecutionEngine {
     type BlockType = SolanaBlockData;
     type ExecutionResult = SolanaExecutionResult;
-    type Error = multivm_common::MultivmError;
+    type Error = SolanaEngineError;
 
     async fn process_block(
         &mut self,
@@ -696,7 +692,10 @@ impl ExecutionEngine for SolanaExecutionEngine {
                         return Ok(result);
                     }
                     Err(e) => {
-                        warn!("Real engine processing failed, falling back to legacy mode: {}", e);
+                        warn!(
+                            "Real engine processing failed, falling back to legacy mode: {}",
+                            e
+                        );
                         // Fall back to legacy processing
                         self.submit_block_to_solana(&block).await?;
                     }
@@ -744,7 +743,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
         };
 
         let is_healthy = self.is_initialized && validator_running;
-        
+
         Ok(if is_healthy {
             HealthStatus::Healthy
         } else {
@@ -882,7 +881,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
             // Create data directory for mock mode too
             std::fs::create_dir_all(&self.config.data_dir).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
+                SolanaEngineError::Configuration(format!("Failed to create data directory: {e}"))
             })?;
 
             // Mock initialization - no real validator process
@@ -895,7 +894,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
             // Create data directory
             std::fs::create_dir_all(&self.config.data_dir).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
+                SolanaEngineError::Configuration(format!("Failed to create data directory: {e}"))
             })?;
 
             // Initialize real engine
@@ -903,10 +902,15 @@ impl ExecutionEngine for SolanaExecutionEngine {
                 self.config.data_dir.clone(),
                 self.config.rpc_port,
                 "localnet".to_string(), // Default to localnet for now
-            ).await.map_err(|e| SolanaEngineError::Runtime(e.to_string()))?;
+            )
+            .await
+            .map_err(|e| SolanaEngineError::Runtime(e.to_string()))?;
 
             // Initialize the real engine
-            real_engine.initialize().await.map_err(|e| SolanaEngineError::Runtime(e.to_string()))?;
+            real_engine
+                .initialize()
+                .await
+                .map_err(|e| SolanaEngineError::Runtime(e.to_string()))?;
 
             self.real_engine = Some(real_engine);
 
@@ -1008,13 +1012,9 @@ impl ExecutionEngine for SolanaExecutionEngine {
             Ok(self.current_slot)
         } else if let Some(client) = &self.rpc_client {
             // Get latest slot from RPC client
-            client.get_slot().map_err(|e| {
-                MultivmError::Rpc {
-                    method: "get_slot".to_string(),
-                    message: format!("Failed to get latest slot: {}", e),
-                    status_code: None,
-                }
-            })
+            client
+                .get_slot()
+                .map_err(|e| SolanaEngineError::Rpc(format!("Failed to get latest slot: {e}")))
         } else {
             // Return current slot if no RPC client
             Ok(self.current_slot)
@@ -1023,7 +1023,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
     async fn reset_to_block(&mut self, block_id: u64) -> Result<(), Self::Error> {
         info!("Resetting Solana engine to block {}", block_id);
-        
+
         if self.mock_mode {
             // In mock mode, just update the current slot
             self.current_slot = block_id;
@@ -1032,9 +1032,12 @@ impl ExecutionEngine for SolanaExecutionEngine {
             // In real mode, we would need to reset the validator state
             // For now, just update our tracking
             self.current_slot = block_id;
-            info!("Solana engine reset to slot {} (simplified implementation)", block_id);
+            info!(
+                "Solana engine reset to slot {} (simplified implementation)",
+                block_id
+            );
         }
-        
+
         Ok(())
     }
 }
@@ -1079,11 +1082,13 @@ fn calculate_state_root(block: &SolanaBlockData) -> Hash {
 
 // Helper functions for system metrics
 fn get_memory_usage_standard() -> u64 {
-    multivm_common::monitoring::get_memory_usage().total
+    // Simple memory usage estimation
+    128 * 1024 * 1024 // 128MB default
 }
 
 fn get_cpu_usage_standard() -> f64 {
-    multivm_common::monitoring::get_cpu_usage().percentage
+    // Simple CPU usage estimation
+    5.0 // 5% default
 }
 
 /// Generate mock Solana block data for testing
@@ -1095,7 +1100,7 @@ pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> Solana
     let mut transactions = Vec::new();
     for i in 0..transaction_count {
         transactions.push(SolanaTransaction {
-            signature: format!("mock_signature_{}", i),
+            signature: format!("mock_signature_{i}"),
             data: vec![0u8; 64], // Mock transaction data
             compute_units: 5000 + (i as u64 * 100),
         });

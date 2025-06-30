@@ -1,28 +1,24 @@
 //! Real Solana execution engine implementation
-//! 
+//!
 //! This module provides the production-ready Solana validator integration via RPC API.
 //! It replaces the mock implementation with actual Solana validator communication for
 //! production-grade SVM transaction execution and state management.
 
-use crate::engine::{SolanaBlockData, SolanaExecutionResult, SolanaEngineError, SolanaTransaction};
+use crate::engine::{SolanaBlockData, SolanaEngineError, SolanaExecutionResult, SolanaTransaction};
 use crate::rpc_client::{SolanaRpcClient, SolanaRpcClientBuilder};
-use crate::validator_api::{SolanaValidatorApi, SolanaValidatorApiBuilder, SlotInfo};
-use async_trait::async_trait;
-use multivm_common::*;
-use reqwest::Client;
-use serde_json::{json, Value};
+use crate::validator_api::{SlotInfo, SolanaValidatorApi, SolanaValidatorApiBuilder};
+use base64::prelude::*;
+use multivm_common::{BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmError};
+use solana_sdk::{
+    commitment_config::{CommitmentConfig, CommitmentLevel},
+    slot_history::Slot,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
-use solana_sdk::{
-    slot_history::Slot,
-    commitment_config::{CommitmentConfig, CommitmentLevel},
-    signature::Signature,
-    pubkey::Pubkey,
-};
 
 /// Real Solana execution engine that connects to actual Solana validators
 pub struct RealSolanaEngine {
@@ -31,20 +27,20 @@ pub struct RealSolanaEngine {
     pub(crate) rpc_port: u16,
     pub(crate) ws_port: u16,
     pub(crate) cluster: String,
-    
+
     /// Process management
     validator_process: Arc<RwLock<Option<Child>>>,
-    
+
     /// Network clients
     pub(crate) rpc_client: Arc<RwLock<Option<SolanaRpcClient>>>,
     pub(crate) validator_api: Arc<RwLock<Option<SolanaValidatorApi>>>,
-    
+
     /// State tracking
     current_slot: Arc<RwLock<Slot>>,
     slots_processed: Arc<RwLock<u64>>,
     start_time: Instant,
     is_running: Arc<RwLock<bool>>,
-    
+
     /// Connection configuration
     connection_config: SolanaConnectionConfig,
 }
@@ -82,7 +78,13 @@ impl RealSolanaEngine {
         rpc_port: u16,
         cluster: String,
     ) -> Result<Self, SolanaEngineError> {
-        Self::new_with_config(data_dir, rpc_port, cluster, SolanaConnectionConfig::default()).await
+        Self::new_with_config(
+            data_dir,
+            rpc_port,
+            cluster,
+            SolanaConnectionConfig::default(),
+        )
+        .await
     }
 
     /// Create a new real Solana execution engine with custom configuration
@@ -100,7 +102,7 @@ impl RealSolanaEngine {
 
         // Create directories
         std::fs::create_dir_all(&data_dir).map_err(|e| {
-            SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
+            SolanaEngineError::Configuration(format!("Failed to create data directory: {e}"))
         })?;
 
         Ok(Self {
@@ -152,10 +154,9 @@ impl RealSolanaEngine {
         cmd
             // Ledger and accounts
             .arg("--ledger")
-            .arg(&self.data_dir.join("ledger"))
+            .arg(self.data_dir.join("ledger"))
             .arg("--accounts")
-            .arg(&self.data_dir.join("accounts"))
-            
+            .arg(self.data_dir.join("accounts"))
             // RPC configuration for MultiVM communication
             .arg("--rpc-port")
             .arg(self.rpc_port.to_string())
@@ -164,11 +165,9 @@ impl RealSolanaEngine {
             .arg("--full-rpc-api")
             .arg("--enable-rpc-transaction-history")
             .arg("--enable-extended-tx-metadata-storage")
-            
             // WebSocket configuration for real-time updates
             .arg("--rpc-pubsub-enable-vote-subscription")
             .arg("--rpc-pubsub-enable-block-subscription")
-            
             // CRITICAL: Disable ALL P2P and networking - MultiVM handles consensus
             .arg("--no-port-check")
             .arg("--gossip-port")
@@ -184,7 +183,6 @@ impl RealSolanaEngine {
             .arg("--tpu-port")
             .arg("0") // Disable transaction processing unit
             .arg("--no-poh") // Disable Proof of History - MultiVM handles timing
-            
             // CRITICAL: Disable ALL consensus mechanisms - MultiVM handles consensus
             .arg("--no-voting") // No voting
             .arg("--no-check-vote-account") // Skip vote account validation
@@ -194,36 +192,30 @@ impl RealSolanaEngine {
             .arg("--no-genesis-fetch") // Don't fetch genesis from network
             .arg("--no-snapshot-fetch") // Don't fetch snapshots from network
             .arg("--no-incremental-snapshots") // Disable incremental snapshots
-            
             // Execution-only mode: Only handle transaction execution and state updates
             .arg("--execution-only") // If available, use execution-only mode
             .arg("--no-leader-rotation") // Disable leader rotation
             .arg("--no-tower") // Disable tower (consensus voting)
-            
             // Performance optimizations for execution-only mode
             .arg("--accounts-db-caching-enabled")
             .arg("--accounts-db-test-hash-calculation")
             .arg("--limit-ledger-size")
             .arg("1000000") // Limit ledger size since we're not syncing
-            
             // Banking and execution settings optimized for MultiVM
             .arg("--banking-trace-dir-byte-limit")
             .arg("1000000000") // 1GB for transaction tracing
             .arg("--block-verification-method")
             .arg("unified-scheduler") // Use unified scheduler for better performance
             .arg("--no-wait-for-supermajority") // Don't wait for network supermajority
-            
             // Disable all network-related features
             .arg("--no-untrusted-rpc") // Only allow trusted RPC (from MultiVM)
             .arg("--private-rpc") // Make RPC private (only localhost)
-            
             // Logging optimized for MultiVM integration
             .arg("--log")
             .arg("-") // Log to stdout for MultiVM to capture
             .arg("--log-messages-bytes-limit")
             .arg("1000000")
             .arg("--quiet") // Reduce unnecessary logging
-            
             // Process settings
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -232,10 +224,11 @@ impl RealSolanaEngine {
         // For execution-only mode, we always use development/localnet configuration
         // MultiVM handles the actual network connectivity and consensus
         cmd.arg("--cluster-type").arg("development");
-        
+
         // Set a fixed identity for the execution engine (not used for consensus)
-        cmd.arg("--identity").arg(self.data_dir.join("validator-keypair.json"));
-        
+        cmd.arg("--identity")
+            .arg(self.data_dir.join("validator-keypair.json"));
+
         // Disable all external network connections - only local execution
         cmd.arg("--entrypoint").arg(""); // No entrypoints
         cmd.arg("--known-validator").arg(""); // No known validators
@@ -243,7 +236,7 @@ impl RealSolanaEngine {
         debug!("Solana validator command: {:?}", cmd);
 
         let child = cmd.spawn().map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to start Solana validator: {}", e))
+            SolanaEngineError::Process(format!("Failed to start Solana validator: {e}"))
         })?;
 
         let pid = child.id();
@@ -302,7 +295,7 @@ impl RealSolanaEngine {
 
         // Verify RPC connection
         self.verify_rpc_connection().await?;
-        
+
         // Verify validator API connection
         self.verify_validator_api_connection().await?;
 
@@ -320,7 +313,10 @@ impl RealSolanaEngine {
         for attempt in 1..=self.connection_config.max_retries {
             match client.get_slot().await {
                 Ok(slot) => {
-                    info!("Successfully connected to Solana validator, current slot: {}", slot);
+                    info!(
+                        "Successfully connected to Solana validator, current slot: {}",
+                        slot
+                    );
                     return Ok(());
                 }
                 Err(e) => {
@@ -332,7 +328,9 @@ impl RealSolanaEngine {
             }
         }
 
-        Err(SolanaEngineError::Rpc("Failed to verify RPC connection after retries".to_string()))
+        Err(SolanaEngineError::Rpc(
+            "Failed to verify RPC connection after retries".to_string(),
+        ))
     }
 
     /// Verify validator API connection
@@ -345,11 +343,17 @@ impl RealSolanaEngine {
         for attempt in 1..=self.connection_config.max_retries {
             match api.get_slot_info().await {
                 Ok(slot_info) => {
-                    info!("Successfully connected to Solana validator API, slot info: {:?}", slot_info);
+                    info!(
+                        "Successfully connected to Solana validator API, slot info: {:?}",
+                        slot_info
+                    );
                     return Ok(());
                 }
                 Err(e) => {
-                    warn!("Validator API connection failed on attempt {}: {}", attempt, e);
+                    warn!(
+                        "Validator API connection failed on attempt {}: {}",
+                        attempt, e
+                    );
                     if attempt < self.connection_config.max_retries {
                         tokio::time::sleep(self.connection_config.retry_delay).await;
                     }
@@ -357,7 +361,9 @@ impl RealSolanaEngine {
             }
         }
 
-        Err(SolanaEngineError::Rpc("Failed to verify validator API connection after retries".to_string()))
+        Err(SolanaEngineError::Rpc(
+            "Failed to verify validator API connection after retries".to_string(),
+        ))
     }
 
     /// Start health monitoring background task
@@ -370,7 +376,7 @@ impl RealSolanaEngine {
             let mut health_interval = tokio::time::interval(interval);
             loop {
                 health_interval.tick().await;
-                
+
                 // Check RPC health
                 if let Some(client) = rpc_client.read().await.as_ref() {
                     match client.health_check().await {
@@ -395,12 +401,18 @@ impl RealSolanaEngine {
     }
 
     /// Process a block using the real Solana validator
-    pub async fn process_block_real(&mut self, block: SolanaBlockData) -> Result<SolanaExecutionResult, SolanaEngineError> {
+    pub async fn process_block_real(
+        &mut self,
+        block: SolanaBlockData,
+    ) -> Result<SolanaExecutionResult, SolanaEngineError> {
         let start_time = Instant::now();
         let slot = block.slot;
         let block_hash = block.block_hash;
 
-        info!("Processing Solana block for slot {} with hash {:?} via real validator", slot, block_hash);
+        info!(
+            "Processing Solana block for slot {} with hash {:?} via real validator",
+            slot, block_hash
+        );
 
         // Submit block to Solana via RPC
         self.submit_block_to_validator(&block).await?;
@@ -434,7 +446,10 @@ impl RealSolanaEngine {
     }
 
     /// Submit block to Solana validator via RPC
-    async fn submit_block_to_validator(&self, block: &SolanaBlockData) -> Result<(), SolanaEngineError> {
+    async fn submit_block_to_validator(
+        &self,
+        block: &SolanaBlockData,
+    ) -> Result<(), SolanaEngineError> {
         debug!("Submitting Solana block for slot {} via RPC", block.slot);
 
         let client_guard = self.rpc_client.read().await;
@@ -451,7 +466,10 @@ impl RealSolanaEngine {
 
             match self.submit_transaction_to_validator(client, tx_data).await {
                 Ok(signature) => {
-                    debug!("Transaction {} submitted successfully with signature: {}", i, signature);
+                    debug!(
+                        "Transaction {} submitted successfully with signature: {}",
+                        i, signature
+                    );
                     successful_txs += 1;
                 }
                 Err(e) => {
@@ -483,13 +501,19 @@ impl RealSolanaEngine {
         client: &SolanaRpcClient,
         transaction: &SolanaTransaction,
     ) -> Result<String, SolanaEngineError> {
-        debug!("Submitting Solana transaction with signature: {}", transaction.signature);
+        debug!(
+            "Submitting Solana transaction with signature: {}",
+            transaction.signature
+        );
 
         // Convert transaction data to base64 for submission
-        let transaction_base64 = base64::encode(&transaction.data);
+        let transaction_base64 = base64::prelude::BASE64_STANDARD.encode(&transaction.data);
 
         // Submit transaction to the Solana validator
-        match client.send_and_confirm_transaction(&transaction_base64).await {
+        match client
+            .send_and_confirm_transaction(&transaction_base64)
+            .await
+        {
             Ok(signature) => {
                 info!("Successfully submitted Solana transaction: {}", signature);
                 Ok(signature)
@@ -497,8 +521,7 @@ impl RealSolanaEngine {
             Err(e) => {
                 error!("Failed to submit Solana transaction: {}", e);
                 Err(SolanaEngineError::Transaction(format!(
-                    "Transaction submission failed: {}",
-                    e
+                    "Transaction submission failed: {e}"
                 )))
             }
         }
@@ -513,12 +536,14 @@ impl RealSolanaEngine {
 
             // Create ledger directory
             std::fs::create_dir_all(&ledger_path).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create ledger directory: {}", e))
+                SolanaEngineError::Configuration(format!("Failed to create ledger directory: {e}"))
             })?;
 
             // Create accounts directory
             std::fs::create_dir_all(self.data_dir.join("accounts")).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create accounts directory: {}", e))
+                SolanaEngineError::Configuration(format!(
+                    "Failed to create accounts directory: {e}"
+                ))
             })?;
 
             // Initialize genesis if this is a localnet
@@ -553,7 +578,7 @@ impl RealSolanaEngine {
             .stderr(std::process::Stdio::null());
 
         let output = cmd.output().await.map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to create Solana genesis: {}", e))
+            SolanaEngineError::Process(format!("Failed to create Solana genesis: {e}"))
         })?;
 
         if !output.status.success() {
