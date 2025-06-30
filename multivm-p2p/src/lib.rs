@@ -73,23 +73,11 @@ pub mod consensus_integration;
 pub mod load_balancer;
 pub mod rate_limiter;
 pub mod secure_network;
-pub mod security;
-pub mod transport;
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod message_tests;
-
-#[cfg(test)]
-mod network_tests;
-
-// #[cfg(test)]
-// mod security_tests;
+// Test modules are organized in the tests/ directory
 
 #[cfg(feature = "metrics")]
-pub mod metrics;
+pub use monitoring::metrics;
 
 #[cfg(not(feature = "metrics"))]
 pub mod metrics {
