@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Configuration for execution engine management
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExecutionEngineConfig {
     /// Ethereum execution engine configuration
     pub ethereum: EthereumEngineConfig,
@@ -72,16 +72,6 @@ pub struct GlobalExecutionConfig {
     pub health_check_interval_seconds: u64,
     /// Enable cross-VM coordination
     pub enable_cross_vm_coordination: bool,
-}
-
-impl Default for ExecutionEngineConfig {
-    fn default() -> Self {
-        Self {
-            ethereum: EthereumEngineConfig::default(),
-            solana: SolanaEngineConfig::default(),
-            global: GlobalExecutionConfig::default(),
-        }
-    }
 }
 
 impl Default for EthereumEngineConfig {
@@ -197,7 +187,7 @@ impl ExecutionEngineManager {
         .await
         .map_err(|e| multivm_common::MultivmError::Process {
             process_id: "reth-engine".to_string(),
-            message: format!("Failed to create Reth execution engine: {}", e),
+            message: format!("Failed to create Reth execution engine: {e}"),
             exit_code: None,
         })?;
 
@@ -207,7 +197,7 @@ impl ExecutionEngineManager {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "reth-engine".to_string(),
-                message: format!("Failed to initialize Reth execution engine: {}", e),
+                message: format!("Failed to initialize Reth execution engine: {e}"),
                 exit_code: None,
             })?;
 
@@ -241,7 +231,7 @@ impl ExecutionEngineManager {
             let health = engine_guard.get_health().await.map_err(|e| {
                 multivm_common::MultivmError::Process {
                     process_id: "reth-engine".to_string(),
-                    message: format!("Failed to get Reth health: {}", e),
+                    message: format!("Failed to get Reth health: {e}"),
                     exit_code: None,
                 }
             })?;
@@ -268,7 +258,7 @@ impl ExecutionEngineManager {
             let state = engine_guard.get_state().await.map_err(|e| {
                 multivm_common::MultivmError::Process {
                     process_id: "reth-engine".to_string(),
-                    message: format!("Failed to get Reth state: {}", e),
+                    message: format!("Failed to get Reth state: {e}"),
                     exit_code: None,
                 }
             })?;
@@ -288,7 +278,7 @@ impl ExecutionEngineManager {
             let engine_metrics = engine_guard.get_metrics().await.map_err(|e| {
                 multivm_common::MultivmError::Process {
                     process_id: "reth-engine".to_string(),
-                    message: format!("Failed to get Reth metrics: {}", e),
+                    message: format!("Failed to get Reth metrics: {e}"),
                     exit_code: None,
                 }
             })?;
@@ -340,7 +330,7 @@ impl ExecutionEngineManager {
         let block: reth_execution_engine::engine::Block = bincode::deserialize(&block_data)
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-engine".to_string(),
-                message: format!("Failed to deserialize Ethereum block: {}", e),
+                message: format!("Failed to deserialize Ethereum block: {e}"),
                 exit_code: None,
             })?;
 
@@ -349,7 +339,7 @@ impl ExecutionEngineManager {
         let result = engine_guard.process_block(block).await.map_err(|e| {
             multivm_common::MultivmError::Process {
                 process_id: "ethereum-engine".to_string(),
-                message: format!("Failed to process Ethereum block: {}", e),
+                message: format!("Failed to process Ethereum block: {e}"),
                 exit_code: None,
             }
         })?;
@@ -357,7 +347,7 @@ impl ExecutionEngineManager {
         // Serialize the result
         bincode::serialize(&result).map_err(|e| multivm_common::MultivmError::Process {
             process_id: "ethereum-engine".to_string(),
-            message: format!("Failed to serialize Ethereum block result: {}", e),
+            message: format!("Failed to serialize Ethereum block result: {e}"),
             exit_code: None,
         })
     }
@@ -383,7 +373,7 @@ impl ExecutionEngineManager {
         // Serialize the mock result
         bincode::serialize(&mock_result).map_err(|e| multivm_common::MultivmError::Process {
             process_id: "solana-engine".to_string(),
-            message: format!("Failed to serialize mock Solana block result: {}", e),
+            message: format!("Failed to serialize mock Solana block result: {e}"),
             exit_code: None,
         })
     }
@@ -401,7 +391,7 @@ impl ExecutionEngineManager {
                     engine_guard.reset_to_block(block_id).await.map_err(|e| {
                         multivm_common::MultivmError::Process {
                             process_id: "ethereum-engine".to_string(),
-                            message: format!("Failed to reset Ethereum engine: {}", e),
+                            message: format!("Failed to reset Ethereum engine: {e}"),
                             exit_code: None,
                         }
                     })
@@ -438,7 +428,7 @@ impl ExecutionEngineManager {
                     engine_guard.get_latest_block_id().await.map_err(|e| {
                         multivm_common::MultivmError::Process {
                             process_id: "ethereum-engine".to_string(),
-                            message: format!("Failed to get latest Ethereum block: {}", e),
+                            message: format!("Failed to get latest Ethereum block: {e}"),
                             exit_code: None,
                         }
                     })
@@ -509,7 +499,7 @@ impl ExecutionEngineManager {
             engine_guard.shutdown(timeout).await.map_err(|e| {
                 multivm_common::MultivmError::Process {
                     process_id: "ethereum-engine".to_string(),
-                    message: format!("Failed to shutdown Ethereum engine: {}", e),
+                    message: format!("Failed to shutdown Ethereum engine: {e}"),
                     exit_code: None,
                 }
             })?;
@@ -539,7 +529,7 @@ impl ExecutionEngineManager {
             // In mock mode, just return a mock transaction hash
             let tx_hash = format!(
                 "0x{}",
-                hex::encode(&[(rand::random::<u64>() % 256) as u8; 32])
+                hex::encode([(rand::random::<u64>() % 256) as u8; 32])
             );
 
             tracing::info!("Mock EVM transaction processed: {}", tx_hash);
@@ -564,10 +554,9 @@ impl ExecutionEngineManager {
 
         if let Some(_engine) = &self.solana_engine {
             // In mock mode, just return a mock transaction signature
-            let tx_signature = format!(
-                "{}",
-                bs58::encode(&[(rand::random::<u64>() % 256) as u8; 64]).into_string()
-            );
+            let tx_signature = bs58::encode(&[(rand::random::<u64>() % 256) as u8; 64])
+                .into_string()
+                .to_string();
 
             tracing::info!("Mock SVM transaction processed: {}", tx_signature);
             tracing::debug!("Transaction data: {}", transaction_data);

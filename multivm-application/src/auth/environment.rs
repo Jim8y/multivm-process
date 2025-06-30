@@ -74,7 +74,7 @@ impl EnvironmentApiKeyManager {
                         self.keys.insert(key_hash, api_key_info);
                     }
                     Err(e) => {
-                        eprintln!("Warning: Failed to parse API key {}: {}", key, e);
+                        eprintln!("Warning: Failed to parse API key {key}: {e}");
                         continue;
                     }
                 }
@@ -128,8 +128,7 @@ impl EnvironmentApiKeyManager {
             return Err(ApplicationError::ConfigurationError {
                 component: "environment".to_string(),
                 message: format!(
-                    "Invalid API key definition format for {}. Expected: key:user_id:role:permissions[:rate_limit[:email[:ip_whitelist]]]", 
-                    name
+                    "Invalid API key definition format for {name}. Expected: key:user_id:role:permissions[:rate_limit[:email[:ip_whitelist]]]"
                 ),
             });
         }
@@ -171,8 +170,7 @@ impl EnvironmentApiKeyManager {
             _ => Err(ApplicationError::ConfigurationError {
                 component: "environment".to_string(),
                 message: format!(
-                    "Invalid role: {}. Valid roles: superadmin, admin, poweruser, user, guest",
-                    role_str
+                    "Invalid role: {role_str}. Valid roles: superadmin, admin, poweruser, user, guest"
                 ),
             }),
         }
@@ -206,7 +204,7 @@ impl EnvironmentApiKeyManager {
                 _ => {
                     return Err(ApplicationError::ConfigurationError {
                         component: "environment".to_string(),
-                        message: format!("Unknown permission: {}", perm_name),
+                        message: format!("Unknown permission: {perm_name}"),
                     });
                 }
             }

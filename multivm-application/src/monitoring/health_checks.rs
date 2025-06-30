@@ -25,10 +25,10 @@ pub async fn check_cache_health(
                     Ok((true, "Cache is operational".to_string()))
                 }
                 Ok(_) => Ok((false, "Cache read/write mismatch".to_string())),
-                Err(e) => Ok((false, format!("Cache read failed: {}", e))),
+                Err(e) => Ok((false, format!("Cache read failed: {e}"))),
             }
         }
-        Err(e) => Ok((false, format!("Cache write failed: {}", e))),
+        Err(e) => Ok((false, format!("Cache write failed: {e}"))),
     }
 }
 
@@ -39,11 +39,11 @@ pub async fn check_svm_health(state: &Arc<ApplicationState>) -> ApplicationResul
             // Try to get latest block to ensure connection is functional
             match state.gateway.get_latest_block().await {
                 Ok(_) => Ok((true, "SVM connection is healthy".to_string())),
-                Err(e) => Ok((false, format!("SVM get latest block failed: {}", e))),
+                Err(e) => Ok((false, format!("SVM get latest block failed: {e}"))),
             }
         }
         Ok(false) => Ok((false, "SVM health check failed".to_string())),
-        Err(e) => Ok((false, format!("SVM health check error: {}", e))),
+        Err(e) => Ok((false, format!("SVM health check error: {e}"))),
     }
 }
 
@@ -53,7 +53,7 @@ pub async fn check_evm_health(state: &Arc<ApplicationState>) -> ApplicationResul
     match state.gateway.health_check().await {
         Ok(true) => Ok((true, "EVM connection is healthy".to_string())),
         Ok(false) => Ok((false, "EVM health check failed".to_string())),
-        Err(e) => Ok((false, format!("EVM health check error: {}", e))),
+        Err(e) => Ok((false, format!("EVM health check error: {e}"))),
     }
 }
 
@@ -123,7 +123,7 @@ pub async fn perform_full_health_check(
                 report.checks.push(ComponentHealth {
                     name: name.to_string(),
                     healthy: false,
-                    message: format!("Check failed: {}", e),
+                    message: format!("Check failed: {e}"),
                 });
             }
         }

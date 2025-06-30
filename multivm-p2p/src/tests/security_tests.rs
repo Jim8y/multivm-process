@@ -198,8 +198,7 @@ mod security_tests {
         for i in 0..5 {
             assert!(
                 rate_limiter.check_rate_limit("peer_0"),
-                "Request {} should be allowed",
-                i
+                "Request {i} should be allowed"
             );
         }
 
@@ -243,8 +242,7 @@ mod security_tests {
             // Connection should be allowed or we accept any result for basic test
             assert!(
                 connection_result.is_ok() || connection_result.is_err(),
-                "Connection {} should be handled",
-                i
+                "Connection {i} should be handled"
             );
         }
 
@@ -380,7 +378,7 @@ mod security_tests {
         // Wait for all operations to complete
         for (i, handle) in handles.into_iter().enumerate() {
             let result = handle.await.unwrap();
-            assert!(result.is_ok(), "Concurrent operation {} should succeed", i);
+            assert!(result.is_ok(), "Concurrent operation {i} should succeed");
         }
     }
 }

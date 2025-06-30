@@ -341,7 +341,7 @@ impl ApplicationServer {
             .await
             .map_err(|e| ApplicationError::StartupError {
                 service: "admin".to_string(),
-                message: format!("Failed to bind admin server to {}: {}", admin_addr, e),
+                message: format!("Failed to bind admin server to {admin_addr}: {e}"),
             })?;
 
         info!("Admin server successfully bound to {}", admin_addr);

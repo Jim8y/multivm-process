@@ -96,7 +96,7 @@ pub async fn send_transaction(
     // Create a mock EVM transaction for testing
     let tx_hash = format!(
         "0x{}",
-        hex::encode(&[(rand::random::<u64>() % 256) as u8; 32])
+        hex::encode([(rand::random::<u64>() % 256) as u8; 32])
     );
 
     // Process through execution engines

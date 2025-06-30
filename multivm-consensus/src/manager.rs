@@ -659,13 +659,8 @@ impl MultiVMConsensusManager {
                 vm_type,
                 height,
             }) => {
-                self.handle_state_sync_message(
-                    state_root.clone(),
-                    vm_type.clone(),
-                    *height,
-                    peer_id,
-                )
-                .await
+                self.handle_state_sync_message(state_root.clone(), *vm_type, *height, peer_id)
+                    .await
             }
             MessagePayload::Discovery(discovery_msg) => {
                 self.handle_discovery_message(discovery_msg.clone(), peer_id)
@@ -2144,7 +2139,7 @@ impl MultiVMConsensusManager {
                     // Add them to the pool for next time
                     for (i, tx_data) in mock_txs.into_iter().enumerate() {
                         let pooled_tx = crate::transaction_pool::PooledTransaction {
-                            id: format!("mock_tx_{}_{}", block_height, i),
+                            id: format!("mock_tx_{block_height}_{i}"),
                             data: tx_data,
                             timestamp: std::time::SystemTime::now(),
                             signature: None,

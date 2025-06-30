@@ -255,7 +255,7 @@ async fn demonstrate_monitoring(handle: &ManagerHandle) -> P2PResult<()> {
             MessageSource::NetworkLayer,
             MessageTarget::Broadcast,
         )
-        .with_metadata("test_sequence", &i.to_string());
+        .with_metadata("test_sequence", i.to_string());
 
         handle.send_message(test_msg, Priority::Low).await?;
         sleep(Duration::from_millis(100)).await;

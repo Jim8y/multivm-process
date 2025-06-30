@@ -8,7 +8,7 @@ use crate::ApplicationState;
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
-    response::{IntoResponse, Json, Response},
+    response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -112,13 +112,13 @@ pub async fn get_blocks(
             let height = 1000 - offset - i;
             BlockSummary {
                 height: height as u64,
-                hash: format!("0x{:064x}", height),
+                hash: format!("0x{height:064x}"),
                 timestamp: chrono::Utc::now().timestamp() - (i as i64 * 5),
                 proposer: format!("validator_{}", height % 4),
-                tx_count: (height % 20) as u32,
-                evm_tx_count: (height % 10) as u32,
-                svm_tx_count: (height % 7) as u32,
-                cross_vm_tx_count: (height % 3) as u32,
+                tx_count: (height % 20),
+                evm_tx_count: (height % 10),
+                svm_tx_count: (height % 7),
+                cross_vm_tx_count: (height % 3),
                 total_gas_used: (height * 21000) as u64,
                 total_fees: (height * 1000000) as u64,
             }
@@ -312,14 +312,14 @@ pub async fn get_account_transactions(
     // Generate mock transactions for the account
     let transactions: Vec<TransactionSummary> = (0..params.limit)
         .map(|i| TransactionSummary {
-            hash: format!("0x{:064x}", i),
+            hash: format!("0x{i:064x}"),
             block_height: 1000 - i as u64,
             block_hash: format!("0x{:064x}", 1000 - i as u64),
             timestamp: chrono::Utc::now().timestamp() - (i as i64 * 300),
             from: if i % 2 == 0 {
                 address.clone()
             } else {
-                format!("0x{:040x}", i)
+                format!("0x{i:040x}")
             },
             to: if i % 2 == 1 {
                 Some(address.clone())

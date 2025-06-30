@@ -164,6 +164,12 @@ pub struct DashboardService {
     history: Arc<tokio::sync::RwLock<MetricsHistory>>,
 }
 
+impl Default for DashboardService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DashboardService {
     /// Create new dashboard service
     pub fn new() -> Self {
@@ -254,7 +260,7 @@ impl DashboardService {
 
         Ok(SystemMetrics {
             cpu_usage: 15.5 + (variation * 10.0), // Mock data
-            memory_usage: 256 + ((uptime % 128) as u64),
+            memory_usage: 256 + (uptime % 128),
             disk_usage: 35.0 + (variation * 5.0),
             active_connections: 10 + ((uptime % 20) as u32),
             uptime_seconds: uptime,
@@ -301,9 +307,9 @@ impl DashboardService {
         Ok(NetworkMetrics {
             peer_count: 4 + ((elapsed % 8) as u32),
             validator_count: 4,
-            network_latency: 20 + ((elapsed % 30) as u64),
-            bandwidth_in: 1024 * (100 + ((elapsed % 900) as u64)),
-            bandwidth_out: 1024 * (50 + ((elapsed % 450) as u64)),
+            network_latency: 20 + (elapsed % 30),
+            bandwidth_in: 1024 * (100 + (elapsed % 900)),
+            bandwidth_out: 1024 * (50 + (elapsed % 450)),
         })
     }
 
@@ -345,7 +351,7 @@ impl DashboardService {
 
         Ok(PerformanceMetrics {
             api_requests_per_sec: 50.0 + variation * 100.0,
-            avg_api_response_time: 5 + ((elapsed % 20) as u64),
+            avg_api_response_time: 5 + (elapsed % 20),
             cache_hit_ratio: cache_stats.hit_ratio,
             engine_utilization: 20.0 + variation * 30.0,
         })

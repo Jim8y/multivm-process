@@ -47,7 +47,7 @@ impl EthereumExecutionWrapper {
         .await
         .map_err(|e| multivm_common::MultivmError::Process {
             process_id: "ethereum-wrapper".to_string(),
-            message: format!("Failed to create Reth engine: {}", e),
+            message: format!("Failed to create Reth engine: {e}"),
             exit_code: None,
         })?;
 
@@ -68,7 +68,7 @@ impl EthereumExecutionWrapper {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to initialize Reth engine: {}", e),
+                message: format!("Failed to initialize Reth engine: {e}"),
                 exit_code: None,
             })?;
 
@@ -86,7 +86,7 @@ impl EthereumExecutionWrapper {
         let result = engine.process_block(block.clone()).await.map_err(|e| {
             multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to process block: {}", e),
+                message: format!("Failed to process block: {e}"),
                 exit_code: None,
             }
         })?;
@@ -127,7 +127,7 @@ impl EthereumExecutionWrapper {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to get health status: {}", e),
+                message: format!("Failed to get health status: {e}"),
                 exit_code: None,
             })
     }
@@ -140,7 +140,7 @@ impl EthereumExecutionWrapper {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to get engine state: {}", e),
+                message: format!("Failed to get engine state: {e}"),
                 exit_code: None,
             })
     }
@@ -153,7 +153,7 @@ impl EthereumExecutionWrapper {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to get processing metrics: {}", e),
+                message: format!("Failed to get processing metrics: {e}"),
                 exit_code: None,
             })
     }
@@ -177,7 +177,7 @@ impl EthereumExecutionWrapper {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to get latest block ID: {}", e),
+                message: format!("Failed to get latest block ID: {e}"),
                 exit_code: None,
             })
     }
@@ -190,7 +190,7 @@ impl EthereumExecutionWrapper {
         engine.reset_to_block(block_id).await.map_err(|e| {
             multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to reset to block: {}", e),
+                message: format!("Failed to reset to block: {e}"),
                 exit_code: None,
             }
         })?;
@@ -229,7 +229,7 @@ impl EthereumExecutionWrapper {
         .await
         .map_err(|e| multivm_common::MultivmError::Process {
             process_id: "ethereum-wrapper".to_string(),
-            message: format!("Failed to create new Reth engine: {}", e),
+            message: format!("Failed to create new Reth engine: {e}"),
             exit_code: None,
         })?;
 
@@ -247,7 +247,7 @@ impl EthereumExecutionWrapper {
                 .await
                 .map_err(|e| multivm_common::MultivmError::Process {
                     process_id: "ethereum-wrapper".to_string(),
-                    message: format!("Failed to initialize restarted engine: {}", e),
+                    message: format!("Failed to initialize restarted engine: {e}"),
                     exit_code: None,
                 })?;
         }
@@ -272,7 +272,7 @@ impl EthereumExecutionWrapper {
             .await
             .map_err(|e| multivm_common::MultivmError::Process {
                 process_id: "ethereum-wrapper".to_string(),
-                message: format!("Failed to shutdown engine: {}", e),
+                message: format!("Failed to shutdown engine: {e}"),
                 exit_code: None,
             })?;
 

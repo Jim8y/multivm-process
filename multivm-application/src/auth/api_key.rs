@@ -179,7 +179,7 @@ impl ApiKeyManager {
                 match super::environment::EnvironmentApiKeyManager::new() {
                     Ok(manager) => Some(manager),
                     Err(e) => {
-                        eprintln!("Warning: Failed to load environment API keys: {}", e);
+                        eprintln!("Warning: Failed to load environment API keys: {e}");
                         None
                     }
                 }

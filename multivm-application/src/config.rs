@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
 /// Application configuration that extends the base MultiVM configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ApplicationConfig {
     /// Base MultiVM configuration
     #[serde(flatten)]
@@ -39,7 +39,7 @@ pub struct ApplicationConfig {
 }
 
 /// Server configuration for all API endpoints
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     /// REST API server configuration
     pub rest: RestServerConfig,
@@ -216,32 +216,6 @@ pub struct FeatureConfig {
 }
 
 // Default implementations
-
-impl Default for ApplicationConfig {
-    fn default() -> Self {
-        Self {
-            base: MultivmConfig::default(),
-            server: ServerConfig::default(),
-            auth: AuthConfig::default(),
-            cache: CacheConfig::default(),
-            monitoring: MonitoringConfig::default(),
-            features: FeatureConfig::default(),
-            middleware: MiddlewareConfig::default(),
-            execution_engines: crate::execution_engines::ExecutionEngineConfig::default(),
-        }
-    }
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            rest: RestServerConfig::default(),
-            graphql: GraphQLServerConfig::default(),
-            websocket: WebSocketServerConfig::default(),
-            admin: AdminServerConfig::default(),
-        }
-    }
-}
 
 impl Default for RestServerConfig {
     fn default() -> Self {
@@ -790,7 +764,7 @@ impl ApplicationConfig {
         .parse()
         .map_err(|e| ApplicationError::ConfigurationError {
             component: "websocket_server".to_string(),
-            message: format!("Invalid socket address: {}", e),
+            message: format!("Invalid socket address: {e}"),
         })
     }
 

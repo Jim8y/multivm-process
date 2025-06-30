@@ -62,45 +62,41 @@ impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ValidationError::InvalidAddress { address, vm_type } => {
-                write!(f, "Invalid {} address: {}", vm_type, address)
+                write!(f, "Invalid {vm_type} address: {address}")
             }
             ValidationError::InvalidTransactionHash { hash } => {
-                write!(f, "Invalid transaction hash: {}", hash)
+                write!(f, "Invalid transaction hash: {hash}")
             }
             ValidationError::InvalidTransactionData { reason } => {
-                write!(f, "Invalid transaction data: {}", reason)
+                write!(f, "Invalid transaction data: {reason}")
             }
             ValidationError::InvalidPagination { field, value } => {
-                write!(f, "Invalid pagination parameter {}: {}", field, value)
+                write!(f, "Invalid pagination parameter {field}: {value}")
             }
             ValidationError::InvalidBlockId { block_id } => {
-                write!(f, "Invalid block ID: {}", block_id)
+                write!(f, "Invalid block ID: {block_id}")
             }
             ValidationError::InvalidVmType { vm_type } => {
-                write!(f, "Invalid VM type: {}", vm_type)
+                write!(f, "Invalid VM type: {vm_type}")
             }
             ValidationError::InvalidAmount { amount } => {
-                write!(f, "Invalid amount: {}", amount)
+                write!(f, "Invalid amount: {amount}")
             }
             ValidationError::InvalidSignature { reason } => {
-                write!(f, "Invalid signature: {}", reason)
+                write!(f, "Invalid signature: {reason}")
             }
             ValidationError::InvalidToken { reason } => {
-                write!(f, "Invalid token: {}", reason)
+                write!(f, "Invalid token: {reason}")
             }
             ValidationError::InvalidSearchQuery { reason } => {
-                write!(f, "Invalid search query: {}", reason)
+                write!(f, "Invalid search query: {reason}")
             }
             ValidationError::TooLarge {
                 field,
                 size,
                 max_size,
             } => {
-                write!(
-                    f,
-                    "Field {} too large: {} bytes (max {})",
-                    field, size, max_size
-                )
+                write!(f, "Field {field} too large: {size} bytes (max {max_size})")
             }
         }
     }
@@ -414,9 +410,8 @@ pub mod amount {
 
     /// Validate amount string (supports both decimal and hex)
     pub fn validate_amount(amount: &str) -> ApplicationResult<u64> {
-        if amount.starts_with("0x") {
+        if let Some(hex_part) = amount.strip_prefix("0x") {
             // Hex amount
-            let hex_part = &amount[2..];
             u64::from_str_radix(hex_part, 16).map_err(|_| {
                 ValidationError::InvalidAmount {
                     amount: amount.to_string(),

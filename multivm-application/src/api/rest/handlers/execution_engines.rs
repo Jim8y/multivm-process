@@ -405,7 +405,7 @@ mod tests {
         // This would require setting up a test server with mock execution engines
         // For now, just verify the routes can be created
         let routes = execution_engine_routes();
-        assert!(!format!("{:?}", routes).is_empty());
+        assert!(!format!("{routes:?}").is_empty());
     }
 
     // Additional tests would require axum_test dependency

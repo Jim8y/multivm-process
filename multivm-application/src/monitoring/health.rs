@@ -47,7 +47,7 @@ impl HealthCheckService {
             addr.parse()
                 .map_err(|e| ApplicationError::ConfigurationError {
                     component: "health".to_string(),
-                    message: format!("Invalid bind address: {}", e),
+                    message: format!("Invalid bind address: {e}"),
                 })?;
 
         tokio::spawn(async move {
@@ -149,7 +149,7 @@ impl HealthCheckService {
                         name: service.to_string(),
                         healthy: false,
                         severity: CheckSeverity::Critical,
-                        message: format!("REST API check failed: {}", e),
+                        message: format!("REST API check failed: {e}"),
                         duration_ms: start.elapsed().as_millis() as u64,
                     },
                 }
@@ -188,7 +188,7 @@ impl HealthCheckService {
                 name: service.to_string(),
                 healthy: false,
                 severity: CheckSeverity::Warning,
-                message: format!("Unknown service: {}", service),
+                message: format!("Unknown service: {service}"),
                 duration_ms: start.elapsed().as_millis() as u64,
             },
         }

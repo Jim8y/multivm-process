@@ -88,10 +88,7 @@ mod tests {
         // Publishing to a topic we're subscribed to should work even without peers
         if publish_result.is_err() {
             // This is actually expected in some cases without active peers
-            println!(
-                "Publishing failed as expected without active peers: {:?}",
-                publish_result
-            );
+            println!("Publishing failed as expected without active peers: {publish_result:?}");
         }
 
         // Test topic unsubscription
@@ -170,7 +167,7 @@ mod tests {
                 MessageSource::MultiVmLayer,
                 MessageTarget::Broadcast,
             )
-            .with_metadata("test_id", &i.to_string());
+            .with_metadata("test_id", i.to_string());
 
             let data = bincode::serialize(&message).unwrap();
             let publish_result = network.publish_message("stress_test", data).await;
@@ -179,15 +176,12 @@ mod tests {
             if publish_result.is_ok() {
                 successful_publishes += 1;
             } else {
-                println!(
-                    "Publish {} failed as expected without peers: {:?}",
-                    i, publish_result
-                );
+                println!("Publish {i} failed as expected without peers: {publish_result:?}");
             }
         }
 
         // At least some publishes should work even without peers
-        println!("Successful publishes: {}/10", successful_publishes);
+        println!("Successful publishes: {successful_publishes}/10");
 
         // Verify network health
         let health_result = network.health_check().await;

@@ -4,7 +4,7 @@ use multivm_common::config::MultivmConfig;
 use multivm_consensus::MultiVMConsensusManager;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 mod config_migration;
 mod validation;

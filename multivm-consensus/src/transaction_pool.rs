@@ -166,8 +166,7 @@ impl TransactionPool {
         if let Some(account_txs) = self.by_sender.get(&sender) {
             if account_txs.len() >= self.config.max_per_account {
                 return Err(ConsensusError::InvalidTransaction(format!(
-                    "Account {} has reached transaction limit",
-                    sender
+                    "Account {sender} has reached transaction limit"
                 )));
             }
         }
@@ -191,7 +190,7 @@ impl TransactionPool {
 
         self.by_sender
             .entry(sender)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(pool_tx.clone());
 
         self.by_id.insert(tx_id.clone(), pool_tx);

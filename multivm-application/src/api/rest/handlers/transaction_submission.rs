@@ -93,7 +93,7 @@ pub async fn submit_transaction(
         Err(e) => {
             return Ok(Json(ApiResponse::error(
                 "INVALID_HEX".to_string(),
-                format!("Invalid hex data: {}", e),
+                format!("Invalid hex data: {e}"),
                 request_id,
                 start_time.elapsed().as_millis() as u64,
             )));
@@ -141,7 +141,7 @@ pub async fn submit_transaction(
                 error!("Failed to add transaction to pool: {}", e);
                 return Ok(Json(ApiResponse::error(
                     "POOL_ERROR".to_string(),
-                    format!("Failed to add transaction to pool: {}", e),
+                    format!("Failed to add transaction to pool: {e}"),
                     request_id,
                     start_time.elapsed().as_millis() as u64,
                 )));
@@ -347,7 +347,7 @@ async fn submit_single_transaction(
 
     let tx_data = hex::decode(&request.data).map_err(|e| ApplicationError::ValidationError {
         field: "data".to_string(),
-        message: format!("Invalid hex data: {}", e),
+        message: format!("Invalid hex data: {e}"),
     })?;
 
     // Generate transaction hash

@@ -4,7 +4,7 @@
 //! enabling security analysis, compliance reporting, and forensic investigation
 //! of network activities.
 
-use crate::error::{P2PResult, P2PError};
+use crate::error::P2PResult;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::net::IpAddr;

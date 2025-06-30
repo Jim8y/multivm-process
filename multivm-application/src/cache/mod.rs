@@ -244,7 +244,7 @@ impl CacheLayer {
     where
         T: Clone + Serialize + Send + Sync + 'static,
     {
-        let key = format!("{}:{}", data_type, id);
+        let key = format!("{data_type}:{id}");
         let ttl = Self::get_ttl_for_type(data_type);
         self.set(&key, value, ttl).await
     }
@@ -254,7 +254,7 @@ impl CacheLayer {
     where
         T: Clone + Serialize + DeserializeOwned,
     {
-        let key = format!("{}:{}", data_type, id);
+        let key = format!("{data_type}:{id}");
         self.get(&key).await
     }
 
