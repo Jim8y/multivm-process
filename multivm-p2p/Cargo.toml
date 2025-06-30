@@ -85,6 +85,7 @@ metrics = ["lazy_static", "prometheus", "reqwest"]
 persistence = ["rocksdb"]
 tracing-subscriber = ["dep:tracing-subscriber"]
 
-[[bench]]
-name = "p2p_benchmarks"
-harness = false
+# Benchmarks temporarily disabled - see p2p_benchmarks.rs.disabled
+# [[bench]]
+# name = "p2p_benchmarks"
+# harness = false
