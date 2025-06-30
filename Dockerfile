@@ -1,5 +1,5 @@
 # MultiVM Process - Multi-stage Docker Build
-FROM rust:1.81-slim as builder
+FROM rustlang/rust:nightly AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     build-essential \
     protobuf-compiler \
+    clang \
+    libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -60,8 +62,8 @@ RUN chmod +x /opt/multivm/bin/*.sh
 # Set working directory
 WORKDIR /opt/multivm
 
-# Switch to multivm user
-USER multivm
+# Don't switch to multivm user - run as root for now
+# USER multivm
 
 # Expose ports
 EXPOSE 8080 8545 8899 26656 30303

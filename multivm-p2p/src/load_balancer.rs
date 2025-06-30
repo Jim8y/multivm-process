@@ -3,8 +3,8 @@
 //! Provides sophisticated load balancing algorithms to optimize message distribution
 //! across peers based on various metrics and strategies.
 
-use crate::error::{P2PError, P2PResult};
-use crate::messages::{MessagePayload, NetworkMessage, Priority};
+use crate::error::P2PResult;
+use crate::protocol::messages::{MessagePayload, NetworkMessage, Priority};
 use libp2p::PeerId;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -65,6 +65,7 @@ pub struct PeerMetrics {
 }
 
 impl PeerMetrics {
+    #[allow(dead_code)]
     fn new(peer_id: PeerId) -> Self {
         Self {
             peer_id,
@@ -209,6 +210,7 @@ pub struct LoadBalancer {
 
 /// Record of a routing decision for learning
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct RoutingDecision {
     peer_id: PeerId,
     message_priority: Priority,

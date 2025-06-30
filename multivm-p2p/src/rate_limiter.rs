@@ -3,16 +3,20 @@
 //! Provides protection against DoS attacks by limiting request rates per peer.
 
 use crate::error::{P2PError, P2PResult};
-use crate::messages::Priority;
-use governor::clock::{QuantaClock, QuantaInstant};
+use crate::protocol::messages::Priority;
+use governor::clock::QuantaClock;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter as Governor};
 use libp2p::PeerId;
 use nonzero_ext::*;
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+// Safe constants for NonZeroU32 values
+const ONE_NONZERO: std::num::NonZeroU32 = std::num::NonZeroU32::new(1).unwrap();
+const FIVE_NONZERO: std::num::NonZeroU32 = std::num::NonZeroU32::new(5).unwrap();
+const FIFTY_NONZERO: std::num::NonZeroU32 = std::num::NonZeroU32::new(50).unwrap();
 
 /// Rate limiter for P2P operations
 pub struct RateLimiter {
@@ -268,8 +272,7 @@ pub struct MessageRateLimiter {
 impl MessageRateLimiter {
     /// Create a new message rate limiter
     pub fn new() -> Self {
-        let default_quota = Quota::per_second(std::num::NonZeroU32::new(50).unwrap())
-            .allow_burst(std::num::NonZeroU32::new(5).unwrap());
+        let default_quota = Quota::per_second(FIFTY_NONZERO).allow_burst(FIVE_NONZERO);
 
         Self {
             limiters: std::collections::HashMap::new(),
@@ -279,12 +282,8 @@ impl MessageRateLimiter {
 
     /// Set rate limit for a specific message type
     pub fn set_message_limit(&mut self, msg_type: String, per_second: u32, burst: u32) {
-        let quota = Quota::per_second(
-            std::num::NonZeroU32::new(per_second).unwrap_or(std::num::NonZeroU32::new(1).unwrap()),
-        )
-        .allow_burst(
-            std::num::NonZeroU32::new(burst).unwrap_or(std::num::NonZeroU32::new(1).unwrap()),
-        );
+        let quota = Quota::per_second(std::num::NonZeroU32::new(per_second).unwrap_or(ONE_NONZERO))
+            .allow_burst(std::num::NonZeroU32::new(burst).unwrap_or(ONE_NONZERO));
         let limiter = Arc::new(Governor::new(
             quota,
             InMemoryState::default(),

@@ -28,9 +28,9 @@ pub struct ConsensusBlockGeneratorConfig {
 impl Default for ConsensusBlockGeneratorConfig {
     fn default() -> Self {
         Self {
-            block_interval_ms: 2000, // 2 second blocks
-            svm_tx_per_block: 3,
-            evm_tx_per_block: 3,
+            block_interval_ms: 3000, // 3 second blocks
+            svm_tx_per_block: 20,     // Increased for 50+ total transactions
+            evm_tx_per_block: 20,     // Increased for 50+ total transactions
             enabled: true,
         }
     }

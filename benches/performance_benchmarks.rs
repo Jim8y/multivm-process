@@ -196,12 +196,12 @@ fn bench_network_message_operations(c: &mut Criterion) {
     
     group.bench_function("create_control_message", |b| {
         b.iter(|| {
-            let message = multivm_p2p::messages::NetworkMessage::new(
-                multivm_p2p::messages::MessagePayload::Control(
-                    multivm_p2p::messages::ControlMessage::Ping
+            let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+                multivm_p2p::protocol::messages::MessagePayload::Control(
+                    multivm_p2p::protocol::messages::ControlMessage::Ping
                 ),
-                multivm_p2p::messages::MessageSource::NetworkLayer,
-                multivm_p2p::messages::MessageTarget::Broadcast,
+                multivm_p2p::protocol::messages::MessageSource::NetworkLayer,
+                multivm_p2p::protocol::messages::MessageTarget::Broadcast,
             );
             black_box(message)
         })
@@ -209,27 +209,27 @@ fn bench_network_message_operations(c: &mut Criterion) {
     
     group.bench_function("create_svm_message", |b| {
         b.iter(|| {
-            let message = multivm_p2p::messages::NetworkMessage::new(
-                multivm_p2p::messages::MessagePayload::Svm(
-                    multivm_p2p::messages::SvmMessage::Transaction {
+            let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+                multivm_p2p::protocol::messages::MessagePayload::Svm(
+                    multivm_p2p::protocol::messages::SvmMessage::Transaction {
                         transaction_data: Box::new(vec![1, 2, 3, 4]),
                         signature: "test_signature".to_string(),
                     }
                 ),
-                multivm_p2p::messages::MessageSource::SvmExecution,
-                multivm_p2p::messages::MessageTarget::Broadcast,
+                multivm_p2p::protocol::messages::MessageSource::SvmExecution,
+                multivm_p2p::protocol::messages::MessageTarget::Broadcast,
             );
             black_box(message)
         })
     });
     
     group.bench_function("message_size_estimation", |b| {
-        let message = multivm_p2p::messages::NetworkMessage::new(
-            multivm_p2p::messages::MessagePayload::Control(
-                multivm_p2p::messages::ControlMessage::Ping
+        let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+            multivm_p2p::protocol::messages::MessagePayload::Control(
+                multivm_p2p::protocol::messages::ControlMessage::Ping
             ),
-            multivm_p2p::messages::MessageSource::NetworkLayer,
-            multivm_p2p::messages::MessageTarget::Broadcast,
+            multivm_p2p::protocol::messages::MessageSource::NetworkLayer,
+            multivm_p2p::protocol::messages::MessageTarget::Broadcast,
         );
         b.iter(|| {
             let size = black_box(&message).estimated_size();
@@ -238,12 +238,12 @@ fn bench_network_message_operations(c: &mut Criterion) {
     });
     
     group.bench_function("message_serialization", |b| {
-        let message = multivm_p2p::messages::NetworkMessage::new(
-            multivm_p2p::messages::MessagePayload::Control(
-                multivm_p2p::messages::ControlMessage::Ping
+        let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+            multivm_p2p::protocol::messages::MessagePayload::Control(
+                multivm_p2p::protocol::messages::ControlMessage::Ping
             ),
-            multivm_p2p::messages::MessageSource::NetworkLayer,
-            multivm_p2p::messages::MessageTarget::Broadcast,
+            multivm_p2p::protocol::messages::MessageSource::NetworkLayer,
+            multivm_p2p::protocol::messages::MessageTarget::Broadcast,
         );
         b.iter(|| {
             let json = serde_json::to_string(&black_box(&message)).unwrap();
@@ -405,15 +405,15 @@ fn bench_memory_operations(c: &mut Criterion) {
     group.bench_function("large_message_creation", |b| {
         b.iter(|| {
             let large_data = vec![0u8; 1024 * 1024]; // 1MB
-            let message = multivm_p2p::messages::NetworkMessage::new(
-                multivm_p2p::messages::MessagePayload::Svm(
-                    multivm_p2p::messages::SvmMessage::Transaction {
+            let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+                multivm_p2p::protocol::messages::MessagePayload::Svm(
+                    multivm_p2p::protocol::messages::SvmMessage::Transaction {
                         transaction_data: Box::new(large_data),
                         signature: "large_signature".to_string(),
                     }
                 ),
-                multivm_p2p::messages::MessageSource::SvmExecution,
-                multivm_p2p::messages::MessageTarget::Broadcast,
+                multivm_p2p::protocol::messages::MessageSource::SvmExecution,
+                multivm_p2p::protocol::messages::MessageTarget::Broadcast,
             );
             black_box(message)
         })
@@ -443,15 +443,15 @@ fn bench_json_operations_by_size(c: &mut Criterion) {
     for size in sizes {
         group.bench_with_input(BenchmarkId::new("serialize", size), &size, |b, &size| {
             let data = vec![1u8; size];
-            let message = multivm_p2p::messages::NetworkMessage::new(
-                multivm_p2p::messages::MessagePayload::Svm(
-                    multivm_p2p::messages::SvmMessage::Transaction {
+            let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+                multivm_p2p::protocol::messages::MessagePayload::Svm(
+                    multivm_p2p::protocol::messages::SvmMessage::Transaction {
                         transaction_data: Box::new(data),
                         signature: "test".to_string(),
                     }
                 ),
-                multivm_p2p::messages::MessageSource::SvmExecution,
-                multivm_p2p::messages::MessageTarget::Broadcast,
+                multivm_p2p::protocol::messages::MessageSource::SvmExecution,
+                multivm_p2p::protocol::messages::MessageTarget::Broadcast,
             );
             
             b.iter(|| {
@@ -462,20 +462,20 @@ fn bench_json_operations_by_size(c: &mut Criterion) {
         
         group.bench_with_input(BenchmarkId::new("deserialize", size), &size, |b, &size| {
             let data = vec![1u8; size];
-            let message = multivm_p2p::messages::NetworkMessage::new(
-                multivm_p2p::messages::MessagePayload::Svm(
-                    multivm_p2p::messages::SvmMessage::Transaction {
+            let message = multivm_p2p::protocol::messages::NetworkMessage::new(
+                multivm_p2p::protocol::messages::MessagePayload::Svm(
+                    multivm_p2p::protocol::messages::SvmMessage::Transaction {
                         transaction_data: Box::new(data),
                         signature: "test".to_string(),
                     }
                 ),
-                multivm_p2p::messages::MessageSource::SvmExecution,
-                multivm_p2p::messages::MessageTarget::Broadcast,
+                multivm_p2p::protocol::messages::MessageSource::SvmExecution,
+                multivm_p2p::protocol::messages::MessageTarget::Broadcast,
             );
             let json = serde_json::to_string(&message).unwrap();
             
             b.iter(|| {
-                let deserialized: multivm_p2p::messages::NetworkMessage = 
+                let deserialized: multivm_p2p::protocol::messages::NetworkMessage = 
                     serde_json::from_str(&black_box(&json)).unwrap();
                 black_box(deserialized)
             })

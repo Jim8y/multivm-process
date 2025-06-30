@@ -90,33 +90,32 @@ Fault tolerance and resilience:
 ```rust
 use multivm_p2p::{P2PManager, P2PConfig};
 use libp2p::identity::Keypair;
-use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize logging
+    tracing_subscriber::init();
+    
     // Generate keypair for this node
     let keypair = Keypair::generate_ed25519();
     
-    // Configure P2P networking
-    let config = P2PConfig {
-        listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".to_string()],
-        bootstrap_peers: vec![
-            "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW...".parse()?,
-        ],
-        max_peers: 50,
-        connection_timeout: Duration::from_secs(10),
-        heartbeat_interval: Duration::from_secs(1),
-        enable_mdns: true,
-        enable_kademlia: true,
-        enable_gossipsub: true,
-        enable_metrics: true,
-    };
+    // Create P2P configuration (using defaults with some customization)
+    let mut config = P2PConfig::default();
+    config.network.listen_addresses = vec!["/ip4/0.0.0.0/tcp/0".to_string()];
+    config.network.max_connections = 50;
+    config.security.rate_limiting.enabled = true;
     
     // Create and start P2P manager
     let mut p2p_manager = P2PManager::new(config, keypair).await?;
     p2p_manager.start().await?;
     
+    println!("P2P node started successfully!");
+    
     // Use the P2P network...
+    // (See examples/ directory for more detailed usage)
+    
+    // Graceful shutdown
+    p2p_manager.shutdown().await?;
     
     Ok(())
 }
@@ -125,21 +124,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Sending Messages
 
 ```rust
-use multivm_p2p::{NetworkMessage, MessagePayload, MessageSource, MessageTarget};
+use multivm_p2p::protocol::messages::*;
 
-// Create a message
+// Create a cross-VM state sync message
 let message = NetworkMessage::new(
-    MessagePayload::Consensus(consensus_data),
-    MessageSource::Consensus,
+    MessagePayload::MultiVm(MultiVmMessage::StateSync {
+        state_root: "0x123456789abcdef".to_string(),
+        vm_type: VmType::Svm,
+        height: 1000,
+    }),
+    MessageSource::MultiVmLayer,
     MessageTarget::Broadcast,
 );
 
-// Broadcast to all peers
-p2p_manager.broadcast(message.clone()).await?;
+// Send message with priority
+p2p_manager.send_message(message, Priority::High).await?;
 
-// Send to specific peer
-let peer_id = libp2p::PeerId::from_str("12D3KooW...")?;
-p2p_manager.send_to_peer(peer_id, message).await?;
+// Create a heartbeat message
+let heartbeat = NetworkMessage::new(
+    MessagePayload::Control(ControlMessage::Heartbeat {
+        status: NodeStatus::Active,
+        uptime: std::time::Duration::from_secs(3600),
+    }),
+    MessageSource::NetworkLayer,
+    MessageTarget::Broadcast,
+);
+
+p2p_manager.send_message(heartbeat, Priority::Low).await?;
 ```
 
 ### Handling Events
@@ -408,6 +419,15 @@ cargo clippy
 2. Update documentation and examples
 3. Add performance benchmarks if applicable
 4. Ensure backward compatibility
+
+## Documentation
+
+For detailed documentation, see:
+
+- **[Getting Started Guide](docs/GETTING_STARTED.md)** - Quick setup and basic usage
+- **[API Reference](docs/API.md)** - Complete API documentation  
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - Detailed architecture and design principles
+- **[Examples](examples/)** - Working code examples for various use cases
 
 ## License
 

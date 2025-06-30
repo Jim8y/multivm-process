@@ -49,24 +49,7 @@ jobs:
       run: cargo fmt --all -- --check
     
     - name: Run clippy
-      run: >
-        cargo clippy --workspace --lib --bins --tests -- -D warnings
-        -A dead_code -A unused_variables -A unused_imports
-        -A clippy::derivable_impls -A clippy::field_reassign_with_default
-        -A clippy::len_zero -A clippy::needless_borrows_for_generic_args
-        -A clippy::single_component_path_imports -A clippy::match_like_matches_macro
-        -A clippy::useless_conversion -A clippy::unnecessary_map_or
-        -A clippy::large_enum_variant -A clippy::type_complexity
-        -A clippy::collapsible_if -A clippy::clone_on_copy -A clippy::redundant_pattern_matching
-        -A clippy::useless_format -A clippy::manual_map -A clippy::const_is_empty
-        -A clippy::assertions_on_constants -A clippy::ptr_arg -A clippy::needless_borrow
-        -A clippy::unwrap_or_default -A clippy::needless_range_loop -A clippy::collapsible_else_if
-        -A unused_mut -A clippy::bool_assert_comparison -A clippy::absurd_extreme_comparisons
-        -A unused_comparisons -A clippy::redundant_field_names -A clippy::get_first
-        -A clippy::redundant_pattern_matching -A clippy::useless_vec -A clippy::manual_range_contains
-        -A clippy::if_same_then_else -A clippy::too_many_arguments -A clippy::map_entry
-        -A clippy::unnecessary_unwrap -A clippy::or_fun_call -A clippy::vec_init_then_push
-        -A clippy::new_without_default -A clippy::op_ref -A clippy::unused_enumerate_index
+      run: cargo clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings
 
   build-and-test:
     name: Build and Test

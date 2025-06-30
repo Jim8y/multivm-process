@@ -16,9 +16,9 @@ use multivm_account_mapping::{
     special_tx::{SpecialTransaction, AssetType, SimpleBindingMetadata},
 };
 use multivm_p2p::{
-    messages::{NetworkMessage, MessagePayload, ControlMessage},
-    network::P2PNetwork,
-    manager::P2PManager,
+    protocol::messages::{NetworkMessage, MessagePayload, ControlMessage},
+    core::network::P2PNetwork,
+    core::manager::P2PManager,
 };
 use multivm_process_manager::{
     MultivmProcessManager,

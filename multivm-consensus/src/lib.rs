@@ -28,6 +28,7 @@ pub mod process_integration;
 pub mod state;
 pub mod synchronization;
 pub mod traits;
+pub mod transaction_pool;
 
 // Tests are included in individual modules
 
@@ -54,6 +55,9 @@ pub use process_integration::{
     ExecutionState, ExecutionStats, ProcessConsensusConfig, ProcessConsensusCoordinator,
     ProcessConsensusMetrics, ProcessExecutionConfig,
 };
+
+// Type alias for CLI compatibility
+pub type ConsensusConfig = ConsensusManagerConfig;
 
 // Re-export cryptographic types
 pub use crypto::{ConsensusSignature, ProductionSigningScheme, ValidatorPublicKey};
@@ -82,6 +86,12 @@ pub use metrics::{
     AggregatedMetrics, ComponentMetrics, ConsensusMetricsCollector, ConsensusPerformance,
     ErrorSummary, JsonExporter, MetricsExporter, NetworkStatus, PrometheusExporter, SyncStatus,
     SystemHealth,
+};
+
+// Re-export transaction pool types
+pub use transaction_pool::{
+    ConcurrentTransactionPool, PoolTransaction, PooledTransaction, TransactionPoolConfig,
+    TransactionPoolStats, TransactionPriority, TransactionStatus, VmType as PoolVmType,
 };
 
 // Common imports

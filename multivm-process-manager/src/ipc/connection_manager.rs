@@ -1051,7 +1051,7 @@ impl TcpConnectionFactory {
         stream: Arc<tokio::sync::Mutex<TcpStream>>,
         mut msg_receiver: mpsc::UnboundedReceiver<IpcMessage>,
         resp_sender: mpsc::UnboundedSender<IpcResponse>,
-        encryption_key: Vec<u8>,
+        _encryption_key: Vec<u8>,
     ) {
         tokio::spawn(async move {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -10,6 +10,7 @@ use multivm_common::{
     types::BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmResult,
     ProcessingMetrics,
 };
+use rand;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -525,6 +526,78 @@ impl ExecutionEngineManager {
 
         tracing::info!("Execution engine manager shutdown completed");
         Ok(())
+    }
+
+    /// Process an EVM transaction through the Ethereum execution engine
+    pub async fn process_evm_transaction(
+        &self,
+        transaction_data: serde_json::Value,
+    ) -> MultivmResult<String> {
+        tracing::info!("Processing EVM transaction");
+
+        if let Some(engine) = &self.ethereum_engine {
+            // In mock mode, just return a mock transaction hash
+            let tx_hash = format!(
+                "0x{}",
+                hex::encode(&[(rand::random::<u64>() % 256) as u8; 32])
+            );
+
+            tracing::info!("Mock EVM transaction processed: {}", tx_hash);
+            tracing::debug!("Transaction data: {}", transaction_data);
+
+            Ok(tx_hash)
+        } else {
+            Err(multivm_common::MultivmError::Process {
+                process_id: "ethereum-engine".to_string(),
+                message: "Ethereum execution engine not initialized".to_string(),
+                exit_code: None,
+            })
+        }
+    }
+
+    /// Process an SVM transaction through the Solana execution engine
+    pub async fn process_svm_transaction(
+        &self,
+        transaction_data: serde_json::Value,
+    ) -> MultivmResult<String> {
+        tracing::info!("Processing SVM transaction");
+
+        if let Some(_engine) = &self.solana_engine {
+            // In mock mode, just return a mock transaction signature
+            let tx_signature = format!(
+                "{}",
+                bs58::encode(&[(rand::random::<u64>() % 256) as u8; 64]).into_string()
+            );
+
+            tracing::info!("Mock SVM transaction processed: {}", tx_signature);
+            tracing::debug!("Transaction data: {}", transaction_data);
+
+            Ok(tx_signature)
+        } else {
+            Err(multivm_common::MultivmError::Process {
+                process_id: "solana-engine".to_string(),
+                message: "Solana execution engine not initialized".to_string(),
+                exit_code: None,
+            })
+        }
+    }
+
+    /// Process a cross-VM transaction
+    pub async fn process_cross_vm_transaction(
+        &self,
+        transaction_data: serde_json::Value,
+    ) -> MultivmResult<String> {
+        tracing::info!("Processing Cross-VM transaction");
+
+        // Generate a unique transaction ID for cross-VM operations
+        let tx_id = format!("multivm_{}", uuid::Uuid::new_v4());
+
+        tracing::info!("Mock Cross-VM transaction processed: {}", tx_id);
+        tracing::debug!("Transaction data: {}", transaction_data);
+
+        // In a real implementation, this would coordinate between both VMs
+        // For now, just return a mock transaction ID
+        Ok(tx_id)
     }
 }
 

@@ -1,9 +1,7 @@
 //! Administrative tools for P2P network management
 
+use crate::core::network::{NetworkHealthReport, P2PNetwork, PeerInfo};
 use crate::error::P2PError;
-use crate::messages::NetworkMessage;
-use crate::network::{NetworkHealthReport, P2PNetwork};
-use crate::PeerInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -210,7 +208,7 @@ impl P2PAdmin {
 
     /// Get current network status
     async fn get_network_status(&self) -> Result<AdminResponse, P2PError> {
-        let network = self
+        let _network = self
             .network
             .as_ref()
             .ok_or_else(|| P2PError::ConnectionFailed {
@@ -270,7 +268,7 @@ impl P2PAdmin {
         // network.disconnect_peer(&peer_id).await?;
 
         Ok(AdminResponse::Success {
-            message: format!("Disconnected from peer {}", peer_id),
+            message: format!("Disconnected from peer {peer_id}"),
         })
     }
 
@@ -287,7 +285,7 @@ impl P2PAdmin {
         // network.connect_to_peer(&address).await?;
 
         Ok(AdminResponse::Success {
-            message: format!("Attempting to connect to {}", address),
+            message: format!("Attempting to connect to {address}"),
         })
     }
 
@@ -308,9 +306,9 @@ impl P2PAdmin {
         // network.ban_ip(ip, duration).await?;
 
         let message = if let Some(duration) = duration {
-            format!("Banned IP {} for {:?}", ip, duration)
+            format!("Banned IP {ip} for {duration:?}")
         } else {
-            format!("Permanently banned IP {}", ip)
+            format!("Permanently banned IP {ip}")
         };
 
         Ok(AdminResponse::Success { message })
@@ -329,7 +327,7 @@ impl P2PAdmin {
         // network.unban_ip(ip).await?;
 
         Ok(AdminResponse::Success {
-            message: format!("Unbanned IP {}", ip),
+            message: format!("Unbanned IP {ip}"),
         })
     }
 
@@ -384,7 +382,7 @@ impl P2PAdmin {
         // network.reset_peer_rate_limit(&peer_id).await?;
 
         Ok(AdminResponse::Success {
-            message: format!("Reset rate limit for peer {}", peer_id),
+            message: format!("Reset rate limit for peer {peer_id}"),
         })
     }
 
@@ -460,7 +458,7 @@ impl P2PAdmin {
         tracing::info!("Setting log level to: {}", level);
 
         Ok(AdminResponse::Success {
-            message: format!("Set log level to {}", level),
+            message: format!("Set log level to {level}"),
         })
     }
 
@@ -515,9 +513,9 @@ impl P2PCli {
 
     /// Parse command from string
     fn parse_command(&self, command_str: &str) -> Result<AdminCommand, P2PError> {
-        let parts: Vec<&str> = command_str.trim().split_whitespace().collect();
+        let parts: Vec<&str> = command_str.split_whitespace().collect();
 
-        match parts.get(0) {
+        match parts.first() {
             Some(&"status") => Ok(AdminCommand::GetNetworkStatus),
             Some(&"peers") => match parts.get(1) {
                 Some(&"list") => Ok(AdminCommand::ListPeers),
@@ -601,8 +599,7 @@ impl P2PCli {
                 ..
             } => {
                 format!(
-                    "Network Status: {} | Peers: {} | Connections: {}",
-                    health_status, peer_count, active_connections
+                    "Network Status: {health_status} | Peers: {peer_count} | Connections: {active_connections}"
                 )
             }
             AdminResponse::PeerList(peers) => {
@@ -612,8 +609,8 @@ impl P2PCli {
                     format!("Connected peers: {}", peers.len())
                 }
             }
-            AdminResponse::Success { message } => format!("✓ {}", message),
-            AdminResponse::Error { error } => format!("✗ {}", error),
+            AdminResponse::Success { message } => format!("✓ {message}"),
+            AdminResponse::Error { error } => format!("✗ {error}"),
             _ => "Command executed successfully".to_string(),
         }
     }

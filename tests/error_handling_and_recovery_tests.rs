@@ -11,8 +11,8 @@ use multivm_common::{
     MultivmResult, MultivmError,
 };
 use multivm_p2p::{
-    messages::{NetworkMessage, MessagePayload, ControlMessage},
-    network::P2PNetwork,
+    protocol::messages::{NetworkMessage, MessagePayload, ControlMessage},
+    core::network::P2PNetwork,
     error::P2PError,
 };
 use multivm_process_manager::{

@@ -1,3 +1,4 @@
+pub mod dashboard;
 pub mod health;
 pub mod health_checks;
 pub mod metrics;
@@ -16,6 +17,7 @@ pub struct MonitoringService {
     pub production_metrics: Arc<production_metrics::ProductionMetrics>,
     pub health: Arc<health::HealthCheckService>,
     pub tracing: Arc<tracing::TracingService>,
+    pub dashboard: Arc<dashboard::DashboardService>,
     state: Arc<RwLock<ManagerState>>,
 }
 
@@ -30,11 +32,15 @@ impl MonitoringService {
         // Initialize tracing
         tracing.initialize().await?;
 
+        // Dashboard service will be initialized later with ApplicationState
+        let dashboard = Arc::new(dashboard::DashboardService::new());
+
         Ok(Self {
             metrics,
             production_metrics,
             health,
             tracing,
+            dashboard,
             state: Arc::new(RwLock::new(ManagerState::Stopped)),
         })
     }

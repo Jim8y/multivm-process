@@ -17,8 +17,8 @@ use multivm_account_mapping::{
     cross_vm_coordinator::CrossVmCoordinator,
 };
 use multivm_p2p::{
-    messages::{NetworkMessage, MessagePayload, MultiVmMessage},
-    network::P2PNetwork,
+    protocol::messages::{NetworkMessage, MessagePayload, MultiVmMessage},
+    core::network::P2PNetwork,
 };
 use multivm_process_manager::MultivmProcessManager;
 use axum::{

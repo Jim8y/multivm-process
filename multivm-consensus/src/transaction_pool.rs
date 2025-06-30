@@ -1,12 +1,12 @@
 //! Transaction Pool for MultiVM Consensus
-//! 
+//!
 //! This module provides a production-ready transaction pool that manages pending
 //! transactions across different VMs (EVM, SVM, and Cross-VM) before they are
 //! included in blocks.
 
-use crate::{ConsensusResult, ConsensusError};
-use serde_json::Value as JsonValue;
+use crate::{ConsensusError, ConsensusResult};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -133,7 +133,7 @@ impl TransactionPool {
         pending_by_vm.insert(VmType::Evm, VecDeque::new());
         pending_by_vm.insert(VmType::Svm, VecDeque::new());
         pending_by_vm.insert(VmType::CrossVm, VecDeque::new());
-        
+
         Self {
             config,
             pending_by_vm,
@@ -145,7 +145,11 @@ impl TransactionPool {
     }
 
     /// Add a transaction to the pool
-    pub fn add_transaction(&mut self, transaction: PooledTransaction, priority: TransactionPriority) -> ConsensusResult<()> {
+    pub fn add_transaction(
+        &mut self,
+        transaction: PooledTransaction,
+        priority: TransactionPriority,
+    ) -> ConsensusResult<()> {
         // Check pool size limit
         if self.stats.current_pool_size >= self.config.max_pool_size {
             self.evict_lowest_priority()?;
@@ -161,9 +165,10 @@ impl TransactionPool {
         // Check per-account limit
         if let Some(account_txs) = self.by_sender.get(&sender) {
             if account_txs.len() >= self.config.max_per_account {
-                return Err(ConsensusError::InvalidTransaction(
-                    format!("Account {} has reached transaction limit", sender)
-                ));
+                return Err(ConsensusError::InvalidTransaction(format!(
+                    "Account {} has reached transaction limit",
+                    sender
+                )));
             }
         }
 
@@ -200,7 +205,10 @@ impl TransactionPool {
             VmType::CrossVm => self.stats.cross_vm_transactions += 1,
         }
 
-        info!("Added transaction {} to pool with {:?} priority", tx_id, priority);
+        info!(
+            "Added transaction {} to pool with {:?} priority",
+            tx_id, priority
+        );
         Ok(())
     }
 
@@ -213,13 +221,13 @@ impl TransactionPool {
         for vm_type in [VmType::Evm, VmType::Svm, VmType::CrossVm] {
             if let Some(queue) = self.pending_by_vm.get_mut(&vm_type) {
                 let mut temp_selected = Vec::new();
-                
+
                 let expiry_seconds = self.config.tx_expiry_seconds;
                 for pool_tx in queue.iter() {
                     if selected.len() >= max_count {
                         break;
                     }
-                    
+
                     // Skip expired transactions
                     if let Ok(elapsed) = pool_tx.submitted_at.elapsed() {
                         if elapsed.as_secs() > expiry_seconds {
@@ -227,7 +235,8 @@ impl TransactionPool {
                         }
                     }
 
-                    temp_selected.push((pool_tx.transaction.clone(), pool_tx.transaction.id.clone()));
+                    temp_selected
+                        .push((pool_tx.transaction.clone(), pool_tx.transaction.id.clone()));
                 }
 
                 for (tx, id) in temp_selected {
@@ -242,7 +251,10 @@ impl TransactionPool {
             self.remove_transaction(&tx_id);
         }
 
-        debug!("Selected {} transactions for block inclusion", selected.len());
+        debug!(
+            "Selected {} transactions for block inclusion",
+            selected.len()
+        );
         selected
     }
 
@@ -290,7 +302,7 @@ impl TransactionPool {
     /// Clean up expired transactions
     pub fn cleanup_expired(&mut self) -> usize {
         let mut expired_ids = Vec::new();
-        
+
         for (tx_id, pool_tx) in &self.by_id {
             if self.is_expired(pool_tx) {
                 expired_ids.push(tx_id.clone());
@@ -340,20 +352,20 @@ impl TransactionPool {
     }
 
     fn extract_sender(&self, transaction: &PooledTransaction) -> String {
-        transaction.data.get("sender")
+        transaction
+            .data
+            .get("sender")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string()
     }
 
     fn extract_gas_price(&self, transaction: &PooledTransaction) -> Option<u64> {
-        transaction.data.get("gas_price")
-            .and_then(|v| v.as_u64())
+        transaction.data.get("gas_price").and_then(|v| v.as_u64())
     }
 
     fn extract_nonce(&self, transaction: &PooledTransaction) -> Option<u64> {
-        transaction.data.get("nonce")
-            .and_then(|v| v.as_u64())
+        transaction.data.get("nonce").and_then(|v| v.as_u64())
     }
 
     fn is_expired(&self, pool_tx: &PoolTransaction) -> bool {
@@ -378,8 +390,8 @@ impl TransactionPool {
 
         if let Some(tx_id) = lowest_tx_id {
             if let Some(mut pool_tx) = self.remove_transaction(&tx_id) {
-                pool_tx.status = TransactionStatus::Dropped { 
-                    reason: "Pool full, evicted for higher priority transaction".to_string() 
+                pool_tx.status = TransactionStatus::Dropped {
+                    reason: "Pool full, evicted for higher priority transaction".to_string(),
                 };
                 self.stats.total_dropped += 1;
                 warn!("Evicted transaction {} due to pool limit", tx_id);
@@ -403,12 +415,22 @@ impl ConcurrentTransactionPool {
         }
     }
 
-    pub async fn add_transaction(&self, transaction: PooledTransaction, priority: TransactionPriority) -> ConsensusResult<()> {
-        self.inner.write().await.add_transaction(transaction, priority)
+    pub async fn add_transaction(
+        &self,
+        transaction: PooledTransaction,
+        priority: TransactionPriority,
+    ) -> ConsensusResult<()> {
+        self.inner
+            .write()
+            .await
+            .add_transaction(transaction, priority)
     }
 
     pub async fn get_transactions_for_block(&self, max_count: usize) -> Vec<PooledTransaction> {
-        self.inner.write().await.get_transactions_for_block(max_count)
+        self.inner
+            .write()
+            .await
+            .get_transactions_for_block(max_count)
     }
 
     pub async fn mark_included(&self, tx_ids: &[String], block_height: u64) {
@@ -450,7 +472,8 @@ mod tests {
         };
 
         // Add transaction
-        pool.add_transaction(tx.clone(), TransactionPriority::Normal).unwrap();
+        pool.add_transaction(tx.clone(), TransactionPriority::Normal)
+            .unwrap();
         assert_eq!(pool.pending_count(), 1);
 
         // Get transactions for block
