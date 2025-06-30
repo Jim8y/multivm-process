@@ -72,7 +72,10 @@ pub async fn check_process_manager_health(
 ) -> ApplicationResult<(bool, String)> {
     // TODO: When process manager is integrated, check its health
     // For now, return a placeholder since process manager is handled separately
-    Ok((true, "Process manager health check not yet integrated".to_string()))
+    Ok((
+        true,
+        "Process manager health check not yet integrated".to_string(),
+    ))
 }
 
 /// Check consensus health

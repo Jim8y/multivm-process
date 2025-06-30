@@ -103,7 +103,7 @@ impl Default for SolanaEngineConfig {
             data_dir: "/tmp/multivm/solana".to_string(),
             rpc_port: 8899,
             cluster: "localnet".to_string(), // Local development cluster
-            mock_mode: false, // Use real execution engines for production
+            mock_mode: false,                // Use real execution engines for production
             auto_start: true,
         }
     }
@@ -369,7 +369,7 @@ impl ExecutionEngineManager {
     ) -> MultivmResult<Vec<u8>> {
         // TODO: Re-enable when solana-execution-engine is added back to workspace
         tracing::warn!("Solana block processing disabled due to ed25519-dalek conflict");
-        
+
         // Return a mock result for now
         let mock_result = serde_json::json!({
             "success": true,
@@ -378,7 +378,7 @@ impl ExecutionEngineManager {
             "slot": 1,
             "transactions": []
         });
-        
+
         // Serialize the mock result
         bincode::serialize(&mock_result).map_err(|e| multivm_common::MultivmError::Process {
             process_id: "solana-engine".to_string(),
