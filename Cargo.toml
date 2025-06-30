@@ -117,6 +117,11 @@ multivm-cli = { path = "multivm-cli" }
 reth-execution-engine = { path = "reth-execution-engine" }
 solana-execution-engine = { path = "solana-execution-engine" }
 
+# Private repository dependencies (examples - uncomment and modify as needed)
+# multivm-shared-utils = { git = "https://github.com/your-org/multivm-shared-utils.git", tag = "v1.0.0" }
+# multivm-crypto-lib = { git = "https://github.com/your-org/multivm-crypto.git", branch = "main" }
+# experimental-features = { git = "https://github.com/your-org/experimental.git", rev = "abc123" }
+
 # Additional dependencies needed for various features
 jsonrpsee-types = "0.21"
 http = "1.0"

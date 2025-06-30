@@ -15,6 +15,10 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   fmt-and-lint:
     name: Format and Lint
@@ -24,6 +28,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -71,6 +81,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@master
@@ -101,6 +117,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -124,6 +146,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -152,6 +180,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
