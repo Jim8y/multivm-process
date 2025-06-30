@@ -169,6 +169,13 @@ impl From<anyhow::Error> for P2PError {
     }
 }
 
+#[cfg(feature = "metrics")]
+impl From<prometheus::Error> for P2PError {
+    fn from(err: prometheus::Error) -> Self {
+        P2PError::Internal(format!("Prometheus error: {}", err))
+    }
+}
+
 impl P2PError {
     /// Create a connection error
     pub fn connection_error(message: impl Into<String>) -> Self {

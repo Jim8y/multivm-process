@@ -247,9 +247,8 @@ mod metrics_impl {
         pub fn update_network_health(&self, status: &NetworkHealthStatus) {
             let score = match status {
                 NetworkHealthStatus::Healthy => 1.0,
-                NetworkHealthStatus::Degraded => 0.7,
-                NetworkHealthStatus::Unhealthy => 0.3,
-                NetworkHealthStatus::Critical => 0.0,
+                NetworkHealthStatus::Warning => 0.7,
+                NetworkHealthStatus::Critical => 0.3,
             };
             self.metrics.network_health_score.set(score);
         }
@@ -325,8 +324,7 @@ mod metrics_impl {
         baseline_throughput: f64,
     }
 
-    // Re-export the implementation types
-    pub use self::P2PMonitor;
+    // P2PMonitor is already defined above in this module
 }
 
 #[cfg(not(feature = "metrics"))]

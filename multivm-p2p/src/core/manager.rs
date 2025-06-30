@@ -883,10 +883,11 @@ impl SecurityCoordinator {
             })?
             .len();
 
-        if let Err(_) = self
+        if self
             .dos_protection
             .check_message(*peer_id, message_size)
             .await
+            .is_err()
         {
             warn!("DOS protection blocked message from peer {}", peer_id);
             return Ok(false);

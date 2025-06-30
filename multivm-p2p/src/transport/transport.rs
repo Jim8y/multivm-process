@@ -495,9 +495,12 @@ impl UnifiedTransport {
         *self.shutdown.write() = true;
 
         // Close all connections
-        let connections = self.connections.read();
-        for (peer_id, _) in connections.iter() {
-            self.disconnect(*peer_id).await.ok();
+        let peer_ids: Vec<PeerId> = {
+            let connections = self.connections.read();
+            connections.keys().cloned().collect()
+        };
+        for peer_id in peer_ids {
+            self.disconnect(peer_id).await.ok();
         }
     }
 
@@ -556,10 +559,7 @@ impl UnifiedTransport {
         };
 
         let mut connections = self.connections.write();
-        connections
-            .entry(peer_id)
-            .or_insert_with(Vec::new)
-            .push(connection);
+        connections.entry(peer_id).or_default().push(connection);
         self.stats
             .active_connections
             .fetch_add(1, Ordering::Relaxed);

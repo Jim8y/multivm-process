@@ -14,9 +14,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 // Safe constants for NonZeroU32 values
-const ONE_NONZERO: std::num::NonZeroU32 = unsafe { std::num::NonZeroU32::new_unchecked(1) };
-const FIVE_NONZERO: std::num::NonZeroU32 = unsafe { std::num::NonZeroU32::new_unchecked(5) };
-const FIFTY_NONZERO: std::num::NonZeroU32 = unsafe { std::num::NonZeroU32::new_unchecked(50) };
+const ONE_NONZERO: std::num::NonZeroU32 = std::num::NonZeroU32::new(1).unwrap();
+const FIVE_NONZERO: std::num::NonZeroU32 = std::num::NonZeroU32::new(5).unwrap();
+const FIFTY_NONZERO: std::num::NonZeroU32 = std::num::NonZeroU32::new(50).unwrap();
 
 /// Rate limiter for P2P operations
 pub struct RateLimiter {

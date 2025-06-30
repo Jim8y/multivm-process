@@ -4,7 +4,7 @@
 //! enabling security analysis, compliance reporting, and forensic investigation
 //! of network activities.
 
-use crate::error::P2PResult;
+use crate::error::{P2PError, P2PResult};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::net::IpAddr;
@@ -289,7 +289,7 @@ impl AuditLogger {
             source_ip,
             peer_id,
             user_id: None,
-            action: format!("security_violation: {}", violation_type),
+            action: format!("security_violation: {violation_type}"),
             resource: Some("security".to_string()),
             result: AuditResult::Blocked("Security policy violation".to_string()),
             details,

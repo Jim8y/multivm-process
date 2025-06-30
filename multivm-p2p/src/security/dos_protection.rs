@@ -626,7 +626,7 @@ impl DosProtectionManager {
 
         // Memory usage - get resident memory in MB
         monitor.memory_usage_mb = if let Some(proc) = process {
-            ((proc.memory() / 1024 / 1024) as u64) as usize
+            (proc.memory() / 1024 / 1024) as usize
         } else {
             // Fallback to system memory usage
             (((sys.used_memory() / 1024 / 1024) as f64 * 0.1) as u64) as usize // Estimate 10% of system memory

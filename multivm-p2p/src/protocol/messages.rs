@@ -502,7 +502,7 @@ impl NetworkMessage {
     /// Get the target VM if applicable
     pub fn target_vm(&self) -> Option<VmType> {
         match &self.target {
-            MessageTarget::Local(vm_type) => Some(vm_type.clone()),
+            MessageTarget::Local(vm_type) => Some(*vm_type),
             _ => None,
         }
     }

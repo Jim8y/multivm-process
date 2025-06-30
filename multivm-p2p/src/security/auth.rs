@@ -462,8 +462,7 @@ impl AuthManager {
             Ok(())
         } else {
             Err(P2PError::InvalidMessage(format!(
-                "API key not found: {}",
-                key_id
+                "API key not found: {key_id}"
             )))
         }
     }
@@ -488,8 +487,7 @@ impl AuthManager {
             Ok(())
         } else {
             Err(P2PError::InvalidMessage(format!(
-                "Certificate not found: {}",
-                cert_id
+                "Certificate not found: {cert_id}"
             )))
         }
     }
@@ -608,7 +606,7 @@ impl AuthManager {
 
         let token_data = decode::<JwtClaims>(token, &decoding_key, &validation).map_err(|e| {
             P2PError::AuthenticationFailed {
-                peer_id: format!("JWT validation failed: {}", e),
+                peer_id: format!("JWT validation failed: {e}"),
             }
         })?;
 
@@ -632,7 +630,7 @@ impl AuthManager {
         let header = Header::new(Algorithm::HS256);
 
         encode(&header, &claims, &encoding_key)
-            .map_err(|e| P2PError::Internal(format!("Failed to encode JWT: {}", e)))
+            .map_err(|e| P2PError::Internal(format!("Failed to encode JWT: {e}")))
     }
 
     /// Sign data using ED25519

@@ -119,7 +119,7 @@ impl EncryptionManager {
             9u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0,
         ]);
-        let public_point = &scalar * &basepoint;
+        let public_point = scalar * basepoint;
         let public_key_bytes = public_point.to_bytes();
         self.public_key = Some(PublicKey::from(public_key_bytes));
         self
@@ -137,7 +137,7 @@ impl EncryptionManager {
 
         // Derive the public key: public = secret * basepoint
         let basepoint = curve25519_dalek::constants::X25519_BASEPOINT;
-        let public_point = &scalar * &basepoint;
+        let public_point = scalar * basepoint;
         let public_key = PublicKey::from(public_point.to_bytes());
 
         self.secret_key = Some(secret_bytes);
@@ -268,7 +268,7 @@ impl EncryptionManager {
         // Perform scalar multiplication for Diffie-Hellman
         let our_scalar = Scalar::from_bytes_mod_order(*secret_key);
         let their_point = MontgomeryPoint(*peer_public_key.as_bytes());
-        let shared_point = &our_scalar * &their_point;
+        let shared_point = our_scalar * their_point;
         let secret_bytes = shared_point.to_bytes();
 
         // Cache the secret
