@@ -17,7 +17,7 @@ real-validator = ["solana-sdk", "solana-client", "solana-transaction-status"]
 multivm-common = { path = "../multivm-common" }
 
 # Async runtime and utilities
-tokio = { version = "1.35", features = ["full"] }
+tokio = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 

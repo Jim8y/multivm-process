@@ -10,7 +10,7 @@ members = [
     "multivm-cli",
     # Re-enabling execution engines with feature-based compilation
     "reth-execution-engine",
-    "solana-execution-engine",  # ed25519-dalek conflict resolved
+    # "solana-execution-engine",  # Temporarily disabled due to dependency conflicts
 ]
 resolver = "2"
 
