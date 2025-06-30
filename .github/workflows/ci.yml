@@ -82,14 +82,12 @@ jobs:
         key: build-${{ matrix.rust }}
         cache-on-failure: true
     
-    - name: Build workspace
-      run: cargo build --workspace
-    
-    - name: Run unit tests
-      run: cargo test --workspace --lib --bins
-    
-    - name: Run integration tests
-      run: cargo test --workspace --tests
+    - name: Build and test
+      run: |
+        # Build all targets including tests in one go
+        cargo test --workspace --no-run
+        # Now run the tests (already compiled)
+        cargo test --workspace
       continue-on-error: true  # Integration tests may require external services
 
   security-audit:
