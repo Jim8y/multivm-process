@@ -131,7 +131,7 @@ mod metrics_impl {
                 ))
                 .map_err(|e| P2PError::ConfigurationError {
                     message: format!("metrics: {}", e.to_string()),
-                })?
+                })?,
                 network_health_score: Gauge::new(
                     "p2p_network_health_score",
                     "Network health score (0-1)",
