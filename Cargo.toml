@@ -24,7 +24,7 @@ rust-version = "1.70"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.35", features = ["full"] }
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "fs", "net", "time", "sync", "signal", "process", "io-util"] }
 async-trait = "0.1"
 futures = "0.3"
 futures-util = "0.3"
@@ -46,7 +46,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Networking
 reqwest = { version = "0.11", features = ["json", "stream"] }
-libp2p = { version = "0.53", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify", "kad", "ping", "request-response", "websocket", "serde", "macros", "tokio", "dns"] }
+libp2p = { version = "0.53", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify", "kad", "ping", "websocket", "serde", "macros", "tokio", "dns"] }
 tokio-tungstenite = "0.20"
 
 # Web framework
