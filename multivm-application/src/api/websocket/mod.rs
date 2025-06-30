@@ -294,13 +294,21 @@ impl WebSocketServer {
     /// Start the WebSocket server
     pub async fn start(&self) -> ApplicationResult<()> {
         // The WebSocket server is integrated into the main HTTP server
-        // This method is a placeholder for any WebSocket-specific startup logic
+        // This method handles WebSocket-specific background tasks
         tracing::info!("WebSocket server initialized");
 
         // Start the event broadcaster
         self.start_event_broadcaster().await;
 
-        Ok(())
+        // Keep the server running by waiting indefinitely
+        // The actual WebSocket handling is done through the HTTP server routes
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+
+            // Log connection count periodically for monitoring
+            let count = self.connection_count().await;
+            tracing::debug!("WebSocket server active with {} connections", count);
+        }
     }
 
     /// Handle WebSocket upgrade

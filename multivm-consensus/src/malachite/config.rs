@@ -77,3 +77,31 @@ impl From<MalachiteConfig> for ConsensusParams {
         config.consensus_params
     }
 }
+
+impl MalachiteConfig {
+    /// Set timeout duration for consensus steps
+    pub fn set_timeout_duration(&mut self, duration: std::time::Duration) {
+        let duration_ms = duration.as_millis() as u64;
+        self.consensus_params.timeout_propose_ms = duration_ms;
+        self.consensus_params.timeout_prevote_ms = duration_ms / 3;
+        self.consensus_params.timeout_precommit_ms = duration_ms / 3;
+        self.consensus_params.block_time_ms = duration_ms;
+    }
+
+    /// Set validator count
+    pub fn set_validator_count(&mut self, count: u32) {
+        // For solo testnet, we create a single validator
+        if count == 1 {
+            self.validators = vec![ValidatorInfo {
+                public_key: "solo-validator-key".to_string(),
+                voting_power: 100,
+            }];
+        }
+    }
+
+    /// Enable single node mode for solo testnet
+    pub fn enable_single_node_mode(&mut self) {
+        self.network_config.peers = vec![];
+        self.set_validator_count(1);
+    }
+}

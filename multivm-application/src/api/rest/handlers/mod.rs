@@ -4,11 +4,14 @@
 
 pub mod accounts;
 pub mod blocks;
+pub mod dashboard;
 pub mod evm;
 pub mod execution_engines;
+pub mod explorer;
 pub mod multivm;
 pub mod svm;
 pub mod system;
+pub mod transaction_submission;
 pub mod transactions;
 
 use crate::api::ApiResponse;

@@ -585,6 +585,41 @@ impl Default for ProcessExecutionConfig {
     }
 }
 
+impl ProcessConsensusConfig {
+    /// Create process consensus config from unified MultiVM config
+    pub fn from_unified_config(
+        unified_config: &multivm_common::MultivmConfig,
+    ) -> ConsensusResult<Self> {
+        let mut malachite_config = MalachiteConfig::default();
+
+        // Map consensus configuration from unified config
+        malachite_config.set_timeout_duration(std::time::Duration::from_millis(
+            unified_config.consensus.block_time_milliseconds,
+        ));
+        malachite_config.set_validator_count(unified_config.consensus.validator_count);
+
+        // Enable single node mode for solo testnet
+        if unified_config.consensus.enable_single_node {
+            malachite_config.enable_single_node_mode();
+        }
+
+        let execution_config = ProcessExecutionConfig {
+            reth_endpoint: unified_config.blockchain.ethereum.rpc_url.clone(),
+            solana_endpoint: unified_config.blockchain.solana.rpc_url.clone(),
+            execution_timeout_ms: unified_config.blockchain.ethereum.timeout_seconds * 1000,
+            max_retries: unified_config.blockchain.ethereum.max_retries,
+        };
+
+        Ok(Self {
+            consensus_config: malachite_config,
+            execution_config,
+            enable_batching: true,
+            max_batch_size: 10,
+            batch_timeout_ms: 1000,
+        })
+    }
+}
+
 /// Helper to determine execution state
 impl ExecutionState {
     /// Get execution statistics

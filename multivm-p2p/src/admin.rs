@@ -1,9 +1,7 @@
 //! Administrative tools for P2P network management
 
+use crate::core::network::{NetworkHealthReport, P2PNetwork, PeerInfo};
 use crate::error::P2PError;
-use crate::network::{NetworkHealthReport, P2PNetwork};
-use crate::messages::NetworkMessage;
-use crate::PeerInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -59,7 +57,10 @@ pub enum AdminCommand {
     /// Connect to a new peer
     ConnectPeer { address: String },
     /// Ban an IP address
-    BanIp { ip: IpAddr, duration: Option<Duration> },
+    BanIp {
+        ip: IpAddr,
+        duration: Option<Duration>,
+    },
     /// Unban an IP address
     UnbanIp { ip: IpAddr },
     /// List banned IPs
@@ -181,7 +182,10 @@ impl P2PAdmin {
     }
 
     /// Execute an administrative command
-    pub async fn execute_command(&mut self, command: AdminCommand) -> Result<AdminResponse, P2PError> {
+    pub async fn execute_command(
+        &mut self,
+        command: AdminCommand,
+    ) -> Result<AdminResponse, P2PError> {
         match command {
             AdminCommand::GetNetworkStatus => self.get_network_status().await,
             AdminCommand::ListPeers => self.list_peers().await,
@@ -204,17 +208,20 @@ impl P2PAdmin {
 
     /// Get current network status
     async fn get_network_status(&self) -> Result<AdminResponse, P2PError> {
-        let network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, these would come from the network
         let response = AdminResponse::NetworkStatus {
-            peer_count: 0, // network.peer_count()
-            active_connections: 0, // network.active_connections()
-            total_messages_sent: 0, // network.total_messages_sent()
-            total_messages_received: 0, // network.total_messages_received()
-            uptime: Duration::from_secs(0), // network.uptime()
+            peer_count: 0,                        // network.peer_count()
+            active_connections: 0,                // network.active_connections()
+            total_messages_sent: 0,               // network.total_messages_sent()
+            total_messages_received: 0,           // network.total_messages_received()
+            uptime: Duration::from_secs(0),       // network.uptime()
             health_status: "Healthy".to_string(), // network.health_status()
         };
 
@@ -223,9 +230,12 @@ impl P2PAdmin {
 
     /// List all connected peers
     async fn list_peers(&self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would come from the network
         let peers = vec![]; // network.get_connected_peers()
@@ -234,9 +244,12 @@ impl P2PAdmin {
 
     /// Get detailed information about a specific peer
     async fn get_peer_info(&self, peer_id: String) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would look up the peer
         Err(P2PError::PeerNotFound { peer_id })
@@ -244,9 +257,12 @@ impl P2PAdmin {
 
     /// Disconnect from a specific peer
     async fn disconnect_peer(&mut self, peer_id: String) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would disconnect the peer
         // network.disconnect_peer(&peer_id).await?;
@@ -258,9 +274,12 @@ impl P2PAdmin {
 
     /// Connect to a new peer
     async fn connect_peer(&mut self, address: String) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would attempt to connect
         // network.connect_to_peer(&address).await?;
@@ -271,10 +290,17 @@ impl P2PAdmin {
     }
 
     /// Ban an IP address
-    async fn ban_ip(&mut self, ip: IpAddr, duration: Option<Duration>) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+    async fn ban_ip(
+        &mut self,
+        ip: IpAddr,
+        duration: Option<Duration>,
+    ) -> Result<AdminResponse, P2PError> {
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would ban the IP
         // network.ban_ip(ip, duration).await?;
@@ -290,9 +316,12 @@ impl P2PAdmin {
 
     /// Unban an IP address
     async fn unban_ip(&mut self, ip: IpAddr) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would unban the IP
         // network.unban_ip(ip).await?;
@@ -304,9 +333,12 @@ impl P2PAdmin {
 
     /// List all banned IP addresses
     async fn list_banned_ips(&self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would return actual banned IPs
         let banned_ips = vec![]; // network.get_banned_ips()
@@ -315,9 +347,12 @@ impl P2PAdmin {
 
     /// Get rate limiting status
     async fn get_rate_limit_status(&self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would return actual rate limit status
         let rate_limit_info = RateLimitInfo {
@@ -336,9 +371,12 @@ impl P2PAdmin {
 
     /// Reset rate limits for a specific peer
     async fn reset_rate_limit(&mut self, peer_id: String) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would reset the peer's rate limit
         // network.reset_peer_rate_limit(&peer_id).await?;
@@ -350,9 +388,12 @@ impl P2PAdmin {
 
     /// Get network health report
     async fn get_health_report(&self) -> Result<AdminResponse, P2PError> {
-        let network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         let health_report = network.health_check().await?;
         Ok(AdminResponse::HealthReport(health_report))
@@ -360,9 +401,12 @@ impl P2PAdmin {
 
     /// Enable emergency mode
     async fn enable_emergency_mode(&mut self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would enable emergency mode
         // network.enable_emergency_mode().await?;
@@ -374,9 +418,12 @@ impl P2PAdmin {
 
     /// Disable emergency mode
     async fn disable_emergency_mode(&mut self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would disable emergency mode
         // network.disable_emergency_mode().await?;
@@ -388,9 +435,12 @@ impl P2PAdmin {
 
     /// Get network metrics
     async fn get_metrics(&self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_ref().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_ref()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would return actual metrics
         let mut metrics = HashMap::new();
@@ -414,9 +464,12 @@ impl P2PAdmin {
 
     /// Trigger garbage collection
     async fn trigger_garbage_collection(&mut self) -> Result<AdminResponse, P2PError> {
-        let _network = self.network.as_mut().ok_or_else(|| P2PError::ConnectionFailed {
-            reason: "admin network not available".to_string(),
-        })?;
+        let _network = self
+            .network
+            .as_mut()
+            .ok_or_else(|| P2PError::ConnectionFailed {
+                reason: "admin network not available".to_string(),
+            })?;
 
         // In a real implementation, this would trigger cleanup
         // network.garbage_collect().await?;
@@ -461,73 +514,102 @@ impl P2PCli {
     /// Parse command from string
     fn parse_command(&self, command_str: &str) -> Result<AdminCommand, P2PError> {
         let parts: Vec<&str> = command_str.trim().split_whitespace().collect();
-        
+
         match parts.get(0) {
             Some(&"status") => Ok(AdminCommand::GetNetworkStatus),
             Some(&"peers") => match parts.get(1) {
                 Some(&"list") => Ok(AdminCommand::ListPeers),
                 Some(&"info") => {
-                    let peer_id = parts.get(2).ok_or_else(|| P2PError::InvalidMessage(
-                        "Missing peer ID".to_string()
-                    ))?;
-                    Ok(AdminCommand::GetPeerInfo { peer_id: peer_id.to_string() })
-                },
+                    let peer_id = parts
+                        .get(2)
+                        .ok_or_else(|| P2PError::InvalidMessage("Missing peer ID".to_string()))?;
+                    Ok(AdminCommand::GetPeerInfo {
+                        peer_id: peer_id.to_string(),
+                    })
+                }
                 Some(&"disconnect") => {
-                    let peer_id = parts.get(2).ok_or_else(|| P2PError::InvalidMessage(
-                        "Missing peer ID".to_string()
-                    ))?;
-                    Ok(AdminCommand::DisconnectPeer { peer_id: peer_id.to_string() })
-                },
+                    let peer_id = parts
+                        .get(2)
+                        .ok_or_else(|| P2PError::InvalidMessage("Missing peer ID".to_string()))?;
+                    Ok(AdminCommand::DisconnectPeer {
+                        peer_id: peer_id.to_string(),
+                    })
+                }
                 Some(&"connect") => {
-                    let address = parts.get(2).ok_or_else(|| P2PError::InvalidMessage(
-                        "Missing address".to_string()
-                    ))?;
-                    Ok(AdminCommand::ConnectPeer { address: address.to_string() })
-                },
-                _ => Err(P2PError::InvalidMessage( "Invalid peers subcommand".to_string())),
+                    let address = parts
+                        .get(2)
+                        .ok_or_else(|| P2PError::InvalidMessage("Missing address".to_string()))?;
+                    Ok(AdminCommand::ConnectPeer {
+                        address: address.to_string(),
+                    })
+                }
+                _ => Err(P2PError::InvalidMessage(
+                    "Invalid peers subcommand".to_string(),
+                )),
             },
             Some(&"ban") => {
-                let ip_str = parts.get(1).ok_or_else(|| P2PError::InvalidMessage( "Missing IP address".to_string()))?;
-                let ip = ip_str.parse().map_err(|_| P2PError::InvalidMessage( "Invalid IP address".to_string()))?;
+                let ip_str = parts
+                    .get(1)
+                    .ok_or_else(|| P2PError::InvalidMessage("Missing IP address".to_string()))?;
+                let ip = ip_str
+                    .parse()
+                    .map_err(|_| P2PError::InvalidMessage("Invalid IP address".to_string()))?;
                 Ok(AdminCommand::BanIp { ip, duration: None })
-            },
+            }
             Some(&"unban") => {
-                let ip_str = parts.get(1).ok_or_else(|| P2PError::InvalidMessage( "Missing IP address".to_string()))?;
-                let ip = ip_str.parse().map_err(|_| P2PError::InvalidMessage( "Invalid IP address".to_string()))?;
+                let ip_str = parts
+                    .get(1)
+                    .ok_or_else(|| P2PError::InvalidMessage("Missing IP address".to_string()))?;
+                let ip = ip_str
+                    .parse()
+                    .map_err(|_| P2PError::InvalidMessage("Invalid IP address".to_string()))?;
                 Ok(AdminCommand::UnbanIp { ip })
-            },
+            }
             Some(&"banned") => Ok(AdminCommand::ListBannedIps),
             Some(&"ratelimit") => Ok(AdminCommand::GetRateLimitStatus),
             Some(&"health") => Ok(AdminCommand::GetHealthReport),
             Some(&"emergency") => match parts.get(1) {
                 Some(&"on") => Ok(AdminCommand::EnableEmergencyMode),
                 Some(&"off") => Ok(AdminCommand::DisableEmergencyMode),
-                _ => Err(P2PError::InvalidMessage( "Use 'emergency on' or 'emergency off'".to_string())),
+                _ => Err(P2PError::InvalidMessage(
+                    "Use 'emergency on' or 'emergency off'".to_string(),
+                )),
             },
             Some(&"metrics") => Ok(AdminCommand::GetMetrics),
             Some(&"loglevel") => {
-                let level = parts.get(1).ok_or_else(|| P2PError::InvalidMessage( "Missing log level".to_string()))?;
-                Ok(AdminCommand::SetLogLevel { level: level.to_string() })
-            },
+                let level = parts
+                    .get(1)
+                    .ok_or_else(|| P2PError::InvalidMessage("Missing log level".to_string()))?;
+                Ok(AdminCommand::SetLogLevel {
+                    level: level.to_string(),
+                })
+            }
             Some(&"gc") => Ok(AdminCommand::TriggerGarbageCollection),
-            _ => Err(P2PError::InvalidMessage( "Unknown command".to_string())),
+            _ => Err(P2PError::InvalidMessage("Unknown command".to_string())),
         }
     }
 
     /// Format response for display
     fn format_response(&self, response: AdminResponse) -> String {
         match response {
-            AdminResponse::NetworkStatus { peer_count, active_connections, health_status, .. } => {
-                format!("Network Status: {} | Peers: {} | Connections: {}", 
-                       health_status, peer_count, active_connections)
-            },
+            AdminResponse::NetworkStatus {
+                peer_count,
+                active_connections,
+                health_status,
+                ..
+            } => {
+                format!(
+                    "Network Status: {} | Peers: {} | Connections: {}",
+                    health_status, peer_count, active_connections
+                )
+            }
             AdminResponse::PeerList(peers) => {
                 if peers.is_empty() {
                     "No peers connected".to_string()
                 } else {
                     format!("Connected peers: {}", peers.len())
                 }
-            },
+            }
             AdminResponse::Success { message } => format!("✓ {}", message),
             AdminResponse::Error { error } => format!("✗ {}", error),
             _ => "Command executed successfully".to_string(),

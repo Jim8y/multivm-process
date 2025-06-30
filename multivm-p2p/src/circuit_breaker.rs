@@ -4,13 +4,13 @@
 //! them time to recover. Implements the circuit breaker pattern with multiple states
 //! and adaptive thresholds.
 
-use crate::error::{P2PError, P2PResult};
+use crate::error::P2PResult;
 use libp2p::PeerId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Circuit breaker state
 #[derive(Debug, Clone, PartialEq)]
@@ -552,7 +552,7 @@ impl CircuitBreakerManager {
     /// Maintenance task for cleanup and adaptive adjustments
     async fn maintenance_task(
         circuit_breakers: &Arc<RwLock<HashMap<PeerId, PeerCircuitBreaker>>>,
-        config: &CircuitBreakerConfig,
+        _config: &CircuitBreakerConfig,
     ) {
         let mut breakers = circuit_breakers.write().await;
 

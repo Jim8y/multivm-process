@@ -98,6 +98,21 @@ pub enum P2PError {
 
     #[error("Transport error: {0}")]
     Transport(String),
+
+    #[error("Already started")]
+    AlreadyStarted,
+
+    #[error("Manager shutdown")]
+    ManagerShutdown,
+
+    #[error("Encryption error: {0}")]
+    EncryptionError(String),
+
+    #[error("Decryption error: {0}")]
+    DecryptionError(String),
+
+    #[error("Signature verification error: {0}")]
+    SignatureVerificationError(String),
 }
 
 /// Result type alias for P2P operations
@@ -246,6 +261,11 @@ impl P2PError {
             P2PError::UnauthorizedPeer(_) => "security",
             P2PError::ConnectionBlocked(_) => "security",
             P2PError::ConnectionFailed { .. } => "connection",
+            P2PError::AlreadyStarted => "lifecycle",
+            P2PError::ManagerShutdown => "lifecycle",
+            P2PError::EncryptionError(_) => "security",
+            P2PError::DecryptionError(_) => "security",
+            P2PError::SignatureVerificationError(_) => "security",
         }
     }
 

@@ -1,0 +1,117 @@
+# Default MultiVM Configuration Template
+
+[node]
+# Node identification
+id = "default-node"
+type = "validator"  # validator or full
+data_dir = "/opt/multivm/data"
+log_dir = "/opt/multivm/logs"
+
+[api]
+# API server configuration
+rest_port = 8080
+graphql_port = 8081
+websocket_port = 8082
+admin_port = 8083
+enable_cors = true
+cors_origins = ["*"]
+jwt_secret = "change-this-secret-in-production"
+
+[p2p]
+# P2P networking configuration
+listen_address = "0.0.0.0:26656"
+external_address = ""
+seeds = ""
+persistent_peers = ""
+max_peers = 50
+handshake_timeout = "30s"
+dial_timeout = "10s"
+
+# libp2p specific settings
+enable_mdns = true
+enable_kademlia = true
+enable_gossipsub = true
+enable_identify = true
+
+# P2P security
+enable_encryption = true
+enable_authentication = true
+
+[consensus]
+# Consensus configuration
+listen_address = "0.0.0.0:26657"
+block_time_ms = 5000
+transaction_pool_size = 10000
+max_block_size = 1048576  # 1MB
+timeout_propose = "3s"
+timeout_prevote = "1s"
+timeout_precommit = "1s"
+timeout_commit = "5s"
+
+# Validator settings
+is_genesis_validator = false
+validator_key_file = ""
+priv_validator_key_file = ""
+
+[execution]
+# Execution engine configuration
+evm_enabled = true
+svm_enabled = true
+evm_ipc_path = "./data/evm.ipc"
+svm_ipc_path = "./data/svm.ipc"
+max_gas_per_block = 10000000
+min_gas_price = "1000000000"  # 1 gwei
+
+[cache]
+# Caching configuration
+redis_enabled = false
+redis_url = "redis://localhost:6379"
+rocksdb_enabled = true
+rocksdb_path = "./data/rocksdb"
+cache_size_mb = 1024
+ttl_seconds = 3600
+
+[monitoring]
+# Monitoring and metrics
+enable_metrics = true
+metrics_port = 9464
+metrics_path = "/metrics"
+enable_tracing = true
+tracing_endpoint = ""
+enable_profiling = false
+profiling_port = 6060
+
+# Health check
+enable_health_check = true
+health_check_interval_secs = 30
+health_check_timeout_secs = 5
+
+[security]
+# Security settings
+enable_tls = false
+tls_cert_file = ""
+tls_key_file = ""
+enable_rate_limiting = true
+rate_limit_per_peer = 100
+rate_limit_global = 1000
+ban_duration_secs = 600
+max_failed_attempts = 5
+
+[database]
+# Database configuration
+db_backend = "rocksdb"
+db_dir = "./data/db"
+db_cache_size = 536870912  # 512MB
+db_write_buffer_size = 67108864  # 64MB
+db_max_open_files = 1000
+
+[logging]
+# Logging configuration
+level = "info"
+format = "json"
+output = "stdout"
+file = "./logs/multivm.log"
+max_size_mb = 100
+max_backups = 10
+max_age_days = 30
+compress = true

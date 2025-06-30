@@ -70,20 +70,45 @@ pub async fn unbind_accounts(
 
 /// Send cross-VM transaction
 pub async fn send_cross_vm_transaction(
-    State(_state): State<Arc<ApplicationState>>,
+    State(state): State<Arc<ApplicationState>>,
     headers: HeaderMap,
-    Json(_request): Json<CrossVmTransactionRequest>,
+    Json(request): Json<CrossVmTransactionRequest>,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
     let start_time = start_request_timer();
-    let response_time = calculate_response_time(start_time);
 
-    let response = CrossVmTransactionResponse {
-        transaction_id: "crossvm_123".to_string(),
-        status: "pending".to_string(),
-    };
+    // Convert request to JSON for processing
+    let transaction_data = serde_json::to_value(&request).unwrap_or_default();
 
-    success_response(response, request_id, response_time).into_response()
+    // Process through execution engines
+    match state
+        .execution_engines
+        .read()
+        .await
+        .process_cross_vm_transaction(transaction_data)
+        .await
+    {
+        Ok(tx_id) => {
+            tracing::info!("Cross-VM transaction processed successfully: {}", tx_id);
+            let response_time = calculate_response_time(start_time);
+            let response = CrossVmTransactionResponse {
+                transaction_id: tx_id,
+                status: "pending".to_string(),
+            };
+            success_response(response, request_id, response_time).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to process Cross-VM transaction: {}", e);
+            let response_time = calculate_response_time(start_time);
+            crate::api::rest::handlers::error_response(
+                "MULTIVM_ERROR",
+                &e.to_string(),
+                request_id,
+                response_time,
+            )
+            .into_response()
+        }
+    }
 }
 
 /// Get cross-VM transaction status
@@ -204,7 +229,7 @@ pub struct AccountUnbindingRequest {
     pub binding_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CrossVmTransactionRequest {
     pub from_vm: String,
     pub to_vm: String,

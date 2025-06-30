@@ -4,13 +4,16 @@
 //! supporting multiple consensus algorithms and ensuring cross-VM state consistency.
 
 // Only allow dead code and warnings in debug builds
-#![cfg_attr(debug_assertions, allow(
-    dead_code,
-    unused_variables,
-    clippy::op_ref,
-    clippy::unused_enumerate_index,
-    clippy::useless_vec
-))]
+#![cfg_attr(
+    debug_assertions,
+    allow(
+        dead_code,
+        unused_variables,
+        clippy::op_ref,
+        clippy::unused_enumerate_index,
+        clippy::useless_vec
+    )
+)]
 
 pub mod block;
 pub mod crypto;
@@ -25,6 +28,7 @@ pub mod process_integration;
 pub mod state;
 pub mod synchronization;
 pub mod traits;
+pub mod transaction_pool;
 
 // Tests are included in individual modules
 
@@ -51,6 +55,9 @@ pub use process_integration::{
     ExecutionState, ExecutionStats, ProcessConsensusConfig, ProcessConsensusCoordinator,
     ProcessConsensusMetrics, ProcessExecutionConfig,
 };
+
+// Type alias for CLI compatibility
+pub type ConsensusConfig = ConsensusManagerConfig;
 
 // Re-export cryptographic types
 pub use crypto::{ConsensusSignature, ProductionSigningScheme, ValidatorPublicKey};
@@ -79,6 +86,12 @@ pub use metrics::{
     AggregatedMetrics, ComponentMetrics, ConsensusMetricsCollector, ConsensusPerformance,
     ErrorSummary, JsonExporter, MetricsExporter, NetworkStatus, PrometheusExporter, SyncStatus,
     SystemHealth,
+};
+
+// Re-export transaction pool types
+pub use transaction_pool::{
+    ConcurrentTransactionPool, PoolTransaction, PooledTransaction, TransactionPoolConfig,
+    TransactionPoolStats, TransactionPriority, TransactionStatus, VmType as PoolVmType,
 };
 
 // Common imports

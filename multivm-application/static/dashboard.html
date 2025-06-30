@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiVM Real-time Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e1e8ed;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #1da1f2, #14c767);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .status.connected {
+            background: #14c767;
+            color: white;
+        }
+        
+        .status.disconnected {
+            background: #e1444d;
+            color: white;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .metric-card {
+            background: #192734;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #2f3e4e;
+        }
+        
+        .metric-card h3 {
+            color: #8899a6;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #1da1f2;
+            margin-bottom: 5px;
+        }
+        
+        .metric-unit {
+            font-size: 0.8em;
+            color: #657786;
+        }
+        
+        .metric-change {
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .metric-change.positive {
+            color: #14c767;
+        }
+        
+        .metric-change.negative {
+            color: #e1444d;
+        }
+        
+        .chart-container {
+            grid-column: 1 / -1;
+            background: #192734;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #2f3e4e;
+            height: 400px;
+        }
+        
+        .chart-container h3 {
+            color: #e1e8ed;
+            margin-bottom: 20px;
+        }
+        
+        #tpsChart {
+            max-height: 350px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #2f3e4e;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1da1f2, #14c767);
+            transition: width 0.3s ease;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .sub-metric {
+            background: #0f1419;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .sub-metric-label {
+            font-size: 0.8em;
+            color: #657786;
+        }
+        
+        .sub-metric-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #e1e8ed;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MultiVM Dashboard</h1>
+        <div id="connectionStatus" class="status disconnected">Disconnected</div>
+    </div>
+    
+    <div class="dashboard">
+        <!-- Blockchain Metrics -->
+        <div class="metric-card">
+            <h3>Block Height</h3>
+            <div class="metric-value" id="blockHeight">-</div>
+            <div class="metric-change positive" id="blockRate">-</div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Current TPS</h3>
+            <div class="metric-value" id="currentTps">-</div>
+            <div class="metric-unit">transactions/sec</div>
+            <div class="metric-change" id="tpsChange">-</div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Transaction Pool</h3>
+            <div class="metric-value" id="txPoolSize">-</div>
+            <div class="metric-unit">pending transactions</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="txPoolProgress" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Network</h3>
+            <div class="metric-value" id="peerCount">-</div>
+            <div class="metric-unit">connected peers</div>
+            <div class="grid-2">
+                <div class="sub-metric">
+                    <div class="sub-metric-label">Latency</div>
+                    <div class="sub-metric-value" id="networkLatency">-</div>
+                </div>
+                <div class="sub-metric">
+                    <div class="sub-metric-label">Validators</div>
+                    <div class="sub-metric-value" id="validatorCount">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Metrics -->
+        <div class="metric-card">
+            <h3>CPU Usage</h3>
+            <div class="metric-value" id="cpuUsage">-</div>
+            <div class="metric-unit">percent</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="cpuProgress" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Memory Usage</h3>
+            <div class="metric-value" id="memoryUsage">-</div>
+            <div class="metric-unit">MB</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="memoryProgress" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>API Performance</h3>
+            <div class="metric-value" id="apiRps">-</div>
+            <div class="metric-unit">requests/sec</div>
+            <div class="grid-2">
+                <div class="sub-metric">
+                    <div class="sub-metric-label">Avg Response</div>
+                    <div class="sub-metric-value" id="apiResponseTime">-</div>
+                </div>
+                <div class="sub-metric">
+                    <div class="sub-metric-label">Cache Hit</div>
+                    <div class="sub-metric-value" id="cacheHitRatio">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>System Status</h3>
+            <div class="metric-value" id="uptime">-</div>
+            <div class="metric-unit">uptime</div>
+            <div class="grid-2">
+                <div class="sub-metric">
+                    <div class="sub-metric-label">Connections</div>
+                    <div class="sub-metric-value" id="activeConnections">-</div>
+                </div>
+                <div class="sub-metric">
+                    <div class="sub-metric-label">Disk Usage</div>
+                    <div class="sub-metric-value" id="diskUsage">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TPS Chart -->
+        <div class="chart-container">
+            <h3>Transactions Per Second (TPS)</h3>
+            <canvas id="tpsChart"></canvas>
+        </div>
+    </div>
+    
+    <script>
+        // WebSocket connection
+        let ws = null;
+        let reconnectInterval = null;
+        
+        // Chart setup
+        const ctx = document.getElementById('tpsChart').getContext('2d');
+        const tpsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Current TPS',
+                    data: [],
+                    borderColor: '#1da1f2',
+                    backgroundColor: 'rgba(29, 161, 242, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }, {
+                    label: 'Average TPS',
+                    data: [],
+                    borderColor: '#14c767',
+                    backgroundColor: 'rgba(20, 199, 103, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#e1e8ed'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: '#657786'
+                        },
+                        grid: {
+                            color: '#2f3e4e'
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#657786'
+                        },
+                        grid: {
+                            color: '#2f3e4e'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Connect to WebSocket
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/dashboard/ws`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('Connected to dashboard');
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'status connected';
+                
+                if (reconnectInterval) {
+                    clearInterval(reconnectInterval);
+                    reconnectInterval = null;
+                }
+            };
+            
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                
+                if (message.type === 'history') {
+                    // Load historical data
+                    loadHistory(message.data);
+                } else if (message.type === 'update') {
+                    // Update with new data
+                    updateMetrics(message.data);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('Disconnected from dashboard');
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                document.getElementById('connectionStatus').className = 'status disconnected';
+                
+                // Reconnect after 3 seconds
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(connect, 3000);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        // Load historical data
+        function loadHistory(history) {
+            // Clear existing data
+            tpsChart.data.labels = [];
+            tpsChart.data.datasets[0].data = [];
+            tpsChart.data.datasets[1].data = [];
+            
+            // Add historical points
+            history.forEach(metrics => {
+                const time = new Date(metrics.timestamp * 1000).toLocaleTimeString();
+                tpsChart.data.labels.push(time);
+                tpsChart.data.datasets[0].data.push(metrics.blockchain.tps_current);
+                tpsChart.data.datasets[1].data.push(metrics.blockchain.tps_average);
+            });
+            
+            tpsChart.update();
+            
+            // Update current metrics with latest
+            if (history.length > 0) {
+                updateMetrics(history[history.length - 1]);
+            }
+        }
+        
+        // Update metrics
+        function updateMetrics(metrics) {
+            // Blockchain metrics
+            document.getElementById('blockHeight').textContent = metrics.blockchain.block_height.toLocaleString();
+            document.getElementById('blockRate').textContent = `${metrics.blockchain.blocks_per_second.toFixed(3)} blocks/sec`;
+            document.getElementById('currentTps').textContent = metrics.blockchain.tps_current.toFixed(1);
+            
+            // Transaction pool
+            document.getElementById('txPoolSize').textContent = metrics.tx_pool.pending_count.toLocaleString();
+            const poolProgress = Math.min((metrics.tx_pool.pending_count / 100) * 100, 100);
+            document.getElementById('txPoolProgress').style.width = `${poolProgress}%`;
+            
+            // Network
+            document.getElementById('peerCount').textContent = metrics.network.peer_count;
+            document.getElementById('networkLatency').textContent = `${metrics.network.network_latency}ms`;
+            document.getElementById('validatorCount').textContent = metrics.network.validator_count;
+            
+            // System metrics
+            document.getElementById('cpuUsage').textContent = metrics.system.cpu_usage.toFixed(1);
+            document.getElementById('cpuProgress').style.width = `${metrics.system.cpu_usage}%`;
+            
+            document.getElementById('memoryUsage').textContent = metrics.system.memory_usage.toLocaleString();
+            const memProgress = Math.min((metrics.system.memory_usage / 1024) * 100, 100);
+            document.getElementById('memoryProgress').style.width = `${memProgress}%`;
+            
+            // API performance
+            document.getElementById('apiRps').textContent = metrics.performance.api_requests_per_sec.toFixed(0);
+            document.getElementById('apiResponseTime').textContent = `${metrics.performance.avg_api_response_time}ms`;
+            document.getElementById('cacheHitRatio').textContent = `${(metrics.performance.cache_hit_ratio * 100).toFixed(1)}%`;
+            
+            // System status
+            const uptime = formatUptime(metrics.system.uptime_seconds);
+            document.getElementById('uptime').textContent = uptime;
+            document.getElementById('activeConnections').textContent = metrics.system.active_connections;
+            document.getElementById('diskUsage').textContent = `${metrics.system.disk_usage.toFixed(1)}%`;
+            
+            // Update chart
+            const time = new Date(metrics.timestamp * 1000).toLocaleTimeString();
+            tpsChart.data.labels.push(time);
+            tpsChart.data.datasets[0].data.push(metrics.blockchain.tps_current);
+            tpsChart.data.datasets[1].data.push(metrics.blockchain.tps_average);
+            
+            // Keep only last 60 points
+            if (tpsChart.data.labels.length > 60) {
+                tpsChart.data.labels.shift();
+                tpsChart.data.datasets[0].data.shift();
+                tpsChart.data.datasets[1].data.shift();
+            }
+            
+            tpsChart.update();
+        }
+        
+        // Format uptime
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) {
+                return `${days}d ${hours}h`;
+            } else if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
+        }
+        
+        // Initialize connection
+        connect();
+    </script>
+</body>
+</html>

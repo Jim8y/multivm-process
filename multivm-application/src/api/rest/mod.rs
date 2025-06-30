@@ -145,6 +145,10 @@ fn create_v1_routes(_state: Arc<ApplicationState>) -> Router<Arc<ApplicationStat
             "/execution-engines",
             handlers::execution_engines::execution_engine_routes(),
         )
+        // Block explorer endpoints
+        .nest("/explorer", create_explorer_routes())
+        // Dashboard endpoints
+        .nest("/dashboard", create_dashboard_routes())
 }
 
 /// Create SVM-specific routes
@@ -152,15 +156,15 @@ fn create_svm_routes() -> Router<Arc<ApplicationState>> {
     Router::new()
         // Account operations
         .route(
-            "/accounts/:address",
+            "/accounts/{address}",
             axum::routing::get(handlers::svm::get_account),
         )
         .route(
-            "/accounts/:address/balance",
+            "/accounts/{address}/balance",
             axum::routing::get(handlers::svm::get_balance),
         )
         .route(
-            "/accounts/:address/transactions",
+            "/accounts/{address}/transactions",
             axum::routing::get(handlers::svm::get_account_transactions),
         )
         // Transaction operations
@@ -169,7 +173,7 @@ fn create_svm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::post(handlers::svm::send_transaction),
         )
         .route(
-            "/transactions/:signature",
+            "/transactions/{signature}",
             axum::routing::get(handlers::svm::get_transaction),
         )
         .route(
@@ -182,25 +186,25 @@ fn create_svm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::get(handlers::svm::get_latest_block),
         )
         .route(
-            "/blocks/:slot",
+            "/blocks/{slot}",
             axum::routing::get(handlers::svm::get_block),
         )
         .route(
-            "/blocks/:slot/transactions",
+            "/blocks/{slot}/transactions",
             axum::routing::get(handlers::svm::get_block_transactions),
         )
         // Program operations
         .route(
-            "/programs/:program_id/accounts",
+            "/programs/{program_id}/accounts",
             axum::routing::get(handlers::svm::get_program_accounts),
         )
         // Token operations
         .route(
-            "/tokens/:mint/accounts",
+            "/tokens/{mint}/accounts",
             axum::routing::get(handlers::svm::get_token_accounts),
         )
         .route(
-            "/tokens/:mint/supply",
+            "/tokens/{mint}/supply",
             axum::routing::get(handlers::svm::get_token_supply),
         )
 }
@@ -210,23 +214,23 @@ fn create_evm_routes() -> Router<Arc<ApplicationState>> {
     Router::new()
         // Account operations
         .route(
-            "/accounts/:address",
+            "/accounts/{address}",
             axum::routing::get(handlers::evm::get_account),
         )
         .route(
-            "/accounts/:address/balance",
+            "/accounts/{address}/balance",
             axum::routing::get(handlers::evm::get_balance),
         )
         .route(
-            "/accounts/:address/nonce",
+            "/accounts/{address}/nonce",
             axum::routing::get(handlers::evm::get_nonce),
         )
         .route(
-            "/accounts/:address/code",
+            "/accounts/{address}/code",
             axum::routing::get(handlers::evm::get_code),
         )
         .route(
-            "/accounts/:address/transactions",
+            "/accounts/{address}/transactions",
             axum::routing::get(handlers::evm::get_account_transactions),
         )
         // Transaction operations
@@ -235,11 +239,11 @@ fn create_evm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::post(handlers::evm::send_transaction),
         )
         .route(
-            "/transactions/:hash",
+            "/transactions/{hash}",
             axum::routing::get(handlers::evm::get_transaction),
         )
         .route(
-            "/transactions/:hash/receipt",
+            "/transactions/{hash}/receipt",
             axum::routing::get(handlers::evm::get_transaction_receipt),
         )
         .route(
@@ -252,16 +256,16 @@ fn create_evm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::get(handlers::evm::get_latest_block),
         )
         .route(
-            "/blocks/:block_id",
+            "/blocks/{block_id}",
             axum::routing::get(handlers::evm::get_block),
         )
         .route(
-            "/blocks/:block_id/transactions",
+            "/blocks/{block_id}/transactions",
             axum::routing::get(handlers::evm::get_block_transactions),
         )
         // Contract operations
         .route(
-            "/contracts/:address/call",
+            "/contracts/{address}/call",
             axum::routing::post(handlers::evm::call_contract),
         )
         // Log operations
@@ -277,7 +281,7 @@ fn create_multivm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::post(handlers::multivm::bind_accounts),
         )
         .route(
-            "/accounts/:address/bindings",
+            "/accounts/{address}/bindings",
             axum::routing::get(handlers::multivm::get_account_bindings),
         )
         .route(
@@ -290,7 +294,7 @@ fn create_multivm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::post(handlers::multivm::send_cross_vm_transaction),
         )
         .route(
-            "/transactions/:id/status",
+            "/transactions/{id}/status",
             axum::routing::get(handlers::multivm::get_cross_vm_transaction_status),
         )
         // MultiVM blocks
@@ -299,7 +303,7 @@ fn create_multivm_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::get(handlers::multivm::get_latest_multivm_block),
         )
         .route(
-            "/blocks/:block_id",
+            "/blocks/{block_id}",
             axum::routing::get(handlers::multivm::get_multivm_block),
         )
         // System state
@@ -314,11 +318,11 @@ fn create_account_routes() -> Router<Arc<ApplicationState>> {
     Router::new()
         .route("/", axum::routing::get(handlers::accounts::list_accounts))
         .route(
-            "/:address",
+            "/{address}",
             axum::routing::get(handlers::accounts::get_account_info),
         )
         .route(
-            "/:address/history",
+            "/{address}/history",
             axum::routing::get(handlers::accounts::get_account_history),
         )
         .route(
@@ -335,7 +339,7 @@ fn create_transaction_routes() -> Router<Arc<ApplicationState>> {
             axum::routing::get(handlers::transactions::list_transactions),
         )
         .route(
-            "/:id",
+            "/{id}",
             axum::routing::get(handlers::transactions::get_transaction_details),
         )
         .route(
@@ -346,6 +350,23 @@ fn create_transaction_routes() -> Router<Arc<ApplicationState>> {
             "/pending",
             axum::routing::get(handlers::transactions::get_pending_transactions),
         )
+        // Transaction submission endpoints
+        .route(
+            "/submit",
+            axum::routing::post(handlers::transaction_submission::submit_transaction),
+        )
+        .route(
+            "/submit/batch",
+            axum::routing::post(handlers::transaction_submission::submit_batch_transactions),
+        )
+        .route(
+            "/{tx_hash}/status",
+            axum::routing::get(handlers::transaction_submission::get_transaction_status),
+        )
+        .route(
+            "/{tx_hash}/cancel",
+            axum::routing::post(handlers::transaction_submission::cancel_transaction),
+        )
 }
 
 /// Create block management routes
@@ -353,7 +374,7 @@ fn create_block_routes() -> Router<Arc<ApplicationState>> {
     Router::new()
         .route("/", axum::routing::get(handlers::blocks::list_blocks))
         .route(
-            "/:id",
+            "/{id}",
             axum::routing::get(handlers::blocks::get_block_details),
         )
         .route(
@@ -384,5 +405,56 @@ fn create_system_routes() -> Router<Arc<ApplicationState>> {
         .route(
             "/health",
             axum::routing::get(handlers::system::get_health_status),
+        )
+}
+
+/// Create block explorer routes
+fn create_explorer_routes() -> Router<Arc<ApplicationState>> {
+    Router::new()
+        // Block exploration
+        .route(
+            "/blocks",
+            axum::routing::get(handlers::explorer::get_blocks),
+        )
+        .route(
+            "/blocks/{block_id}",
+            axum::routing::get(handlers::explorer::get_block_details),
+        )
+        // Transaction exploration
+        .route(
+            "/transactions",
+            axum::routing::get(handlers::explorer::get_transactions),
+        )
+        .route(
+            "/transactions/{tx_hash}",
+            axum::routing::get(handlers::explorer::get_transaction_details),
+        )
+        // Account exploration
+        .route(
+            "/accounts/{address}",
+            axum::routing::get(handlers::explorer::get_account_activity),
+        )
+        .route(
+            "/accounts/{address}/transactions",
+            axum::routing::get(handlers::explorer::get_account_transactions),
+        )
+        // Network statistics
+        .route(
+            "/stats",
+            axum::routing::get(handlers::explorer::get_network_stats),
+        )
+        // Universal search
+        .route("/search", axum::routing::get(handlers::explorer::search))
+}
+
+/// Create dashboard routes
+fn create_dashboard_routes() -> Router<Arc<ApplicationState>> {
+    Router::new()
+        // Serve dashboard HTML
+        .route("/", axum::routing::get(handlers::dashboard::get_dashboard))
+        // WebSocket endpoint for real-time metrics
+        .route(
+            "/ws",
+            axum::routing::get(handlers::dashboard::websocket_handler),
         )
 }

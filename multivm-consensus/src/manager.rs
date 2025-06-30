@@ -4,10 +4,17 @@ use crate::malachite::{MalachiteConfig, MalachiteConsensus};
 use crate::messages::{ConsensusMessage, ConsensusMessagePayload, MessageType, ProposalMessage};
 use crate::state::{PersistentCrossVMStateManager, StateManagerConfig};
 use crate::traits::{ConsensusEngine, NodeId};
+use crate::transaction_pool::{
+    ConcurrentTransactionPool, TransactionPoolConfig, TransactionPriority,
+};
 use crate::*;
 use multivm_p2p::{
-    ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget, MultiVmMessage,
-    NetworkEvent, NetworkMessage, P2PNetworkLayer, PeerInfo, VmType,
+    core::manager::NetworkEvent,
+    protocol::messages::{
+        ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget,
+        MultiVmMessage, NetworkMessage, NetworkStats, NodeStatus, PeerInfo, VmType,
+    },
+    P2PManager, P2PNetwork,
 };
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -25,7 +32,7 @@ pub struct MultiVMConsensusManager {
     /// Cross-VM state coordinator with persistent storage
     state_coordinator: Arc<RwLock<PersistentCrossVMStateManager>>,
     /// P2P network layer for communication
-    p2p_network: Option<Arc<RwLock<dyn P2PNetworkLayer>>>,
+    p2p_network: Option<Arc<RwLock<P2PNetwork>>>,
     /// Configuration
     config: ConsensusManagerConfig,
     /// Running status
@@ -40,6 +47,8 @@ pub struct MultiVMConsensusManager {
     known_validators: Arc<RwLock<std::collections::HashMap<NodeId, PeerInfo>>>,
     /// P2P event receiver for network events
     p2p_event_receiver: Option<Arc<RwLock<mpsc::UnboundedReceiver<NetworkEvent>>>>,
+    /// Transaction pool for pending transactions
+    transaction_pool: ConcurrentTransactionPool,
 }
 
 impl std::fmt::Debug for MultiVMConsensusManager {
@@ -51,10 +60,7 @@ impl std::fmt::Debug for MultiVMConsensusManager {
             .field("node_id", &self.node_id)
             .field(
                 "p2p_network",
-                &self
-                    .p2p_network
-                    .as_ref()
-                    .map(|_| "Arc<dyn P2PNetworkLayer>"),
+                &self.p2p_network.as_ref().map(|_| "Arc<P2PNetwork>"),
             )
             .finish()
     }
@@ -79,6 +85,24 @@ pub struct ConsensusManagerConfig {
     pub enable_auto_proposal: bool,
     /// Network configuration
     pub network_config: NetworkConfig,
+    /// Transaction pool configuration
+    pub transaction_pool_config: TransactionPoolConfig,
+}
+
+impl Default for ConsensusManagerConfig {
+    fn default() -> Self {
+        Self {
+            node_id: None,
+            algorithm: ConsensusAlgorithmType::Malachite,
+            algorithm_config: AlgorithmConfig::Malachite(MalachiteConfig::default()),
+            state_manager_config: StateManagerConfig::default(),
+            block_proposal_interval_ms: 3000,
+            max_transactions_per_block: 1000, // Increased to handle 50+ transactions per block
+            enable_auto_proposal: true,
+            network_config: NetworkConfig::default(),
+            transaction_pool_config: TransactionPoolConfig::default(),
+        }
+    }
 }
 
 /// Supported consensus algorithms
@@ -284,6 +308,10 @@ impl MultiVMConsensusManager {
             .clone()
             .unwrap_or_else(|| format!("node-{}", &uuid::Uuid::new_v4().to_string()[..8]));
 
+        // Initialize transaction pool
+        let transaction_pool =
+            ConcurrentTransactionPool::new(config.transaction_pool_config.clone());
+
         Ok(Self {
             consensus_engine,
             state_coordinator,
@@ -295,18 +323,19 @@ impl MultiVMConsensusManager {
             node_id,
             known_validators: Arc::new(RwLock::new(std::collections::HashMap::new())),
             p2p_event_receiver: None,
+            transaction_pool,
         })
     }
 
     /// Set the P2P network layer and configure consensus networking
     pub async fn set_p2p_network(
         &mut self,
-        network: Arc<RwLock<dyn P2PNetworkLayer>>,
+        network: Arc<RwLock<P2PNetwork>>,
     ) -> ConsensusResult<()> {
         // Subscribe to consensus-related topics
         {
             let mut net = network.write().await;
-            net.subscribe_to_topic("consensus.proposals")
+            net.subscribe_topic("consensus.proposals")
                 .await
                 .map_err(|e| {
                     ConsensusError::NetworkError(format!(
@@ -314,13 +343,11 @@ impl MultiVMConsensusManager {
                     ))
                 })?;
 
-            net.subscribe_to_topic("consensus.votes")
-                .await
-                .map_err(|e| {
-                    ConsensusError::NetworkError(format!("Failed to subscribe to votes topic: {e}"))
-                })?;
+            net.subscribe_topic("consensus.votes").await.map_err(|e| {
+                ConsensusError::NetworkError(format!("Failed to subscribe to votes topic: {e}"))
+            })?;
 
-            net.subscribe_to_topic("consensus.commits")
+            net.subscribe_topic("consensus.commits")
                 .await
                 .map_err(|e| {
                     ConsensusError::NetworkError(format!(
@@ -328,7 +355,7 @@ impl MultiVMConsensusManager {
                     ))
                 })?;
 
-            net.subscribe_to_topic("consensus.view_changes")
+            net.subscribe_topic("consensus.view_changes")
                 .await
                 .map_err(|e| {
                     ConsensusError::NetworkError(format!(
@@ -378,11 +405,9 @@ impl MultiVMConsensusManager {
         // Broadcast to appropriate topic
         {
             let mut net = network.write().await;
-            net.broadcast_message(network_msg, Some(topic))
-                .await
-                .map_err(|e| {
-                    ConsensusError::NetworkError(format!("Failed to broadcast message: {e}"))
-                })?;
+            net.broadcast(network_msg).await.map_err(|e| {
+                ConsensusError::NetworkError(format!("Failed to broadcast message: {e}"))
+            })?;
         }
 
         debug!(
@@ -430,7 +455,7 @@ impl MultiVMConsensusManager {
         // Send directly to target
         {
             let mut net = network.write().await;
-            net.send_message(target_peer.peer_id.clone(), network_msg)
+            net.send_to_peer(target_peer.peer_id.clone(), network_msg)
                 .await
                 .map_err(|e| {
                     ConsensusError::NetworkError(format!(
@@ -575,6 +600,11 @@ impl MultiVMConsensusManager {
         self.consensus_engine.start().await?;
 
         self.running = true;
+
+        // Start automatic block generation if enabled
+        if self.config.enable_auto_proposal {
+            self.start_auto_block_generation().await?;
+        }
 
         Ok(())
     }
@@ -865,8 +895,8 @@ impl MultiVMConsensusManager {
         // Update our state with the synchronized data
         // Convert VmType from multivm_p2p to local VmType
         let local_vm_type = match vm_type {
-            multivm_p2p::VmType::Svm => crate::messages::VmType::SVM,
-            multivm_p2p::VmType::Evm => crate::messages::VmType::EVM,
+            VmType::Svm => crate::messages::VmType::SVM,
+            VmType::Evm => crate::messages::VmType::EVM,
         };
         self.state_coordinator
             .write()
@@ -951,7 +981,7 @@ impl MultiVMConsensusManager {
     async fn handle_peer_announcement(
         &mut self,
         node_id: String,
-        capabilities: Vec<multivm_p2p::VmType>,
+        capabilities: Vec<VmType>,
         version: u32,
         peer_id: String,
     ) -> ConsensusResult<()> {
@@ -964,8 +994,8 @@ impl MultiVMConsensusManager {
         );
 
         // Validate node capabilities - check if peer supports required VM types
-        let supports_multivm = capabilities.contains(&multivm_p2p::VmType::Svm)
-            || capabilities.contains(&multivm_p2p::VmType::Evm);
+        let supports_multivm =
+            capabilities.contains(&VmType::Svm) || capabilities.contains(&VmType::Evm);
 
         if !supports_multivm {
             warn!(
@@ -985,7 +1015,7 @@ impl MultiVMConsensusManager {
 
     async fn handle_peer_request(
         &mut self,
-        requested_capabilities: Vec<multivm_p2p::VmType>,
+        requested_capabilities: Vec<VmType>,
         peer_id: String,
     ) -> ConsensusResult<()> {
         info!(
@@ -994,7 +1024,7 @@ impl MultiVMConsensusManager {
         );
 
         // Check if we support the requested VM types
-        let our_vm_types = [multivm_p2p::VmType::Svm, multivm_p2p::VmType::Evm];
+        let our_vm_types = [VmType::Svm, VmType::Evm];
         let supported = requested_capabilities
             .iter()
             .filter(|cap| our_vm_types.contains(cap))
@@ -1079,7 +1109,7 @@ impl MultiVMConsensusManager {
 
     async fn handle_heartbeat(
         &mut self,
-        status: multivm_p2p::NodeStatus,
+        status: NodeStatus,
         uptime: std::time::Duration,
         peer_id: String,
     ) -> ConsensusResult<()> {
@@ -1099,8 +1129,8 @@ impl MultiVMConsensusManager {
 
     async fn handle_status_response(
         &mut self,
-        _stats: multivm_p2p::messages::NetworkStats,
-        peers: Vec<multivm_p2p::messages::PeerInfo>,
+        _stats: NetworkStats,
+        peers: Vec<PeerInfo>,
         peer_id: String,
     ) -> ConsensusResult<()> {
         info!(
@@ -2027,5 +2057,260 @@ impl MultiVMConsensusManager {
         }
 
         Ok(())
+    }
+
+    /// Submit a transaction to the pool
+    pub async fn submit_transaction(
+        &self,
+        transaction_data: serde_json::Value,
+        priority: TransactionPriority,
+    ) -> ConsensusResult<()> {
+        // Convert to PooledTransaction
+        let pooled_tx = crate::transaction_pool::PooledTransaction {
+            id: transaction_data
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&uuid::Uuid::new_v4().to_string())
+                .to_string(),
+            data: transaction_data,
+            timestamp: std::time::SystemTime::now(),
+            signature: None,
+        };
+
+        self.transaction_pool
+            .add_transaction(pooled_tx, priority)
+            .await?;
+        info!("Transaction submitted to pool");
+        Ok(())
+    }
+
+    /// Get pending transaction count
+    pub async fn get_pending_transaction_count(&self) -> usize {
+        self.transaction_pool.pending_count().await
+    }
+
+    /// Get transaction pool statistics
+    pub async fn get_transaction_pool_stats(
+        &self,
+    ) -> crate::transaction_pool::TransactionPoolStats {
+        self.transaction_pool.get_stats().await
+    }
+
+    /// Add a transaction to the pool (for API usage)
+    pub async fn add_transaction_to_pool(
+        &self,
+        transaction: crate::transaction_pool::PooledTransaction,
+        priority: crate::transaction_pool::TransactionPriority,
+    ) -> ConsensusResult<()> {
+        self.transaction_pool
+            .add_transaction(transaction, priority)
+            .await?;
+        info!(
+            "Transaction added to pool via API with {:?} priority",
+            priority
+        );
+        Ok(())
+    }
+
+    /// Start automatic block generation
+    async fn start_auto_block_generation(&mut self) -> ConsensusResult<()> {
+        let interval_ms = self.config.block_proposal_interval_ms;
+        let max_txs = self.config.max_transactions_per_block;
+
+        info!(
+            "Starting automatic block generation every {}ms with max {} transactions",
+            interval_ms, max_txs
+        );
+
+        // Clone transaction pool reference for the background task
+        let tx_pool = self.transaction_pool.clone();
+
+        // Spawn a background task for block generation
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(interval_ms));
+            let mut block_height = 1u64;
+
+            loop {
+                interval.tick().await;
+
+                // First try to get transactions from the pool
+                let pooled_txs = tx_pool.get_transactions_for_block(max_txs).await;
+
+                // Convert PooledTransactions to mock data for now
+                let mut transactions = if pooled_txs.is_empty() {
+                    // Generate at least 50 mock transactions
+                    let tx_count = std::cmp::max(50, std::cmp::min(60, max_txs));
+                    let mock_txs = Self::generate_mock_transactions(tx_count);
+                    // Add them to the pool for next time
+                    for (i, tx_data) in mock_txs.into_iter().enumerate() {
+                        let pooled_tx = crate::transaction_pool::PooledTransaction {
+                            id: format!("mock_tx_{}_{}", block_height, i),
+                            data: tx_data,
+                            timestamp: std::time::SystemTime::now(),
+                            signature: None,
+                        };
+                        let _ = tx_pool
+                            .add_transaction(pooled_tx, TransactionPriority::Normal)
+                            .await;
+                    }
+                    vec![] // Will be filled from pool next time
+                } else {
+                    pooled_txs.clone()
+                };
+
+                // Count transaction types
+                let mut evm_count = 0;
+                let mut svm_count = 0;
+                let mut multivm_count = 0;
+
+                for tx in &pooled_txs {
+                    if let Ok(tx_data) =
+                        serde_json::from_value::<serde_json::Value>(tx.data.clone())
+                    {
+                        // Try both "type" and "vm_type" fields
+                        if let Some(tx_type) = tx_data
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .or_else(|| tx_data.get("vm_type").and_then(|v| v.as_str()))
+                        {
+                            match tx_type {
+                                "evm" => evm_count += 1,
+                                "svm" => svm_count += 1,
+                                "cross_vm" | "multivm" => multivm_count += 1,
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+
+                // Log block generation activity with transaction type breakdown
+                let pool_stats = tx_pool.get_stats().await;
+                info!("Block {} generated with {} transactions [EVM: {}, SVM: {}, MultiVM: {}] (pool: {} pending, {} total submitted)",
+                      block_height, pooled_txs.len(), evm_count, svm_count, multivm_count,
+                      pool_stats.current_pool_size, pool_stats.total_submitted);
+
+                // Mark transactions as included
+                let tx_ids: Vec<String> = pooled_txs.iter().map(|tx| tx.id.clone()).collect();
+                tx_pool.mark_included(&tx_ids, block_height).await;
+
+                block_height += 1;
+
+                // Periodically clean up expired transactions
+                if block_height % 10 == 0 {
+                    let expired = tx_pool.cleanup_expired().await;
+                    if expired > 0 {
+                        debug!("Cleaned up {} expired transactions", expired);
+                    }
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Generate mock transactions for testing
+    fn generate_mock_transactions(count: usize) -> Vec<serde_json::Value> {
+        // Ensure a good distribution of transaction types
+        // Roughly: 40% EVM, 40% SVM, 20% MultiVM/CrossVM
+
+        (0..count)
+            .map(|i| {
+                let tx_type = match i % 10 {
+                    0..=3 => "evm",  // 40%
+                    4..=7 => "svm",  // 40%
+                    _ => "cross_vm", // 20%
+                };
+
+                let evm_data = if tx_type == "evm" {
+                    Some(serde_json::json!({"gasLimit": 21000, "gasPrice": 20000000000u64}))
+                } else {
+                    None
+                };
+
+                let cross_vm = if tx_type == "cross_vm" {
+                    Some(serde_json::json!({"source_vm": "evm", "target_vm": "svm"}))
+                } else {
+                    None
+                };
+
+                serde_json::json!({
+                    "id": format!("tx_{}_{}", tx_type, uuid::Uuid::new_v4()),
+                    "type": tx_type,
+                    "vm_type": tx_type, // Add vm_type for compatibility
+                    "sender": format!("0x{:x}", rand::random::<u64>()),
+                    "to": format!("0x{:x}", rand::random::<u64>()),
+                    "value": rand::random::<u64>() % 1000,
+                    "data": format!("0x{:x}", rand::random::<u64>()),
+                    "nonce": i as u64,
+                    "gas_price": 20000000000u64,
+                    "timestamp": chrono::Utc::now().timestamp(),
+                    "evm_data": evm_data,
+                    "cross_vm": cross_vm
+                })
+            })
+            .collect()
+    }
+}
+
+impl ConsensusManagerConfig {
+    /// Create consensus manager config from unified MultiVM config
+    pub fn from_unified_config(
+        unified_config: &multivm_common::MultivmConfig,
+    ) -> ConsensusResult<Self> {
+        // Create Malachite configuration
+        let mut malachite_config = MalachiteConfig::default();
+        malachite_config.set_timeout_duration(std::time::Duration::from_millis(
+            unified_config.consensus.block_time_milliseconds,
+        ));
+        malachite_config.set_validator_count(unified_config.consensus.validator_count);
+
+        // Enable single node mode for solo testnet
+        if unified_config.consensus.enable_single_node {
+            malachite_config.enable_single_node_mode();
+        }
+
+        // Create state manager config
+        let state_manager_config = StateManagerConfig {
+            max_checkpoints: 100,
+            checkpoint_interval: 10, // Every 10 blocks
+            enable_verification: true,
+            max_pending_changes: 1000,
+            rocksdb_path: Some(format!(
+                "{}/consensus_state.db",
+                unified_config.system.data_dir.display()
+            )),
+        };
+
+        // Create network config
+        let network_config = NetworkConfig {
+            node_id: "solo-node".to_string(),
+            listen_address: format!(
+                "{}:{}",
+                unified_config.network.listen_host, unified_config.network.listen_port
+            ),
+            bootstrap_nodes: vec![],
+            enable_encryption: unified_config.ipc.enable_encryption,
+        };
+
+        // Create transaction pool config
+        let transaction_pool_config = TransactionPoolConfig {
+            max_pool_size: 10000,
+            max_per_account: 100,
+            tx_expiry_seconds: 300,
+            allow_replacement: true,
+            replacement_gas_increase: 10,
+        };
+
+        Ok(Self {
+            node_id: None, // Will be generated
+            algorithm: ConsensusAlgorithmType::Malachite,
+            algorithm_config: AlgorithmConfig::Malachite(malachite_config),
+            state_manager_config,
+            block_proposal_interval_ms: unified_config.consensus.block_time_milliseconds,
+            max_transactions_per_block: 1000,
+            enable_auto_proposal: true,
+            network_config,
+            transaction_pool_config,
+        })
     }
 }

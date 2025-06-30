@@ -11,7 +11,7 @@ description = "Main application for the MultiVM platform"
 # Internal dependencies
 multivm-common = { path = "../multivm-common" }
 multivm-account-mapping = { path = "../multivm-account-mapping" }
-# multivm-consensus = { path = "../multivm-consensus" }  # Temporarily disabled due to malachite
+multivm-consensus = { path = "../multivm-consensus" }
 multivm-p2p = { path = "../multivm-p2p" }
 multivm-process-manager = { path = "../multivm-process-manager" }
 reth-execution-engine = { path = "../reth-execution-engine" }

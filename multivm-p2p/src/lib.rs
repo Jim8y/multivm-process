@@ -23,220 +23,121 @@
 //! └─────────────────┴─────────────────┴─────────────────────────┘
 //! ```
 
-// Remove global allow for production - clean up dead code instead
-#![cfg_attr(debug_assertions, allow(dead_code, unused_variables, unused_imports))]
+// Core modules
+pub mod config;
+pub mod error;
 
+// Core networking
+pub mod core {
+    pub mod manager;
+    pub mod network;
+}
+
+// Transport layer
+pub mod transport {
+    pub mod connection_manager;
+    pub mod transport;
+}
+
+// Security modules
+pub mod security {
+    pub mod audit;
+    pub mod auth;
+    pub mod dos_protection;
+    pub mod encryption;
+}
+
+// Protocol handling
+pub mod protocol {
+    pub mod messages;
+    pub mod protocol;
+    pub mod routing;
+}
+
+// Discovery modules
+pub mod discovery {
+    pub mod discovery;
+    pub mod gossip;
+}
+
+// Monitoring
+pub mod monitoring {
+    pub mod metrics;
+    pub mod monitoring;
+}
+
+// Additional modules
 pub mod admin;
 pub mod circuit_breaker;
-pub mod config;
-pub mod connection_manager;
-pub mod discovery;
-pub mod dos_protection;
-pub mod encryption;
-pub mod error;
-pub mod gossip;
+pub mod consensus_integration;
 pub mod load_balancer;
-pub mod manager;
-pub mod messages;
-pub mod monitoring;
-pub mod network;
-pub mod protocol;
 pub mod rate_limiter;
-pub mod routing;
 pub mod secure_network;
-pub mod security;
-pub mod transport;
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod message_tests;
-
-#[cfg(test)]
-mod network_tests;
-
-#[cfg(test)]
-mod security_tests;
-
-#[cfg(feature = "metrics")]
-pub mod metrics;
-
-
-#[cfg(not(feature = "metrics"))]
-pub mod metrics {
-    //! Stub metrics module when metrics feature is disabled
-
-    /// Stub for init_metrics when metrics are disabled
-    pub fn init_metrics() {}
-
-    /// Stub for record_message_sent when metrics are disabled
-    pub fn record_message_sent(_message_type: &str, _target_type: &str) {}
-
-    /// Stub for record_message_received when metrics are disabled
-    pub fn record_message_received(_message_type: &str, _source_peer: &str) {}
-
-    /// Stub for record_processing_duration when metrics are disabled
-    pub fn record_processing_duration(_message_type: &str, _duration: f64) {}
-
-    /// Stub for update_active_peers when metrics are disabled
-    pub fn update_active_peers(_peer_type: &str, _connection_status: &str, _count: f64) {}
-
-    /// Stub for update_bandwidth when metrics are disabled
-    pub fn update_bandwidth(_direction: &str, _protocol: &str, _bytes_per_sec: f64) {}
-
-    /// Stub for record_protocol_translation when metrics are disabled
-    pub fn record_protocol_translation(_source_vm: &str, _target_vm: &str, _status: &str) {}
-
-    /// Stub for record_routing_decision when metrics are disabled
-    pub fn record_routing_decision(_strategy: &str, _message_type: &str, _result: &str) {}
-
-    /// Stub for record_peer_discovery when metrics are disabled
-    pub fn record_peer_discovery(_method: &str, _result: &str) {}
-
-    /// Stub for update_network_health when metrics are disabled
-    pub fn update_network_health(_component: &str, _status: f64) {}
-
-    /// Stub for update_connection_pool when metrics are disabled
-    pub fn update_connection_pool(_pool_type: &str, _status: &str, _count: f64) {}
-
-    /// Stub for update_queue_depth when metrics are disabled
-    pub fn update_queue_depth(_queue_type: &str, _priority: &str, _depth: f64) {}
-
-    /// Stub for record_network_error when metrics are disabled
-    pub fn record_network_error(_error_type: &str, _severity: &str) {}
-
-    /// Stub for health_status_to_metric when metrics are disabled
-    pub fn health_status_to_metric(_status: &crate::network::NetworkHealthStatus) -> f64 {
-        0.0
-    }
-}
 
 // Test modules
-
-/// Information about a connected peer
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PeerInfo {
-    /// Peer ID as string
-    pub peer_id: String,
-    /// Multi-addresses the peer can be reached at
-    pub addresses: Vec<libp2p::Multiaddr>,
-    /// Protocol versions supported by the peer
-    pub protocols: Vec<String>,
-    /// Whether this peer supports MultiVM protocol
-    pub supports_multivm: bool,
-    /// Last seen timestamp
-    pub last_seen: chrono::DateTime<chrono::Utc>,
-    /// Connection status
-    pub status: PeerStatus,
+#[cfg(test)]
+pub mod tests {
+    pub mod integration_tests;
+    pub mod message_tests;
+    pub mod network_tests;
+    pub mod security_tests;
 }
 
-/// Status of a peer connection
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub enum PeerStatus {
-    /// Currently connected and active
-    Connected,
-    /// Attempting to connect
-    Connecting,
-    /// Recently disconnected
-    Disconnected,
-    /// Connection failed
-    Failed,
+// Re-exports for convenience
+pub use config::P2PConfig;
+pub use core::manager::{P2PManager, P2PManagerStats};
+pub use core::network::P2PNetwork;
+pub use error::{P2PError, P2PResult};
+pub use protocol::messages::{MessagePayload, NetworkMessage, Priority};
+pub use transport::transport::UnifiedTransport;
+
+// Type aliases
+pub type NodeId = libp2p::PeerId;
+pub type MessageId = uuid::Uuid;
+
+/// Version information for the P2P protocol
+pub const P2P_PROTOCOL_VERSION: &str = "1.0.0";
+
+/// Default P2P port
+pub const DEFAULT_P2P_PORT: u16 = 26656;
+
+/// Create a default P2P configuration
+pub fn default_config() -> P2PConfig {
+    P2PConfig::default()
 }
 
-// Re-export NetworkStats from common module
-pub use multivm_common::traits::monitoring::NetworkStats;
+/// Initialize the P2P module with tracing
+#[cfg(feature = "tracing-subscriber")]
+pub fn init_with_tracing() {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-// Re-export message types for external use
-pub use messages::{
-    ControlMessage, DiscoveryMessage, MessagePayload, MessageSource, MessageTarget, MultiVmMessage,
-    NetworkMessage, NodeStatus, VmType,
-};
-
-// Re-export network types
-pub use network::{NetworkConfig, NetworkHealthReport, NetworkHealthStatus, P2PNetwork};
-
-// Define the P2P network layer trait for consensus compatibility
-#[async_trait::async_trait]
-pub trait P2PNetworkLayer: Send + Sync {
-    async fn subscribe_to_topic(&mut self, topic: &str) -> multivm_common::MultivmResult<()>;
-    async fn broadcast_message(
-        &mut self,
-        message: messages::NetworkMessage,
-        topic: Option<String>,
-    ) -> multivm_common::MultivmResult<()>;
-    async fn send_message(
-        &mut self,
-        peer_id: String,
-        message: messages::NetworkMessage,
-    ) -> multivm_common::MultivmResult<()>;
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "multivm_p2p=debug,libp2p=info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 }
 
-// Implement the trait for P2PNetwork
-#[async_trait::async_trait]
-impl P2PNetworkLayer for P2PNetwork {
-    async fn subscribe_to_topic(&mut self, topic: &str) -> multivm_common::MultivmResult<()> {
-        self.subscribe_topic(topic).await
+/// Initialize the P2P module (no-op when tracing-subscriber is not available)
+#[cfg(not(feature = "tracing-subscriber"))]
+pub fn init_with_tracing() {
+    // No-op when tracing-subscriber is not available
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = default_config();
+        assert!(!config.network.listen_addresses.is_empty());
     }
 
-    async fn broadcast_message(
-        &mut self,
-        message: messages::NetworkMessage,
-        topic: Option<String>,
-    ) -> multivm_common::MultivmResult<()> {
-        if let Some(topic_name) = topic {
-            let data = bincode::serialize(&message).map_err(|e| {
-                multivm_common::MultivmError::Network {
-                    message: format!("Serialization failed: {e}"),
-                    endpoint: None,
-                    retry_after: None,
-                }
-            })?;
-            self.publish_message(&topic_name, data).await
-        } else {
-            self.broadcast(message).await
-        }
+    #[test]
+    fn test_protocol_version() {
+        assert_eq!(P2P_PROTOCOL_VERSION, "1.0.0");
     }
-
-    async fn send_message(
-        &mut self,
-        peer_id: String,
-        message: messages::NetworkMessage,
-    ) -> multivm_common::MultivmResult<()> {
-        self.send_to_peer(peer_id, message).await
-    }
-}
-
-/// Event emitted by the P2P network layer
-#[derive(Debug, Clone)]
-pub enum NetworkEvent {
-    /// A new peer has connected
-    PeerConnected(PeerInfo),
-    /// A peer has disconnected
-    PeerDisconnected(String),
-    /// A message was received
-    MessageReceived {
-        peer_id: String,
-        message: Box<crate::messages::NetworkMessage>,
-    },
-    /// A message was sent successfully
-    MessageSent { peer_id: String, message_id: String },
-    /// An error occurred
-    Error {
-        peer_id: Option<String>,
-        error: crate::error::P2PError,
-    },
-}
-
-/// Trait for handling network events
-#[async_trait::async_trait]
-pub trait NetworkEventHandler: Send + Sync {
-    /// Handle a network event
-    async fn handle_event(&self, event: NetworkEvent) -> multivm_common::MultivmResult<()>;
-
-    /// Handle peer connection event
-    async fn on_peer_connected(&self, peer_info: &PeerInfo) -> multivm_common::MultivmResult<()>;
-
-    /// Handle peer disconnection event
-    async fn on_peer_disconnected(&self, peer_id: &str) -> multivm_common::MultivmResult<()>;
 }
