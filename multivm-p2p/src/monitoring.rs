@@ -38,24 +38,24 @@ mod metrics_impl {
         pub total_connections: Counter,
         pub failed_connections: Counter,
         pub connection_duration: Histogram,
-        
+
         // Message metrics
         pub messages_sent: Counter,
         pub messages_received: Counter,
         pub message_processing_time: Histogram,
         pub message_size: Histogram,
-        
+
         // Network health metrics
         pub network_health_score: Gauge,
         pub peer_reputation_avg: Gauge,
         pub bandwidth_utilization: Gauge,
-        
+
         // Security metrics
         pub auth_failures: Counter,
         pub banned_peers: Gauge,
         pub rate_limit_violations: Counter,
         pub dos_attacks_detected: Counter,
-        
+
         // Performance metrics
         pub cpu_usage: Gauge,
         pub memory_usage: Gauge,
@@ -68,7 +68,7 @@ mod metrics_impl {
         pub fn new(config: AlertConfig) -> Result<Self, P2PError> {
             let registry = Arc::new(Registry::new());
             let metrics = Self::setup_metrics(&registry)?;
-            
+
             Ok(Self {
                 registry,
                 metrics,
@@ -81,81 +81,114 @@ mod metrics_impl {
         /// Setup Prometheus metrics
         fn setup_metrics(registry: &Arc<Registry>) -> Result<P2PMetrics, P2PError> {
             let metrics = P2PMetrics {
-                active_connections: Gauge::new("p2p_active_connections", "Number of active P2P connections")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                total_connections: Counter::new("p2p_total_connections", "Total P2P connections made")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                failed_connections: Counter::new("p2p_failed_connections_total", "Failed connection attempts")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                connection_duration: Histogram::new("p2p_connection_duration_seconds", "Connection duration")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                messages_sent: Counter::new("p2p_messages_sent_total", "Messages sent")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
+                active_connections: Gauge::new(
+                    "p2p_active_connections",
+                    "Number of active P2P connections",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                total_connections: Counter::new(
+                    "p2p_total_connections",
+                    "Total P2P connections made",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                failed_connections: Counter::new(
+                    "p2p_failed_connections_total",
+                    "Failed connection attempts",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                connection_duration: Histogram::new(
+                    "p2p_connection_duration_seconds",
+                    "Connection duration",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                messages_sent: Counter::new("p2p_messages_sent_total", "Messages sent").map_err(
+                    |e| P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
+                    },
+                )?,
                 messages_received: Counter::new("p2p_messages_received_total", "Messages received")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
+                    .map_err(|e| P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
                     })?,
-                message_processing_time: Histogram::new("p2p_message_processing_seconds", "Message processing time")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
+                message_processing_time: Histogram::new(
+                    "p2p_message_processing_seconds",
+                    "Message processing time",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
                 message_size: Histogram::new("p2p_message_size_bytes", "Message size in bytes")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
+                    .map_err(|e| P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
                     })?,
-                network_health_score: Gauge::new("p2p_network_health_score", "Network health score (0-1)")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                peer_reputation_avg: Gauge::new("p2p_peer_reputation_average", "Average peer reputation")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                bandwidth_utilization: Gauge::new("p2p_bandwidth_utilization", "Bandwidth utilization ratio")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
+                network_health_score: Gauge::new(
+                    "p2p_network_health_score",
+                    "Network health score (0-1)",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                peer_reputation_avg: Gauge::new(
+                    "p2p_peer_reputation_average",
+                    "Average peer reputation",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                bandwidth_utilization: Gauge::new(
+                    "p2p_bandwidth_utilization",
+                    "Bandwidth utilization ratio",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
                 auth_failures: Counter::new("p2p_auth_failures_total", "Authentication failures")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                banned_peers: Gauge::new("p2p_banned_peers", "Number of banned peers")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                rate_limit_violations: Counter::new("p2p_rate_limit_violations_total", "Rate limit violations")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                dos_attacks_detected: Counter::new("p2p_dos_attacks_detected_total", "DoS attacks detected")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
-                cpu_usage: Gauge::new("p2p_cpu_usage_ratio", "CPU usage ratio")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
+                    .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                banned_peers: Gauge::new("p2p_banned_peers", "Number of banned peers").map_err(
+                    |e| P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
+                    },
+                )?,
+                rate_limit_violations: Counter::new(
+                    "p2p_rate_limit_violations_total",
+                    "Rate limit violations",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                dos_attacks_detected: Counter::new(
+                    "p2p_dos_attacks_detected_total",
+                    "DoS attacks detected",
+                )
+                .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
+                cpu_usage: Gauge::new("p2p_cpu_usage_ratio", "CPU usage ratio").map_err(|e| {
+                    P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
+                    }
+                })?,
                 memory_usage: Gauge::new("p2p_memory_usage_bytes", "Memory usage in bytes")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
+                    .map_err(|e| P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
                     })?,
                 network_latency: Histogram::new("p2p_network_latency_seconds", "Network latency")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
-                    })?,
+                    .map_err(|e| P2PError::ConfigurationError {
+                    message: format!("metrics: {}", e.to_string()),
+                })?,
                 throughput: Gauge::new("p2p_throughput_messages_per_second", "Message throughput")
-                    .map_err(|e| P2PError::ConfigurationError { 
-                        message: format!("metrics: {}", e.to_string())
+                    .map_err(|e| P2PError::ConfigurationError {
+                        message: format!("metrics: {}", e.to_string()),
                     })?,
             };
 
@@ -190,15 +223,24 @@ mod metrics_impl {
                 self.metrics.failed_connections.inc();
             } else {
                 self.metrics.active_connections.inc();
-                self.metrics.connection_duration.observe(duration.as_secs_f64());
+                self.metrics
+                    .connection_duration
+                    .observe(duration.as_secs_f64());
             }
         }
 
         /// Record a message event
-        pub fn record_message_event(&self, message_type: &str, size: usize, processing_time: Duration) {
+        pub fn record_message_event(
+            &self,
+            message_type: &str,
+            size: usize,
+            processing_time: Duration,
+        ) {
             self.metrics.messages_received.inc();
             self.metrics.message_size.observe(size as f64);
-            self.metrics.message_processing_time.observe(processing_time.as_secs_f64());
+            self.metrics
+                .message_processing_time
+                .observe(processing_time.as_secs_f64());
         }
 
         /// Update network health metrics
@@ -233,15 +275,21 @@ mod metrics_impl {
             use prometheus::Encoder;
             let encoder = prometheus::TextEncoder::new();
             let metric_families = self.registry.gather();
-            encoder.encode_to_string(&metric_families).unwrap_or_default()
+            encoder
+                .encode_to_string(&metric_families)
+                .unwrap_or_default()
         }
 
         /// Send webhook alert
-        async fn send_webhook_alert(&self, webhook_url: &str, alert: &Alert) -> Result<(), P2PError> {
+        async fn send_webhook_alert(
+            &self,
+            webhook_url: &str,
+            alert: &Alert,
+        ) -> Result<(), P2PError> {
             let client = reqwest::Client::new();
-            let payload = serde_json::to_value(alert).map_err(|e| P2PError::InvalidMessage(
-                format!("Failed to serialize alert: {}", e)
-            ))?;
+            let payload = serde_json::to_value(alert).map_err(|e| {
+                P2PError::InvalidMessage(format!("Failed to serialize alert: {}", e))
+            })?;
 
             let response = client
                 .post(webhook_url)
@@ -294,16 +342,21 @@ mod stub_impl {
     impl P2PMonitor {
         /// Create a new stub monitor
         pub fn new(_config: AlertConfig) -> Result<Self, P2PError> {
-            Ok(Self {
-                _placeholder: (),
-            })
+            Ok(Self { _placeholder: () })
         }
 
         /// Stub for recording connection event
-        pub fn record_connection_event(&self, _peer_id: &str, _success: bool, _duration: Duration) {}
+        pub fn record_connection_event(&self, _peer_id: &str, _success: bool, _duration: Duration) {
+        }
 
         /// Stub for recording message event
-        pub fn record_message_event(&self, _message_type: &str, _size: usize, _processing_time: Duration) {}
+        pub fn record_message_event(
+            &self,
+            _message_type: &str,
+            _size: usize,
+            _processing_time: Duration,
+        ) {
+        }
 
         /// Stub for updating network health
         pub fn update_network_health(&self, _status: &NetworkHealthStatus) {}
