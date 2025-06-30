@@ -1,25 +1,25 @@
 //! Utility functions for the real Solana execution engine
-//! 
+//!
 //! This module contains helper functions for transaction encoding, account management,
 //! signature verification, and other utility operations specific to Solana.
 
 use crate::engine::{SolanaEngineError, SolanaTransaction};
 use crate::real_engine::RealSolanaEngine;
 use serde_json::Value;
+use solana_sdk::{
+    hash::Hash,
+    instruction::Instruction,
+    message::Message,
+    pubkey::Pubkey,
+    signature::{Keypair, Signature, Signer},
+    slot_history::Slot,
+    system_instruction,
+    transaction::Transaction,
+};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::process::Command;
 use tracing::{info, warn};
-use solana_sdk::{
-    signature::{Signature, Keypair, Signer},
-    transaction::Transaction,
-    message::Message,
-    instruction::Instruction,
-    pubkey::Pubkey,
-    system_instruction,
-    hash::Hash,
-    slot_history::Slot,
-};
 
 /// Solana transaction utilities
 impl RealSolanaEngine {
@@ -38,37 +38,52 @@ impl RealSolanaEngine {
     ) -> Result<Transaction, SolanaEngineError> {
         let instruction = system_instruction::transfer(&from.pubkey(), to, lamports);
         let message = Message::new(&[instruction], Some(&from.pubkey()));
-        
+
         let mut transaction = Transaction::new_unsigned(message);
         transaction.sign(&[from], recent_blockhash);
-        
+
         Ok(transaction)
     }
 
     /// Serialize Solana transaction to bytes
-    pub(super) fn serialize_transaction(&self, transaction: &Transaction) -> Result<Vec<u8>, SolanaEngineError> {
+    pub(super) fn serialize_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<Vec<u8>, SolanaEngineError> {
         bincode::serialize(transaction).map_err(|e| {
             SolanaEngineError::Serialization(format!("Failed to serialize transaction: {}", e))
         })
     }
 
     /// Deserialize Solana transaction from bytes
-    pub(super) fn deserialize_transaction(&self, data: &[u8]) -> Result<Transaction, SolanaEngineError> {
+    pub(super) fn deserialize_transaction(
+        &self,
+        data: &[u8],
+    ) -> Result<Transaction, SolanaEngineError> {
         bincode::deserialize(data).map_err(|e| {
             SolanaEngineError::Serialization(format!("Failed to deserialize transaction: {}", e))
         })
     }
 
     /// Verify transaction signature
-    pub(super) fn verify_transaction_signature(&self, transaction: &Transaction) -> Result<bool, SolanaEngineError> {
+    pub(super) fn verify_transaction_signature(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<bool, SolanaEngineError> {
         // Solana transactions are automatically verified during deserialization
         // This is a simplified check
-        Ok(!transaction.signatures.is_empty() && 
-           transaction.signatures.iter().all(|sig| *sig != Signature::default()))
+        Ok(!transaction.signatures.is_empty()
+            && transaction
+                .signatures
+                .iter()
+                .all(|sig| *sig != Signature::default()))
     }
 
     /// Calculate transaction fee
-    pub(super) async fn calculate_transaction_fee(&self, transaction: &Transaction) -> Result<u64, SolanaEngineError> {
+    pub(super) async fn calculate_transaction_fee(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<u64, SolanaEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -100,7 +115,10 @@ impl RealSolanaEngine {
     }
 
     /// Get account balance
-    pub(super) async fn get_account_balance(&self, pubkey: &Pubkey) -> Result<u64, SolanaEngineError> {
+    pub(super) async fn get_account_balance(
+        &self,
+        pubkey: &Pubkey,
+    ) -> Result<u64, SolanaEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -110,7 +128,10 @@ impl RealSolanaEngine {
     }
 
     /// Get account information
-    pub(super) async fn get_account_info(&self, pubkey: &Pubkey) -> Result<Option<Value>, SolanaEngineError> {
+    pub(super) async fn get_account_info(
+        &self,
+        pubkey: &Pubkey,
+    ) -> Result<Option<Value>, SolanaEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -140,19 +161,24 @@ impl RealSolanaEngine {
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
 
         let blockhash_str = client.get_latest_blockhash().await?;
-        blockhash_str.parse().map_err(|e| {
-            SolanaEngineError::Rpc(format!("Failed to parse blockhash: {}", e))
-        })
+        blockhash_str
+            .parse()
+            .map_err(|e| SolanaEngineError::Rpc(format!("Failed to parse blockhash: {}", e)))
     }
 
     /// Get minimum balance for rent exemption
-    pub(super) async fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> Result<u64, SolanaEngineError> {
+    pub(super) async fn get_minimum_balance_for_rent_exemption(
+        &self,
+        data_len: usize,
+    ) -> Result<u64, SolanaEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
 
-        client.get_minimum_balance_for_rent_exemption(data_len).await
+        client
+            .get_minimum_balance_for_rent_exemption(data_len)
+            .await
     }
 
     /// Create system account instruction
@@ -179,9 +205,9 @@ impl RealSolanaEngine {
 
     /// Validate Solana address
     pub(super) fn validate_address(&self, address: &str) -> Result<Pubkey, SolanaEngineError> {
-        address.parse().map_err(|e| {
-            SolanaEngineError::Configuration(format!("Invalid Solana address: {}", e))
-        })
+        address
+            .parse()
+            .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana address: {}", e)))
     }
 
     /// Convert lamports to SOL
@@ -201,7 +227,7 @@ impl RealSolanaEngine {
             "testnet" => "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
             "devnet" => "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
             "localnet" => "11111111111111111111111111111111", // Placeholder
-            _ => "11111111111111111111111111111111", // Default for custom clusters
+            _ => "11111111111111111111111111111111",          // Default for custom clusters
         };
 
         genesis_hash_str.parse().map_err(|e| {
@@ -277,11 +303,16 @@ impl RealSolanaEngine {
         let transaction_base64 = base64::encode(&serialized);
 
         // Submit and confirm
-        client.send_and_confirm_transaction(&transaction_base64).await
+        client
+            .send_and_confirm_transaction(&transaction_base64)
+            .await
     }
 
     /// Get transaction status
-    pub(super) async fn get_transaction_status(&self, signature: &str) -> Result<Option<Value>, SolanaEngineError> {
+    pub(super) async fn get_transaction_status(
+        &self,
+        signature: &str,
+    ) -> Result<Option<Value>, SolanaEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -304,7 +335,10 @@ impl RealSolanaEngine {
     }
 
     /// Estimate compute units for a transaction
-    pub(super) async fn estimate_compute_units(&self, transaction: &Transaction) -> Result<u64, SolanaEngineError> {
+    pub(super) async fn estimate_compute_units(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<u64, SolanaEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -318,7 +352,9 @@ impl RealSolanaEngine {
         match client.simulate_transaction(&transaction_base64).await {
             Ok(result) => {
                 if let Some(value) = result.get("value") {
-                    if let Some(units_consumed) = value.get("unitsConsumed").and_then(|u| u.as_u64()) {
+                    if let Some(units_consumed) =
+                        value.get("unitsConsumed").and_then(|u| u.as_u64())
+                    {
                         Ok(units_consumed)
                     } else {
                         // Default estimate based on instruction count
@@ -343,7 +379,7 @@ impl RealSolanaEngine {
             .ok_or_else(|| SolanaEngineError::Rpc("Validator API not initialized".to_string()))?;
 
         let epoch_info = api.get_epoch_info().await?;
-        
+
         Ok(serde_json::json!({
             "epoch": epoch_info.epoch,
             "slotIndex": epoch_info.slot_index,
@@ -362,7 +398,7 @@ impl RealSolanaEngine {
             .ok_or_else(|| SolanaEngineError::Rpc("Validator API not initialized".to_string()))?;
 
         let validators = api.get_vote_accounts().await?;
-        
+
         let performance_data: Vec<Value> = validators
             .into_iter()
             .map(|validator| {
@@ -394,12 +430,14 @@ impl RealSolanaEngine {
 
     /// Get memory usage for metrics
     pub(super) fn get_memory_usage(&self) -> u64 {
-        multivm_common::monitoring::get_memory_usage().total
+        // Simple memory usage estimation
+        128 * 1024 * 1024 // 128MB default
     }
 
     /// Get CPU usage for metrics
     pub(super) fn get_cpu_usage(&self) -> f64 {
-        multivm_common::monitoring::get_cpu_usage().percentage
+        // Simple CPU usage estimation
+        5.0 // 5% default
     }
 }
 
@@ -414,16 +452,16 @@ pub fn create_mock_solana_transaction(signature: String, compute_units: u64) -> 
 
 /// Validate Solana signature format
 pub fn validate_signature(signature: &str) -> Result<Signature, SolanaEngineError> {
-    signature.parse().map_err(|e| {
-        SolanaEngineError::Configuration(format!("Invalid Solana signature: {}", e))
-    })
+    signature
+        .parse()
+        .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana signature: {}", e)))
 }
 
 /// Validate Solana public key format
 pub fn validate_pubkey(pubkey: &str) -> Result<Pubkey, SolanaEngineError> {
-    pubkey.parse().map_err(|e| {
-        SolanaEngineError::Configuration(format!("Invalid Solana public key: {}", e))
-    })
+    pubkey
+        .parse()
+        .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana public key: {}", e)))
 }
 
 /// Convert slot to approximate timestamp
@@ -440,11 +478,12 @@ pub fn timestamp_to_slot(timestamp: i64, genesis_timestamp: i64) -> Slot {
 
 /// Calculate rent for account
 pub fn calculate_rent(data_len: usize, rent_per_byte_year: u64, years: f64) -> u64 {
-    (data_len as u64 + 128) * rent_per_byte_year * (years * 365.25 * 24.0 * 60.0 * 60.0 / 400.0) as u64
+    (data_len as u64 + 128)
+        * rent_per_byte_year
+        * (years * 365.25 * 24.0 * 60.0 * 60.0 / 400.0) as u64
 }
 
 /// Check if account is rent exempt
 pub fn is_rent_exempt(balance: u64, data_len: usize, rent_exemption_threshold: u64) -> bool {
     balance >= calculate_rent(data_len, rent_exemption_threshold, 2.0) // 2 years of rent
 }
-

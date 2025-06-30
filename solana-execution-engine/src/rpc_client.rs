@@ -1,5 +1,5 @@
 //! JSON-RPC client for Solana validator communication
-//! 
+//!
 //! This module provides a comprehensive RPC client for communicating with Solana validators
 //! via standard Solana JSON-RPC methods. It includes connection pooling, retry logic,
 //! and proper error handling for production use.
@@ -7,14 +7,14 @@
 use crate::engine::SolanaEngineError;
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::time::Duration;
-use tracing::{debug, warn};
 use solana_sdk::{
+    commitment_config::{CommitmentConfig, CommitmentLevel},
+    pubkey::Pubkey,
     signature::Signature,
     slot_history::Slot,
-    pubkey::Pubkey,
-    commitment_config::{CommitmentConfig, CommitmentLevel},
 };
+use std::time::Duration;
+use tracing::{debug, warn};
 
 /// JSON-RPC client for Solana validator communication
 pub struct SolanaRpcClient {
@@ -116,8 +116,10 @@ impl SolanaRpcClient {
 
     /// Get current slot
     pub async fn get_slot(&self) -> Result<Slot, SolanaEngineError> {
-        let response = self.make_request("getSlot", json!([self.commitment])).await?;
-        
+        let response = self
+            .make_request("getSlot", json!([self.commitment]))
+            .await?;
+
         if let Some(slot) = response.get("result").and_then(|r| r.as_u64()) {
             Ok(slot)
         } else {
@@ -127,82 +129,118 @@ impl SolanaRpcClient {
 
     /// Get block height
     pub async fn get_block_height(&self) -> Result<u64, SolanaEngineError> {
-        let response = self.make_request("getBlockHeight", json!([self.commitment])).await?;
-        
+        let response = self
+            .make_request("getBlockHeight", json!([self.commitment]))
+            .await?;
+
         if let Some(height) = response.get("result").and_then(|r| r.as_u64()) {
             Ok(height)
         } else {
-            Err(SolanaEngineError::Rpc("Invalid block height response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid block height response".to_string(),
+            ))
         }
     }
 
     /// Get balance of an account
     pub async fn get_balance(&self, pubkey: &str) -> Result<u64, SolanaEngineError> {
-        let response = self.make_request("getBalance", json!([pubkey, self.commitment])).await?;
-        
+        let response = self
+            .make_request("getBalance", json!([pubkey, self.commitment]))
+            .await?;
+
         if let Some(balance_obj) = response.get("result") {
             if let Some(value) = balance_obj.get("value").and_then(|v| v.as_u64()) {
                 Ok(value)
             } else {
-                Err(SolanaEngineError::Rpc("Invalid balance response format".to_string()))
+                Err(SolanaEngineError::Rpc(
+                    "Invalid balance response format".to_string(),
+                ))
             }
         } else {
-            Err(SolanaEngineError::Rpc("Invalid balance response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid balance response".to_string(),
+            ))
         }
     }
 
     /// Get account information
-    pub async fn get_account_info(&self, pubkey: &str) -> Result<Option<SolanaAccountInfo>, SolanaEngineError> {
-        let response = self.make_request("getAccountInfo", json!([pubkey, {"encoding": "base64", "commitment": self.commitment.commitment}])).await?;
-        
+    pub async fn get_account_info(
+        &self,
+        pubkey: &str,
+    ) -> Result<Option<SolanaAccountInfo>, SolanaEngineError> {
+        let response = self
+            .make_request(
+                "getAccountInfo",
+                json!([pubkey, {"encoding": "base64", "commitment": self.commitment.commitment}]),
+            )
+            .await?;
+
         if let Some(result) = response.get("result") {
             if result.get("value").is_none() || result.get("value").unwrap().is_null() {
                 return Ok(None);
             }
-            
+
             let account_data = result.get("value").unwrap();
             let account_info = self.parse_account_info(pubkey, account_data)?;
             Ok(Some(account_info))
         } else {
-            Err(SolanaEngineError::Rpc("Invalid account info response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid account info response".to_string(),
+            ))
         }
     }
 
     /// Send transaction
     pub async fn send_transaction(&self, transaction: &str) -> Result<String, SolanaEngineError> {
-        let response = self.make_request("sendTransaction", json!([transaction, {"encoding": "base64"}])).await?;
-        
+        let response = self
+            .make_request(
+                "sendTransaction",
+                json!([transaction, {"encoding": "base64"}]),
+            )
+            .await?;
+
         if let Some(signature) = response.get("result").and_then(|r| r.as_str()) {
             Ok(signature.to_string())
         } else if let Some(error) = response.get("error") {
-            Err(SolanaEngineError::Rpc(format!("Transaction rejected: {}", error)))
+            Err(SolanaEngineError::Rpc(format!(
+                "Transaction rejected: {}",
+                error
+            )))
         } else {
-            Err(SolanaEngineError::Rpc("Invalid transaction response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid transaction response".to_string(),
+            ))
         }
     }
 
     /// Send and confirm transaction
-    pub async fn send_and_confirm_transaction(&self, transaction: &str) -> Result<String, SolanaEngineError> {
+    pub async fn send_and_confirm_transaction(
+        &self,
+        transaction: &str,
+    ) -> Result<String, SolanaEngineError> {
         // First send the transaction
         let signature = self.send_transaction(transaction).await?;
-        
+
         // Then wait for confirmation
         self.confirm_transaction(&signature).await?;
-        
+
         Ok(signature)
     }
 
     /// Confirm transaction
     pub async fn confirm_transaction(&self, signature: &str) -> Result<(), SolanaEngineError> {
         let max_attempts = 30; // 30 seconds with 1 second intervals
-        
+
         for _ in 0..max_attempts {
             match self.get_signature_status(signature).await? {
                 Some(status) => {
-                    if status.confirmation_status == "finalized" || status.confirmation_status == "confirmed" {
+                    if status.confirmation_status == "finalized"
+                        || status.confirmation_status == "confirmed"
+                    {
                         if status.err.is_some() {
                             return Err(SolanaEngineError::Transaction(format!(
-                                "Transaction failed: {:?}", status.err
+                                "Transaction failed: {:?}",
+                                status.err
                             )));
                         }
                         return Ok(());
@@ -212,42 +250,59 @@ impl SolanaRpcClient {
                     // Transaction not found yet, continue waiting
                 }
             }
-            
+
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        
-        Err(SolanaEngineError::Transaction("Transaction confirmation timeout".to_string()))
+
+        Err(SolanaEngineError::Transaction(
+            "Transaction confirmation timeout".to_string(),
+        ))
     }
 
     /// Get signature status
-    pub async fn get_signature_status(&self, signature: &str) -> Result<Option<SolanaRpcTransactionReceipt>, SolanaEngineError> {
-        let response = self.make_request("getSignatureStatuses", json!([[signature], {"searchTransactionHistory": true}])).await?;
-        
+    pub async fn get_signature_status(
+        &self,
+        signature: &str,
+    ) -> Result<Option<SolanaRpcTransactionReceipt>, SolanaEngineError> {
+        let response = self
+            .make_request(
+                "getSignatureStatuses",
+                json!([[signature], {"searchTransactionHistory": true}]),
+            )
+            .await?;
+
         if let Some(result) = response.get("result") {
             if let Some(value) = result.get("value").and_then(|v| v.as_array()) {
                 if let Some(status) = value.get(0) {
                     if status.is_null() {
                         return Ok(None);
                     }
-                    
+
                     let receipt = self.parse_transaction_receipt(signature, status)?;
                     return Ok(Some(receipt));
                 }
             }
         }
-        
-        Err(SolanaEngineError::Rpc("Invalid signature status response".to_string()))
+
+        Err(SolanaEngineError::Rpc(
+            "Invalid signature status response".to_string(),
+        ))
     }
 
     /// Get block by slot
     pub async fn get_block(&self, slot: Slot) -> Result<Option<SolanaRpcBlock>, SolanaEngineError> {
-        let response = self.make_request("getBlock", json!([slot, {"encoding": "json", "transactionDetails": "full", "rewards": false}])).await?;
-        
+        let response = self
+            .make_request(
+                "getBlock",
+                json!([slot, {"encoding": "json", "transactionDetails": "full", "rewards": false}]),
+            )
+            .await?;
+
         if let Some(block_data) = response.get("result") {
             if block_data.is_null() {
                 return Ok(None);
             }
-            
+
             let block = self.parse_block(slot, block_data)?;
             Ok(Some(block))
         } else {
@@ -257,45 +312,61 @@ impl SolanaRpcClient {
 
     /// Get latest blockhash
     pub async fn get_latest_blockhash(&self) -> Result<String, SolanaEngineError> {
-        let response = self.make_request("getLatestBlockhash", json!([self.commitment])).await?;
-        
+        let response = self
+            .make_request("getLatestBlockhash", json!([self.commitment]))
+            .await?;
+
         if let Some(result) = response.get("result") {
-            if let Some(blockhash) = result.get("value").and_then(|v| v.get("blockhash")).and_then(|b| b.as_str()) {
+            if let Some(blockhash) = result
+                .get("value")
+                .and_then(|v| v.get("blockhash"))
+                .and_then(|b| b.as_str())
+            {
                 Ok(blockhash.to_string())
             } else {
-                Err(SolanaEngineError::Rpc("Invalid blockhash response format".to_string()))
+                Err(SolanaEngineError::Rpc(
+                    "Invalid blockhash response format".to_string(),
+                ))
             }
         } else {
-            Err(SolanaEngineError::Rpc("Invalid blockhash response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid blockhash response".to_string(),
+            ))
         }
     }
 
     /// Get transaction count
     pub async fn get_transaction_count(&self) -> Result<u64, SolanaEngineError> {
-        let response = self.make_request("getTransactionCount", json!([self.commitment])).await?;
-        
+        let response = self
+            .make_request("getTransactionCount", json!([self.commitment]))
+            .await?;
+
         if let Some(count) = response.get("result").and_then(|r| r.as_u64()) {
             Ok(count)
         } else {
-            Err(SolanaEngineError::Rpc("Invalid transaction count response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid transaction count response".to_string(),
+            ))
         }
     }
 
     /// Get version information
     pub async fn get_version(&self) -> Result<Value, SolanaEngineError> {
         let response = self.make_request("getVersion", json!([])).await?;
-        
+
         if let Some(version) = response.get("result") {
             Ok(version.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid version response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid version response".to_string(),
+            ))
         }
     }
 
     /// Get health status
     pub async fn get_health(&self) -> Result<String, SolanaEngineError> {
         let response = self.make_request("getHealth", json!([])).await?;
-        
+
         if let Some(health) = response.get("result").and_then(|r| r.as_str()) {
             Ok(health.to_string())
         } else {
@@ -303,30 +374,44 @@ impl SolanaRpcClient {
             if response.as_str() == Some("ok") {
                 Ok("ok".to_string())
             } else {
-                Err(SolanaEngineError::Rpc("Invalid health response".to_string()))
+                Err(SolanaEngineError::Rpc(
+                    "Invalid health response".to_string(),
+                ))
             }
         }
     }
 
     /// Estimate compute units for a transaction
-    pub async fn simulate_transaction(&self, transaction: &str) -> Result<Value, SolanaEngineError> {
+    pub async fn simulate_transaction(
+        &self,
+        transaction: &str,
+    ) -> Result<Value, SolanaEngineError> {
         let response = self.make_request("simulateTransaction", json!([transaction, {"encoding": "base64", "commitment": self.commitment.commitment}])).await?;
-        
+
         if let Some(result) = response.get("result") {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid simulation response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid simulation response".to_string(),
+            ))
         }
     }
 
     /// Get minimum balance for rent exemption
-    pub async fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> Result<u64, SolanaEngineError> {
-        let response = self.make_request("getMinimumBalanceForRentExemption", json!([data_len])).await?;
-        
+    pub async fn get_minimum_balance_for_rent_exemption(
+        &self,
+        data_len: usize,
+    ) -> Result<u64, SolanaEngineError> {
+        let response = self
+            .make_request("getMinimumBalanceForRentExemption", json!([data_len]))
+            .await?;
+
         if let Some(balance) = response.get("result").and_then(|r| r.as_u64()) {
             Ok(balance)
         } else {
-            Err(SolanaEngineError::Rpc("Invalid rent exemption response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid rent exemption response".to_string(),
+            ))
         }
     }
 
@@ -351,7 +436,8 @@ impl SolanaRpcClient {
 
             debug!("Solana RPC request: {} (attempt {})", method, attempt);
 
-            match self.client
+            match self
+                .client
                 .post(&self.rpc_url)
                 .header("Content-Type", "application/json")
                 .json(&rpc_request)
@@ -365,17 +451,25 @@ impl SolanaRpcClient {
                             return Ok(result);
                         }
                         Err(e) => {
-                            warn!("Failed to parse Solana RPC response on attempt {}: {}", attempt, e);
+                            warn!(
+                                "Failed to parse Solana RPC response on attempt {}: {}",
+                                attempt, e
+                            );
                             if attempt == self.max_retries {
                                 return Err(SolanaEngineError::Rpc(format!(
-                                    "Failed to parse RPC response: {}", e
+                                    "Failed to parse RPC response: {}",
+                                    e
                                 )));
                             }
                         }
                     }
                 }
                 Ok(response) => {
-                    warn!("Solana RPC returned error status on attempt {}: {}", attempt, response.status());
+                    warn!(
+                        "Solana RPC returned error status on attempt {}: {}",
+                        attempt,
+                        response.status()
+                    );
                     if attempt == self.max_retries {
                         return Err(SolanaEngineError::Rpc(format!(
                             "RPC returned error status: {}",
@@ -401,21 +495,29 @@ impl SolanaRpcClient {
     }
 
     /// Parse account information from JSON
-    fn parse_account_info(&self, pubkey: &str, account_data: &Value) -> Result<SolanaAccountInfo, SolanaEngineError> {
-        let lamports = account_data.get("lamports")
+    fn parse_account_info(
+        &self,
+        pubkey: &str,
+        account_data: &Value,
+    ) -> Result<SolanaAccountInfo, SolanaEngineError> {
+        let lamports = account_data
+            .get("lamports")
             .and_then(|l| l.as_u64())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing lamports".to_string()))?;
 
-        let owner = account_data.get("owner")
+        let owner = account_data
+            .get("owner")
             .and_then(|o| o.as_str())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing owner".to_string()))?
             .to_string();
 
-        let executable = account_data.get("executable")
+        let executable = account_data
+            .get("executable")
             .and_then(|e| e.as_bool())
             .unwrap_or(false);
 
-        let rent_epoch = account_data.get("rentEpoch")
+        let rent_epoch = account_data
+            .get("rentEpoch")
             .and_then(|r| r.as_u64())
             .unwrap_or(0);
 
@@ -442,12 +544,20 @@ impl SolanaRpcClient {
     }
 
     /// Parse transaction receipt from JSON
-    fn parse_transaction_receipt(&self, signature: &str, status_data: &Value) -> Result<SolanaRpcTransactionReceipt, SolanaEngineError> {
-        let slot = status_data.get("slot")
+    fn parse_transaction_receipt(
+        &self,
+        signature: &str,
+        status_data: &Value,
+    ) -> Result<SolanaRpcTransactionReceipt, SolanaEngineError> {
+        let slot = status_data
+            .get("slot")
             .and_then(|s| s.as_u64())
-            .ok_or_else(|| SolanaEngineError::Rpc("Missing slot in transaction status".to_string()))?;
+            .ok_or_else(|| {
+                SolanaEngineError::Rpc("Missing slot in transaction status".to_string())
+            })?;
 
-        let confirmation_status = status_data.get("confirmationStatus")
+        let confirmation_status = status_data
+            .get("confirmationStatus")
             .and_then(|c| c.as_str())
             .unwrap_or("processed")
             .to_string();
@@ -467,33 +577,40 @@ impl SolanaRpcClient {
     }
 
     /// Parse block data from JSON
-    fn parse_block(&self, slot: Slot, block_data: &Value) -> Result<SolanaRpcBlock, SolanaEngineError> {
-        let block_hash = block_data.get("blockhash")
+    fn parse_block(
+        &self,
+        slot: Slot,
+        block_data: &Value,
+    ) -> Result<SolanaRpcBlock, SolanaEngineError> {
+        let block_hash = block_data
+            .get("blockhash")
             .and_then(|h| h.as_str())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing block hash".to_string()))?
             .to_string();
 
-        let parent_slot = block_data.get("parentSlot")
+        let parent_slot = block_data
+            .get("parentSlot")
             .and_then(|p| p.as_u64())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing parent slot".to_string()))?;
 
-        let block_time = block_data.get("blockTime")
-            .and_then(|t| t.as_i64());
+        let block_time = block_data.get("blockTime").and_then(|t| t.as_i64());
 
-        let block_height = block_data.get("blockHeight")
-            .and_then(|h| h.as_u64());
+        let block_height = block_data.get("blockHeight").and_then(|h| h.as_u64());
 
-        let transactions = block_data.get("transactions")
+        let transactions = block_data
+            .get("transactions")
             .and_then(|t| t.as_array())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing transactions".to_string()))?
             .clone();
 
-        let rewards = block_data.get("rewards")
+        let rewards = block_data
+            .get("rewards")
             .and_then(|r| r.as_array())
             .unwrap_or(&vec![])
             .clone();
 
-        let previous_blockhash = block_data.get("previousBlockhash")
+        let previous_blockhash = block_data
+            .get("previousBlockhash")
             .and_then(|p| p.as_str())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing previous blockhash".to_string()))?
             .to_string();
@@ -564,7 +681,8 @@ impl SolanaRpcClientBuilder {
     }
 
     pub fn build(self) -> Result<SolanaRpcClient, SolanaEngineError> {
-        let rpc_url = self.rpc_url
+        let rpc_url = self
+            .rpc_url
             .ok_or_else(|| SolanaEngineError::Configuration("RPC URL is required".to_string()))?;
 
         SolanaRpcClient::new(

@@ -1,18 +1,18 @@
 //! Solana validator API client for advanced operations
-//! 
+//!
 //! This module provides specialized API methods for interacting with Solana validators,
 //! including slot management, account subscriptions, and validator-specific operations.
 
 use crate::engine::SolanaEngineError;
 use reqwest::Client;
 use serde_json::{json, Value};
+use solana_sdk::{
+    commitment_config::{CommitmentConfig, CommitmentLevel},
+    pubkey::Pubkey,
+    slot_history::Slot,
+};
 use std::time::Duration;
 use tracing::{debug, info, warn};
-use solana_sdk::{
-    slot_history::Slot,
-    pubkey::Pubkey,
-    commitment_config::{CommitmentConfig, CommitmentLevel},
-};
 
 /// Solana validator API client for advanced operations
 pub struct SolanaValidatorApi {
@@ -107,7 +107,9 @@ impl SolanaValidatorApi {
             .pool_idle_timeout(Duration::from_secs(30))
             .tcp_keepalive(Duration::from_secs(60))
             .build()
-            .map_err(|e| SolanaEngineError::Rpc(format!("Failed to create validator API client: {}", e)))?;
+            .map_err(|e| {
+                SolanaEngineError::Rpc(format!("Failed to create validator API client: {}", e))
+            })?;
 
         Ok(Self {
             client,
@@ -123,17 +125,26 @@ impl SolanaValidatorApi {
     pub async fn get_slot_info(&self) -> Result<SlotInfo, SolanaEngineError> {
         // Get current slot
         let slot_response = self.make_request("getSlot", json!([])).await?;
-        let slot = slot_response.get("result")
+        let slot = slot_response
+            .get("result")
             .and_then(|r| r.as_u64())
             .ok_or_else(|| SolanaEngineError::Rpc("Invalid slot response".to_string()))?;
 
         // Get slot leaders to find parent
-        let leaders_response = self.make_request("getSlotLeaders", json!([slot.saturating_sub(1), 2])).await?;
+        let leaders_response = self
+            .make_request("getSlotLeaders", json!([slot.saturating_sub(1), 2]))
+            .await?;
         let parent = slot.saturating_sub(1);
 
         // Get confirmed and finalized slots
-        let confirmed_slot = self.get_slot_with_commitment(CommitmentLevel::Confirmed).await.ok();
-        let finalized_slot = self.get_slot_with_commitment(CommitmentLevel::Finalized).await.ok();
+        let confirmed_slot = self
+            .get_slot_with_commitment(CommitmentLevel::Confirmed)
+            .await
+            .ok();
+        let finalized_slot = self
+            .get_slot_with_commitment(CommitmentLevel::Finalized)
+            .await
+            .ok();
 
         // For root slot, use finalized slot or a conservative estimate
         let root = finalized_slot.unwrap_or(slot.saturating_sub(32));
@@ -148,10 +159,15 @@ impl SolanaValidatorApi {
     }
 
     /// Get slot with specific commitment level
-    pub async fn get_slot_with_commitment(&self, commitment: CommitmentLevel) -> Result<Slot, SolanaEngineError> {
+    pub async fn get_slot_with_commitment(
+        &self,
+        commitment: CommitmentLevel,
+    ) -> Result<Slot, SolanaEngineError> {
         let commitment_config = CommitmentConfig { commitment };
-        let response = self.make_request("getSlot", json!([commitment_config])).await?;
-        
+        let response = self
+            .make_request("getSlot", json!([commitment_config]))
+            .await?;
+
         if let Some(slot) = response.get("result").and_then(|r| r.as_u64()) {
             Ok(slot)
         } else {
@@ -162,21 +178,25 @@ impl SolanaValidatorApi {
     /// Get epoch information
     pub async fn get_epoch_info(&self) -> Result<EpochInfo, SolanaEngineError> {
         let response = self.make_request("getEpochInfo", json!([])).await?;
-        
+
         if let Some(result) = response.get("result") {
-            let epoch = result.get("epoch")
+            let epoch = result
+                .get("epoch")
                 .and_then(|e| e.as_u64())
                 .ok_or_else(|| SolanaEngineError::Rpc("Missing epoch".to_string()))?;
 
-            let slot_index = result.get("slotIndex")
+            let slot_index = result
+                .get("slotIndex")
                 .and_then(|s| s.as_u64())
                 .ok_or_else(|| SolanaEngineError::Rpc("Missing slot index".to_string()))?;
 
-            let slots_in_epoch = result.get("slotsInEpoch")
+            let slots_in_epoch = result
+                .get("slotsInEpoch")
                 .and_then(|s| s.as_u64())
                 .ok_or_else(|| SolanaEngineError::Rpc("Missing slots in epoch".to_string()))?;
 
-            let absolute_slot = result.get("absoluteSlot")
+            let absolute_slot = result
+                .get("absoluteSlot")
                 .and_then(|s| s.as_u64())
                 .ok_or_else(|| SolanaEngineError::Rpc("Missing absolute slot".to_string()))?;
 
@@ -192,14 +212,16 @@ impl SolanaValidatorApi {
                 transaction_count,
             })
         } else {
-            Err(SolanaEngineError::Rpc("Invalid epoch info response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid epoch info response".to_string(),
+            ))
         }
     }
 
     /// Get validator performance metrics
     pub async fn get_vote_accounts(&self) -> Result<Vec<ValidatorPerformance>, SolanaEngineError> {
         let response = self.make_request("getVoteAccounts", json!([])).await?;
-        
+
         if let Some(result) = response.get("result") {
             let mut validators = Vec::new();
 
@@ -223,73 +245,93 @@ impl SolanaValidatorApi {
 
             Ok(validators)
         } else {
-            Err(SolanaEngineError::Rpc("Invalid vote accounts response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid vote accounts response".to_string(),
+            ))
         }
     }
 
     /// Get cluster nodes information
     pub async fn get_cluster_nodes(&self) -> Result<Vec<Value>, SolanaEngineError> {
         let response = self.make_request("getClusterNodes", json!([])).await?;
-        
+
         if let Some(result) = response.get("result").and_then(|r| r.as_array()) {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid cluster nodes response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid cluster nodes response".to_string(),
+            ))
         }
     }
 
     /// Get supply information
     pub async fn get_supply(&self) -> Result<Value, SolanaEngineError> {
         let response = self.make_request("getSupply", json!([])).await?;
-        
+
         if let Some(result) = response.get("result") {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid supply response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid supply response".to_string(),
+            ))
         }
     }
 
     /// Get inflation rate
     pub async fn get_inflation_rate(&self) -> Result<Value, SolanaEngineError> {
         let response = self.make_request("getInflationRate", json!([])).await?;
-        
+
         if let Some(result) = response.get("result") {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid inflation rate response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid inflation rate response".to_string(),
+            ))
         }
     }
 
     /// Get recent performance samples
-    pub async fn get_recent_performance_samples(&self, limit: Option<usize>) -> Result<Vec<Value>, SolanaEngineError> {
+    pub async fn get_recent_performance_samples(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<Vec<Value>, SolanaEngineError> {
         let params = if let Some(limit) = limit {
             json!([limit])
         } else {
             json!([])
         };
 
-        let response = self.make_request("getRecentPerformanceSamples", params).await?;
-        
+        let response = self
+            .make_request("getRecentPerformanceSamples", params)
+            .await?;
+
         if let Some(result) = response.get("result").and_then(|r| r.as_array()) {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid performance samples response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid performance samples response".to_string(),
+            ))
         }
     }
 
     /// Get block production information
     pub async fn get_block_production(&self) -> Result<Value, SolanaEngineError> {
         let response = self.make_request("getBlockProduction", json!([])).await?;
-        
+
         if let Some(result) = response.get("result") {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid block production response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid block production response".to_string(),
+            ))
         }
     }
 
     /// Get leader schedule
-    pub async fn get_leader_schedule(&self, slot: Option<Slot>) -> Result<Value, SolanaEngineError> {
+    pub async fn get_leader_schedule(
+        &self,
+        slot: Option<Slot>,
+    ) -> Result<Value, SolanaEngineError> {
         let params = if let Some(slot) = slot {
             json!([slot])
         } else {
@@ -297,47 +339,66 @@ impl SolanaValidatorApi {
         };
 
         let response = self.make_request("getLeaderSchedule", params).await?;
-        
+
         if let Some(result) = response.get("result") {
             Ok(result.clone())
         } else {
-            Err(SolanaEngineError::Rpc("Invalid leader schedule response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid leader schedule response".to_string(),
+            ))
         }
     }
 
     /// Get slot leaders
-    pub async fn get_slot_leaders(&self, start_slot: Slot, limit: u64) -> Result<Vec<String>, SolanaEngineError> {
-        let response = self.make_request("getSlotLeaders", json!([start_slot, limit])).await?;
-        
+    pub async fn get_slot_leaders(
+        &self,
+        start_slot: Slot,
+        limit: u64,
+    ) -> Result<Vec<String>, SolanaEngineError> {
+        let response = self
+            .make_request("getSlotLeaders", json!([start_slot, limit]))
+            .await?;
+
         if let Some(result) = response.get("result").and_then(|r| r.as_array()) {
             let leaders: Result<Vec<String>, _> = result
                 .iter()
                 .map(|leader| {
-                    leader.as_str()
+                    leader
+                        .as_str()
                         .ok_or_else(|| SolanaEngineError::Rpc("Invalid leader format".to_string()))
                         .map(|s| s.to_string())
                 })
                 .collect();
-            
+
             leaders
         } else {
-            Err(SolanaEngineError::Rpc("Invalid slot leaders response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid slot leaders response".to_string(),
+            ))
         }
     }
 
     /// Get first available block
     pub async fn get_first_available_block(&self) -> Result<Slot, SolanaEngineError> {
-        let response = self.make_request("getFirstAvailableBlock", json!([])).await?;
-        
+        let response = self
+            .make_request("getFirstAvailableBlock", json!([]))
+            .await?;
+
         if let Some(slot) = response.get("result").and_then(|r| r.as_u64()) {
             Ok(slot)
         } else {
-            Err(SolanaEngineError::Rpc("Invalid first available block response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid first available block response".to_string(),
+            ))
         }
     }
 
     /// Get blocks in range
-    pub async fn get_blocks(&self, start_slot: Slot, end_slot: Option<Slot>) -> Result<Vec<Slot>, SolanaEngineError> {
+    pub async fn get_blocks(
+        &self,
+        start_slot: Slot,
+        end_slot: Option<Slot>,
+    ) -> Result<Vec<Slot>, SolanaEngineError> {
         let params = if let Some(end) = end_slot {
             json!([start_slot, end])
         } else {
@@ -345,38 +406,50 @@ impl SolanaValidatorApi {
         };
 
         let response = self.make_request("getBlocks", params).await?;
-        
+
         if let Some(result) = response.get("result").and_then(|r| r.as_array()) {
             let blocks: Result<Vec<Slot>, _> = result
                 .iter()
                 .map(|block| {
-                    block.as_u64()
-                        .ok_or_else(|| SolanaEngineError::Rpc("Invalid block slot format".to_string()))
+                    block.as_u64().ok_or_else(|| {
+                        SolanaEngineError::Rpc("Invalid block slot format".to_string())
+                    })
                 })
                 .collect();
-            
+
             blocks
         } else {
-            Err(SolanaEngineError::Rpc("Invalid blocks response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid blocks response".to_string(),
+            ))
         }
     }
 
     /// Get blocks with limit
-    pub async fn get_blocks_with_limit(&self, start_slot: Slot, limit: u64) -> Result<Vec<Slot>, SolanaEngineError> {
-        let response = self.make_request("getBlocksWithLimit", json!([start_slot, limit])).await?;
-        
+    pub async fn get_blocks_with_limit(
+        &self,
+        start_slot: Slot,
+        limit: u64,
+    ) -> Result<Vec<Slot>, SolanaEngineError> {
+        let response = self
+            .make_request("getBlocksWithLimit", json!([start_slot, limit]))
+            .await?;
+
         if let Some(result) = response.get("result").and_then(|r| r.as_array()) {
             let blocks: Result<Vec<Slot>, _> = result
                 .iter()
                 .map(|block| {
-                    block.as_u64()
-                        .ok_or_else(|| SolanaEngineError::Rpc("Invalid block slot format".to_string()))
+                    block.as_u64().ok_or_else(|| {
+                        SolanaEngineError::Rpc("Invalid block slot format".to_string())
+                    })
                 })
                 .collect();
-            
+
             blocks
         } else {
-            Err(SolanaEngineError::Rpc("Invalid blocks with limit response".to_string()))
+            Err(SolanaEngineError::Rpc(
+                "Invalid blocks with limit response".to_string(),
+            ))
         }
     }
 
@@ -399,9 +472,13 @@ impl SolanaValidatorApi {
                 "params": params
             });
 
-            debug!("Solana validator API request: {} (attempt {})", method, attempt);
+            debug!(
+                "Solana validator API request: {} (attempt {})",
+                method, attempt
+            );
 
-            match self.client
+            match self
+                .client
                 .post(&self.rpc_url)
                 .header("Content-Type", "application/json")
                 .json(&rpc_request)
@@ -415,17 +492,25 @@ impl SolanaValidatorApi {
                             return Ok(result);
                         }
                         Err(e) => {
-                            warn!("Failed to parse Solana validator API response on attempt {}: {}", attempt, e);
+                            warn!(
+                                "Failed to parse Solana validator API response on attempt {}: {}",
+                                attempt, e
+                            );
                             if attempt == self.max_retries {
                                 return Err(SolanaEngineError::Rpc(format!(
-                                    "Failed to parse API response: {}", e
+                                    "Failed to parse API response: {}",
+                                    e
                                 )));
                             }
                         }
                     }
                 }
                 Ok(response) => {
-                    warn!("Solana validator API returned error status on attempt {}: {}", attempt, response.status());
+                    warn!(
+                        "Solana validator API returned error status on attempt {}: {}",
+                        attempt,
+                        response.status()
+                    );
                     if attempt == self.max_retries {
                         return Err(SolanaEngineError::Rpc(format!(
                             "API returned error status: {}",
@@ -434,7 +519,10 @@ impl SolanaValidatorApi {
                     }
                 }
                 Err(e) => {
-                    warn!("Solana validator API request failed on attempt {}: {}", attempt, e);
+                    warn!(
+                        "Solana validator API request failed on attempt {}: {}",
+                        attempt, e
+                    );
                     if attempt == self.max_retries {
                         return Err(SolanaEngineError::Rpc(format!("API request failed: {}", e)));
                     }
@@ -451,34 +539,47 @@ impl SolanaValidatorApi {
     }
 
     /// Parse validator performance from JSON
-    fn parse_validator_performance(&self, validator_data: &Value, delinquent: bool) -> Result<ValidatorPerformance, SolanaEngineError> {
-        let identity = validator_data.get("nodePubkey")
+    fn parse_validator_performance(
+        &self,
+        validator_data: &Value,
+        delinquent: bool,
+    ) -> Result<ValidatorPerformance, SolanaEngineError> {
+        let identity = validator_data
+            .get("nodePubkey")
             .and_then(|i| i.as_str())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing validator identity".to_string()))?
             .to_string();
 
-        let vote_account = validator_data.get("votePubkey")
+        let vote_account = validator_data
+            .get("votePubkey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| SolanaEngineError::Rpc("Missing vote account".to_string()))?
             .to_string();
 
-        let commission = validator_data.get("commission")
+        let commission = validator_data
+            .get("commission")
             .and_then(|c| c.as_u64())
             .unwrap_or(0) as u8;
 
-        let last_vote = validator_data.get("lastVote")
+        let last_vote = validator_data
+            .get("lastVote")
             .and_then(|l| l.as_u64())
             .unwrap_or(0);
 
-        let root_slot = validator_data.get("rootSlot")
+        let root_slot = validator_data
+            .get("rootSlot")
             .and_then(|r| r.as_u64())
             .unwrap_or(0);
 
-        let credits = validator_data.get("credits")
+        let credits = validator_data
+            .get("credits")
             .and_then(|c| c.as_u64())
             .unwrap_or(0);
 
-        let epoch_credits = if let Some(credits_array) = validator_data.get("epochCredits").and_then(|e| e.as_array()) {
+        let epoch_credits = if let Some(credits_array) = validator_data
+            .get("epochCredits")
+            .and_then(|e| e.as_array())
+        {
             credits_array
                 .iter()
                 .filter_map(|credit| {
@@ -500,7 +601,8 @@ impl SolanaValidatorApi {
             vec![]
         };
 
-        let activated_stake = validator_data.get("activatedStake")
+        let activated_stake = validator_data
+            .get("activatedStake")
             .and_then(|s| s.as_u64())
             .unwrap_or(0);
 
@@ -585,7 +687,8 @@ impl SolanaValidatorApiBuilder {
     }
 
     pub fn build(self) -> Result<SolanaValidatorApi, SolanaEngineError> {
-        let rpc_url = self.rpc_url
+        let rpc_url = self
+            .rpc_url
             .ok_or_else(|| SolanaEngineError::Configuration("RPC URL is required".to_string()))?;
 
         SolanaValidatorApi::new(

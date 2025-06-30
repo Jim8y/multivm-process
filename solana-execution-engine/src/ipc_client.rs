@@ -4,7 +4,7 @@
 //! with the MultiVM coordinator. It supports both Unix domain sockets and TCP connections
 //! for cross-platform compatibility.
 
-use crate::common::*;
+use multivm_common::{IpcCommand, IpcMessage, IpcResponse, MultivmError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpStream, UnixStream};
 
@@ -83,22 +83,24 @@ impl SolanaIpcClient {
         match &mut self.stream {
             #[cfg(unix)]
             IpcStream::Unix { reader, .. } => {
-                reader.read_exact(&mut len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut len_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
                         message: format!("Failed to read message length: {}", e),
                         retry_count: None,
-                    }
-                })?;
+                    })?;
             }
             IpcStream::Tcp { reader, .. } => {
-                reader.read_exact(&mut len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut len_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
                         message: format!("Failed to read message length: {}", e),
                         retry_count: None,
-                    }
-                })?;
+                    })?;
             }
         }
 
@@ -110,28 +112,30 @@ impl SolanaIpcClient {
         match &mut self.stream {
             #[cfg(unix)]
             IpcStream::Unix { reader, .. } => {
-                reader.read_exact(&mut message_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut message_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
                         message: format!("Failed to read message data: {}", e),
                         retry_count: None,
-                    }
-                })?;
+                    })?;
             }
             IpcStream::Tcp { reader, .. } => {
-                reader.read_exact(&mut message_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
+                reader
+                    .read_exact(&mut message_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
                         message: format!("Failed to read message data: {}", e),
                         retry_count: None,
-                    }
-                })?;
+                    })?;
             }
         }
 
         // Deserialize message
-        let message: IpcMessage = bincode::deserialize(&message_bytes)
-            .map_err(|e| MultivmError::Ipc {
+        let message: IpcMessage =
+            bincode::deserialize(&message_bytes).map_err(|e| MultivmError::Ipc {
                 endpoint: "ipc_client".to_string(),
                 message: format!("Failed to deserialize message: {}", e),
                 retry_count: None,
@@ -145,12 +149,11 @@ impl SolanaIpcClient {
         tracing::trace!("Sending IPC response: {:?}", response);
 
         // Serialize response
-        let response_bytes = bincode::serialize(&response)
-            .map_err(|e| MultivmError::Ipc {
-                endpoint: "ipc_client".to_string(),
-                message: format!("Failed to serialize response: {}", e),
-                retry_count: None,
-            })?;
+        let response_bytes = bincode::serialize(&response).map_err(|e| MultivmError::Ipc {
+            endpoint: "ipc_client".to_string(),
+            message: format!("Failed to serialize response: {}", e),
+            retry_count: None,
+        })?;
 
         // Send message length
         let len_bytes = (response_bytes.len() as u32).to_be_bytes();
@@ -158,56 +161,54 @@ impl SolanaIpcClient {
         match &mut self.stream {
             #[cfg(unix)]
             IpcStream::Unix { writer, .. } => {
-                writer.write_all(&len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to write response length: {}", e),
-                        retry_count: None,
-                    }
-                })?;
-
-                writer.write_all(&response_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to write response data: {}", e),
-                        retry_count: None,
-                    }
-                })?;
-
                 writer
-                    .flush()
+                    .write_all(&len_bytes)
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to flush response: {}", e),
+                        message: format!("Failed to write response length: {}", e),
                         retry_count: None,
                     })?;
+
+                writer
+                    .write_all(&response_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: "unix_socket".to_string(),
+                        message: format!("Failed to write response data: {}", e),
+                        retry_count: None,
+                    })?;
+
+                writer.flush().await.map_err(|e| MultivmError::Ipc {
+                    endpoint: "unix_socket".to_string(),
+                    message: format!("Failed to flush response: {}", e),
+                    retry_count: None,
+                })?;
             }
             IpcStream::Tcp { writer, .. } => {
-                writer.write_all(&len_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to write response length: {}", e),
-                        retry_count: None,
-                    }
-                })?;
-
-                writer.write_all(&response_bytes).await.map_err(|e| {
-                    MultivmError::Ipc {
-                        endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to write response data: {}", e),
-                        retry_count: None,
-                    }
-                })?;
-
                 writer
-                    .flush()
+                    .write_all(&len_bytes)
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to flush response: {}", e),
+                        message: format!("Failed to write response length: {}", e),
                         retry_count: None,
                     })?;
+
+                writer
+                    .write_all(&response_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: "tcp_socket".to_string(),
+                        message: format!("Failed to write response data: {}", e),
+                        retry_count: None,
+                    })?;
+
+                writer.flush().await.map_err(|e| MultivmError::Ipc {
+                    endpoint: "tcp_socket".to_string(),
+                    message: format!("Failed to flush response: {}", e),
+                    retry_count: None,
+                })?;
             }
         }
 

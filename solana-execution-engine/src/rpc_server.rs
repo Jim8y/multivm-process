@@ -6,7 +6,7 @@
 
 use jsonrpc_core::{Error as JsonRpcError, IoHandler, Params, Value};
 use jsonrpc_http_server::{RestApi, ServerBuilder};
-use crate::common::*;
+use multivm_common::MultivmError;
 use std::net::SocketAddr;
 use tokio::task::JoinHandle;
 
@@ -138,12 +138,13 @@ impl SolanaRpcServer {
             });
 
             // Start the HTTP server
-            let bind_address: SocketAddr = format!("127.0.0.1:{}", self.port)
-                .parse()
-                .map_err(|e| MultivmError::Configuration {
-                    component: "solana-rpc-server".to_string(),
-                    message: format!("Invalid bind address: {}", e),
-                    validation_errors: None,
+            let bind_address: SocketAddr =
+                format!("127.0.0.1:{}", self.port).parse().map_err(|e| {
+                    MultivmError::Configuration {
+                        component: "solana-rpc-server".to_string(),
+                        message: format!("Invalid bind address: {}", e),
+                        validation_errors: None,
+                    }
                 })?;
 
             let server = ServerBuilder::new(io)

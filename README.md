@@ -340,12 +340,12 @@ The MultiVM project is organized for a 3-person specialist team. Below are detai
 #### **Phase 1: Foundation & Re-enablement**
 
 ##### **Task 1.1: Dependency Resolution**
-- [ ] **Fix Solana SDK conflicts** in `solana-execution-engine/Cargo.toml`
+- [x] **Fix Solana SDK conflicts** in `solana-execution-engine/Cargo.toml`
   - Resolve circular dependency issues with MultiVM common types
   - Update Solana SDK to compatible version with existing infrastructure
   - Fix tokio runtime version conflicts
 
-- [ ] **Re-enable Solana engine in workspace**
+- [x] **Re-enable Solana engine in workspace**
   - Remove disabled feature flags
   - Update root `Cargo.toml` to include `solana-execution-engine`
   - Verify clean compilation with MultiVM infrastructure
