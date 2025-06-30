@@ -1067,52 +1067,85 @@ impl SecureIpcTransport {
         let len = data.len() as u32;
         let len_bytes = len.to_be_bytes();
 
+        // Add timeout to prevent hanging
+        let timeout_duration = Duration::from_secs(10);
+
         match &mut self.stream {
             TransportStream::Tcp(stream) => {
-                stream
-                    .write_all(&len_bytes)
+                tokio::time::timeout(timeout_duration, stream.write_all(&len_bytes))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Send timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
                         retry_after: None,
                     })?;
-                stream
-                    .write_all(data)
+                tokio::time::timeout(timeout_duration, stream.write_all(data))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Send timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
                         retry_after: None,
                     })?;
-                stream.flush().await.map_err(|e| MultivmError::Network {
-                    message: e.to_string(),
-                    endpoint: None,
-                    retry_after: None,
-                })?;
+                tokio::time::timeout(timeout_duration, stream.flush())
+                    .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Flush timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
+                    .map_err(|e| MultivmError::Network {
+                        message: e.to_string(),
+                        endpoint: None,
+                        retry_after: None,
+                    })?;
             }
             TransportStream::Unix(stream) => {
-                stream
-                    .write_all(&len_bytes)
+                tokio::time::timeout(timeout_duration, stream.write_all(&len_bytes))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Send timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
                         retry_after: None,
                     })?;
-                stream
-                    .write_all(data)
+                tokio::time::timeout(timeout_duration, stream.write_all(data))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Send timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
                         retry_after: None,
                     })?;
-                stream.flush().await.map_err(|e| MultivmError::Network {
-                    message: e.to_string(),
-                    endpoint: None,
-                    retry_after: None,
-                })?;
+                tokio::time::timeout(timeout_duration, stream.flush())
+                    .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Flush timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
+                    .map_err(|e| MultivmError::Network {
+                        message: e.to_string(),
+                        endpoint: None,
+                        retry_after: None,
+                    })?;
             }
         }
 
@@ -1123,12 +1156,19 @@ impl SecureIpcTransport {
     async fn receive_bytes(&mut self) -> MultivmResult<Vec<u8>> {
         // Read length header first
         let mut len_bytes = [0u8; 4];
+        
+        // Add timeout to prevent hanging
+        let timeout_duration = Duration::from_secs(10);
 
         match &mut self.stream {
             TransportStream::Tcp(stream) => {
-                stream
-                    .read_exact(&mut len_bytes)
+                tokio::time::timeout(timeout_duration, stream.read_exact(&mut len_bytes))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Receive timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
@@ -1136,9 +1176,13 @@ impl SecureIpcTransport {
                     })?;
             }
             TransportStream::Unix(stream) => {
-                stream
-                    .read_exact(&mut len_bytes)
+                tokio::time::timeout(timeout_duration, stream.read_exact(&mut len_bytes))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Receive timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
@@ -1164,9 +1208,13 @@ impl SecureIpcTransport {
 
         match &mut self.stream {
             TransportStream::Tcp(stream) => {
-                stream
-                    .read_exact(&mut data)
+                tokio::time::timeout(timeout_duration, stream.read_exact(&mut data))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Receive data timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
@@ -1174,9 +1222,13 @@ impl SecureIpcTransport {
                     })?;
             }
             TransportStream::Unix(stream) => {
-                stream
-                    .read_exact(&mut data)
+                tokio::time::timeout(timeout_duration, stream.read_exact(&mut data))
                     .await
+                    .map_err(|_| MultivmError::Network {
+                        message: "Receive data timeout".to_string(),
+                        endpoint: None,
+                        retry_after: Some(Duration::from_secs(5)),
+                    })?
                     .map_err(|e| MultivmError::Network {
                         message: e.to_string(),
                         endpoint: None,
