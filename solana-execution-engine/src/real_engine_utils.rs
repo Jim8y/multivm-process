@@ -51,7 +51,7 @@ impl RealSolanaEngine {
         transaction: &Transaction,
     ) -> Result<Vec<u8>, SolanaEngineError> {
         bincode::serialize(transaction).map_err(|e| {
-            SolanaEngineError::Serialization(format!("Failed to serialize transaction: {}", e))
+            SolanaEngineError::Serialization(format!("Failed to serialize transaction: {e}"))
         })
     }
 
@@ -61,7 +61,7 @@ impl RealSolanaEngine {
         data: &[u8],
     ) -> Result<Transaction, SolanaEngineError> {
         bincode::deserialize(data).map_err(|e| {
-            SolanaEngineError::Serialization(format!("Failed to deserialize transaction: {}", e))
+            SolanaEngineError::Serialization(format!("Failed to deserialize transaction: {e}"))
         })
     }
 
@@ -231,7 +231,7 @@ impl RealSolanaEngine {
         };
 
         genesis_hash_str.parse().map_err(|e| {
-            SolanaEngineError::Configuration(format!("Failed to parse genesis hash: {}", e))
+            SolanaEngineError::Configuration(format!("Failed to parse genesis hash: {e}"))
         })
     }
 

@@ -17,6 +17,7 @@ pub mod execution_engines;
 pub mod gateway;
 pub mod middleware;
 pub mod monitoring;
+pub mod shutdown;
 pub mod validation;
 
 // Tests temporarily disabled due to compilation issues that require
@@ -77,6 +78,9 @@ pub struct ApplicationState {
     /// Execution engine manager
     pub execution_engines: Arc<RwLock<execution_engines::ExecutionEngineManager>>,
 
+    /// Consensus manager (optional, for when consensus is enabled)
+    pub consensus_manager: Arc<RwLock<Option<Arc<multivm_consensus::MultiVMConsensusManager>>>>,
+
     /// Server status
     pub is_running: Arc<RwLock<bool>>,
 
@@ -98,6 +102,9 @@ impl ApplicationServer {
 
         // Initialize shared state
         let state = Arc::new(ApplicationState::new(config.clone()).await?);
+
+        // Initialize dashboard service with the application state
+        state.monitoring.dashboard.set_state(state.clone()).await;
 
         Ok(Self { config, state })
     }
@@ -168,6 +175,36 @@ impl ApplicationServer {
         *self.state.is_running.read().await
     }
 
+    /// Set the consensus manager (must be called before starting the server)
+    pub async fn set_consensus_manager(
+        &self,
+        consensus_manager: Arc<multivm_consensus::MultiVMConsensusManager>,
+    ) -> ApplicationResult<()> {
+        // Properly use the async method on ApplicationState
+        self.state.set_consensus_manager(consensus_manager).await;
+        Ok(())
+    }
+
+    /// Setup graceful shutdown handling
+    pub async fn setup_graceful_shutdown(&self, timeout_secs: u64) -> ApplicationResult<()> {
+        // Install panic handler
+        shutdown::install_panic_handler();
+
+        // Create shutdown coordinator
+        let coordinator = shutdown::ShutdownCoordinator::new(self.state.clone(), timeout_secs);
+
+        // Spawn task to listen for shutdown signals
+        let coordinator_clone = Arc::new(coordinator);
+        tokio::spawn(async move {
+            if let Err(e) = coordinator_clone.listen_for_shutdown().await {
+                tracing::error!("Error during shutdown: {}", e);
+            }
+        });
+
+        info!("Graceful shutdown handler installed");
+        Ok(())
+    }
+
     /// Get server status information
     pub async fn get_status(&self) -> ApplicationResult<ServerStatus> {
         let is_running = self.is_running().await;
@@ -198,25 +235,33 @@ impl ApplicationServer {
 
     async fn start_monitoring_services(&self) -> ApplicationResult<()> {
         info!("Starting monitoring services");
-        // For now, just start the metrics and health servers directly
-        // since we can't get a mutable reference to the Arc<MonitoringService>
-        self.state
-            .monitoring
-            .start_metrics_server()
-            .await
-            .map_err(|e| ApplicationError::StartupError {
-                service: "metrics_server".to_string(),
-                message: e.to_string(),
-            })?;
 
-        self.state
-            .monitoring
-            .start_health_check_server()
-            .await
-            .map_err(|e| ApplicationError::StartupError {
-                service: "health_check_server".to_string(),
-                message: e.to_string(),
-            })?;
+        // Start real-time dashboard metrics collection
+        self.state.monitoring.dashboard.start_collection().await;
+
+        // Start metrics server
+        match self.state.monitoring.start_metrics_server().await {
+            Ok(()) => info!("Metrics server started successfully"),
+            Err(e) => {
+                error!("Failed to start metrics server: {}", e);
+                return Err(ApplicationError::StartupError {
+                    service: "metrics_server".to_string(),
+                    message: e.to_string(),
+                });
+            }
+        }
+
+        // Start health check server
+        match self.state.monitoring.start_health_check_server().await {
+            Ok(()) => info!("Health check server started successfully"),
+            Err(e) => {
+                error!("Failed to start health check server: {}", e);
+                return Err(ApplicationError::StartupError {
+                    service: "health_check_server".to_string(),
+                    message: e.to_string(),
+                });
+            }
+        }
 
         info!("Monitoring services started");
         Ok(())
@@ -285,18 +330,21 @@ impl ApplicationServer {
             }
         }
 
-        info!(
-            "Starting Admin server on {}",
-            self.config.admin_socket_addr()?
-        );
+        let admin_addr = self.config.admin_socket_addr()?;
+        info!("Starting Admin server on {}", admin_addr);
+
+        // Add delay to ensure other servers are fully started
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         let app = admin::create_app(self.state.clone()).await?;
-        let listener = tokio::net::TcpListener::bind(self.config.admin_socket_addr()?)
+        let listener = tokio::net::TcpListener::bind(admin_addr)
             .await
             .map_err(|e| ApplicationError::StartupError {
                 service: "admin".to_string(),
-                message: e.to_string(),
+                message: format!("Failed to bind admin server to {admin_addr}: {e}"),
             })?;
+
+        info!("Admin server successfully bound to {}", admin_addr);
 
         axum::serve(listener, app)
             .await
@@ -353,10 +401,20 @@ impl ApplicationState {
             gateway,
             monitoring,
             execution_engines,
+            consensus_manager: Arc::new(RwLock::new(None)),
             is_running: Arc::new(RwLock::new(false)),
             start_time: std::time::Instant::now(),
             shutdown_tx: Some(shutdown_tx),
         })
+    }
+
+    /// Set the consensus manager (must be called after consensus is initialized)
+    pub async fn set_consensus_manager(
+        &self,
+        consensus_manager: Arc<multivm_consensus::MultiVMConsensusManager>,
+    ) {
+        let mut consensus_lock = self.consensus_manager.write().await;
+        *consensus_lock = Some(consensus_manager);
     }
 }
 

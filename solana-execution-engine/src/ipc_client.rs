@@ -39,7 +39,7 @@ impl SolanaIpcClient {
             Self::connect_tcp(address).await
         } else {
             // Assume it's a port number
-            let tcp_address = format!("127.0.0.1:{}", address);
+            let tcp_address = format!("127.0.0.1:{address}");
             Self::connect_tcp(&tcp_address).await
         }
     }
@@ -88,7 +88,7 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to read message length: {}", e),
+                        message: format!("Failed to read message length: {e}"),
                         retry_count: None,
                     })?;
             }
@@ -98,7 +98,7 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to read message length: {}", e),
+                        message: format!("Failed to read message length: {e}"),
                         retry_count: None,
                     })?;
             }
@@ -117,7 +117,7 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to read message data: {}", e),
+                        message: format!("Failed to read message data: {e}"),
                         retry_count: None,
                     })?;
             }
@@ -127,7 +127,7 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to read message data: {}", e),
+                        message: format!("Failed to read message data: {e}"),
                         retry_count: None,
                     })?;
             }
@@ -137,7 +137,7 @@ impl SolanaIpcClient {
         let message: IpcMessage =
             bincode::deserialize(&message_bytes).map_err(|e| MultivmError::Ipc {
                 endpoint: "ipc_client".to_string(),
-                message: format!("Failed to deserialize message: {}", e),
+                message: format!("Failed to deserialize message: {e}"),
                 retry_count: None,
             })?;
 

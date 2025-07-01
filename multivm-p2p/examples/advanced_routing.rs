@@ -2,8 +2,8 @@
 //!
 //! Run with: `cargo run --example advanced_routing`
 
-use multivm_p2p::messages::*;
-use multivm_p2p::routing::*;
+use multivm_p2p::protocol::messages::*;
+use multivm_p2p::protocol::routing::*;
 use std::time::Duration;
 
 #[tokio::main]

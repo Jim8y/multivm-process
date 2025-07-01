@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
 /// Application configuration that extends the base MultiVM configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ApplicationConfig {
     /// Base MultiVM configuration
     #[serde(flatten)]
@@ -39,7 +39,7 @@ pub struct ApplicationConfig {
 }
 
 /// Server configuration for all API endpoints
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     /// REST API server configuration
     pub rest: RestServerConfig,
@@ -217,32 +217,6 @@ pub struct FeatureConfig {
 
 // Default implementations
 
-impl Default for ApplicationConfig {
-    fn default() -> Self {
-        Self {
-            base: MultivmConfig::default(),
-            server: ServerConfig::default(),
-            auth: AuthConfig::default(),
-            cache: CacheConfig::default(),
-            monitoring: MonitoringConfig::default(),
-            features: FeatureConfig::default(),
-            middleware: MiddlewareConfig::default(),
-            execution_engines: crate::execution_engines::ExecutionEngineConfig::default(),
-        }
-    }
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            rest: RestServerConfig::default(),
-            graphql: GraphQLServerConfig::default(),
-            websocket: WebSocketServerConfig::default(),
-            admin: AdminServerConfig::default(),
-        }
-    }
-}
-
 impl Default for RestServerConfig {
     fn default() -> Self {
         Self {
@@ -386,6 +360,91 @@ impl Default for FeatureConfig {
 }
 
 impl ApplicationConfig {
+    /// Create application config from unified config
+    pub fn from_unified_config(unified_config: MultivmConfig) -> ApplicationResult<Self> {
+        let app_config = ApplicationConfig {
+            base: unified_config.clone(),
+            server: ServerConfig {
+                rest: RestServerConfig {
+                    host: unified_config.server.rest.host,
+                    port: unified_config.server.rest.port,
+                    enable_cors: unified_config.server.rest.enable_cors,
+                    cors_origins: vec!["*".to_string()], // Allow all for testnet
+                    request_timeout_seconds: unified_config.server.rest.request_timeout_seconds,
+                    max_body_size_bytes: unified_config.server.rest.max_request_size_bytes as usize,
+                    enable_compression: true,
+                },
+                graphql: GraphQLServerConfig {
+                    host: unified_config.server.graphql.host,
+                    port: unified_config.server.graphql.port,
+                    enable_playground: unified_config.server.graphql.enable_playground,
+                    enable_introspection: true,
+                    max_query_depth: unified_config.server.graphql.query_complexity_limit,
+                    max_query_complexity: unified_config.server.graphql.query_complexity_limit,
+                    query_timeout_seconds: unified_config.server.graphql.query_timeout_seconds,
+                },
+                websocket: WebSocketServerConfig {
+                    host: unified_config.server.websocket.host,
+                    port: unified_config.server.websocket.port,
+                    max_connections: unified_config.server.websocket.max_connections as usize,
+                    connection_timeout_seconds: unified_config
+                        .server
+                        .websocket
+                        .connection_timeout_seconds,
+                    heartbeat_interval_seconds: 30,
+                    max_subscriptions_per_connection: 100,
+                },
+                admin: AdminServerConfig {
+                    host: unified_config.server.admin.host,
+                    port: unified_config.server.admin.port,
+                    enable_ui: unified_config.server.admin.enable_ui,
+                    require_auth: unified_config.server.admin.require_auth,
+                },
+            },
+            auth: AuthConfig::default(),
+            cache: CacheConfig::default(),
+            monitoring: MonitoringConfig {
+                enable_metrics: unified_config.monitoring.enable_prometheus,
+                enable_health_checks: true,
+                metrics_port: unified_config.monitoring.prometheus_port,
+                health_check_port: unified_config.monitoring.health_check.port,
+                prometheus_endpoint: Some(format!(
+                    "{}:{}",
+                    unified_config.monitoring.prometheus_host,
+                    unified_config.monitoring.prometheus_port
+                )),
+                log_level: unified_config.logging.level,
+            },
+            features: FeatureConfig::default(),
+            middleware: crate::api::rest::middleware::manager::MiddlewareConfig::default(),
+            execution_engines: crate::execution_engines::ExecutionEngineConfig {
+                ethereum: crate::execution_engines::EthereumEngineConfig {
+                    enabled: true,
+                    data_dir: format!("{}/ethereum", unified_config.system.data_dir.display()),
+                    rpc_port: 8545,
+                    chain_id: 1337,
+                    mock_mode: true, // Enable mock mode for testnet
+                    auto_start: true,
+                },
+                solana: crate::execution_engines::SolanaEngineConfig {
+                    enabled: true,
+                    data_dir: format!("{}/solana", unified_config.system.data_dir.display()),
+                    rpc_port: 8899,
+                    cluster: "localnet".to_string(),
+                    mock_mode: true, // Enable mock mode for testnet
+                    auto_start: true,
+                },
+                global: crate::execution_engines::GlobalExecutionConfig {
+                    max_concurrent_blocks: 10,
+                    block_timeout_seconds: 30,
+                    health_check_interval_seconds: 30,
+                    enable_cross_vm_coordination: true,
+                },
+            },
+        };
+        Ok(app_config)
+    }
+
     /// Load configuration from file
     pub fn from_file(path: &str) -> ApplicationResult<Self> {
         let content =
@@ -705,7 +764,7 @@ impl ApplicationConfig {
         .parse()
         .map_err(|e| ApplicationError::ConfigurationError {
             component: "websocket_server".to_string(),
-            message: format!("Invalid socket address: {}", e),
+            message: format!("Invalid socket address: {e}"),
         })
     }
 

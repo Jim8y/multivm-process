@@ -282,7 +282,7 @@ impl ProductionRedisCache {
         let _serialized =
             serde_json::to_string(value).map_err(|e| ApplicationError::CacheError {
                 operation: "serialize".to_string(),
-                message: format!("Serialization error: {}", e),
+                message: format!("Serialization error: {e}"),
             })?;
 
         #[cfg(feature = "cache")]
@@ -516,7 +516,7 @@ impl ProductionRedisCache {
         T: for<'de> Deserialize<'de>,
     {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        let _lease_key = format!("{}_lease", full_key);
+        let _lease_key = format!("{full_key}_lease");
         let _lease_id = uuid::Uuid::new_v4().to_string();
 
         if !self.is_circuit_closed().await {
@@ -559,7 +559,7 @@ impl ProductionRedisCache {
     /// Release lease
     pub async fn release_lease(&self, key: &str, _lease_id: &str) -> ApplicationResult<bool> {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        let _lease_key = format!("{}_lease", full_key);
+        let _lease_key = format!("{full_key}_lease");
 
         if !self.is_circuit_closed().await {
             return Ok(false);
@@ -810,17 +810,17 @@ impl ProductionRedisCache {
         state.failure_count += 1;
         state.last_failure = Some(Instant::now());
 
-        if state.failure_count >= self.config.circuit_breaker_threshold {
-            if state.state != CircuitBreakerState::Open {
-                state.state = CircuitBreakerState::Open;
-                self.stats
-                    .circuit_breaker_trips
-                    .fetch_add(1, Ordering::Relaxed);
-                error!(
-                    "Circuit breaker opened after {} failures",
-                    state.failure_count
-                );
-            }
+        if state.failure_count >= self.config.circuit_breaker_threshold
+            && state.state != CircuitBreakerState::Open
+        {
+            state.state = CircuitBreakerState::Open;
+            self.stats
+                .circuit_breaker_trips
+                .fetch_add(1, Ordering::Relaxed);
+            error!(
+                "Circuit breaker opened after {} failures",
+                state.failure_count
+            );
         }
 
         // Check if we should transition to half-open

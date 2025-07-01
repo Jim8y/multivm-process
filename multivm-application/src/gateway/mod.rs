@@ -205,7 +205,7 @@ pub mod utils {
                 // Convert wei to ETH
                 if let Ok(wei) = balance.parse::<u128>() {
                     let eth = wei as f64 / 1e18;
-                    format!("{:.6} ETH", eth)
+                    format!("{eth:.6} ETH")
                 } else {
                     balance.to_string()
                 }
@@ -214,7 +214,7 @@ pub mod utils {
                 // Convert lamports to SOL
                 if let Ok(lamports) = balance.parse::<u64>() {
                     let sol = lamports as f64 / 1e9;
-                    format!("{:.6} SOL", sol)
+                    format!("{sol:.6} SOL")
                 } else {
                     balance.to_string()
                 }

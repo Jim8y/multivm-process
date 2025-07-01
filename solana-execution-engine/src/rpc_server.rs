@@ -152,7 +152,7 @@ impl SolanaRpcServer {
                 .start_http(&bind_address)
                 .map_err(|e| MultivmError::Rpc {
                     method: "start_http_server".to_string(),
-                    message: format!("Failed to start RPC server: {}", e),
+                    message: format!("Failed to start RPC server: {e}"),
                     status_code: None,
                 })?;
 

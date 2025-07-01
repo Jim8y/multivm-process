@@ -273,7 +273,7 @@ impl PermissionChecker {
             Ok(())
         } else {
             Err(ApplicationError::AuthorizationDenied {
-                resource: format!("{:?}", permission),
+                resource: format!("{permission:?}"),
             })
         }
     }
@@ -292,7 +292,7 @@ impl PermissionChecker {
             Ok(())
         } else {
             Err(ApplicationError::AuthorizationDenied {
-                resource: format!("Any of: {:?}", permissions),
+                resource: format!("Any of: {permissions:?}"),
             })
         }
     }

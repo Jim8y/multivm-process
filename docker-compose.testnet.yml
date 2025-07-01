@@ -39,11 +39,7 @@ services:
     volumes:
       - ./testnet/node1:/opt/multivm/data
       - ./testnet/configs/node1:/opt/multivm/config
-    command: >
-      bash -c "
-        echo 'Starting Node 1 as genesis validator...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "echo 'Starting Node 1 as genesis validator...' && /opt/multivm/bin/start.sh"]
 
   # Node 2 - Validator
   node2:
@@ -77,12 +73,7 @@ services:
       - ./testnet/configs/node2:/opt/multivm/config
     depends_on:
       - node1
-    command: >
-      bash -c "
-        sleep 5 &&
-        echo 'Starting Node 2 as validator...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "sleep 5 && echo 'Starting Node 2 as validator...' && /opt/multivm/bin/start.sh"]
 
   # Node 3 - Validator
   node3:
@@ -117,12 +108,7 @@ services:
     depends_on:
       - node1
       - node2
-    command: >
-      bash -c "
-        sleep 10 &&
-        echo 'Starting Node 3 as validator...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "sleep 10 && echo 'Starting Node 3 as validator...' && /opt/multivm/bin/start.sh"]
 
   # Node 4 - Validator
   node4:
@@ -157,12 +143,7 @@ services:
     depends_on:
       - node1
       - node2
-    command: >
-      bash -c "
-        sleep 15 &&
-        echo 'Starting Node 4 as validator...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "sleep 15 && echo 'Starting Node 4 as validator...' && /opt/multivm/bin/start.sh"]
 
   # Node 5 - Validator
   node5:
@@ -197,12 +178,7 @@ services:
     depends_on:
       - node1
       - node3
-    command: >
-      bash -c "
-        sleep 20 &&
-        echo 'Starting Node 5 as validator...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "sleep 20 && echo 'Starting Node 5 as validator...' && /opt/multivm/bin/start.sh"]
 
   # Node 6 - Non-validator (Full Node)
   node6:
@@ -237,12 +213,7 @@ services:
     depends_on:
       - node1
       - node4
-    command: >
-      bash -c "
-        sleep 25 &&
-        echo 'Starting Node 6 as full node...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "sleep 25 && echo 'Starting Node 6 as full node...' && /opt/multivm/bin/start.sh"]
 
   # Node 7 - Non-validator (Full Node)
   node7:
@@ -277,12 +248,7 @@ services:
     depends_on:
       - node1
       - node5
-    command: >
-      bash -c "
-        sleep 30 &&
-        echo 'Starting Node 7 as full node...' &&
-        /opt/multivm/bin/multivm-application
-      "
+    command: ["-c", "sleep 30 && echo 'Starting Node 7 as full node...' && /opt/multivm/bin/start.sh"]
 
   # Monitoring - Prometheus
   prometheus:
@@ -292,7 +258,7 @@ services:
       multivm-testnet:
         ipv4_address: 172.20.0.100
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./testnet/prometheus:/etc/prometheus
       - prometheus_data:/prometheus
@@ -308,7 +274,7 @@ services:
       multivm-testnet:
         ipv4_address: 172.20.0.101
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false

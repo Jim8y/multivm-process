@@ -11,6 +11,10 @@ concurrency:
   group: maintenance
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   dependency-audit:
     name: Dependency Audit
@@ -20,6 +24,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -63,6 +73,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -100,6 +116,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable

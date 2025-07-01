@@ -294,13 +294,21 @@ impl WebSocketServer {
     /// Start the WebSocket server
     pub async fn start(&self) -> ApplicationResult<()> {
         // The WebSocket server is integrated into the main HTTP server
-        // This method is a placeholder for any WebSocket-specific startup logic
+        // This method handles WebSocket-specific background tasks
         tracing::info!("WebSocket server initialized");
 
         // Start the event broadcaster
         self.start_event_broadcaster().await;
 
-        Ok(())
+        // Keep the server running by waiting indefinitely
+        // The actual WebSocket handling is done through the HTTP server routes
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+
+            // Log connection count periodically for monitoring
+            let count = self.connection_count().await;
+            tracing::debug!("WebSocket server active with {} connections", count);
+        }
     }
 
     /// Handle WebSocket upgrade
@@ -624,7 +632,7 @@ async fn handle_text_message(
     let message: WebSocketMessage = serde_json::from_str(&text).map_err(|e| {
         crate::error::ApplicationError::ValidationError {
             field: "websocket_message".to_string(),
-            message: format!("Invalid JSON: {}", e),
+            message: format!("Invalid JSON: {e}"),
         }
     })?;
 
@@ -638,8 +646,7 @@ async fn handle_text_message(
         }
         WebSocketMessage::Authenticate { token } => {
             // Validate token format before processing
-            let token_valid = if token.starts_with("Bearer ") {
-                let jwt_token = &token[7..];
+            let token_valid = if let Some(jwt_token) = token.strip_prefix("Bearer ") {
                 validation::auth::validate_jwt_format(jwt_token).is_ok()
             } else {
                 validation::auth::validate_api_key(&token).is_ok()
@@ -783,7 +790,7 @@ async fn send_response_to_connection(
         let serialized = serde_json::to_string(&response).map_err(|e| {
             crate::error::ApplicationError::InternalError {
                 component: "websocket".to_string(),
-                message: format!("Failed to serialize response: {}", e),
+                message: format!("Failed to serialize response: {e}"),
             }
         })?;
 

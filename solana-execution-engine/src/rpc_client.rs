@@ -101,7 +101,7 @@ impl SolanaRpcClient {
             .pool_idle_timeout(Duration::from_secs(30))
             .tcp_keepalive(Duration::from_secs(60))
             .build()
-            .map_err(|e| SolanaEngineError::Rpc(format!("Failed to create RPC client: {}", e)))?;
+            .map_err(|e| SolanaEngineError::Rpc(format!("Failed to create RPC client: {e}")))?;
 
         Ok(Self {
             client,
@@ -273,7 +273,7 @@ impl SolanaRpcClient {
 
         if let Some(result) = response.get("result") {
             if let Some(value) = result.get("value").and_then(|v| v.as_array()) {
-                if let Some(status) = value.get(0) {
+                if let Some(status) = value.first() {
                     if status.is_null() {
                         return Ok(None);
                     }
@@ -426,7 +426,7 @@ impl SolanaRpcClient {
     /// Make a JSON-RPC request with retry logic
     async fn make_request(&self, method: &str, params: Value) -> Result<Value, SolanaEngineError> {
         for attempt in 1..=self.max_retries {
-            let request_id = format!("{}_{}", method, attempt);
+            let request_id = format!("{method}_{attempt}");
             let rpc_request = json!({
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -480,7 +480,7 @@ impl SolanaRpcClient {
                 Err(e) => {
                     warn!("Solana RPC request failed on attempt {}: {}", attempt, e);
                     if attempt == self.max_retries {
-                        return Err(SolanaEngineError::Rpc(format!("RPC request failed: {}", e)));
+                        return Err(SolanaEngineError::Rpc(format!("RPC request failed: {e}")));
                     }
                 }
             }
@@ -522,9 +522,9 @@ impl SolanaRpcClient {
             .unwrap_or(0);
 
         let data = if let Some(data_array) = account_data.get("data").and_then(|d| d.as_array()) {
-            if let Some(data_str) = data_array.get(0).and_then(|d| d.as_str()) {
+            if let Some(data_str) = data_array.first().and_then(|d| d.as_str()) {
                 base64::decode(data_str).map_err(|e| {
-                    SolanaEngineError::Rpc(format!("Failed to decode account data: {}", e))
+                    SolanaEngineError::Rpc(format!("Failed to decode account data: {e}"))
                 })?
             } else {
                 vec![]

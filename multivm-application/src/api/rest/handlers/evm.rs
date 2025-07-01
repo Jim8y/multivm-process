@@ -7,6 +7,7 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Json, Response},
 };
+use rand;
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -85,15 +86,44 @@ pub async fn get_account_transactions(
 
 /// Send transaction
 pub async fn send_transaction(
-    State(_state): State<Arc<ApplicationState>>,
+    State(state): State<Arc<ApplicationState>>,
     headers: HeaderMap,
-    Json(_request): Json<serde_json::Value>,
+    Json(request): Json<serde_json::Value>,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
     let start_time = start_request_timer();
-    let response_time = calculate_response_time(start_time);
 
-    success_response("0x0".to_string(), request_id, response_time).into_response()
+    // Create a mock EVM transaction for testing
+    let tx_hash = format!(
+        "0x{}",
+        hex::encode([(rand::random::<u64>() % 256) as u8; 32])
+    );
+
+    // Process through execution engines
+    match state
+        .execution_engines
+        .read()
+        .await
+        .process_evm_transaction(request)
+        .await
+    {
+        Ok(_) => {
+            tracing::info!("EVM transaction processed successfully: {}", tx_hash);
+            let response_time = calculate_response_time(start_time);
+            success_response(tx_hash, request_id, response_time).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to process EVM transaction: {}", e);
+            let response_time = calculate_response_time(start_time);
+            crate::api::rest::handlers::error_response(
+                "EVM_ERROR",
+                &e.to_string(),
+                request_id,
+                response_time,
+            )
+            .into_response()
+        }
+    }
 }
 
 /// Get transaction

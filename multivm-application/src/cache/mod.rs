@@ -244,7 +244,7 @@ impl CacheLayer {
     where
         T: Clone + Serialize + Send + Sync + 'static,
     {
-        let key = format!("{}:{}", data_type, id);
+        let key = format!("{data_type}:{id}");
         let ttl = Self::get_ttl_for_type(data_type);
         self.set(&key, value, ttl).await
     }
@@ -254,8 +254,20 @@ impl CacheLayer {
     where
         T: Clone + Serialize + DeserializeOwned,
     {
-        let key = format!("{}:{}", data_type, id);
+        let key = format!("{data_type}:{id}");
         self.get(&key).await
+    }
+
+    /// Flush any pending writes to persistent storage
+    pub async fn flush(&self) -> CacheResult<()> {
+        // For write-back strategy, this would flush pending writes
+        // For now, just ensure memory cache is persisted if needed
+        if let Some(redis_cache) = &self.redis_cache {
+            // In a real implementation, we would flush any write-back queue
+            // For now, just log that flush was called
+            tracing::debug!("Cache flush requested");
+        }
+        Ok(())
     }
 }
 

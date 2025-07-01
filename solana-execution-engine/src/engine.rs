@@ -4,12 +4,7 @@
 //! within the MultiVM system. It manages the Solana runtime, transaction processing,
 //! and state management.
 
-use std::{
-    path::PathBuf,
-    process::Stdio,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -376,7 +371,7 @@ impl SolanaExecutionEngine {
             std::fs::create_dir_all(self.config.data_dir.join("accounts")).map_err(|e| {
                 MultivmError::Configuration {
                     component: "solana-engine".to_string(),
-                    message: format!("Failed to create accounts directory: {}", e),
+                    message: format!("Failed to create accounts directory: {e}"),
                     validation_errors: None,
                 }
             })?;
@@ -434,7 +429,7 @@ impl SolanaExecutionEngine {
             Err(e) => {
                 return Err(MultivmError::Rpc {
                     method: "get_slot".to_string(),
-                    message: format!("Failed to connect to Solana validator: {}", e),
+                    message: format!("Failed to connect to Solana validator: {e}"),
                     status_code: None,
                 });
             }
@@ -550,8 +545,7 @@ impl SolanaExecutionEngine {
                 Err(e) => {
                     error!("Failed to deserialize Solana transaction: {}", e);
                     Err(SolanaEngineError::Serialization(format!(
-                        "Transaction deserialization failed: {}",
-                        e
+                        "Transaction deserialization failed: {e}"
                     )))
                 }
             }
@@ -616,7 +610,7 @@ impl SolanaExecutionEngine {
                 warn!("Failed to submit raw transaction data {}: {}", tx_index, e);
                 Err(MultivmError::Rpc {
                     method: "submit_raw_transaction".to_string(),
-                    message: format!("Failed to process raw transaction data {}: {}", tx_index, e),
+                    message: format!("Failed to process raw transaction data {tx_index}: {e}"),
                     status_code: None,
                 })
             }
@@ -642,7 +636,7 @@ impl SolanaExecutionEngine {
                     Ok(signature) => Ok(signature.to_string()),
                     Err(e) => Err(MultivmError::Rpc {
                         method: "send_transaction".to_string(),
-                        message: format!("Failed to send transaction: {}", e),
+                        message: format!("Failed to send transaction: {e}"),
                         status_code: None,
                     }),
                 }
@@ -651,7 +645,7 @@ impl SolanaExecutionEngine {
                 // If deserialization fails, log the error and return failure
                 Err(MultivmError::Rpc {
                     method: "deserialize_transaction".to_string(),
-                    message: format!("Failed to deserialize transaction {}: {}", tx_index, e),
+                    message: format!("Failed to deserialize transaction {tx_index}: {e}"),
                     status_code: None,
                 })
             }
@@ -890,7 +884,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
             // Create data directory for mock mode too
             std::fs::create_dir_all(&self.config.data_dir).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
+                SolanaEngineError::Configuration(format!("Failed to create data directory: {e}"))
             })?;
 
             // Mock initialization - no real validator process
@@ -903,7 +897,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
 
             // Create data directory
             std::fs::create_dir_all(&self.config.data_dir).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
+                SolanaEngineError::Configuration(format!("Failed to create data directory: {e}"))
             })?;
 
             // Initialize real engine
@@ -1109,7 +1103,7 @@ pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> Solana
     let mut transactions = Vec::new();
     for i in 0..transaction_count {
         transactions.push(SolanaTransaction {
-            signature: format!("mock_signature_{}", i),
+            signature: format!("mock_signature_{i}"),
             data: vec![0u8; 64], // Mock transaction data
             compute_units: 5000 + (i as u64 * 100),
         });

@@ -80,7 +80,7 @@ pub enum UserRole {
 }
 
 /// Client information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClientInfo {
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
@@ -155,7 +155,7 @@ impl JwtAuth {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| {
             ApplicationError::InternalError {
                 component: "jwt".to_string(),
-                message: format!("Failed to get current time: {}", e),
+                message: format!("Failed to get current time: {e}"),
             }
         })?;
 
@@ -179,7 +179,7 @@ impl JwtAuth {
 
         encode(&header, &claims, &encoding_key).map_err(|e| {
             ApplicationError::AuthenticationFailed {
-                reason: format!("Failed to encode JWT: {}", e),
+                reason: format!("Failed to encode JWT: {e}"),
             }
         })
     }
@@ -202,7 +202,7 @@ impl JwtAuth {
                     (data.claims, decoding_key)
                 } else {
                     return Err(ApplicationError::AuthenticationFailed {
-                        reason: format!("Secret with key_id '{}' not found", key_id),
+                        reason: format!("Secret with key_id '{key_id}' not found"),
                     });
                 }
             } else {
@@ -222,7 +222,7 @@ impl JwtAuth {
             let token_data =
                 decode::<TokenClaims>(token, &decoding_key, &validation).map_err(|e| {
                     ApplicationError::AuthenticationFailed {
-                        reason: format!("Invalid JWT token: {}", e),
+                        reason: format!("Invalid JWT token: {e}"),
                     }
                 })?;
 
@@ -236,7 +236,7 @@ impl JwtAuth {
         let _validated_token =
             decode::<TokenClaims>(token, &decoding_key, &validation).map_err(|e| {
                 ApplicationError::AuthenticationFailed {
-                    reason: format!("Invalid JWT token: {}", e),
+                    reason: format!("Invalid JWT token: {e}"),
                 }
             })?;
 
@@ -383,12 +383,12 @@ impl TokenClaims {
 
     /// Get issued at time as DateTime
     pub fn issued_at(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.iat as i64, 0).unwrap_or_else(|| Utc::now())
+        DateTime::from_timestamp(self.iat as i64, 0).unwrap_or_else(Utc::now)
     }
 
     /// Get expiration time as DateTime
     pub fn expires_at(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.exp as i64, 0).unwrap_or_else(|| Utc::now())
+        DateTime::from_timestamp(self.exp as i64, 0).unwrap_or_else(Utc::now)
     }
 
     /// Check if user has specific permission
@@ -439,16 +439,6 @@ impl Default for TokenMetadata {
             role: UserRole::User,
             api_key_id: None,
             client_info: None,
-        }
-    }
-}
-
-impl Default for ClientInfo {
-    fn default() -> Self {
-        Self {
-            ip_address: None,
-            user_agent: None,
-            application_name: None,
         }
     }
 }

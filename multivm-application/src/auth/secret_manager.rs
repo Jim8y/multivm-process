@@ -545,6 +545,12 @@ impl SecretStorage for FileSecretStorage {
 /// Environment-based secret storage (reads from environment variables)
 pub struct EnvironmentSecretStorage;
 
+impl Default for EnvironmentSecretStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EnvironmentSecretStorage {
     pub fn new() -> Self {
         Self

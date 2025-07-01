@@ -47,7 +47,7 @@ impl MetricsService {
             addr.parse()
                 .map_err(|e| ApplicationError::ConfigurationError {
                     component: "metrics".to_string(),
-                    message: format!("Invalid bind address: {}", e),
+                    message: format!("Invalid bind address: {e}"),
                 })?;
 
         tokio::spawn(async move {

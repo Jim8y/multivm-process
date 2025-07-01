@@ -126,7 +126,7 @@ impl UnifiedGateway {
             .build()
             .map_err(|e| ApplicationError::ConfigurationError {
                 component: "http_client".to_string(),
-                message: format!("Failed to create HTTP client: {}", e),
+                message: format!("Failed to create HTTP client: {e}"),
             })?;
 
         Ok(Self {
@@ -446,7 +446,7 @@ impl UnifiedGateway {
         let request_id = uuid::Uuid::new_v4().to_string();
 
         // Check cache first
-        let cache_key = format!("account_binding:{}", address);
+        let cache_key = format!("account_binding:{address}");
         if let Ok(Some(cached_data)) = self.cache.get::<serde_json::Value>(&cache_key).await {
             return Ok(GatewayResponse {
                 data: cached_data,
@@ -489,7 +489,7 @@ impl UnifiedGateway {
         } else {
             // Solana-style address - derive Ethereum address
             let svm_address = address;
-            let evm_address = format!("0x{}", &format!("{:0<40}", address)); // Simplified derivation
+            let evm_address = format!("0x{}", &format!("{address:0<40}")); // Simplified derivation
 
             serde_json::json!({
                 "multivm_account_id": format!("multivm_{}", &address[..8]),
@@ -599,7 +599,7 @@ impl UnifiedGateway {
         });
 
         // Cache the binding for quick lookup
-        let cache_key = format!("account_binding:{}", svm_addr);
+        let cache_key = format!("account_binding:{svm_addr}");
         if let Err(e) = self
             .cache
             .set(
@@ -612,7 +612,7 @@ impl UnifiedGateway {
             debug!("Failed to cache account binding for {}: {}", svm_addr, e);
         }
 
-        let cache_key_evm = format!("account_binding:{}", evm_addr);
+        let cache_key_evm = format!("account_binding:{evm_addr}");
         if let Err(e) = self
             .cache
             .set(
@@ -707,7 +707,7 @@ impl UnifiedGateway {
             "crossvm_{}_{}_{}",
             from_vm.to_lowercase(),
             to_vm.to_lowercase(),
-            uuid::Uuid::new_v4().to_string()[..8].to_string()
+            &uuid::Uuid::new_v4().to_string()[..8]
         );
 
         // Parse transaction data to extract relevant information
@@ -747,7 +747,7 @@ impl UnifiedGateway {
         });
 
         // Cache transaction for status tracking
-        let cache_key = format!("cross_vm_tx:{}", tx_id);
+        let cache_key = format!("cross_vm_tx:{tx_id}");
         if let Err(e) = self
             .cache
             .set(&cache_key, &tx_data, std::time::Duration::from_secs(1800))

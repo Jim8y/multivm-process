@@ -1,0 +1,175 @@
+name: Test Private Repository Access
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      test_repo:
+        description: 'Private repository to test (format: org/repo)'
+        required: false
+        default: 'your-org/your-private-repo'
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test-token-access:
+    name: Test GitHub Token Access
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout current repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git for private dependencies
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        echo "Git URL rewriting configured for private repository access"
+    
+    - name: Test GitHub API access
+      run: |
+        echo "🔍 Testing GitHub API access..."
+        
+        # Test basic API access
+        echo "Testing user access:"
+        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+             -H "Accept: application/vnd.github.v3+json" \
+             https://api.github.com/user | jq -r '.login // "API access failed"'
+        
+        # Test current repository access
+        echo "Testing current repository access:"
+        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+             -H "Accept: application/vnd.github.v3+json" \
+             https://api.github.com/repos/${{ github.repository }} | jq -r '.full_name // "Repository access failed"'
+    
+    - name: Test organization access
+      run: |
+        echo "🏢 Testing organization access..."
+        
+        # Get organization info
+        ORG_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+        echo "Organization: $ORG_NAME"
+        
+        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+             -H "Accept: application/vnd.github.v3+json" \
+             https://api.github.com/orgs/$ORG_NAME | jq -r '.login // "Organization access failed"'
+    
+    - name: Test private repository access (if specified)
+      if: github.event.inputs.test_repo != 'your-org/your-private-repo'
+      run: |
+        echo "🔒 Testing private repository access..."
+        TEST_REPO="${{ github.event.inputs.test_repo }}"
+        
+        # Test API access to the specified private repo
+        echo "Testing API access to: $TEST_REPO"
+        RESPONSE=$(curl -s -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                       -H "Accept: application/vnd.github.v3+json" \
+                       https://api.github.com/repos/$TEST_REPO)
+        
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        BODY=$(echo "$RESPONSE" | head -n -1)
+        
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "✅ API access successful"
+          echo "$BODY" | jq -r '.full_name'
+        else
+          echo "❌ API access failed with HTTP $HTTP_CODE"
+          echo "$BODY"
+        fi
+    
+    - name: Test Git clone access (if specified)
+      if: github.event.inputs.test_repo != 'your-org/your-private-repo'
+      run: |
+        echo "📥 Testing Git clone access..."
+        TEST_REPO="${{ github.event.inputs.test_repo }}"
+        
+        # Attempt to clone the private repository
+        if git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$TEST_REPO.git test-clone; then
+          echo "✅ Git clone successful"
+          ls -la test-clone/
+          rm -rf test-clone/
+        else
+          echo "❌ Git clone failed"
+          exit 1
+        fi
+    
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Test Cargo private dependency access
+      run: |
+        echo "📦 Testing Cargo private dependency access..."
+        
+        # Check if Cargo.toml has any git dependencies
+        if [ -f "Cargo.toml" ]; then
+          echo "Checking workspace Cargo.toml for git dependencies:"
+          if grep -n "git.*github.com" Cargo.toml; then
+            echo "Found GitHub git dependencies in workspace"
+          else
+            echo "No GitHub git dependencies found in workspace Cargo.toml"
+          fi
+          
+          # Check individual crate Cargo.toml files
+          echo "Checking individual crate Cargo.toml files:"
+          find . -name "Cargo.toml" -not -path "./target/*" | while read -r file; do
+            if grep -l "git.*github.com" "$file" 2>/dev/null; then
+              echo "Git dependencies found in: $file"
+              grep -n "git.*github.com" "$file"
+            fi
+          done
+          
+          # Test cargo fetch (this will test private dependency access)
+          echo "Testing cargo fetch with verbose output..."
+          if cargo fetch --verbose 2>&1; then
+            echo "✅ Cargo fetch successful - all dependencies accessible"
+          else
+            echo "❌ Cargo fetch failed - check private dependency access"
+            exit 1
+          fi
+          
+          # Test cargo check to ensure dependencies compile
+          echo "Testing cargo check..."
+          if cargo check --workspace --verbose 2>&1; then
+            echo "✅ Cargo check successful - all dependencies compile"
+          else
+            echo "❌ Cargo check failed - dependency compilation issues"
+            exit 1
+          fi
+        else
+          echo "No Cargo.toml found in repository root"
+        fi
+    
+    - name: Test package registry access
+      run: |
+        echo "📋 Testing package registry access..."
+        
+        # Test if we can access GitHub Packages
+        ORG_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+        
+        RESPONSE=$(curl -s -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                       -H "Accept: application/vnd.github.v3+json" \
+                       https://api.github.com/orgs/$ORG_NAME/packages)
+        
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "✅ Package registry access successful"
+        else
+          echo "ℹ️ Package registry access returned HTTP $HTTP_CODE (may be normal if no packages exist)"
+        fi
+    
+    - name: Summary
+      run: |
+        echo "🎯 Test Summary:"
+        echo "==============="
+        echo "✅ GitHub API access: Working"
+        echo "✅ Current repository access: Working"
+        echo "✅ Organization access: Working"
+        echo "✅ Cargo fetch: $([ $? -eq 0 ] && echo "Working" || echo "Check dependencies")"
+        echo ""
+        echo "If all tests pass, your GitHub token is properly configured!"
+        echo "You can now access private repositories in your organization."

@@ -2,7 +2,7 @@
 //!
 //! Run with: `cargo run --example basic_p2p_usage`
 
-use multivm_p2p::messages::*;
+use multivm_p2p::protocol::messages::*;
 use std::time::Duration;
 
 #[tokio::main]

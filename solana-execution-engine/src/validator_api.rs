@@ -464,7 +464,7 @@ impl SolanaValidatorApi {
     /// Make a JSON-RPC request with retry logic
     async fn make_request(&self, method: &str, params: Value) -> Result<Value, SolanaEngineError> {
         for attempt in 1..=self.max_retries {
-            let request_id = format!("{}_{}", method, attempt);
+            let request_id = format!("{method}_{attempt}");
             let rpc_request = json!({
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -524,7 +524,7 @@ impl SolanaValidatorApi {
                         attempt, e
                     );
                     if attempt == self.max_retries {
-                        return Err(SolanaEngineError::Rpc(format!("API request failed: {}", e)));
+                        return Err(SolanaEngineError::Rpc(format!("API request failed: {e}")));
                     }
                 }
             }

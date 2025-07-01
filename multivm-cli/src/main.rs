@@ -1,16 +1,22 @@
 use clap::{Arg, Command};
+use multivm_application::ApplicationConfig;
 use multivm_common::config::MultivmConfig;
-// Consensus imports disabled until dependency conflicts are resolved
-// use multivm_consensus::{MalachiteConfig, ValidatorInfo};
-// use multivm_process_manager::{
-//     ConsensusBlockGenerator, ConsensusBlockGeneratorConfig, CoordinatorConfig, MultivmCoordinator,
-// };
-use multivm_process_manager::MultivmProcessManager;
+use multivm_consensus::MultiVMConsensusManager;
 use std::path::{Path, PathBuf};
-use tracing::info;
+use std::sync::Arc;
+use tracing::{error, info};
 
 mod config_migration;
 mod validation;
+
+/// Convert unified config to application config
+fn convert_to_application_config(
+    unified_config: MultivmConfig,
+) -> Result<ApplicationConfig, Box<dyn std::error::Error>> {
+    // Create application config from unified config
+    let app_config = ApplicationConfig::from_unified_config(unified_config)?;
+    Ok(app_config)
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -120,40 +126,76 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Configuration loaded successfully");
 
-    // Consensus functionality temporarily disabled due to dependency conflicts
-    info!("Starting in minimal mode (consensus disabled)");
+    // Convert unified config to application config
+    let app_config = convert_to_application_config(_unified_config.clone())?;
 
-    // Initialize process manager with the loaded config
-    let manager = MultivmProcessManager::new(_unified_config).await?;
-    info!("Process manager initialized");
+    info!("Starting MultiVM Application Server in production mode");
 
-    // Basic block generation parameters
-    let block_interval_ms = std::env::var("BLOCK_INTERVAL_MS")
-        .unwrap_or_else(|_| "2000".to_string())
-        .parse()
-        .unwrap_or(2000);
+    // Initialize the full application server with all components
+    let app_server = Arc::new(multivm_application::ApplicationServer::new(app_config).await?);
+    info!("Application server initialized");
 
-    // Validate block interval for security
-    let validated_interval = validation::validate_block_interval(block_interval_ms)?;
-    let block_interval = validated_interval;
+    // Initialize consensus manager
+    let consensus_config =
+        multivm_consensus::ConsensusConfig::from_unified_config(&_unified_config)?;
+    let mut consensus_manager = MultiVMConsensusManager::new(consensus_config).await?;
+    info!("Consensus manager initialized");
 
-    // Basic operation without consensus
-    info!("MultiVM Node is running in minimal mode...");
-    info!("Using data directory: {:?}", data_dir);
-    info!("Block interval configured: {} ms", block_interval);
+    // Start consensus manager
+    consensus_manager.start().await?;
+    info!("Consensus manager started");
 
-    // Note: Consensus and block generation disabled until dependency conflicts are resolved
-    info!("Note: Consensus and automatic block generation are temporarily disabled");
+    // Wrap in Arc for sharing
+    let consensus_manager = Arc::new(consensus_manager);
 
-    // Wait for shutdown signal
-    tokio::signal::ctrl_c().await?;
-    info!("Received shutdown signal");
+    // Set the consensus manager in the application state
+    app_server
+        .set_consensus_manager(consensus_manager.clone())
+        .await?;
+    info!("Consensus manager connected to application state");
 
-    // Graceful shutdown
-    info!("Shutting down MultiVM Node...");
+    // Setup graceful shutdown with 60 second timeout
+    app_server.setup_graceful_shutdown(60).await?;
+    info!("Graceful shutdown handler installed");
 
-    // Shutdown process manager
-    manager.shutdown(true).await?;
+    // Start all services (REST API, GraphQL, WebSocket, monitoring, etc.)
+    info!("Starting all API services and background processes...");
+
+    // Note: Consensus is already started above before Arc wrapping
+    let consensus_handle = tokio::spawn(async {
+        // Keep consensus running by sleeping indefinitely
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        }
+    });
+
+    // Start the application server
+    let app_server_clone = app_server.clone();
+    let server_handle = tokio::spawn(async move {
+        if let Err(e) = app_server_clone.start().await {
+            error!("Application server error: {}", e);
+        }
+    });
+
+    info!("MultiVM Node is running in production mode");
+    info!("All API endpoints and consensus services are active");
+    info!("Press CTRL+C to initiate graceful shutdown");
+
+    // Keep running until the application stops
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        if !app_server.is_running().await {
+            info!("Application is shutting down...");
+            break;
+        }
+    }
+
+    // Wait for services to finish
+    let _ = tokio::time::timeout(
+        tokio::time::Duration::from_secs(10),
+        futures::future::join_all(vec![consensus_handle, server_handle]),
+    )
+    .await;
 
     info!("MultiVM Node stopped successfully");
 

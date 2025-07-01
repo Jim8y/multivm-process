@@ -19,7 +19,7 @@ use solana_sdk::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -106,7 +106,7 @@ impl RealSolanaEngine {
 
         // Create directories
         std::fs::create_dir_all(&data_dir).map_err(|e| {
-            SolanaEngineError::Configuration(format!("Failed to create data directory: {}", e))
+            SolanaEngineError::Configuration(format!("Failed to create data directory: {e}"))
         })?;
 
         Ok(Self {
@@ -158,7 +158,7 @@ impl RealSolanaEngine {
         cmd
             // Ledger and accounts
             .arg("--ledger")
-            .arg(&self.data_dir.join("ledger"))
+            .arg(self.data_dir.join("ledger"))
             .arg("--accounts")
             .arg(&self.data_dir.join("accounts"))
             // RPC configuration for MultiVM communication
@@ -240,7 +240,7 @@ impl RealSolanaEngine {
         debug!("Solana validator command: {:?}", cmd);
 
         let child = cmd.spawn().map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to start Solana validator: {}", e))
+            SolanaEngineError::Process(format!("Failed to start Solana validator: {e}"))
         })?;
 
         let pid = child.id();
@@ -511,7 +511,7 @@ impl RealSolanaEngine {
         );
 
         // Convert transaction data to base64 for submission
-        let transaction_base64 = base64::encode(&transaction.data);
+        let transaction_base64 = base64::prelude::BASE64_STANDARD.encode(&transaction.data);
 
         // Submit transaction to the Solana validator
         match client
@@ -525,8 +525,7 @@ impl RealSolanaEngine {
             Err(e) => {
                 error!("Failed to submit Solana transaction: {}", e);
                 Err(SolanaEngineError::Transaction(format!(
-                    "Transaction submission failed: {}",
-                    e
+                    "Transaction submission failed: {e}"
                 )))
             }
         }
@@ -587,7 +586,7 @@ impl RealSolanaEngine {
             .stderr(std::process::Stdio::null());
 
         let output = cmd.output().await.map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to create Solana genesis: {}", e))
+            SolanaEngineError::Process(format!("Failed to create Solana genesis: {e}"))
         })?;
 
         if !output.status.success() {
