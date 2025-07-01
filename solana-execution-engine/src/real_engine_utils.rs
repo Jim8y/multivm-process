@@ -16,6 +16,10 @@ use solana_sdk::{
     system_instruction,
     transaction::Transaction,
 };
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::process::Command;
+use tracing::{info, warn};
 
 /// Solana transaction utilities
 impl RealSolanaEngine {
@@ -159,7 +163,7 @@ impl RealSolanaEngine {
         let blockhash_str = client.get_latest_blockhash().await?;
         blockhash_str
             .parse()
-            .map_err(|e| SolanaEngineError::Rpc(format!("Failed to parse blockhash: {e}")))
+            .map_err(|e| SolanaEngineError::Rpc(format!("Failed to parse blockhash: {}", e)))
     }
 
     /// Get minimum balance for rent exemption
@@ -203,7 +207,7 @@ impl RealSolanaEngine {
     pub(super) fn validate_address(&self, address: &str) -> Result<Pubkey, SolanaEngineError> {
         address
             .parse()
-            .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana address: {e}")))
+            .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana address: {}", e)))
     }
 
     /// Convert lamports to SOL
@@ -450,14 +454,14 @@ pub fn create_mock_solana_transaction(signature: String, compute_units: u64) -> 
 pub fn validate_signature(signature: &str) -> Result<Signature, SolanaEngineError> {
     signature
         .parse()
-        .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana signature: {e}")))
+        .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana signature: {}", e)))
 }
 
 /// Validate Solana public key format
 pub fn validate_pubkey(pubkey: &str) -> Result<Pubkey, SolanaEngineError> {
     pubkey
         .parse()
-        .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana public key: {e}")))
+        .map_err(|e| SolanaEngineError::Configuration(format!("Invalid Solana public key: {}", e)))
 }
 
 /// Convert slot to approximate timestamp

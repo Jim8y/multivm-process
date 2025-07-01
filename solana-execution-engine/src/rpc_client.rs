@@ -7,7 +7,12 @@
 use crate::engine::SolanaEngineError;
 use reqwest::Client;
 use serde_json::{json, Value};
-use solana_sdk::{commitment_config::CommitmentConfig, slot_history::Slot};
+use solana_sdk::{
+    commitment_config::{CommitmentConfig, CommitmentLevel},
+    pubkey::Pubkey,
+    signature::Signature,
+    slot_history::Slot,
+};
 use std::time::Duration;
 use tracing::{debug, warn};
 
@@ -198,7 +203,8 @@ impl SolanaRpcClient {
             Ok(signature.to_string())
         } else if let Some(error) = response.get("error") {
             Err(SolanaEngineError::Rpc(format!(
-                "Transaction rejected: {error}"
+                "Transaction rejected: {}",
+                error
             )))
         } else {
             Err(SolanaEngineError::Rpc(
@@ -451,7 +457,8 @@ impl SolanaRpcClient {
                             );
                             if attempt == self.max_retries {
                                 return Err(SolanaEngineError::Rpc(format!(
-                                    "Failed to parse RPC response: {e}"
+                                    "Failed to parse RPC response: {}",
+                                    e
                                 )));
                             }
                         }

@@ -8,10 +8,11 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
+    pubkey::Pubkey,
     slot_history::Slot,
 };
 use std::time::Duration;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 /// Solana validator API client for advanced operations
 pub struct SolanaValidatorApi {
@@ -107,7 +108,7 @@ impl SolanaValidatorApi {
             .tcp_keepalive(Duration::from_secs(60))
             .build()
             .map_err(|e| {
-                SolanaEngineError::Rpc(format!("Failed to create validator API client: {e}"))
+                SolanaEngineError::Rpc(format!("Failed to create validator API client: {}", e))
             })?;
 
         Ok(Self {
@@ -497,7 +498,8 @@ impl SolanaValidatorApi {
                             );
                             if attempt == self.max_retries {
                                 return Err(SolanaEngineError::Rpc(format!(
-                                    "Failed to parse API response: {e}"
+                                    "Failed to parse API response: {}",
+                                    e
                                 )));
                             }
                         }

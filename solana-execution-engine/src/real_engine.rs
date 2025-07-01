@@ -7,10 +7,14 @@
 use crate::engine::{SolanaBlockData, SolanaEngineError, SolanaExecutionResult, SolanaTransaction};
 use crate::rpc_client::{SolanaRpcClient, SolanaRpcClientBuilder};
 use crate::validator_api::{SlotInfo, SolanaValidatorApi, SolanaValidatorApiBuilder};
-use base64::prelude::*;
-use multivm_common::{BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmError};
+use async_trait::async_trait;
+use multivm_common::*;
+use reqwest::Client;
+use serde_json::{json, Value};
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
+    pubkey::Pubkey,
+    signature::Signature,
     slot_history::Slot,
 };
 use std::path::PathBuf;
@@ -156,7 +160,7 @@ impl RealSolanaEngine {
             .arg("--ledger")
             .arg(self.data_dir.join("ledger"))
             .arg("--accounts")
-            .arg(self.data_dir.join("accounts"))
+            .arg(&self.data_dir.join("accounts"))
             // RPC configuration for MultiVM communication
             .arg("--rpc-port")
             .arg(self.rpc_port.to_string())
@@ -536,13 +540,17 @@ impl RealSolanaEngine {
 
             // Create ledger directory
             std::fs::create_dir_all(&ledger_path).map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to create ledger directory: {e}"))
+                SolanaEngineError::Configuration(format!(
+                    "Failed to create ledger directory: {}",
+                    e
+                ))
             })?;
 
             // Create accounts directory
             std::fs::create_dir_all(self.data_dir.join("accounts")).map_err(|e| {
                 SolanaEngineError::Configuration(format!(
-                    "Failed to create accounts directory: {e}"
+                    "Failed to create accounts directory: {}",
+                    e
                 ))
             })?;
 

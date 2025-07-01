@@ -151,7 +151,7 @@ impl SolanaIpcClient {
         // Serialize response
         let response_bytes = bincode::serialize(&response).map_err(|e| MultivmError::Ipc {
             endpoint: "ipc_client".to_string(),
-            message: format!("Failed to serialize response: {e}"),
+            message: format!("Failed to serialize response: {}", e),
             retry_count: None,
         })?;
 
@@ -166,7 +166,7 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to write response length: {e}"),
+                        message: format!("Failed to write response length: {}", e),
                         retry_count: None,
                     })?;
 
@@ -175,13 +175,13 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "unix_socket".to_string(),
-                        message: format!("Failed to write response data: {e}"),
+                        message: format!("Failed to write response data: {}", e),
                         retry_count: None,
                     })?;
 
                 writer.flush().await.map_err(|e| MultivmError::Ipc {
                     endpoint: "unix_socket".to_string(),
-                    message: format!("Failed to flush response: {e}"),
+                    message: format!("Failed to flush response: {}", e),
                     retry_count: None,
                 })?;
             }
@@ -191,7 +191,7 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to write response length: {e}"),
+                        message: format!("Failed to write response length: {}", e),
                         retry_count: None,
                     })?;
 
@@ -200,13 +200,13 @@ impl SolanaIpcClient {
                     .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: "tcp_socket".to_string(),
-                        message: format!("Failed to write response data: {e}"),
+                        message: format!("Failed to write response data: {}", e),
                         retry_count: None,
                     })?;
 
                 writer.flush().await.map_err(|e| MultivmError::Ipc {
                     endpoint: "tcp_socket".to_string(),
-                    message: format!("Failed to flush response: {e}"),
+                    message: format!("Failed to flush response: {}", e),
                     retry_count: None,
                 })?;
             }

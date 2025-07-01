@@ -142,7 +142,7 @@ impl SolanaRpcServer {
                 format!("127.0.0.1:{}", self.port).parse().map_err(|e| {
                     MultivmError::Configuration {
                         component: "solana-rpc-server".to_string(),
-                        message: format!("Invalid bind address: {e}"),
+                        message: format!("Invalid bind address: {}", e),
                         validation_errors: None,
                     }
                 })?;

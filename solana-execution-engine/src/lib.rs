@@ -4,13 +4,6 @@
 //! for the MultiVM system. It includes comprehensive Solana RPC integration, transaction
 //! execution, and state management capabilities.
 
-// Allow warnings for deprecated base64 functions until we update to new API
-#![allow(deprecated)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-#![allow(dead_code)]
-#![allow(clippy::should_implement_trait)]
-
 // Re-export multivm-common types for convenience
 pub use multivm_common::{
     BlockchainType, EngineState, ExecutionEngine, HealthStatus, IpcCommand, IpcMessage,

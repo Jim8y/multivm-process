@@ -10,7 +10,7 @@ members = [
     "multivm-cli",
     # Re-enabling execution engines with feature-based compilation
     "reth-execution-engine",
-    # "solana-execution-engine",  # Temporarily disabled due to dependency conflicts
+    "solana-execution-engine",  # ed25519-dalek conflict resolved
 ]
 resolver = "2"
 
@@ -61,7 +61,7 @@ async-graphql-axum = "7.0"
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-rocksdb = "0.21"
+rocksdb = "0.22"
 
 # Caching
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }

@@ -15,7 +15,8 @@ use tracing::{debug, error, info, warn};
 // Common types from multivm-common
 use multivm_common::types_rpc::RpcConfig;
 use multivm_common::{
-    BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmError, ProcessingMetrics,
+    BlockchainType, EngineState, ExecutionEngine, HealthStatus, MultivmError, ProcessId,
+    ProcessingMetrics,
 };
 
 // Solana imports (only when real-validator feature is enabled)
@@ -334,7 +335,7 @@ impl SolanaExecutionEngine {
 
         let child = cmd.spawn().map_err(|e| MultivmError::Process {
             process_id: "solana-validator".to_string(),
-            message: format!("Failed to start Solana validator: {e}"),
+            message: format!("Failed to start Solana validator: {}", e),
             exit_code: None,
         })?;
 
@@ -391,7 +392,7 @@ impl SolanaExecutionEngine {
 
             let output = cmd.output().await.map_err(|e| MultivmError::Process {
                 process_id: "solana-genesis".to_string(),
-                message: format!("Failed to create Solana genesis: {e}"),
+                message: format!("Failed to create Solana genesis: {}", e),
                 exit_code: None,
             })?;
 
@@ -522,7 +523,8 @@ impl SolanaExecutionEngine {
                     let transaction: solana_sdk::transaction::Transaction =
                         bincode::deserialize(&solana_tx).map_err(|e| {
                             SolanaEngineError::Serialization(format!(
-                                "Failed to deserialize transaction for RPC: {e}"
+                                "Failed to deserialize transaction for RPC: {}",
+                                e
                             ))
                         })?;
 
@@ -534,7 +536,8 @@ impl SolanaExecutionEngine {
                         Err(e) => {
                             error!("Failed to submit Solana transaction: {}", e);
                             Err(SolanaEngineError::Transaction(format!(
-                                "Transaction submission failed: {e}"
+                                "Transaction submission failed: {}",
+                                e
                             )))
                         }
                     }
@@ -1014,7 +1017,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
             // Get latest slot from RPC client
             client
                 .get_slot()
-                .map_err(|e| SolanaEngineError::Rpc(format!("Failed to get latest slot: {e}")))
+                .map_err(|e| SolanaEngineError::Rpc(format!("Failed to get latest slot: {}", e)))
         } else {
             // Return current slot if no RPC client
             Ok(self.current_slot)

@@ -27,7 +27,7 @@ parking_lot = "0.12"
 futures = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 bs58 = "0.5"
-rocksdb = "0.21"
+rocksdb = { workspace = true }
 
 # Consensus specific
 sha2 = "0.10"
