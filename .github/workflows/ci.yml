@@ -129,40 +129,6 @@ jobs:
       run: cargo audit
       continue-on-error: true  # Don't fail CI on security issues during development
 
-  benchmark:
-    name: Benchmarks
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-and-test
-    timeout-minutes: 20  # Reduced timeout since we're reusing artifacts
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Configure Git for private dependencies
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-    
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: rust-build-artifacts
-        path: .
-    
-    - name: Run benchmarks
-      run: |
-        if [ -f "benchmarks/benchmark_system.sh" ]; then
-          cd benchmarks && ./benchmark_system.sh
-        else
-          echo "Benchmark script not found, skipping"
-        fi
-      continue-on-error: true
 
   coverage:
     name: Test Coverage
