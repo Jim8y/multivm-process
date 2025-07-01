@@ -8,6 +8,7 @@ use crate::engine::{SolanaBlockData, SolanaEngineError, SolanaExecutionResult, S
 use crate::rpc_client::{SolanaRpcClient, SolanaRpcClientBuilder};
 use crate::validator_api::{SlotInfo, SolanaValidatorApi, SolanaValidatorApiBuilder};
 use async_trait::async_trait;
+use base64::Engine;
 use multivm_common::*;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -511,7 +512,7 @@ impl RealSolanaEngine {
         );
 
         // Convert transaction data to base64 for submission
-        let transaction_base64 = base64::prelude::BASE64_STANDARD.encode(&transaction.data);
+        let transaction_base64 = base64::encode(&transaction.data);
 
         // Submit transaction to the Solana validator
         match client
