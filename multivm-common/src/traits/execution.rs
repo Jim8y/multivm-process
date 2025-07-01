@@ -31,7 +31,7 @@ use std::time::Duration;
 /// ```rust,no_run
 /// use async_trait::async_trait;
 /// use multivm_common::traits::ExecutionEngine;
-/// use multivm_common::{BlockchainType, HealthStatus, EngineState, ProcessingMetrics};
+/// use multivm_common::{BlockchainType, HealthStatus, EngineState, ProcessingMetrics, ProcessId};
 /// use multivm_common::types::rpc::RpcConfig;
 /// use std::time::Duration;
 ///
@@ -69,10 +69,11 @@ use std::time::Duration;
 ///
 ///     async fn process_block(&mut self, block: Self::BlockType) -> Result<Self::ExecutionResult, Self::Error> {
 ///         // Process the block and return results
-///         self.validate_block(&block)?;
-///         let result = self.execute_transactions(block.transactions).await?;
-///         self.update_state(result.state_changes).await?;
-///         Ok(result)
+///         // In a real implementation, you would:
+///         // 1. Validate the block
+///         // 2. Execute transactions
+///         // 3. Update state
+///         Ok(MyResult)
 ///     }
 ///
 ///     fn blockchain_type(&self) -> BlockchainType {
@@ -85,52 +86,68 @@ use std::time::Duration;
 ///
 ///     async fn get_state(&self) -> Result<EngineState, Self::Error> {
 ///         Ok(EngineState {
-///             latest_block: self.get_latest_block_id().await?,
+///             process_id: ProcessId::Ethereum,
+///             blockchain_type: BlockchainType::Ethereum,
+///             current_block: Some(12345),
+///             state_root: vec![0x01, 0x23],
+///             rpc_endpoints: vec!["http://localhost:8545".to_string()],
 ///             is_syncing: false,
-///             peer_count: 0,
+///             peer_count: 5,
+///             data_directory: "/tmp/engine".to_string(),
+///             chain_id: 1,
 ///         })
 ///     }
 ///
 ///     async fn start_rpc_server(&self, config: RpcConfig) -> Result<(), Self::Error> {
-///         self.rpc_server.start(config).await
+///         // Start RPC server implementation
+///         Ok(())
 ///     }
 ///
 ///     async fn stop_rpc_server(&self) -> Result<(), Self::Error> {
-///         self.rpc_server.stop().await
+///         // Stop RPC server implementation
+///         Ok(())
 ///     }
 ///
 ///     async fn initialize(&mut self) -> Result<(), Self::Error> {
-///         self.load_configuration()?;
-///         self.connect_to_network().await?;
-///         self.sync_initial_state().await?;
+///         // Initialize engine: load config, connect to network, sync state
 ///         Ok(())
 ///     }
 ///
 ///     async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), Self::Error> {
-///         let timeout = timeout.unwrap_or(Duration::from_secs(30));
-///         tokio::time::timeout(timeout, self.graceful_shutdown()).await??;
+///         // Graceful shutdown implementation
 ///         Ok(())
 ///     }
 ///
 ///     async fn is_ready(&self) -> bool {
-///         self.is_initialized && self.is_synced
+///         // Check if engine is initialized and ready
+///         true
 ///     }
 ///
 ///     async fn get_metrics(&self) -> Result<ProcessingMetrics, Self::Error> {
 ///         Ok(ProcessingMetrics {
-///             blocks_processed: self.metrics.blocks_processed,
-///             transactions_processed: self.metrics.transactions_processed,
-///             average_block_time: self.metrics.average_block_time,
+///             cpu_time: Duration::from_secs(100),
+///             memory_usage_bytes: 1024 * 1024 * 100, // 100MB
+///             disk_reads: 1000,
+///             disk_writes: 500,
+///             network_bytes: 1024 * 1024, // 1MB
+///             compute_units_used: 50000,
+///             transaction_count: 100,
+///             account_updates: 200,
+///             total_requests: 1000,
+///             successful_requests: 980,
+///             failed_requests: 20,
+///             average_response_time_ms: 15.5,
+///             peak_memory_usage_mb: 150,
+///             cpu_usage_percent: 45.0,
 ///         })
 ///     }
 ///
 ///     async fn get_latest_block_id(&self) -> Result<u64, Self::Error> {
-///         Ok(self.state.latest_block_height)
+///         Ok(12345)
 ///     }
 ///
 ///     async fn reset_to_block(&mut self, block_id: u64) -> Result<(), Self::Error> {
-///         self.state.reset_to_height(block_id).await?;
-///         self.clear_pending_transactions();
+///         // Reset state to specific block
 ///         Ok(())
 ///     }
 /// }
