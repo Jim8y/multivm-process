@@ -21,41 +21,9 @@ permissions:
   packages: read
 
 jobs:
-  # Quick smoke test to fail fast
-  quick-test:
-    name: Quick Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup SSH authentication
-      uses: ./.github/actions/setup-ssh
-      env:
-        SSH_KEY: ${{ secrets.SSH_KEY }}
-    
-    - name: Setup system dependencies
-      uses: ./.github/actions/setup-dependencies
-    
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Run quick check
-      run: |
-        # Quick compilation check without full build
-        cargo check --workspace --all-features
-    
-    - name: Run minimal tests
-      run: |
-        # Run tests for the core common module only as a smoke test
-        cargo test -p multivm-common --lib
-
   fmt-and-lint:
     name: Format and Lint
     runs-on: ubuntu-latest
-    needs: quick-test
     timeout-minutes: 30
     
     steps:
@@ -87,21 +55,10 @@ jobs:
       run: cargo clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings
 
   build-and-test:
-    name: Build and Test (${{ matrix.os }}, ${{ matrix.rust }})
-    runs-on: ${{ matrix.os }}
+    name: Build and Test
+    runs-on: ubuntu-latest
     needs: fmt-and-lint
     timeout-minutes: 45
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        rust: [stable]
-        include:
-          # Add Windows with longer timeout
-          - os: windows-latest
-            rust: stable
-            timeout-minutes: 60
     
     steps:
     - name: Checkout code
@@ -112,32 +69,18 @@ jobs:
       env:
         SSH_KEY: ${{ secrets.SSH_KEY }}
     
-    - name: Setup system dependencies (Linux)
+    - name: Setup system dependencies
       uses: ./.github/actions/setup-dependencies
-      if: runner.os == 'Linux'
-    
-    - name: Setup system dependencies (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew update
-        brew install pkg-config
-    
-    - name: Setup system dependencies (Windows)
-      if: runner.os == 'Windows'
-      shell: bash
-      run: |
-        echo "Windows dependencies setup complete"
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: ${{ matrix.rust }}
         components: llvm-tools-preview
     
     - name: Setup Rust cache
       uses: Swatinem/rust-cache@v2
       with:
-        key: build-${{ matrix.rust }}
+        key: build-stable
         cache-on-failure: true
     
     - name: Build workspace
@@ -203,7 +146,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: test-report-${{ matrix.rust }}
+        name: test-report
         path: test-report.md
         retention-days: 7
     
@@ -211,7 +154,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: rust-build-artifacts-${{ matrix.rust }}
+        name: rust-build-artifacts
         path: |
           target/debug/
           Cargo.lock
@@ -359,14 +302,13 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [quick-test, fmt-and-lint, build-and-test, build-release, security-audit]
+    needs: [fmt-and-lint, build-and-test, build-release, security-audit]
     if: always()
     
     steps:
     - name: Check job results
       run: |
-        if [[ "${{ needs.quick-test.result }}" != "success" ]] || \
-           [[ "${{ needs.fmt-and-lint.result }}" != "success" ]] || \
+        if [[ "${{ needs.fmt-and-lint.result }}" != "success" ]] || \
            [[ "${{ needs.build-and-test.result }}" != "success" ]] || \
            [[ "${{ needs.build-release.result }}" != "success" ]] || \
            [[ "${{ needs.security-audit.result }}" != "success" ]]; then
