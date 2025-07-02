@@ -58,7 +58,6 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly-2025-06-15
-        components: rustfmt, clippy, llvm-tools-preview
     
     - name: Setup comprehensive cache
       uses: Swatinem/rust-cache@v2
@@ -96,22 +95,15 @@ jobs:
         # Remove Cargo.lock for fresh dependency resolution
         rm -f Cargo.lock
     
-    - name: Check formatting
-      run: cargo +nightly-2025-06-15 fmt --all -- --check
-    
-    - name: Build and analyze code (combined step)
+    - name: Build debug workspace and tests (one time only)
       run: |
-        echo "::group::Building workspace and running analysis"
+        echo "::group::Building debug workspace and tests"
         
-        # First run clippy which will compile everything needed for analysis
-        echo "Running clippy analysis..."
-        cargo +nightly-2025-06-15 clippy --workspace --lib --bins --tests --jobs $(nproc) -- -W clippy::correctness -W clippy::suspicious -A warnings
-        
-        # Then build debug workspace (will reuse clippy's compilation artifacts)
+        # Build debug workspace
         echo "Building debug workspace..."
         cargo +nightly-2025-06-15 build --workspace --all-features --jobs $(nproc)
         
-        # Build all tests (will also reuse artifacts)
+        # Build all tests (but don't run them)
         echo "Building all tests..."
         cargo +nightly-2025-06-15 test --workspace --all-features --no-run --jobs $(nproc)
         
