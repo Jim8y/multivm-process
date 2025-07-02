@@ -9,6 +9,10 @@ on:
         default: 'your-org/your-private-repo'
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: read
