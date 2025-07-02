@@ -99,19 +99,19 @@ jobs:
     - name: Check formatting
       run: cargo +nightly-2025-06-15 fmt --all -- --check
     
-    - name: Run clippy
+    - name: Build and analyze code (combined step)
       run: |
-        cargo +nightly-2025-06-15 clippy --workspace --lib --bins --tests --jobs $(nproc) -- -W clippy::correctness -W clippy::suspicious -A warnings
-    
-    - name: Build debug workspace and tests (one time only)
-      run: |
-        echo "::group::Building debug workspace and tests"
+        echo "::group::Building workspace and running analysis"
         
-        # Build debug workspace
+        # First run clippy which will compile everything needed for analysis
+        echo "Running clippy analysis..."
+        cargo +nightly-2025-06-15 clippy --workspace --lib --bins --tests --jobs $(nproc) -- -W clippy::correctness -W clippy::suspicious -A warnings
+        
+        # Then build debug workspace (will reuse clippy's compilation artifacts)
         echo "Building debug workspace..."
         cargo +nightly-2025-06-15 build --workspace --all-features --jobs $(nproc)
         
-        # Build all tests (but don't run them)
+        # Build all tests (will also reuse artifacts)
         echo "Building all tests..."
         cargo +nightly-2025-06-15 test --workspace --all-features --no-run --jobs $(nproc)
         

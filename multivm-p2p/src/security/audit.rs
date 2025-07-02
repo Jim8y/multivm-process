@@ -4,15 +4,15 @@
 //! enabling security analysis, compliance reporting, and forensic investigation
 //! of network activities.
 
-use crate::error::P2PResult;
+use crate::error::{P2PResult, P2PError};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Maximum in-memory audit entries before forced flush
 const MAX_MEMORY_ENTRIES: usize = 10_000;
@@ -461,7 +461,7 @@ impl AuditLogger {
         let config = self.config.clone();
         #[cfg(feature = "persistence")]
         let db = self.db.clone();
-        let _stats = self.stats.clone();
+        let stats = self.stats.clone();
 
         tokio::spawn(async move {
             let mut interval = interval(config.flush_interval);

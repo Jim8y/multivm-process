@@ -13,7 +13,7 @@ mod metrics_impl {
     use std::sync::Arc;
     use std::time::Instant;
     use tokio::sync::RwLock;
-    use tracing::{error, info, warn};
+    use tracing::warn;
 
     /// Production monitoring system for P2P network
     #[derive(Debug)]
@@ -238,7 +238,7 @@ mod metrics_impl {
         /// Record a message event
         pub fn record_message_event(
             &self,
-            message_type: &str,
+            _message_type: &str,
             size: usize,
             processing_time: Duration,
         ) {
