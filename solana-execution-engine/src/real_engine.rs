@@ -4,6 +4,7 @@
 //! It replaces the mock implementation with actual Solana validator communication for
 //! production-grade SVM transaction execution and state management.
 
+use crate::config::{MultivmValidatorConfig, SolanaConnectionConfig};
 use crate::engine::{SolanaBlockData, SolanaEngineError, SolanaExecutionResult, SolanaTransaction};
 use crate::rpc_client::{SolanaRpcClient, SolanaRpcClientBuilder};
 use crate::validator_api::{SlotInfo, SolanaValidatorApi, SolanaValidatorApiBuilder};
@@ -48,32 +49,9 @@ pub struct RealSolanaEngine {
 
     /// Connection configuration
     connection_config: SolanaConnectionConfig,
-}
 
-/// Configuration for Solana validator connections
-#[derive(Debug, Clone)]
-pub struct SolanaConnectionConfig {
-    pub max_retries: u32,
-    pub retry_delay: Duration,
-    pub request_timeout: Duration,
-    pub health_check_interval: Duration,
-    pub connection_pool_size: u32,
-    pub commitment_level: CommitmentLevel,
-    pub enable_websockets: bool,
-}
-
-impl Default for SolanaConnectionConfig {
-    fn default() -> Self {
-        Self {
-            max_retries: 3,
-            retry_delay: Duration::from_millis(1000),
-            request_timeout: Duration::from_secs(30),
-            health_check_interval: Duration::from_secs(10),
-            connection_pool_size: 10,
-            commitment_level: CommitmentLevel::Confirmed,
-            enable_websockets: true,
-        }
-    }
+    /// MultiVM validator configuration
+    validator_config: MultivmValidatorConfig,
 }
 
 impl RealSolanaEngine {
@@ -88,6 +66,7 @@ impl RealSolanaEngine {
             rpc_port,
             cluster,
             SolanaConnectionConfig::default(),
+            MultivmValidatorConfig::default(),
         )
         .await
     }
@@ -98,6 +77,7 @@ impl RealSolanaEngine {
         rpc_port: u16,
         cluster: String,
         connection_config: SolanaConnectionConfig,
+        validator_config: MultivmValidatorConfig,
     ) -> Result<Self, SolanaEngineError> {
         info!("Creating real Solana execution engine");
         info!("Data directory: {}", data_dir.display());
@@ -123,15 +103,13 @@ impl RealSolanaEngine {
             start_time: Instant::now(),
             is_running: Arc::new(RwLock::new(false)),
             connection_config,
+            validator_config,
         })
     }
 
     /// Initialize the real Solana engine
     pub async fn initialize(&mut self) -> Result<(), SolanaEngineError> {
         info!("Initializing real Solana execution engine");
-
-        // Initialize ledger if needed
-        self.init_ledger_if_needed().await?;
 
         // Start the Solana validator process
         self.start_solana_validator_process().await?;
@@ -151,110 +129,96 @@ impl RealSolanaEngine {
         Ok(())
     }
 
-    /// Start the Solana validator process with optimized configuration
-    async fn start_solana_validator_process(&self) -> Result<(), SolanaEngineError> {
-        info!("Starting Solana validator process");
+    /// Start the MultiVM validator process with simplified configuration
+    pub async fn start_solana_validator_process(&self) -> Result<(), SolanaEngineError> {
+        info!("Starting MultiVM validator process");
 
-        let mut cmd = Command::new("solana-validator");
+        // Get the path to the multivm-validator binary
+        let binary_path = self.get_multivm_validator_path()?;
+
+        // Create log file for validator output
+        let log_file_path = self.data_dir.join("multivm-validator.log");
+        let log_file = std::fs::File::create(&log_file_path).map_err(|e| {
+            SolanaEngineError::Configuration(format!("Failed to create log file: {e}"))
+        })?;
+
+        let mut cmd = Command::new(binary_path);
         cmd
-            // Ledger and accounts
-            .arg("--ledger")
-            .arg(self.data_dir.join("ledger"))
-            .arg("--accounts")
-            .arg(&self.data_dir.join("accounts"))
-            // RPC configuration for MultiVM communication
-            .arg("--rpc-port")
-            .arg(self.rpc_port.to_string())
-            .arg("--rpc-bind-address")
-            .arg("127.0.0.1")
-            .arg("--full-rpc-api")
-            .arg("--enable-rpc-transaction-history")
-            .arg("--enable-extended-tx-metadata-storage")
-            // WebSocket configuration for real-time updates
-            .arg("--rpc-pubsub-enable-vote-subscription")
-            .arg("--rpc-pubsub-enable-block-subscription")
-            // CRITICAL: Disable ALL P2P and networking - MultiVM handles consensus
-            .arg("--no-port-check")
+            // Gossip configuration
+            .arg("--gossip-host")
+            .arg(&self.validator_config.gossip_host)
             .arg("--gossip-port")
-            .arg("0") // Disable gossip completely
-            .arg("--dynamic-port-range")
-            .arg("0-0") // No dynamic ports
-            .arg("--repair-port")
-            .arg("0") // Disable repair protocol
-            .arg("--serve-repair")
-            .arg("0") // Disable repair service
-            .arg("--tvu-port")
-            .arg("0") // Disable transaction verification unit
-            .arg("--tpu-port")
-            .arg("0") // Disable transaction processing unit
-            .arg("--no-poh") // Disable Proof of History - MultiVM handles timing
-            // CRITICAL: Disable ALL consensus mechanisms - MultiVM handles consensus
-            .arg("--no-voting") // No voting
-            .arg("--no-check-vote-account") // Skip vote account validation
-            .arg("--no-wait-for-vote-to-start-leader") // Don't wait for votes
-            .arg("--skip-poh-verify") // Skip PoH verification
-            .arg("--no-os-network-limits-test") // Skip network tests
-            .arg("--no-genesis-fetch") // Don't fetch genesis from network
-            .arg("--no-snapshot-fetch") // Don't fetch snapshots from network
-            .arg("--no-incremental-snapshots") // Disable incremental snapshots
-            // Execution-only mode: Only handle transaction execution and state updates
-            .arg("--execution-only") // If available, use execution-only mode
-            .arg("--no-leader-rotation") // Disable leader rotation
-            .arg("--no-tower") // Disable tower (consensus voting)
-            // Performance optimizations for execution-only mode
-            .arg("--accounts-db-caching-enabled")
-            .arg("--accounts-db-test-hash-calculation")
-            .arg("--limit-ledger-size")
-            .arg("1000000") // Limit ledger size since we're not syncing
-            // Banking and execution settings optimized for MultiVM
-            .arg("--banking-trace-dir-byte-limit")
-            .arg("1000000000") // 1GB for transaction tracing
-            .arg("--block-verification-method")
-            .arg("unified-scheduler") // Use unified scheduler for better performance
-            .arg("--no-wait-for-supermajority") // Don't wait for network supermajority
-            // Disable all network-related features
-            .arg("--no-untrusted-rpc") // Only allow trusted RPC (from MultiVM)
-            .arg("--private-rpc") // Make RPC private (only localhost)
-            // Logging optimized for MultiVM integration
+            .arg(self.validator_config.gossip_port.to_string())
+            // Configuration and ledger paths
+            .arg("--ledger")
+            .arg(&self.validator_config.ledger_path)
+            // Timing configuration
+            .arg("--ticks-per-slot")
+            .arg(self.validator_config.ticks_per_slot.to_string())
             .arg("--log")
-            .arg("-") // Log to stdout for MultiVM to capture
-            .arg("--log-messages-bytes-limit")
-            .arg("1000000")
-            .arg("--quiet") // Reduce unnecessary logging
-            // Process settings
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .arg("--deterministic");
+
+        if self.validator_config.reset {
+            cmd.arg("--reset");
+        }
+
+        cmd
+            // Process settings - redirect output to log file
+            .stdout(std::process::Stdio::from(log_file.try_clone().map_err(|e| {
+                SolanaEngineError::Configuration(format!("Failed to clone log file handle: {e}"))
+            })?))
+            .stderr(std::process::Stdio::from(log_file))
             .kill_on_drop(true);
 
-        // For execution-only mode, we always use development/localnet configuration
-        // MultiVM handles the actual network connectivity and consensus
-        cmd.arg("--cluster-type").arg("development");
-
-        // Set a fixed identity for the execution engine (not used for consensus)
-        cmd.arg("--identity")
-            .arg(self.data_dir.join("validator-keypair.json"));
-
-        // Disable all external network connections - only local execution
-        cmd.arg("--entrypoint").arg(""); // No entrypoints
-        cmd.arg("--known-validator").arg(""); // No known validators
-
-        debug!("Solana validator command: {:?}", cmd);
+        debug!("MultiVM validator command: {:?}", cmd);
+        info!("Validator output will be logged to: {}", log_file_path.display());
 
         let child = cmd.spawn().map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to start Solana validator: {e}"))
+            SolanaEngineError::Process(format!("Failed to start MultiVM validator: {e}"))
         })?;
 
         let pid = child.id();
         *self.validator_process.write().await = Some(child);
 
-        info!("Started Solana validator process with PID: {:?}", pid);
+        info!("Started MultiVM validator process with PID: {:?}", pid);
         info!("Solana RPC: http://127.0.0.1:{}", self.rpc_port);
         info!("Solana WebSocket: ws://127.0.0.1:{}", self.ws_port);
 
         // Wait for validator to initialize
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        tokio::time::sleep(Duration::from_secs(10)).await;
 
         Ok(())
+    }
+
+    /// Get the path to the multivm-validator binary
+    fn get_multivm_validator_path(&self) -> Result<PathBuf, SolanaEngineError> {
+        // Get current working directory for error reporting
+        let current_dir = std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "<unknown>".to_string());
+
+        // Try different possible paths for the binary
+        let paths = [
+            PathBuf::from("target/release/multivm-validator"),
+            PathBuf::from("target/debug/multivm-validator"),
+            PathBuf::from("../target/release/multivm-validator"),
+            PathBuf::from("../target/debug/multivm-validator"),
+        ];
+
+        for path in &paths {
+            if path.exists() {
+                return Ok(path.clone());
+            }
+        }
+
+        // If none found, return error with current directory info
+        Err(SolanaEngineError::Configuration(
+            format!(
+                "multivm-validator binary not found. Please build it first. Searched in directory: {} (tried paths: {})",
+                current_dir,
+                paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+            ),
+        ))
     }
 
     /// Initialize RPC clients
@@ -530,75 +494,6 @@ impl RealSolanaEngine {
                 )))
             }
         }
-    }
-
-    /// Initialize ledger if needed
-    async fn init_ledger_if_needed(&self) -> Result<(), SolanaEngineError> {
-        let ledger_path = self.data_dir.join("ledger");
-
-        if !ledger_path.exists() {
-            info!("Creating Solana ledger for execution-only mode");
-
-            // Create ledger directory
-            std::fs::create_dir_all(&ledger_path).map_err(|e| {
-                SolanaEngineError::Configuration(format!(
-                    "Failed to create ledger directory: {}",
-                    e
-                ))
-            })?;
-
-            // Create accounts directory
-            std::fs::create_dir_all(self.data_dir.join("accounts")).map_err(|e| {
-                SolanaEngineError::Configuration(format!(
-                    "Failed to create accounts directory: {}",
-                    e
-                ))
-            })?;
-
-            // Initialize genesis if this is a localnet
-            if self.cluster == "localnet" {
-                self.create_genesis_config().await?;
-            }
-
-            info!("Solana ledger initialized successfully");
-        }
-
-        Ok(())
-    }
-
-    /// Create genesis configuration for localnet
-    async fn create_genesis_config(&self) -> Result<(), SolanaEngineError> {
-        info!("Creating Solana genesis configuration for localnet");
-
-        let mut cmd = Command::new("solana-genesis");
-        cmd.arg("--ledger")
-            .arg(self.data_dir.join("ledger"))
-            .arg("--bootstrap-validator")
-            .arg("11111111111111111111111111111111") // Dummy validator identity
-            .arg("11111111111111111111111111111111") // Dummy vote account
-            .arg("11111111111111111111111111111111") // Dummy stake account
-            .arg("--slots-per-epoch")
-            .arg("432000") // Standard epoch length
-            .arg("--cluster-type")
-            .arg("development")
-            .arg("--hashes-per-tick")
-            .arg("auto")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-
-        let output = cmd.output().await.map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to create Solana genesis: {e}"))
-        })?;
-
-        if !output.status.success() {
-            return Err(SolanaEngineError::Process(format!(
-                "Solana genesis creation failed with exit code: {:?}",
-                output.status.code()
-            )));
-        }
-
-        info!("Solana genesis created successfully");
-        Ok(())
     }
 
     /// Calculate state root for a processed block

@@ -16,6 +16,7 @@ real-validator = ["solana-sdk", "solana-client", "solana-transaction-status", "a
 name = "multivm-validator"
 path = "src/bin/multivm-validator.rs"
 
+
 [dependencies]
 # Use multivm-common with resolved ed25519-dalek conflicts
 multivm-common = { path = "../multivm-common" }

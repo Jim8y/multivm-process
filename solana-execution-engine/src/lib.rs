@@ -21,6 +21,8 @@ pub mod ipc_client;
 pub mod rpc_server;
 
 #[cfg(feature = "real-validator")]
+pub mod config;
+#[cfg(feature = "real-validator")]
 pub mod real_engine;
 #[cfg(feature = "real-validator")]
 pub mod real_engine_utils;
