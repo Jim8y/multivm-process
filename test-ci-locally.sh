@@ -92,12 +92,28 @@ if [ -f Cargo.lock ]; then
     rm -f Cargo.lock
 fi
 
-# Try to build
-echo "   Building workspace..."
-if cargo build --workspace --all-features 2>&1 | tee build.log; then
-    print_status "Build successful with Rust $RUST_VERSION"
+# Try to build with nightly first
+echo "   Testing with nightly Rust..."
+if command -v rustup >/dev/null 2>&1 && rustup toolchain list | grep -q nightly; then
+    if cargo +nightly build --workspace --all-features 2>&1 | tee build.log; then
+        print_status "Build successful with nightly Rust"
+        NIGHTLY_WORKS=true
+    else
+        print_error "Build failed with nightly Rust"
+        NIGHTLY_WORKS=false
+    fi
 else
-    print_error "Build failed with Rust $RUST_VERSION"
+    print_warning "Nightly Rust not available, trying with current version"
+    NIGHTLY_WORKS=false
+fi
+
+# Try with current version if nightly didn't work
+if [ "$NIGHTLY_WORKS" != "true" ]; then
+    echo "   Building with current Rust version..."
+    if cargo build --workspace --all-features 2>&1 | tee build.log; then
+        print_status "Build successful with Rust $RUST_VERSION"
+    else
+        print_error "Build failed with Rust $RUST_VERSION"
     
     # Check for specific errors
     if grep -q "edition2024" build.log; then
@@ -113,22 +129,41 @@ else
     fi
 fi
 
+    fi
+fi
+
 # Test clippy
 echo
 echo "6. Testing clippy..."
-if cargo clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings 2>&1 | tee clippy.log; then
-    print_status "Clippy check passed"
+if [ "$NIGHTLY_WORKS" = "true" ]; then
+    if cargo +nightly clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings 2>&1 | tee clippy.log; then
+        print_status "Clippy check passed (nightly)"
+    else
+        print_warning "Clippy check failed (non-critical)"
+    fi
 else
-    print_warning "Clippy check failed (non-critical)"
+    if cargo clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings 2>&1 | tee clippy.log; then
+        print_status "Clippy check passed"
+    else
+        print_warning "Clippy check failed (non-critical)"
+    fi
 fi
 
 # Test compilation of tests
 echo
 echo "7. Testing test compilation..."
-if cargo test --workspace --all-features --no-run; then
-    print_status "Test compilation successful"
+if [ "$NIGHTLY_WORKS" = "true" ]; then
+    if cargo +nightly test --workspace --all-features --no-run; then
+        print_status "Test compilation successful (nightly)"
+    else
+        print_error "Test compilation failed"
+    fi
 else
-    print_error "Test compilation failed"
+    if cargo test --workspace --all-features --no-run; then
+        print_status "Test compilation successful"
+    else
+        print_error "Test compilation failed"
+    fi
 fi
 
 # Summary
