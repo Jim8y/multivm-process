@@ -29,38 +29,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup SSH for private dependencies
-      run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        
-        # Write the SSH key (preserve exact format)
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        
-        # Add GitHub to known hosts
-        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-        
-        # Test the key format
-        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null
-        
-        # Start SSH agent and add key
-        eval "$(ssh-agent -s)"
-        ssh-add ~/.ssh/id_rsa
-        
-        # Configure Git URL rewriting
-        git config --global url."git@github.com:".insteadOf "https://github.com/"
-        git config --global url."git@github.com:".insteadOf "ssh://git@github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -92,33 +67,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup SSH for private dependencies
-      run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        
-        # Write the SSH key (preserve exact format)
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        
-        # Add GitHub to known hosts
-        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-        
-        # Test the key format
-        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null
-        
-        # Start SSH agent and add key
-        eval "$(ssh-agent -s)"
-        ssh-add ~/.ssh/id_rsa
-        
-        # Configure Git URL rewriting
-        git config --global url."git@github.com:".insteadOf "https://github.com/"
-        git config --global url."git@github.com:".insteadOf "ssh://git@github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@master
@@ -160,33 +115,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup SSH for private dependencies
-      run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        
-        # Write the SSH key (preserve exact format)
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        
-        # Add GitHub to known hosts
-        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-        
-        # Test the key format
-        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null
-        
-        # Start SSH agent and add key
-        eval "$(ssh-agent -s)"
-        ssh-add ~/.ssh/id_rsa
-        
-        # Configure Git URL rewriting
-        git config --global url."git@github.com:".insteadOf "https://github.com/"
-        git config --global url."git@github.com:".insteadOf "ssh://git@github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -212,33 +147,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup SSH for private dependencies
-      run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        
-        # Write the SSH key (preserve exact format)
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        
-        # Add GitHub to known hosts
-        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-        
-        # Test the key format
-        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null
-        
-        # Start SSH agent and add key
-        eval "$(ssh-agent -s)"
-        ssh-add ~/.ssh/id_rsa
-        
-        # Configure Git URL rewriting
-        git config --global url."git@github.com:".insteadOf "https://github.com/"
-        git config --global url."git@github.com:".insteadOf "ssh://git@github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable

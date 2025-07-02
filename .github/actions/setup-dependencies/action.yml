@@ -1,0 +1,11 @@
+name: 'Setup System Dependencies'
+description: 'Install system dependencies required for building the project'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev pkg-config
