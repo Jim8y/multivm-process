@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
+use tracing::warn;
 use tracing::{debug, error, info};
 
 #[cfg(feature = "cache")]
@@ -262,24 +263,19 @@ impl ProductionRedisCache {
     }
 
     /// Set value with circuit breaker
-    pub async fn set<T>(
-        &self,
-        key: &str,
-        value: &T,
-        _ttl: Option<Duration>,
-    ) -> ApplicationResult<()>
+    pub async fn set<T>(&self, key: &str, value: &T, ttl: Option<Duration>) -> ApplicationResult<()>
     where
         T: Serialize,
     {
-        let _full_key = format!("{}{}", self.config.key_prefix, key);
-        let _start = Instant::now();
+        let full_key = format!("{}{}", self.config.key_prefix, key);
+        let start = Instant::now();
 
         // Check circuit breaker
         if !self.is_circuit_closed().await {
             return Ok(());
         }
 
-        let _serialized =
+        let serialized =
             serde_json::to_string(value).map_err(|e| ApplicationError::CacheError {
                 operation: "serialize".to_string(),
                 message: format!("Serialization error: {e}"),
@@ -436,7 +432,7 @@ impl ProductionRedisCache {
     pub async fn mset<T>(
         &self,
         items: &[(&str, &T)],
-        _ttl: Option<Duration>,
+        ttl: Option<Duration>,
     ) -> ApplicationResult<()>
     where
         T: Serialize,
@@ -484,7 +480,7 @@ impl ProductionRedisCache {
 
     /// Increment counter with atomic operation
     pub async fn incr(&self, key: &str, delta: i64) -> ApplicationResult<i64> {
-        let _full_key = format!("{}{}", self.config.key_prefix, key);
+        let full_key = format!("{}{}", self.config.key_prefix, key);
 
         if !self.is_circuit_closed().await {
             return Ok(0);
@@ -510,14 +506,14 @@ impl ProductionRedisCache {
     pub async fn get_with_lease<T>(
         &self,
         key: &str,
-        _lease_duration: Duration,
+        lease_duration: Duration,
     ) -> ApplicationResult<Option<(T, String)>>
     where
         T: for<'de> Deserialize<'de>,
     {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        let _lease_key = format!("{full_key}_lease");
-        let _lease_id = uuid::Uuid::new_v4().to_string();
+        let lease_key = format!("{full_key}_lease");
+        let lease_id = uuid::Uuid::new_v4().to_string();
 
         if !self.is_circuit_closed().await {
             return Ok(None);
@@ -557,9 +553,9 @@ impl ProductionRedisCache {
     }
 
     /// Release lease
-    pub async fn release_lease(&self, key: &str, _lease_id: &str) -> ApplicationResult<bool> {
+    pub async fn release_lease(&self, key: &str, lease_id: &str) -> ApplicationResult<bool> {
         let full_key = format!("{}{}", self.config.key_prefix, key);
-        let _lease_key = format!("{full_key}_lease");
+        let lease_key = format!("{full_key}_lease");
 
         if !self.is_circuit_closed().await {
             return Ok(false);
@@ -1058,7 +1054,7 @@ pub struct CacheStats {
 
 /// Publish cache invalidation event
 impl ProductionRedisCache {
-    pub async fn publish_invalidation(&self, _key: &str) -> ApplicationResult<()> {
+    pub async fn publish_invalidation(&self, key: &str) -> ApplicationResult<()> {
         if !self.is_circuit_closed().await {
             return Ok(());
         }
