@@ -92,14 +92,20 @@ if [ -f Cargo.lock ]; then
     rm -f Cargo.lock
 fi
 
-# Try to build with nightly first
-echo "   Testing with nightly Rust..."
+# Try to build with specific nightly first
+echo "   Testing with nightly-2025-06-15 Rust..."
 if command -v rustup >/dev/null 2>&1 && rustup toolchain list | grep -q nightly; then
-    if cargo +nightly build --workspace --all-features 2>&1 | tee build.log; then
-        print_status "Build successful with nightly Rust"
+    # Install the specific nightly version if not available
+    if ! rustup toolchain list | grep -q "nightly-2025-06-15"; then
+        echo "   Installing nightly-2025-06-15..."
+        rustup install nightly-2025-06-15
+    fi
+    
+    if cargo +nightly-2025-06-15 build --workspace --all-features 2>&1 | tee build.log; then
+        print_status "Build successful with nightly-2025-06-15 Rust"
         NIGHTLY_WORKS=true
     else
-        print_error "Build failed with nightly Rust"
+        print_error "Build failed with nightly-2025-06-15 Rust"
         NIGHTLY_WORKS=false
     fi
 else
@@ -136,8 +142,8 @@ fi
 echo
 echo "6. Testing clippy..."
 if [ "$NIGHTLY_WORKS" = "true" ]; then
-    if cargo +nightly clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings 2>&1 | tee clippy.log; then
-        print_status "Clippy check passed (nightly)"
+    if cargo +nightly-2025-06-15 clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings 2>&1 | tee clippy.log; then
+        print_status "Clippy check passed (nightly-2025-06-15)"
     else
         print_warning "Clippy check failed (non-critical)"
     fi
@@ -153,8 +159,8 @@ fi
 echo
 echo "7. Testing test compilation..."
 if [ "$NIGHTLY_WORKS" = "true" ]; then
-    if cargo +nightly test --workspace --all-features --no-run; then
-        print_status "Test compilation successful (nightly)"
+    if cargo +nightly-2025-06-15 test --workspace --all-features --no-run; then
+        print_status "Test compilation successful (nightly-2025-06-15)"
     else
         print_error "Test compilation failed"
     fi
@@ -173,9 +179,9 @@ echo
 
 # Suggest Rust version based on results
 if grep -q "edition2024" build.log 2>/dev/null; then
-    echo "Recommendation: Use Rust nightly for edition2024 support"
-    echo "  Install with: rustup install nightly"
-    echo "  Use with: cargo +nightly build"
+    echo "Recommendation: Use Rust nightly-2025-06-15 for edition2024 support"
+    echo "  Install with: rustup install nightly-2025-06-15"
+    echo "  Use with: cargo +nightly-2025-06-15 build"
 elif grep -q "extract_if" build.log 2>/dev/null; then
     echo "Recommendation: Check Solana/Agave dependency compatibility"
     echo "  The extract_if API has changed between Rust versions"
@@ -185,7 +191,7 @@ echo
 echo "To fix issues before pushing:"
 echo "1. Install missing system dependencies (if any)"
 echo "2. Fix formatting issues with: cargo fmt --all"
-echo "3. Consider using Rust nightly if edition2024 is required"
+echo "3. Consider using Rust nightly-2025-06-15 if edition2024 is required"
 echo "4. Update Cargo.toml rust-version if using a different version"
 echo
 echo "Test logs saved to: build.log, clippy.log"
