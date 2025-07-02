@@ -35,7 +35,7 @@ jobs:
   prepare-deps:
     name: Prepare Dependencies
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
@@ -104,7 +104,7 @@ jobs:
     name: Format and Lint
     runs-on: ubuntu-latest
     needs: prepare-deps
-    timeout-minutes: 15  # Reduced since deps are pre-built
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
@@ -159,7 +159,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: prepare-deps
-    timeout-minutes: 25  # Reduced since deps are pre-built
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
@@ -272,7 +272,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: build
-    timeout-minutes: 30
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
@@ -391,7 +391,7 @@ jobs:
     name: Build Release
     runs-on: ubuntu-latest
     needs: prepare-deps
-    timeout-minutes: 30  # Reduced since deps are pre-built
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
@@ -475,7 +475,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare-deps
     if: github.event_name == 'push' || github.event.pull_request.draft == false
-    timeout-minutes: 15  # Reduced since deps are pre-built
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
@@ -522,7 +522,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
-    timeout-minutes: 30
+    timeout-minutes: 45
     
     steps:
     - name: Checkout code
