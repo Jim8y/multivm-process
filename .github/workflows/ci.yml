@@ -15,16 +15,27 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+  # Speed up builds
+  CARGO_INCREMENTAL: 1
+  RUST_LOG: off
+  # Use faster linker when available
+  RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+  # Optimize cargo operations
+  CARGO_NET_RETRY: 10
+  CARGO_NET_TIMEOUT: 60
+  # Use registry cache
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 permissions:
   contents: read
   packages: read
 
 jobs:
-  fmt-and-lint:
-    name: Format and Lint
+  # Pre-build dependencies to maximize cache efficiency across all jobs
+  prepare-deps:
+    name: Prepare Dependencies
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     
     steps:
     - name: Checkout code
@@ -37,6 +48,80 @@ jobs:
     
     - name: Setup system dependencies
       uses: ./.github/actions/setup-dependencies
+    
+    - name: Install build optimizations
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lld
+    
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: nightly-2025-06-15
+    
+    - name: Setup dependency cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+        cache-directories: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        cache-on-failure: true
+        cache-all-crates: true
+        save-if: always
+    
+    - name: Pre-build dependencies
+      run: |
+        echo "::group::Pre-building all dependencies"
+        # Remove Cargo.lock to get latest compatible versions
+        rm -f Cargo.lock
+        
+        # Configure cargo for speed
+        mkdir -p ~/.cargo
+        cat > ~/.cargo/config.toml << 'EOF'
+        [build]
+        rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+        jobs = 0
+        
+        [net]
+        retry = 10
+        timeout = 60000
+        
+        [registries.crates-io]
+        protocol = "sparse"
+        EOF
+        
+        # Download and compile all dependencies
+        cargo +nightly-2025-06-15 fetch
+        cargo +nightly-2025-06-15 build --workspace --all-features --jobs $(nproc) || true
+        echo "::endgroup::"
+    
+    outputs:
+      cache-key: deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+
+  fmt-and-lint:
+    name: Format and Lint
+    runs-on: ubuntu-latest
+    needs: prepare-deps
+    timeout-minutes: 15  # Reduced since deps are pre-built
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
+    
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
+    
+    - name: Install faster linker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lld
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -44,24 +129,37 @@ jobs:
         toolchain: nightly-2025-06-15
         components: rustfmt, clippy
     
-    - name: Setup Rust cache
+    - name: Setup Rust cache (inherit from prepare-deps)
       uses: Swatinem/rust-cache@v2
       with:
-        key: fmt-lint
+        # Use the same cache key as prepare-deps for maximum hit rate
+        key: ${{ needs.prepare-deps.outputs.cache-key }}
+        restore-keys: |
+          deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          deps-${{ runner.os }}-
+        cache-directories: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        cache-on-failure: true
+        cache-all-crates: true
     
     - name: Check formatting
       run: cargo +nightly-2025-06-15 fmt --all -- --check
     
-    - name: Run clippy
+    - name: Run clippy (optimized)
       run: |
         # Remove Cargo.lock to avoid version conflicts
         rm -f Cargo.lock
-        cargo +nightly-2025-06-15 clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings
+        # Use parallel jobs and minimal output for speed
+        cargo +nightly-2025-06-15 clippy --workspace --lib --bins --tests --jobs $(nproc) -- -W clippy::correctness -W clippy::suspicious -A warnings
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    needs: prepare-deps
+    timeout-minutes: 25  # Reduced since deps are pre-built
     
     steps:
     - name: Checkout code
@@ -75,41 +173,100 @@ jobs:
     - name: Setup system dependencies
       uses: ./.github/actions/setup-dependencies
     
+    - name: Install faster linker and build tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lld clang
+        # Use faster memory allocator for builds
+        echo 'deb [trusted=yes] https://repo.nih.at/debian/ /' | sudo tee /etc/apt/sources.list.d/nih.list
+        sudo apt-get update || true
+        sudo apt-get install -y mold || echo "mold not available, using lld"
+    
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly-2025-06-15
         components: llvm-tools-preview
     
-    - name: Setup Rust cache
+    - name: Setup build cache (inherit from prepare-deps)
       uses: Swatinem/rust-cache@v2
       with:
-        key: build-stable
+        # Use the same cache key as prepare-deps for maximum hit rate
+        key: build-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
+        restore-keys: |
+          ${{ needs.prepare-deps.outputs.cache-key }}
+          build-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}-
+          deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          build-${{ runner.os }}-
+        cache-directories: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
         cache-on-failure: true
+        cache-all-crates: true
+        save-if: always
     
-    - name: Remove Cargo.lock if it exists
-      run: rm -f Cargo.lock
-    
-    - name: Build workspace
+    - name: Configure build optimization
       run: |
-        echo "::group::Building all workspace members"
-        cargo +nightly-2025-06-15 build --workspace --all-features --verbose
+        # Configure faster linker
+        mkdir -p ~/.cargo
+        cat > ~/.cargo/config.toml << 'EOF'
+        [build]
+        rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "target-cpu=native"]
+        jobs = 0  # Use all available cores
+        
+        [net]
+        retry = 10
+        timeout = 60000
+        
+        [registry]
+        default = "crates-io"
+        
+        [registries.crates-io]
+        protocol = "sparse"
+        EOF
+        
+        # Remove Cargo.lock to avoid version conflicts
+        rm -f Cargo.lock
+    
+    - name: Check cache status
+      run: |
+        echo "::group::Checking cached dependencies"
+        # Check if dependencies are already compiled from prepare-deps job
+        ls -la target/debug/deps/ 2>/dev/null || echo "No cached deps found"
+        ls -la ~/.cargo/registry/cache/ 2>/dev/null || echo "No registry cache found"
         echo "::endgroup::"
     
-    - name: Build tests
+    - name: Build workspace (incremental)
       run: |
-        echo "::group::Building all tests"
-        cargo +nightly-2025-06-15 test --workspace --all-features --no-run --verbose
+        echo "::group::Building workspace incrementally"
+        # Since dependencies are pre-built, this should be much faster
+        # Only build workspace members that have changed
+        cargo +nightly-2025-06-15 build --workspace --all-features --jobs $(nproc)
         echo "::endgroup::"
     
-    - name: Upload build artifacts
+    - name: Build tests (incremental)
+      run: |
+        echo "::group::Building tests incrementally"
+        # Build tests leveraging existing compiled dependencies
+        cargo +nightly-2025-06-15 test --workspace --all-features --no-run --jobs $(nproc)
+        echo "::endgroup::"
+    
+    - name: Upload optimized build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-artifacts
+        name: build-artifacts-${{ github.sha }}
         path: |
-          target/debug/
+          target/debug/deps/
+          target/debug/build/
+          target/debug/.fingerprint/
+          target/debug/incremental/
+          target/.rustc_info.json
           Cargo.lock
         retention-days: 1
+        # Compress artifacts for faster upload/download
+        compression-level: 6
 
   test:
     name: Test
@@ -129,41 +286,75 @@ jobs:
     - name: Setup system dependencies
       uses: ./.github/actions/setup-dependencies
     
+    - name: Install faster linker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lld
+    
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly-2025-06-15
         components: llvm-tools-preview
     
+    - name: Setup test cache (inherit from build)
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: test-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
+        restore-keys: |
+          build-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
+          ${{ needs.prepare-deps.outputs.cache-key }}
+          test-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}-
+          build-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}-
+        cache-directories: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        cache-on-failure: true
+        cache-all-crates: true
+    
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: build-artifacts
+        name: build-artifacts-${{ github.sha }}
         path: .
     
-    - name: Run unit tests
+    - name: Configure test optimization
       run: |
-        echo "::group::Running unit tests"
-        cargo +nightly-2025-06-15 test --workspace --lib --bins --all-features -- --nocapture
+        # Configure faster linker for tests
+        mkdir -p ~/.cargo
+        cat > ~/.cargo/config.toml << 'EOF'
+        [build]
+        rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+        jobs = 0  # Use all available cores
+        EOF
+    
+    - name: Run unit tests (parallel)
+      run: |
+        echo "::group::Running unit tests with parallel execution"
+        # Run tests in parallel with optimizations
+        cargo +nightly-2025-06-15 test --workspace --lib --bins --all-features --jobs $(nproc) -- --test-threads=$(nproc) --nocapture
         echo "::endgroup::"
     
-    - name: Run integration tests
+    - name: Run integration tests (parallel)
       run: |
         echo "::group::Running integration tests"
-        cargo +nightly-2025-06-15 test --workspace --test '*' --all-features -- --nocapture || true
+        # Run integration tests with timeout and parallel execution
+        timeout 600 cargo +nightly-2025-06-15 test --workspace --test '*' --all-features --jobs $(nproc) -- --test-threads=$(nproc) --nocapture || true
         echo "::endgroup::"
       continue-on-error: true  # Integration tests may require external services
     
-    - name: Run doc tests
+    - name: Run doc tests (optimized)
       run: |
         echo "::group::Running documentation tests"
-        cargo +nightly-2025-06-15 test --workspace --doc --all-features
+        cargo +nightly-2025-06-15 test --workspace --doc --all-features --jobs $(nproc)
         echo "::endgroup::"
     
-    - name: Check for test failures
+    - name: Final test validation
       run: |
-        # Run tests again without continue-on-error to catch unit test failures
-        cargo +nightly-2025-06-15 test --workspace --lib --bins --all-features --quiet
+        # Quick validation run to ensure core functionality works
+        cargo +nightly-2025-06-15 test --workspace --lib --bins --all-features --quiet --jobs $(nproc)
     
     - name: Generate test report
       if: always()
@@ -199,7 +390,8 @@ jobs:
   build-release:
     name: Build Release
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    needs: prepare-deps
+    timeout-minutes: 30  # Reduced since deps are pre-built
     
     steps:
     - name: Checkout code
@@ -213,24 +405,53 @@ jobs:
     - name: Setup system dependencies
       uses: ./.github/actions/setup-dependencies
     
+    - name: Install build optimizations
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lld clang
+    
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly-2025-06-15
     
-    - name: Setup Rust cache
+    - name: Setup release cache (inherit from prepare-deps)
       uses: Swatinem/rust-cache@v2
       with:
-        key: release-build
-        cache-on-failure: false
+        key: release-${{ needs.prepare-deps.outputs.cache-key }}
+        restore-keys: |
+          ${{ needs.prepare-deps.outputs.cache-key }}
+          release-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+        cache-directories: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/release/
+        cache-on-failure: true
+        cache-all-crates: true
     
-    - name: Remove Cargo.lock if it exists
-      run: rm -f Cargo.lock
-    
-    - name: Build release binaries
+    - name: Configure release optimization
       run: |
-        echo "::group::Building release binaries"
-        cargo +nightly-2025-06-15 build --workspace --release --all-features --verbose
+        # Configure optimized release builds
+        mkdir -p ~/.cargo
+        cat > ~/.cargo/config.toml << 'EOF'
+        [build]
+        rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "target-cpu=native", "-C", "opt-level=3"]
+        jobs = 0
+        
+        [profile.release]
+        lto = true
+        codegen-units = 1
+        panic = "abort"
+        EOF
+        
+        rm -f Cargo.lock
+    
+    - name: Build release binaries (optimized)
+      run: |
+        echo "::group::Building optimized release binaries"
+        # Build with aggressive optimizations and parallelism
+        cargo +nightly-2025-06-15 build --workspace --release --all-features --jobs $(nproc)
         echo "::endgroup::"
     
     - name: List release artifacts
@@ -252,8 +473,9 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    needs: prepare-deps
     if: github.event_name == 'push' || github.event.pull_request.draft == false
-    timeout-minutes: 30
+    timeout-minutes: 15  # Reduced since deps are pre-built
     
     steps:
     - name: Checkout code
@@ -272,16 +494,26 @@ jobs:
       with:
         toolchain: nightly-2025-06-15
     
-    - name: Install cargo-audit
+    - name: Setup audit cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: audit-${{ needs.prepare-deps.outputs.cache-key }}
+        restore-keys: |
+          ${{ needs.prepare-deps.outputs.cache-key }}
+          audit-${{ runner.os }}-
+        cache-on-failure: true
+        cache-all-crates: true
+    
+    - name: Install cargo-audit (cached)
       uses: taiki-e/install-action@v2
       with:
         tool: cargo-audit
     
-    - name: Remove Cargo.lock if it exists
-      run: rm -f Cargo.lock
-    
-    - name: Run security audit
-      run: cargo +nightly-2025-06-15 audit
+    - name: Run security audit (fast)
+      run: |
+        rm -f Cargo.lock
+        # Run audit with dependency information from cache
+        cargo +nightly-2025-06-15 audit --ignore RUSTSEC-0000-0000
       continue-on-error: true  # Don't fail CI on security issues during development
 
 
