@@ -98,7 +98,7 @@ jobs:
         echo "::endgroup::"
     
     outputs:
-      cache-key: deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
+      deps-cache: deps-completed
 
   fmt-and-lint:
     name: Format and Lint
@@ -132,8 +132,8 @@ jobs:
     - name: Setup Rust cache (inherit from prepare-deps)
       uses: Swatinem/rust-cache@v2
       with:
-        # Use the same cache key as prepare-deps for maximum hit rate
-        key: ${{ needs.prepare-deps.outputs.cache-key }}
+        # Use shared cache key for maximum hit rate
+        key: deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
         restore-keys: |
           deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           deps-${{ runner.os }}-
@@ -192,9 +192,9 @@ jobs:
       uses: Swatinem/rust-cache@v2
       with:
         # Use the same cache key as prepare-deps for maximum hit rate
-        key: build-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
+        key: build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ github.sha }}
         restore-keys: |
-          ${{ needs.prepare-deps.outputs.cache-key }}
+          deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
           deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           build-${{ runner.os }}-
@@ -300,10 +300,10 @@ jobs:
     - name: Setup test cache (inherit from build)
       uses: Swatinem/rust-cache@v2
       with:
-        key: test-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
+        key: test-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ github.sha }}
         restore-keys: |
-          build-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
-          ${{ needs.prepare-deps.outputs.cache-key }}
+          build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ github.sha }}
+          deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           test-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
           build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
         cache-directories: |
@@ -418,9 +418,9 @@ jobs:
     - name: Setup release cache (inherit from prepare-deps)
       uses: Swatinem/rust-cache@v2
       with:
-        key: release-${{ needs.prepare-deps.outputs.cache-key }}
+        key: release-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
         restore-keys: |
-          ${{ needs.prepare-deps.outputs.cache-key }}
+          deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           release-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
         cache-directories: |
           ~/.cargo/registry/index/
@@ -497,9 +497,9 @@ jobs:
     - name: Setup audit cache
       uses: Swatinem/rust-cache@v2
       with:
-        key: audit-${{ needs.prepare-deps.outputs.cache-key }}
+        key: audit-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
         restore-keys: |
-          ${{ needs.prepare-deps.outputs.cache-key }}
+          deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           audit-${{ runner.os }}-
         cache-on-failure: true
         cache-all-crates: true
