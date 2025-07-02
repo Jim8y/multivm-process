@@ -39,8 +39,9 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly-2025-06-15
+      uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: nightly-2025-06-15
         components: rustfmt, clippy
     
     - name: Setup Rust cache
@@ -75,8 +76,9 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly-2025-06-15
+      uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: nightly-2025-06-15
         components: llvm-tools-preview
     
     - name: Setup Rust cache
@@ -128,8 +130,9 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly-2025-06-15
+      uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: nightly-2025-06-15
         components: llvm-tools-preview
     
     - name: Download build artifacts
@@ -211,7 +214,9 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly-2025-06-15
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: nightly-2025-06-15
     
     - name: Setup Rust cache
       uses: Swatinem/rust-cache@v2
@@ -263,7 +268,9 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly-2025-06-15
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: nightly-2025-06-15
     
     - name: Install cargo-audit
       uses: taiki-e/install-action@v2
@@ -298,8 +305,9 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly-2025-06-15
+      uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: nightly-2025-06-15
         components: llvm-tools-preview
     
     - name: Install cargo-llvm-cov
