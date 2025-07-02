@@ -134,13 +134,24 @@ jobs:
       run: |
         echo "Checking commit messages for conventional commit format..."
         
-        # Get all commit messages in this PR
-        COMMITS=$(git log --pretty=format:"%s" origin/${{ github.event.pull_request.base.ref }}..HEAD)
+        # Get all commit messages in this PR (excluding merge commits)
+        COMMITS=$(git log --pretty=format:"%s" --no-merges origin/${{ github.event.pull_request.base.ref }}..HEAD)
+        
+        # Check if there are any commits to validate
+        if [ -z "$COMMITS" ]; then
+          echo "ℹ️ No non-merge commits found to validate"
+          exit 0
+        fi
         
         CONVENTIONAL_PATTERN="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,50}"
         
         INVALID_COMMITS=""
         while IFS= read -r commit; do
+          # Skip empty lines
+          if [ -z "$commit" ]; then
+            continue
+          fi
+          
           if [[ ! "$commit" =~ $CONVENTIONAL_PATTERN ]]; then
             INVALID_COMMITS="$INVALID_COMMITS\n- $commit"
           fi
