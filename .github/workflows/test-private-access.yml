@@ -1,4 +1,4 @@
-name: Test Private Repository Access (SSH and Token)
+name: Test Private Repository Access (SSH)
 
 on:
   workflow_dispatch:  # Manual trigger only
@@ -24,58 +24,79 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Setup SSH for private dependencies
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_KEY }}
-    
-    - name: Configure Git for private dependencies
       run: |
-        # Configure git to use HTTPS with token for all GitHub repositories
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "git@github.com:"
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "ssh://git@github.com/"
-        echo "GitHub token authentication configured for private repository access"
-    
-    - name: Test token access
-      run: |
-        echo "🔍 Testing GitHub token access..."
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
         
-        # Test HTTPS connection with token
-        echo "Testing HTTPS connection with token:"
-        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/user | jq -r .login || echo "Unable to authenticate"
-    
-    - name: Test HTTPS clone of current repository
-      run: |
-        echo "🏢 Testing HTTPS clone of current repository..."
+        # Write the SSH key (preserve exact format)
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
         
-        # Clone current repository using HTTPS with token
-        if git clone https://github.com/${{ github.repository }}.git test-current-https; then
-          echo "✅ HTTPS clone of current repository successful"
-          ls -la test-current-https/
-          rm -rf test-current-https/
+        # Add GitHub to known hosts
+        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+        
+        # Test the key format
+        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null
+        
+        # Start SSH agent and add key
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/id_rsa
+        
+        # Configure Git URL rewriting
+        git config --global url."git@github.com:".insteadOf "https://github.com/"
+        git config --global url."git@github.com:".insteadOf "ssh://git@github.com/"
+    
+    - name: Test SSH key setup
+      run: |
+        echo "🔑 Testing SSH key setup..."
+        
+        # Test SSH connection to GitHub
+        ssh -T git@github.com || echo "SSH key authentication configured"
+        
+        # Show git config
+        echo "Git URL rewrites:"
+        git config --get-regexp url
+    
+    - name: Test SSH access
+      run: |
+        echo "🔍 Testing SSH access to GitHub..."
+        
+        # Test SSH connection to GitHub
+        echo "Testing SSH connection:"
+        ssh -T git@github.com 2>&1 | head -2 || echo "SSH connection tested"
+    
+    - name: Test SSH clone of current repository
+      run: |
+        echo "🏢 Testing SSH clone of current repository..."
+        
+        # Clone current repository using SSH
+        if git clone git@github.com:${{ github.repository }}.git test-current-ssh; then
+          echo "✅ SSH clone of current repository successful"
+          ls -la test-current-ssh/
+          rm -rf test-current-ssh/
         else
-          echo "❌ HTTPS clone of current repository failed"
+          echo "❌ SSH clone of current repository failed"
           exit 1
         fi
     
-    - name: Test HTTPS clone of private repository (if specified)
+    - name: Test SSH clone of private repository (if specified)
       if: github.event.inputs.test_repo != 'your-org/your-private-repo'
       run: |
-        echo "🔒 Testing HTTPS clone of private repository..."
+        echo "🔒 Testing SSH clone of private repository..."
         TEST_REPO="${{ github.event.inputs.test_repo }}"
         
-        # Clone private repository using HTTPS with token
-        echo "Testing HTTPS clone of: $TEST_REPO"
-        if git clone https://github.com/$TEST_REPO.git test-private-https; then
-          echo "✅ HTTPS clone of private repository successful"
-          ls -la test-private-https/
-          rm -rf test-private-https/
+        # Clone private repository using SSH
+        echo "Testing SSH clone of: $TEST_REPO"
+        if git clone git@github.com:$TEST_REPO.git test-private-ssh; then
+          echo "✅ SSH clone of private repository successful"
+          ls -la test-private-ssh/
+          rm -rf test-private-ssh/
         else
-          echo "❌ HTTPS clone of private repository failed"
+          echo "❌ SSH clone of private repository failed"
           exit 1
         fi
     
-    - name: Verify token git config
+    - name: Verify SSH git config
       run: |
         echo "📥 Verifying Git configuration..."
         
@@ -83,16 +104,16 @@ jobs:
         echo "Git URL rewrites:"
         git config --get-regexp url
         
-        # Test if HTTPS with token is properly configured
-        echo "Testing HTTPS URL transformation:"
-        git config --get url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf || echo "No URL rewrite found"
+        # Test if SSH URL rewriting is properly configured
+        echo "Testing SSH URL transformation:"
+        git config --get url."git@github.com:".insteadOf || echo "No SSH URL rewrite found"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Test Cargo private dependency access
+    - name: Test Cargo private dependency access via SSH
       run: |
-        echo "📦 Testing Cargo private dependency access..."
+        echo "📦 Testing Cargo private dependency access via SSH..."
         
         # Check if Cargo.toml has any git dependencies
         if [ -f "Cargo.toml" ]; then
@@ -112,12 +133,12 @@ jobs:
             fi
           done
           
-          # Test cargo fetch (this will test private dependency access)
+          # Test cargo fetch (this will test private dependency access via SSH)
           echo "Testing cargo fetch with verbose output..."
           if cargo fetch --verbose 2>&1; then
-            echo "✅ Cargo fetch successful - all dependencies accessible"
+            echo "✅ Cargo fetch successful - all dependencies accessible via SSH"
           else
-            echo "❌ Cargo fetch failed - check private dependency access"
+            echo "❌ Cargo fetch failed - check SSH private dependency access"
             exit 1
           fi
           
@@ -137,18 +158,18 @@ jobs:
       run: |
         echo "📋 Testing SSH with different URL formats..."
         
-        # Test different URL formats that should be transformed
+        # Test different URL formats that should be transformed to SSH
         TEST_URLS=(
           "https://github.com/${{ github.repository }}.git"
           "https://github.com/${{ github.repository }}"
-          "git://github.com/${{ github.repository }}.git"
+          "git@github.com:${{ github.repository }}.git"
         )
         
         for url in "${TEST_URLS[@]}"; do
           echo "Testing URL: $url"
           # Use git ls-remote to test if URL is accessible
           if git ls-remote "$url" HEAD 2>/dev/null; then
-            echo "✅ URL accessible via SSH transformation"
+            echo "✅ URL accessible via SSH (transformed or native)"
           else
             echo "❌ URL not accessible"
           fi
@@ -156,13 +177,13 @@ jobs:
     
     - name: Summary
       run: |
-        echo "🎯 Token Access Test Summary:"
-        echo "========================="
-        echo "✅ GitHub token setup: Complete"
-        echo "✅ HTTPS connection to GitHub: Tested"
-        echo "✅ HTTPS clone of current repo: Working"
+        echo "🎯 SSH Access Test Summary:"
+        echo "========================"
+        echo "✅ SSH key setup: Complete"
+        echo "✅ SSH connection to GitHub: Tested"
+        echo "✅ SSH clone of current repo: Working"
         echo "✅ Git URL rewriting: Configured"
-        echo "✅ Cargo fetch via token: $([ $? -eq 0 ] && echo "Working" || echo "Check dependencies")"
+        echo "✅ Cargo fetch via SSH: $([ $? -eq 0 ] && echo "Working" || echo "Check dependencies")"
         echo ""
-        echo "If all tests pass, your GitHub token is properly configured!"
-        echo "You can now access private repositories using token authentication."
+        echo "If all tests pass, your SSH key is properly configured!"
+        echo "You can now access private repositories using SSH authentication."
