@@ -51,9 +51,9 @@ clap = { version = "4.4", features = ["derive", "env"] }
 
 # Solana dependencies (conditional - only when real-validator feature is enabled)
 solana-sdk = { version = "=2.2.2", optional = true }
-solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
-solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
-agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
+solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
+solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
+agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
 solana-loader-v2-interface = { version = "=2.2.1", features = ["bincode"] }
 solana-program = { version = "=2.2.1", default-features = false }
 solana-clock = "=2.2.1"
