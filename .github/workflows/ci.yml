@@ -62,7 +62,7 @@ jobs:
     - name: Setup dependency cache
       uses: Swatinem/rust-cache@v2
       with:
-        key: deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+        key: deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
         cache-directories: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
@@ -98,7 +98,7 @@ jobs:
         echo "::endgroup::"
     
     outputs:
-      cache-key: deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+      cache-key: deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
 
   fmt-and-lint:
     name: Format and Lint
@@ -135,7 +135,7 @@ jobs:
         # Use the same cache key as prepare-deps for maximum hit rate
         key: ${{ needs.prepare-deps.outputs.cache-key }}
         restore-keys: |
-          deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           deps-${{ runner.os }}-
         cache-directories: |
           ~/.cargo/registry/index/
@@ -195,8 +195,8 @@ jobs:
         key: build-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
         restore-keys: |
           ${{ needs.prepare-deps.outputs.cache-key }}
-          build-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}-
-          deps-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
+          deps-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
           build-${{ runner.os }}-
         cache-directories: |
           ~/.cargo/registry/index/
@@ -304,8 +304,8 @@ jobs:
         restore-keys: |
           build-${{ needs.prepare-deps.outputs.cache-key }}-${{ github.sha }}
           ${{ needs.prepare-deps.outputs.cache-key }}
-          test-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}-
-          build-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}-
+          test-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
+          build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
         cache-directories: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
@@ -421,7 +421,7 @@ jobs:
         key: release-${{ needs.prepare-deps.outputs.cache-key }}
         restore-keys: |
           ${{ needs.prepare-deps.outputs.cache-key }}
-          release-${{ runner.os }}-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          release-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
         cache-directories: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
