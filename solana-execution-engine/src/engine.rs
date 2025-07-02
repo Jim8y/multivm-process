@@ -904,7 +904,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
             let mut real_engine = RealSolanaEngine::new(
                 self.config.data_dir.clone(),
                 self.config.rpc_port,
-                "localnet".to_string() // Default to localnet for now
+                "localnet".to_string(), // Default to localnet for now
             )
             .await
             .map_err(|e| SolanaEngineError::Runtime(e.to_string()))?;

@@ -35,34 +35,35 @@ async fn test_real_solana_engine_core_functions() -> Result<(), Box<dyn std::err
         Ok(mut engine) => {
             info!("✅ RealSolanaEngine created successfully");
 
-            // Test start_solana_validator_process directly
-            info!("Testing start_solana_validator_process...");
-            match engine.start_solana_validator_process().await {
+            // Initialize the engine
+            info!("Initializing RealSolanaEngine...");
+            match engine.initialize().await {
                 Ok(_) => {
-                    info!("✅ Solana validator process started successfully");
-
-                    // Wait a bit for the process to stabilize
-                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-                    // Test shutdown
-                    info!("Testing shutdown...");
-                    match engine
-                        .shutdown(Some(tokio::time::Duration::from_secs(10)))
-                        .await
-                    {
-                        Ok(_) => info!("✅ Engine shutdown successfully"),
-                        Err(e) => error!("❌ Failed to shutdown engine: {}", e),
-                    }
+                    info!("✅ RealSolanaEngine initialized successfully");
                 }
                 Err(e) => {
-                    error!("❌ Failed to start Solana validator process: {}", e);
+                    error!("❌ Failed to initialize RealSolanaEngine: {}", e);
 
                     // Still try to shutdown in case of partial initialization
                     info!("Attempting cleanup shutdown...");
                     let _ = engine
                         .shutdown(Some(tokio::time::Duration::from_secs(5)))
                         .await;
+                    return Ok(());
                 }
+            }
+
+            // Wait a bit for the process to stabilize
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+            // Test shutdown
+            info!("Testing shutdown...");
+            match engine
+                .shutdown(Some(tokio::time::Duration::from_secs(10)))
+                .await
+            {
+                Ok(_) => info!("✅ Engine shutdown successfully"),
+                Err(e) => error!("❌ Failed to shutdown engine: {}", e),
             }
         }
         Err(e) => {

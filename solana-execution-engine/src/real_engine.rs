@@ -164,14 +164,21 @@ impl RealSolanaEngine {
 
         cmd
             // Process settings - redirect output to log file
-            .stdout(std::process::Stdio::from(log_file.try_clone().map_err(|e| {
-                SolanaEngineError::Configuration(format!("Failed to clone log file handle: {e}"))
-            })?))
+            .stdout(std::process::Stdio::from(log_file.try_clone().map_err(
+                |e| {
+                    SolanaEngineError::Configuration(format!(
+                        "Failed to clone log file handle: {e}"
+                    ))
+                },
+            )?))
             .stderr(std::process::Stdio::from(log_file))
             .kill_on_drop(true);
 
         debug!("MultiVM validator command: {:?}", cmd);
-        info!("Validator output will be logged to: {}", log_file_path.display());
+        info!(
+            "Validator output will be logged to: {}",
+            log_file_path.display()
+        );
 
         let child = cmd.spawn().map_err(|e| {
             SolanaEngineError::Process(format!("Failed to start MultiVM validator: {e}"))
