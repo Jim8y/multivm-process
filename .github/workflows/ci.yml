@@ -137,29 +137,15 @@ jobs:
     outputs:
       artifact-name: release-build-artifacts-${{ github.sha }}
 
-  # Test job that runs all tests
+  # Test job that runs pre-built tests only
   test:
-    name: Run Complete Tests
+    name: Run Tests (No Build)
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 60
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup SSH authentication
-      uses: ./.github/actions/setup-ssh
-      env:
-        SSH_KEY: ${{ secrets.SSH_KEY }}
-    
-    - name: Setup system dependencies
-      uses: ./.github/actions/setup-dependencies
-    
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: nightly-2025-06-15
+    # No checkout needed - we only need the test archive
     
     - name: Install cargo-nextest
       uses: taiki-e/install-action@v2
@@ -172,13 +158,13 @@ jobs:
         name: ${{ needs.build.outputs.artifact-name }}
         path: .
     
-    - name: Run complete test suite from archive
+    - name: Run tests from archive
       run: |
-        echo "::group::Running complete test suite from pre-built archive"
+        echo "::group::Running tests from pre-built archive (NO BUILD)"
         
-        # Run tests from the archived binaries - NO RECOMPILATION
-        echo "Running all tests from archive..."
-        cargo +nightly-2025-06-15 nextest run --archive-file tests.tar.zst
+        # Just run the archived test binaries - no source code needed
+        echo "Running all tests..."
+        cargo nextest run --archive-file tests.tar.zst --test-threads=$(nproc)
         
         echo "::endgroup::"
 
