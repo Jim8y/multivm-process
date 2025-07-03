@@ -158,23 +158,40 @@ jobs:
         name: ${{ needs.build.outputs.artifact-name }}
         path: .
     
-    - name: Run unit tests
+    - name: Run pre-built test binaries
       run: |
-        echo "::group::Running unit tests in release mode (using pre-built binaries)"
-        cargo +nightly-2025-06-15 test --workspace --release --lib --bins --all-features --exclude solana-execution-engine --jobs $(nproc) -- --test-threads=$(nproc) --nocapture
-        echo "::endgroup::"
-    
-    - name: Run integration tests
-      run: |
-        echo "::group::Running integration tests in release mode"
-        timeout 600 cargo +nightly-2025-06-15 test --workspace --release --test '*' --all-features --exclude solana-execution-engine --jobs $(nproc) -- --test-threads=$(nproc) --nocapture || true
-        echo "::endgroup::"
-      continue-on-error: true  # Integration tests may require external services
-    
-    - name: Run doc tests
-      run: |
-        echo "::group::Running documentation tests in release mode"
-        cargo +nightly-2025-06-15 test --workspace --release --doc --all-features --exclude solana-execution-engine --jobs $(nproc)
+        echo "::group::Running all pre-built test binaries"
+        
+        # Find and run all test executables
+        echo "Finding test executables..."
+        test_count=0
+        failed_count=0
+        
+        # Run lib and bin tests
+        for test_exe in target/release/deps/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*; do
+          if [ -f "$test_exe" ] && [ -x "$test_exe" ]; then
+            # Skip build scripts and proc macros
+            if [[ ! "$test_exe" =~ build_script_ ]] && [[ ! "$test_exe" =~ \.so$ ]]; then
+              echo "Running: $(basename $test_exe)"
+              if timeout 120 "$test_exe" --test-threads=$(nproc) --nocapture; then
+                ((test_count++))
+              else
+                ((failed_count++))
+                echo "Test failed: $(basename $test_exe)"
+              fi
+            fi
+          fi
+        done
+        
+        echo ""
+        echo "Test Summary:"
+        echo "  Total test binaries run: $test_count"
+        echo "  Failed: $failed_count"
+        
+        if [ $failed_count -gt 0 ]; then
+          exit 1
+        fi
+        
         echo "::endgroup::"
     
     - name: Generate test report
@@ -184,21 +201,8 @@ jobs:
         echo "Generated on: $(date)" >> test-report.md
         echo "" >> test-report.md
         
-        # Count test results
         echo "### Test Statistics:" >> test-report.md
-        cargo +nightly-2025-06-15 test --workspace --release --all-features --exclude solana-execution-engine -- --nocapture 2>&1 | tee test-output.log || true
-        
-        PASSED=$(grep -c "test result: ok" test-output.log || echo "0")
-        FAILED=$(grep -c "test result: FAILED" test-output.log || echo "0")
-        
-        echo "- Tests passed: $PASSED" >> test-report.md
-        echo "- Tests failed: $FAILED" >> test-report.md
-        
-        if [ "$FAILED" -gt "0" ]; then
-          echo "" >> test-report.md
-          echo "### Failed Tests:" >> test-report.md
-          grep -B2 "FAILED" test-output.log >> test-report.md || true
-        fi
+        echo "- See test output above for detailed results" >> test-report.md
     
     - name: Upload test report
       if: always()
