@@ -92,10 +92,6 @@ jobs:
         
         [registries.crates-io]
         protocol = "sparse"
-        
-        [profile.release]
-        lto = "thin"
-        codegen-units = 4
         EOF
         
         # Remove Cargo.lock for fresh dependency resolution
@@ -110,20 +106,20 @@ jobs:
       run: |
         echo "::group::Building release workspace and tests"
         
-        # Build release workspace (excluding problematic packages)
+        # Build release workspace (all packages)
         echo "Building release workspace..."
-        cargo +nightly-2025-06-15 build --workspace --release --all-features --exclude solana-execution-engine --jobs $(nproc)
+        cargo +nightly-2025-06-15 build --workspace --release --all-features --jobs $(nproc)
         
         # Build all tests in release mode with nextest
         echo "Building all tests in release mode..."
-        cargo +nightly-2025-06-15 nextest run --workspace --release --all-features --exclude solana-execution-engine --no-run
+        cargo +nightly-2025-06-15 nextest run --workspace --release --all-features --no-run
         
         echo "::endgroup::"
     
     - name: Archive test binaries
       run: |
         echo "::group::Archiving test binaries"
-        cargo +nightly-2025-06-15 nextest archive --workspace --release --exclude solana-execution-engine --archive-file tests.tar.zst
+        cargo +nightly-2025-06-15 nextest archive --workspace --release --archive-file tests.tar.zst
         echo "::endgroup::"
     
     
