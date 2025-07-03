@@ -10,8 +10,6 @@ pub use multivm_common::{
     IpcResponse, MultivmError, MultivmResult, ProcessingMetrics,
 };
 
-pub mod simple_engine;
-
 // Complex engine only available in mock mode for testing
 #[cfg(feature = "mock")]
 pub mod engine;
