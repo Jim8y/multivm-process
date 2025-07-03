@@ -7,15 +7,11 @@ edition = "2021"
 license = "Apache-2.0"
 
 [features]
-default = ["real-validator", "mock"]
-simple = []
-mock = []
-real-validator = ["solana-sdk", "solana-client", "solana-transaction-status", "agave-validator"]
+default = []
 
 [[bin]]
 name = "multivm-validator"
 path = "src/bin/multivm-validator.rs"
-
 
 [dependencies]
 # Use multivm-common with resolved ed25519-dalek conflicts
@@ -51,12 +47,12 @@ once_cell = "1.19"
 clap = { version = "4.4", features = ["derive", "env"] }
 
 # Solana dependencies (conditional - only when real-validator feature is enabled)
-solana-sdk = { version = "=2.2.2", optional = true }
-solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
-solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
-agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
+solana-sdk = { version = "=2.2.2" }
+solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master" }
+solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master" }
+agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master" }
 solana-loader-v2-interface = { version = "=2.2.1", features = ["bincode"] }
-solana-program = { version = "=2.2.1", default-features = false }
+solana-program = { version = "=2.2.1" }
 solana-clock = "=2.2.1"
 
 # HTTP client for RPC communication
