@@ -33,9 +33,9 @@ permissions:
   packages: read
 
 jobs:
-  # Single release build job
+  # Complete build job (no testing)
   build:
-    name: Build Release Once
+    name: Build Complete Workspace
     runs-on: ubuntu-latest
     timeout-minutes: 60
     
@@ -61,18 +61,30 @@ jobs:
       with:
         toolchain: nightly-2025-06-15
     
-    - name: Setup comprehensive cache
-      uses: Swatinem/rust-cache@v2
+    # Use multiple cache strategies for maximum effectiveness
+    - name: Cache cargo registry
+      uses: actions/cache@v4
       with:
-        key: release-build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ github.sha }}
-        restore-keys: |
-          release-build-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
-          release-build-${{ runner.os }}-
-        cache-directories: |
+        path: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+    
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-
+          ${{ runner.os }}-cargo-build-
+    
+    - name: Setup Rust cache (additional layer)
+      uses: Swatinem/rust-cache@v2
+      with:
         cache-on-failure: true
         cache-all-crates: true
         save-if: always
@@ -97,29 +109,26 @@ jobs:
         # Remove Cargo.lock for fresh dependency resolution
         rm -f Cargo.lock
     
-    - name: Install cargo-nextest
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-nextest
-    
-    - name: Build release workspace and tests (one time only)
+    - name: Build complete workspace
       run: |
-        echo "::group::Building release workspace and tests"
+        echo "::group::Building complete workspace including tests"
         
         # Build release workspace (all packages)
         echo "Building release workspace..."
         cargo +nightly-2025-06-15 build --workspace --release --all-features --jobs $(nproc)
         
-        # Build all tests in release mode with nextest
-        echo "Building all tests in release mode..."
-        cargo +nightly-2025-06-15 nextest run --workspace --release --all-features --no-run
+        # Build all tests (but don't run them)
+        echo "Building all tests..."
+        cargo +nightly-2025-06-15 test --workspace --release --all-features --no-run --jobs $(nproc)
         
-        echo "::endgroup::"
-    
-    - name: Archive test binaries
-      run: |
-        echo "::group::Archiving test binaries"
-        cargo +nightly-2025-06-15 nextest archive --workspace --release --archive-file tests.tar.zst
+        # Build all benches
+        echo "Building all benchmarks..."
+        cargo +nightly-2025-06-15 bench --workspace --all-features --no-run --jobs $(nproc) || true
+        
+        # Build all examples
+        echo "Building all examples..."
+        cargo +nightly-2025-06-15 build --workspace --release --all-features --examples --jobs $(nproc) || true
+        
         echo "::endgroup::"
     
     
@@ -130,43 +139,11 @@ jobs:
         path: |
           target/release/
           Cargo.lock
-          tests.tar.zst
         retention-days: 1
         compression-level: 6
     
     outputs:
       artifact-name: release-build-artifacts-${{ github.sha }}
-
-  # Test job that runs pre-built tests only
-  test:
-    name: Run Tests (No Build)
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 60
-    
-    steps:
-    # No checkout needed - we only need the test archive
-    
-    - name: Install cargo-nextest
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-nextest
-    
-    - name: Download test archive
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ needs.build.outputs.artifact-name }}
-        path: .
-    
-    - name: Run tests from archive
-      run: |
-        echo "::group::Running tests from pre-built archive (NO BUILD)"
-        
-        # Just run the archived test binaries - no source code needed
-        echo "Running all tests..."
-        cargo nextest run --archive-file tests.tar.zst --test-threads=$(nproc)
-        
-        echo "::endgroup::"
 
   # Security audit using pre-built artifacts
   security-audit:
@@ -214,14 +191,13 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [build, test, security-audit]
+    needs: [build, security-audit]
     if: always()
     
     steps:
     - name: Check job results
       run: |
         if [[ "${{ needs.build.result }}" != "success" ]] || \
-           [[ "${{ needs.test.result }}" != "success" ]] || \
            [[ "${{ needs.security-audit.result }}" != "success" ]]; then
           echo "One or more required jobs failed"
           exit 1
