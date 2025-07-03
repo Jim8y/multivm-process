@@ -115,6 +115,16 @@ jobs:
         
         echo "::endgroup::"
     
+    - name: Run tests
+      run: |
+        echo "::group::Running tests in release mode"
+        
+        # Run tests immediately after building to use warm cache
+        echo "Running all workspace tests..."
+        cargo +nightly-2025-06-15 test --workspace --release --all-features --exclude solana-execution-engine -- --test-threads=$(nproc) --nocapture
+        
+        echo "::endgroup::"
+    
     - name: Upload all build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -128,89 +138,6 @@ jobs:
     outputs:
       artifact-name: release-build-artifacts-${{ github.sha }}
 
-  # Test job that uses pre-built artifacts
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 60
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup SSH authentication
-      uses: ./.github/actions/setup-ssh
-      env:
-        SSH_KEY: ${{ secrets.SSH_KEY }}
-    
-    - name: Setup system dependencies
-      uses: ./.github/actions/setup-dependencies
-    
-    - name: Setup Rust toolchain (minimal for tests)
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: nightly-2025-06-15
-    
-    - name: Download pre-built artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ needs.build.outputs.artifact-name }}
-        path: .
-    
-    - name: Run pre-built test binaries
-      run: |
-        echo "::group::Running all pre-built test binaries"
-        
-        # Find and run all test executables
-        echo "Finding test executables..."
-        test_count=0
-        failed_count=0
-        
-        # Run lib and bin tests
-        for test_exe in target/release/deps/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*; do
-          if [ -f "$test_exe" ] && [ -x "$test_exe" ]; then
-            # Skip build scripts and proc macros
-            if [[ ! "$test_exe" =~ build_script_ ]] && [[ ! "$test_exe" =~ \.so$ ]]; then
-              echo "Running: $(basename $test_exe)"
-              if timeout 120 "$test_exe" --test-threads=$(nproc) --nocapture; then
-                ((test_count++))
-              else
-                ((failed_count++))
-                echo "Test failed: $(basename $test_exe)"
-              fi
-            fi
-          fi
-        done
-        
-        echo ""
-        echo "Test Summary:"
-        echo "  Total test binaries run: $test_count"
-        echo "  Failed: $failed_count"
-        
-        if [ $failed_count -gt 0 ]; then
-          exit 1
-        fi
-        
-        echo "::endgroup::"
-    
-    - name: Generate test report
-      if: always()
-      run: |
-        echo "## Test Summary" > test-report.md
-        echo "Generated on: $(date)" >> test-report.md
-        echo "" >> test-report.md
-        
-        echo "### Test Statistics:" >> test-report.md
-        echo "- See test output above for detailed results" >> test-report.md
-    
-    - name: Upload test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-report
-        path: test-report.md
-        retention-days: 7
 
   # Security audit using pre-built artifacts
   security-audit:
@@ -258,14 +185,13 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [build, test, security-audit]
+    needs: [build, security-audit]
     if: always()
     
     steps:
     - name: Check job results
       run: |
         if [[ "${{ needs.build.result }}" != "success" ]] || \
-           [[ "${{ needs.test.result }}" != "success" ]] || \
            [[ "${{ needs.security-audit.result }}" != "success" ]]; then
           echo "One or more required jobs failed"
           exit 1
