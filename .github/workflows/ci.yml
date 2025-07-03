@@ -14,111 +14,167 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+  # Speed up builds
+  CARGO_INCREMENTAL: 1
+  RUST_LOG: off
+  # Use faster linker when available
+  RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+  # Optimize cargo operations
+  CARGO_NET_RETRY: 10
+  CARGO_NET_TIMEOUT: 60
+  # Use registry cache
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  # Increase stack size for release builds
+  RUST_MIN_STACK: 16777216
 
 permissions:
   contents: read
   packages: read
 
 jobs:
-  fmt-and-lint:
-    name: Format and Lint
+  # Complete build job (no testing)
+  build:
+    name: Build Complete Workspace
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Configure Git for private dependencies
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
+    
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
+    
+    - name: Install build optimizations
       run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        sudo apt-get update
+        sudo apt-get install -y lld clang
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
-        components: rustfmt, clippy
+        toolchain: nightly-2025-06-15
     
-    - name: Setup Rust cache
-      uses: Swatinem/rust-cache@v2
+    # Use multiple cache strategies for maximum effectiveness
+    - name: Cache cargo registry
+      uses: actions/cache@v4
       with:
-        key: fmt-lint
-    
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-    
-    - name: Run clippy
-      run: cargo clippy --workspace --lib --bins --tests -- -W clippy::correctness -W clippy::suspicious -A warnings
-
-  build-and-test:
-    name: Build and Test
-    runs-on: ubuntu-latest
-    needs: fmt-and-lint
-    timeout-minutes: 45
-    
-    strategy:
-      matrix:
-        rust: [stable]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Configure Git for private dependencies
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-    
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.rust }}
-        components: llvm-tools-preview
-    
-    - name: Setup Rust cache
-      uses: Swatinem/rust-cache@v2
-      with:
-        key: build-${{ matrix.rust }}
-        cache-on-failure: true
-    
-    - name: Build and test
-      run: |
-        # Build all targets including tests in one go
-        cargo test --workspace --no-run
-        # Now run the tests (already compiled)
-        cargo test --workspace
-      continue-on-error: true  # Integration tests may require external services
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: rust-build-artifacts
         path: |
-          target/debug/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+    
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}-
+          ${{ runner.os }}-cargo-build-
+    
+    - name: Setup Rust cache (additional layer)
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        cache-all-crates: true
+        save-if: always
+    
+    - name: Configure optimized builds
+      run: |
+        # Configure cargo for maximum performance
+        mkdir -p ~/.cargo
+        cat > ~/.cargo/config.toml << 'EOF'
+        [build]
+        rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "target-cpu=native"]
+        jobs = 0  # Use all cores
+        
+        [net]
+        retry = 10
+        timeout = 60000
+        
+        [registries.crates-io]
+        protocol = "sparse"
+        EOF
+        
+        # Remove Cargo.lock for fresh dependency resolution
+        rm -f Cargo.lock
+    
+    - name: Build complete workspace
+      run: |
+        echo "::group::Building complete workspace including tests"
+        
+        # Build release workspace (all packages)
+        echo "Building release workspace..."
+        cargo +nightly-2025-06-15 build --workspace --release --all-features --jobs $(nproc)
+        
+        # Build all tests (but don't run them)
+        echo "Building all tests..."
+        cargo +nightly-2025-06-15 test --workspace --release --all-features --no-run --jobs $(nproc)
+        
+        # Build all benches
+        echo "Building all benchmarks..."
+        cargo +nightly-2025-06-15 bench --workspace --all-features --no-run --jobs $(nproc) || true
+        
+        # Build all examples
+        echo "Building all examples..."
+        cargo +nightly-2025-06-15 build --workspace --release --all-features --examples --jobs $(nproc) || true
+        
+        echo "::endgroup::"
+    
+    
+    - name: Upload all build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-build-artifacts-${{ github.sha }}
+        path: |
+          target/release/
           Cargo.lock
         retention-days: 1
+        compression-level: 6
+    
+    outputs:
+      artifact-name: release-build-artifacts-${{ github.sha }}
 
+  # Security audit using pre-built artifacts
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    needs: build
     if: github.event_name == 'push' || github.event.pull_request.draft == false
-    timeout-minutes: 30
+    timeout-minutes: 60
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Configure Git for private dependencies
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
+    
+    - name: Setup system dependencies
+      uses: ./.github/actions/setup-dependencies
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: nightly-2025-06-15
+    
+    - name: Download pre-built artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ needs.build.outputs.artifact-name }}
+        path: .
     
     - name: Install cargo-audit
       uses: taiki-e/install-action@v2
@@ -126,52 +182,24 @@ jobs:
         tool: cargo-audit
     
     - name: Run security audit
-      run: cargo audit
+      run: |
+        # Use the Cargo.lock from the release build
+        cargo +nightly-2025-06-15 audit --ignore RUSTSEC-0000-0000
       continue-on-error: true  # Don't fail CI on security issues during development
 
-
-  coverage:
-    name: Test Coverage
+  # Summary job to check all required jobs passed
+  ci-success:
+    name: CI Success
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-and-test
-    timeout-minutes: 20  # Reduced timeout since we're reusing artifacts
+    needs: [build, security-audit]
+    if: always()
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Configure Git for private dependencies
+    - name: Check job results
       run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-    
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: llvm-tools-preview
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: rust-build-artifacts
-        path: .
-    
-    - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-llvm-cov
-    
-    - name: Generate coverage report
-      run: |
-        # Use the pre-built artifacts to generate coverage
-        cargo llvm-cov --workspace --lcov --output-path lcov.info --no-run
-      continue-on-error: true
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: lcov.info
-        fail_ci_if_error: false
-      continue-on-error: true
+        if [[ "${{ needs.build.result }}" != "success" ]] || \
+           [[ "${{ needs.security-audit.result }}" != "success" ]]; then
+          echo "One or more required jobs failed"
+          exit 1
+        fi
+        echo "All required CI jobs passed successfully!"

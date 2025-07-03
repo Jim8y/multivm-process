@@ -25,12 +25,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
     
-    - name: Configure Git for private dependencies
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
     - name: Analyze PR changes
       run: |
@@ -87,24 +87,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
     
-    - name: Configure Git for private dependencies
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
     - name: Check commit messages
       run: |
         echo "Checking commit messages for conventional commit format..."
         
-        # Get all commit messages in this PR
-        COMMITS=$(git log --pretty=format:"%s" origin/${{ github.event.pull_request.base.ref }}..HEAD)
+        # Get all commit messages in this PR (excluding merge commits)
+        COMMITS=$(git log --pretty=format:"%s" --no-merges origin/${{ github.event.pull_request.base.ref }}..HEAD)
+        
+        # Check if there are any commits to validate
+        if [ -z "$COMMITS" ]; then
+          echo "ℹ️ No non-merge commits found to validate"
+          exit 0
+        fi
         
         CONVENTIONAL_PATTERN="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,50}"
         
         INVALID_COMMITS=""
         while IFS= read -r commit; do
+          # Skip empty lines
+          if [ -z "$commit" ]; then
+            continue
+          fi
+          
           if [[ ! "$commit" =~ $CONVENTIONAL_PATTERN ]]; then
             INVALID_COMMITS="$INVALID_COMMITS\n- $commit"
           fi
@@ -128,21 +139,28 @@ jobs:
     timeout-minutes: 30
     
     steps:
-    - name: Configure Git for private dependencies
+    - name: Setup SSH authentication
       run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+        ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/id_rsa
+        git config --global url."git@github.com:".insteadOf "https://github.com/"
+        git config --global url."git@github.com:".insteadOf "ssh://git@github.com/"
     
     - name: Checkout base
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
         ref: ${{ github.event.pull_request.base.ref }}
         path: base
     
     - name: Checkout PR
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
         path: pr
     
     - name: Setup Rust toolchain

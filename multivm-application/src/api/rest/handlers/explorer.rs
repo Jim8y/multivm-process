@@ -96,7 +96,7 @@ pub struct SearchResult {
 
 /// Get list of recent blocks
 pub async fn get_blocks(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Query(params): Query<PaginationQuery>,
     headers: HeaderMap,
 ) -> Response {
@@ -141,7 +141,7 @@ pub async fn get_blocks(
 
 /// Get block details by height or hash
 pub async fn get_block_details(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Path(block_id): Path<String>,
     headers: HeaderMap,
 ) -> Response {
@@ -190,7 +190,7 @@ pub async fn get_block_details(
 
 /// Get list of recent transactions
 pub async fn get_transactions(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Query(params): Query<PaginationQuery>,
     headers: HeaderMap,
 ) -> Response {
@@ -239,7 +239,7 @@ pub async fn get_transactions(
 
 /// Get transaction details by hash
 pub async fn get_transaction_details(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Path(tx_hash): Path<String>,
     headers: HeaderMap,
 ) -> Response {
@@ -277,7 +277,7 @@ pub async fn get_transaction_details(
 
 /// Get account activity
 pub async fn get_account_activity(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Path(address): Path<String>,
     headers: HeaderMap,
 ) -> Response {
@@ -301,7 +301,7 @@ pub async fn get_account_activity(
 
 /// Get account transaction history
 pub async fn get_account_transactions(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Path(address): Path<String>,
     Query(params): Query<PaginationQuery>,
     headers: HeaderMap,
@@ -350,14 +350,14 @@ pub async fn get_account_transactions(
 
 /// Get network statistics
 pub async fn get_network_stats(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     headers: HeaderMap,
 ) -> Response {
     let request_id = crate::api::utils::extract_request_id(&headers);
     let start_time = start_request_timer();
 
     // Get consensus stats if available
-    let consensus_guard = state.consensus_manager.read().await;
+    let consensus_guard = _state.consensus_manager.read().await;
     let consensus_stats = if let Some(consensus) = consensus_guard.as_ref() {
         let stats = consensus.get_transaction_pool_stats().await;
         Some(stats)
@@ -395,7 +395,7 @@ pub async fn get_network_stats(
 
 /// Universal search endpoint
 pub async fn search(
-    State(state): State<Arc<ApplicationState>>,
+    State(_state): State<Arc<ApplicationState>>,
     Query(query): Query<SearchQuery>,
     headers: HeaderMap,
 ) -> Response {

@@ -1,4 +1,4 @@
-name: Test Private Repository Access
+name: Test Private Repository Access (SSH)
 
 on:
   workflow_dispatch:  # Manual trigger only
@@ -9,100 +9,97 @@ on:
         default: 'your-org/your-private-repo'
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: read
 
 jobs:
-  test-token-access:
-    name: Test GitHub Token Access
+  test-ssh-access:
+    name: Test SSH Access
     runs-on: ubuntu-latest
     timeout-minutes: 10
     
     steps:
     - name: Checkout current repository
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Configure Git for private dependencies
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-        echo "Git URL rewriting configured for private repository access"
+    - name: Setup SSH authentication
+      uses: ./.github/actions/setup-ssh
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
     
-    - name: Test GitHub API access
+    - name: Test SSH key setup
       run: |
-        echo "🔍 Testing GitHub API access..."
+        echo "🔑 Testing SSH key setup..."
         
-        # Test basic API access
-        echo "Testing user access:"
-        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-             -H "Accept: application/vnd.github.v3+json" \
-             https://api.github.com/user | jq -r '.login // "API access failed"'
+        # Test SSH connection to GitHub
+        ssh -T git@github.com || echo "SSH key authentication configured"
         
-        # Test current repository access
-        echo "Testing current repository access:"
-        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-             -H "Accept: application/vnd.github.v3+json" \
-             https://api.github.com/repos/${{ github.repository }} | jq -r '.full_name // "Repository access failed"'
+        # Show git config
+        echo "Git URL rewrites:"
+        git config --get-regexp url
     
-    - name: Test organization access
+    - name: Test SSH access
       run: |
-        echo "🏢 Testing organization access..."
+        echo "🔍 Testing SSH access to GitHub..."
         
-        # Get organization info
-        ORG_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f1)
-        echo "Organization: $ORG_NAME"
-        
-        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-             -H "Accept: application/vnd.github.v3+json" \
-             https://api.github.com/orgs/$ORG_NAME | jq -r '.login // "Organization access failed"'
+        # Test SSH connection to GitHub
+        echo "Testing SSH connection:"
+        ssh -T git@github.com 2>&1 | head -2 || echo "SSH connection tested"
     
-    - name: Test private repository access (if specified)
-      if: github.event.inputs.test_repo != 'your-org/your-private-repo'
+    - name: Test SSH clone of current repository
       run: |
-        echo "🔒 Testing private repository access..."
-        TEST_REPO="${{ github.event.inputs.test_repo }}"
+        echo "🏢 Testing SSH clone of current repository..."
         
-        # Test API access to the specified private repo
-        echo "Testing API access to: $TEST_REPO"
-        RESPONSE=$(curl -s -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                       -H "Accept: application/vnd.github.v3+json" \
-                       https://api.github.com/repos/$TEST_REPO)
-        
-        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-        BODY=$(echo "$RESPONSE" | head -n -1)
-        
-        if [ "$HTTP_CODE" = "200" ]; then
-          echo "✅ API access successful"
-          echo "$BODY" | jq -r '.full_name'
+        # Clone current repository using SSH
+        if git clone git@github.com:${{ github.repository }}.git test-current-ssh; then
+          echo "✅ SSH clone of current repository successful"
+          ls -la test-current-ssh/
+          rm -rf test-current-ssh/
         else
-          echo "❌ API access failed with HTTP $HTTP_CODE"
-          echo "$BODY"
-        fi
-    
-    - name: Test Git clone access (if specified)
-      if: github.event.inputs.test_repo != 'your-org/your-private-repo'
-      run: |
-        echo "📥 Testing Git clone access..."
-        TEST_REPO="${{ github.event.inputs.test_repo }}"
-        
-        # Attempt to clone the private repository
-        if git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$TEST_REPO.git test-clone; then
-          echo "✅ Git clone successful"
-          ls -la test-clone/
-          rm -rf test-clone/
-        else
-          echo "❌ Git clone failed"
+          echo "❌ SSH clone of current repository failed"
           exit 1
         fi
+    
+    - name: Test SSH clone of private repository (if specified)
+      if: github.event.inputs.test_repo != 'your-org/your-private-repo'
+      run: |
+        echo "🔒 Testing SSH clone of private repository..."
+        TEST_REPO="${{ github.event.inputs.test_repo }}"
+        
+        # Clone private repository using SSH
+        echo "Testing SSH clone of: $TEST_REPO"
+        if git clone git@github.com:$TEST_REPO.git test-private-ssh; then
+          echo "✅ SSH clone of private repository successful"
+          ls -la test-private-ssh/
+          rm -rf test-private-ssh/
+        else
+          echo "❌ SSH clone of private repository failed"
+          exit 1
+        fi
+    
+    - name: Verify SSH git config
+      run: |
+        echo "📥 Verifying Git configuration..."
+        
+        # Show git config
+        echo "Git URL rewrites:"
+        git config --get-regexp url
+        
+        # Test if SSH URL rewriting is properly configured
+        echo "Testing SSH URL transformation:"
+        git config --get url."git@github.com:".insteadOf || echo "No SSH URL rewrite found"
     
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Test Cargo private dependency access
+    - name: Test Cargo private dependency access via SSH
       run: |
-        echo "📦 Testing Cargo private dependency access..."
+        echo "📦 Testing Cargo private dependency access via SSH..."
         
         # Check if Cargo.toml has any git dependencies
         if [ -f "Cargo.toml" ]; then
@@ -122,12 +119,12 @@ jobs:
             fi
           done
           
-          # Test cargo fetch (this will test private dependency access)
+          # Test cargo fetch (this will test private dependency access via SSH)
           echo "Testing cargo fetch with verbose output..."
           if cargo fetch --verbose 2>&1; then
-            echo "✅ Cargo fetch successful - all dependencies accessible"
+            echo "✅ Cargo fetch successful - all dependencies accessible via SSH"
           else
-            echo "❌ Cargo fetch failed - check private dependency access"
+            echo "❌ Cargo fetch failed - check SSH private dependency access"
             exit 1
           fi
           
@@ -143,33 +140,36 @@ jobs:
           echo "No Cargo.toml found in repository root"
         fi
     
-    - name: Test package registry access
+    - name: Test SSH with different repository formats
       run: |
-        echo "📋 Testing package registry access..."
+        echo "📋 Testing SSH with different URL formats..."
         
-        # Test if we can access GitHub Packages
-        ORG_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+        # Test different URL formats that should be transformed to SSH
+        TEST_URLS=(
+          "https://github.com/${{ github.repository }}.git"
+          "https://github.com/${{ github.repository }}"
+          "git@github.com:${{ github.repository }}.git"
+        )
         
-        RESPONSE=$(curl -s -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                       -H "Accept: application/vnd.github.v3+json" \
-                       https://api.github.com/orgs/$ORG_NAME/packages)
-        
-        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-        
-        if [ "$HTTP_CODE" = "200" ]; then
-          echo "✅ Package registry access successful"
-        else
-          echo "ℹ️ Package registry access returned HTTP $HTTP_CODE (may be normal if no packages exist)"
-        fi
+        for url in "${TEST_URLS[@]}"; do
+          echo "Testing URL: $url"
+          # Use git ls-remote to test if URL is accessible
+          if git ls-remote "$url" HEAD 2>/dev/null; then
+            echo "✅ URL accessible via SSH (transformed or native)"
+          else
+            echo "❌ URL not accessible"
+          fi
+        done
     
     - name: Summary
       run: |
-        echo "🎯 Test Summary:"
-        echo "==============="
-        echo "✅ GitHub API access: Working"
-        echo "✅ Current repository access: Working"
-        echo "✅ Organization access: Working"
-        echo "✅ Cargo fetch: $([ $? -eq 0 ] && echo "Working" || echo "Check dependencies")"
+        echo "🎯 SSH Access Test Summary:"
+        echo "========================"
+        echo "✅ SSH key setup: Complete"
+        echo "✅ SSH connection to GitHub: Tested"
+        echo "✅ SSH clone of current repo: Working"
+        echo "✅ Git URL rewriting: Configured"
+        echo "✅ Cargo fetch via SSH: $([ $? -eq 0 ] && echo "Working" || echo "Check dependencies")"
         echo ""
-        echo "If all tests pass, your GitHub token is properly configured!"
-        echo "You can now access private repositories in your organization."
+        echo "If all tests pass, your SSH key is properly configured!"
+        echo "You can now access private repositories using SSH authentication."

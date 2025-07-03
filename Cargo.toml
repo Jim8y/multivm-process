@@ -172,9 +172,16 @@ criterion = "0.5"
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
+
+# Override for solana-execution-engine to prevent stack overflow
+[profile.release.package.solana-execution-engine]
+opt-level = 2
+codegen-units = 16
+
+# Also override agave-validator 
+[profile.release.package.agave-validator]
+opt-level = 2
+codegen-units = 16
 
 [profile.dev]
 opt-level = 0
