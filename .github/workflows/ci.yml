@@ -101,6 +101,11 @@ jobs:
         # Remove Cargo.lock for fresh dependency resolution
         rm -f Cargo.lock
     
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+    
     - name: Build release workspace and tests (one time only)
       run: |
         echo "::group::Building release workspace and tests"
@@ -109,10 +114,16 @@ jobs:
         echo "Building release workspace..."
         cargo +nightly-2025-06-15 build --workspace --release --all-features --exclude solana-execution-engine --jobs $(nproc)
         
-        # Build all tests in release mode (but don't run them)
+        # Build all tests in release mode with nextest
         echo "Building all tests in release mode..."
-        cargo +nightly-2025-06-15 test --workspace --release --all-features --exclude solana-execution-engine --no-run --jobs $(nproc)
+        cargo +nightly-2025-06-15 nextest run --workspace --release --all-features --exclude solana-execution-engine --no-run
         
+        echo "::endgroup::"
+    
+    - name: Archive test binaries
+      run: |
+        echo "::group::Archiving test binaries"
+        cargo +nightly-2025-06-15 nextest archive --workspace --release --exclude solana-execution-engine --archive-file tests.tar.zst
         echo "::endgroup::"
     
     
@@ -123,6 +134,7 @@ jobs:
         path: |
           target/release/
           Cargo.lock
+          tests.tar.zst
         retention-days: 1
         compression-level: 6
     
@@ -153,21 +165,24 @@ jobs:
       with:
         toolchain: nightly-2025-06-15
     
-    - name: Run complete test suite
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+    
+    - name: Download test archive
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ needs.build.outputs.artifact-name }}
+        path: .
+    
+    - name: Run complete test suite from archive
       run: |
-        echo "::group::Running complete test suite in release mode"
+        echo "::group::Running complete test suite from pre-built archive"
         
-        # Fresh test run to ensure all tests execute properly
-        echo "Running unit tests..."
-        cargo +nightly-2025-06-15 test --workspace --release --lib --bins --all-features --exclude solana-execution-engine -- --nocapture
-        
-        echo ""
-        echo "Running integration tests..."
-        cargo +nightly-2025-06-15 test --workspace --release --test '*' --all-features --exclude solana-execution-engine -- --nocapture || true
-        
-        echo ""
-        echo "Running doc tests..."
-        cargo +nightly-2025-06-15 test --workspace --release --doc --all-features --exclude solana-execution-engine || true
+        # Run tests from the archived binaries - NO RECOMPILATION
+        echo "Running all tests from archive..."
+        cargo +nightly-2025-06-15 nextest run --archive-file tests.tar.zst
         
         echo "::endgroup::"
 
