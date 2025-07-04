@@ -53,6 +53,9 @@ hmac = "0.12"
 base64 = "0.21"
 jsonwebtoken = "9.2"
 
+# Additional dependencies for enhanced engine API
+parking_lot = "0.12"
+
 # Note: Using custom types instead of alloy/revm to avoid c-kzg conflicts
 
 # 使用 workspace 定义的依赖版本

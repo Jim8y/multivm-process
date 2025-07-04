@@ -50,33 +50,29 @@ impl RealRethEngine {
     pub(super) async fn generate_jwt_secret(&self) -> Result<(), RethEngineError> {
         let jwt_path = self.data_dir.join("jwt.hex");
 
-        if !jwt_path.exists() {
-            info!("Generating JWT secret for Engine API");
+        // Always generate a fresh JWT secret for each session
+        info!("Generating fresh JWT secret for Engine API");
 
-            // Generate 32 random bytes and encode as hex
-            use std::io::Write;
-            let mut rng = rand::thread_rng();
-            let secret: [u8; 32] = rand::Rng::gen(&mut rng);
-            let hex_secret = hex::encode(secret);
+        // Generate 32 random bytes and encode as hex
+        use std::io::Write;
+        let mut rng = rand::thread_rng();
+        let secret: [u8; 32] = rand::Rng::gen(&mut rng);
+        let hex_secret = hex::encode(secret);
 
-            let mut file = std::fs::File::create(&jwt_path).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to create JWT file: {e}"))
-            })?;
-
-            file.write_all(hex_secret.as_bytes()).map_err(|e| {
-                RethEngineError::Configuration(format!("Failed to write JWT secret: {e}"))
-            })?;
-
-            info!("JWT secret generated: {:?}", jwt_path);
-        }
-
-        // Load the JWT secret into memory
-        let jwt_content = std::fs::read_to_string(&jwt_path).map_err(|e| {
-            RethEngineError::Configuration(format!("Failed to read JWT secret: {e}"))
+        // Write JWT secret to file for Reth to use
+        let mut file = std::fs::File::create(&jwt_path).map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to create JWT file: {e}"))
         })?;
 
-        *self.jwt_secret.write().await = Some(jwt_content.trim().to_string());
-        info!("JWT secret loaded successfully");
+        file.write_all(hex_secret.as_bytes()).map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to write JWT secret: {e}"))
+        })?;
+
+        // Store JWT secret in memory for our communication with Reth
+        *self.jwt_secret.write().await = Some(hex_secret.clone());
+        
+        info!("Fresh JWT secret generated and saved to: {:?}", jwt_path);
+        info!("JWT secret length: {} characters", hex_secret.len());
 
         Ok(())
     }
@@ -644,40 +640,5 @@ impl RealRethEngine {
         }
     }
 
-    /// Gracefully shutdown the real Reth engine
-    pub async fn shutdown(
-        &mut self,
-        timeout: Option<std::time::Duration>,
-    ) -> Result<(), RethEngineError> {
-        info!("Shutting down real Reth execution engine");
 
-        *self.is_running.write().await = false;
-
-        // Stop the Reth process
-        if let Some(mut child) = self.reth_process.write().await.take() {
-            info!("Terminating Reth node process");
-
-            // Try graceful shutdown first
-            if let Err(e) = child.kill().await {
-                warn!("Failed to kill Reth node process: {}", e);
-            }
-
-            // Wait for it to exit
-            let wait_timeout = timeout.unwrap_or(std::time::Duration::from_secs(10));
-            match tokio::time::timeout(wait_timeout, child.wait()).await {
-                Ok(Ok(status)) => {
-                    info!("Reth node exited with status: {}", status);
-                }
-                Ok(Err(e)) => {
-                    warn!("Error waiting for Reth node to exit: {}", e);
-                }
-                Err(_) => {
-                    warn!("Reth node did not exit within timeout");
-                }
-            }
-        }
-
-        info!("Real Reth execution engine shutdown complete");
-        Ok(())
-    }
 }

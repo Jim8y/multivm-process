@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use rand::Rng;
 
 /// Real Reth execution engine that connects to actual Reth nodes
 pub struct RealRethEngine {
@@ -133,7 +134,7 @@ impl RealRethEngine {
         Ok(())
     }
 
-    /// Start the Reth node process with optimized configuration
+    /// Start the Reth node process with simplified configuration
     async fn start_reth_process(&self) -> Result<(), RethEngineError> {
         info!("Starting Reth node process");
 
@@ -142,49 +143,31 @@ impl RealRethEngine {
             // Data directory
             .arg("--datadir")
             .arg(&self.data_dir)
-            // HTTP RPC configuration
-            .arg("--http")
-            .arg("--http.port")
-            .arg(self.rpc_port.to_string())
-            .arg("--http.addr")
-            .arg("127.0.0.1")
-            .arg("--http.api")
-            .arg("engine,eth,net,web3,debug,trace")
-            .arg("--http.corsdomain")
-            .arg("*")
             // Engine API configuration
-            .arg("--authrpc.port")
-            .arg(self.engine_port.to_string())
-            .arg("--authrpc.addr")
-            .arg("127.0.0.1")
             .arg("--authrpc.jwtsecret")
             .arg(self.data_dir.join("jwt.hex"))
-            // Disable P2P for execution-only mode
-            .arg("--no-discovery")
-            .arg("--port")
+            .arg("--authrpc.addr")
+            .arg("127.0.0.1")
+            .arg("--authrpc.port")
+            .arg(self.engine_port.to_string())
+            // HTTP RPC configuration
+            .arg("--http")
+            .arg("--http.addr")
+            .arg("127.0.0.1")
+            .arg("--http.port")
+            .arg(self.rpc_port.to_string())
+            // Disable P2P networking for MultiVM
+            .arg("--disable-discovery")
+            .arg("--max-inbound-peers")
             .arg("0")
             .arg("--max-outbound-peers")
             .arg("0")
-            .arg("--max-inbound-peers")
+            .arg("--port")
             .arg("0")
-            // Chain configuration
-            .arg("--chain")
-            .arg(self.get_chain_name())
-            // Performance optimizations
-            .arg("--max-block-gas-limit")
-            .arg("30000000")
-            .arg("--block-time")
-            .arg("12") // 12 second blocks
-            // Execution optimizations
-            .arg("--execution-block-cache-size")
-            .arg("1000")
-            .arg("--execution-receipt-cache-size")
-            .arg("1000")
-            // Logging
-            .arg("--log.stdout.format")
-            .arg("json")
-            .arg("--log.stdout.filter")
-            .arg("info,reth=debug,engine=debug,evm=debug")
+            // Disable IPC
+            .arg("--ipcdisable")
+            // Use development mode to avoid genesis hash conflicts
+            .arg("--dev")
             // Process management
             .kill_on_drop(true);
 
@@ -401,7 +384,7 @@ impl RealRethEngine {
                     }
                 }
 
-                // Check Engine API health
+                // Check Engine API health with JWT authentication
                 if let (Some(client), Some(secret)) = (
                     engine_client.read().await.as_ref(),
                     jwt_secret.read().await.as_ref(),
@@ -412,7 +395,7 @@ impl RealRethEngine {
                             "jsonrpc": "2.0",
                             "id": "engine_health",
                             "method": "engine_exchangeCapabilities",
-                            "params": [[]]
+                            "params": [["engine_newPayloadV3", "engine_forkchoiceUpdatedV3"]]
                         });
 
                         match client
@@ -434,47 +417,13 @@ impl RealRethEngine {
                         }
                     }
                 }
-
-                // Check Engine API health (if JWT secret is available)
-                if let Some(client) = engine_client.read().await.as_ref() {
-                    if let Some(secret) = jwt_secret.read().await.as_ref() {
-                        let engine_url = format!("http://127.0.0.1:{engine_port}");
-                        
-                        if let Ok(jwt_token) = Self::create_jwt_token_static(secret) {
-                            let engine_request = json!({
-                                "jsonrpc": "2.0",
-                                "id": "engine_health",
-                                "method": "engine_exchangeCapabilities",
-                                "params": [["engine_newPayloadV3"]]
-                            });
-
-                            match client
-                                .post(&engine_url)
-                                .header("Authorization", format!("Bearer {jwt_token}"))
-                                .json(&engine_request)
-                                .send()
-                                .await
-                            {
-                                Ok(response) if response.status().is_success() => {
-                                    debug!("Engine API health check: OK");
-                                }
-                                Ok(response) => {
-                                    warn!("Engine API health check failed: {}", response.status());
-                                }
-                                Err(e) => {
-                                    error!("Engine API health check error: {}", e);
-                                }
-                            }
-                        }
-                    }
-                }
             }
         });
 
         info!("Health monitoring started");
     }
 
-    /// Stop the Reth node process
+    /// Stop the Reth node process (following Solana pattern)
     pub async fn stop_reth_process(&self) -> Result<(), RethEngineError> {
         info!("Stopping Reth node process");
 
@@ -532,6 +481,29 @@ impl RealRethEngine {
         }
 
         Ok(())
+    }
+
+    /// Shutdown with timeout (following Solana pattern)
+    pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), RethEngineError> {
+        let timeout = timeout.unwrap_or(Duration::from_secs(30));
+        
+        info!("Shutting down Reth execution engine with timeout: {:?}", timeout);
+        
+        // Mark as not running
+        *self.is_running.write().await = false;
+
+        // Stop the process
+        match tokio::time::timeout(timeout, self.stop_reth_process()).await {
+            Ok(result) => result,
+            Err(_) => {
+                error!("Shutdown timeout exceeded, force killing process");
+                // Force kill any remaining process
+                if let Some(mut child) = self.reth_process.write().await.take() {
+                    let _ = child.kill().await;
+                }
+                Ok(())
+            }
+        }
     }
 
     /// Restart the Reth node process
