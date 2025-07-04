@@ -72,6 +72,13 @@ impl From<MultivmError> for SolanaEngineError {
     }
 }
 
+// Add conversion from solana_client::client_error::ClientError to SolanaEngineError
+impl From<solana_client::client_error::ClientError> for SolanaEngineError {
+    fn from(err: solana_client::client_error::ClientError) -> Self {
+        SolanaEngineError::Rpc(format!("Solana client error: {}", err))
+    }
+}
+
 impl From<SolanaEngineError> for MultivmError {
     fn from(err: SolanaEngineError) -> Self {
         match err {

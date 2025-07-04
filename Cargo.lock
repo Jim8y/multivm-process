@@ -10259,6 +10259,7 @@ dependencies = [
  "solana-clock",
  "solana-loader-v2-interface",
  "solana-program",
+ "solana-rpc-client",
  "solana-sdk",
  "solana-transaction-status",
  "tempfile",

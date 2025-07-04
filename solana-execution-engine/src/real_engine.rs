@@ -6,18 +6,20 @@
 
 use crate::config::{MultivmValidatorConfig, SolanaConnectionConfig};
 use crate::engine::{SolanaBlockData, SolanaEngineError, SolanaExecutionResult, SolanaTransaction};
-use crate::rpc_client::{SolanaRpcClient, SolanaRpcClientBuilder};
 use crate::validator_api::{SlotInfo, SolanaValidatorApi, SolanaValidatorApiBuilder};
 use async_trait::async_trait;
 use base64::Engine;
 use multivm_common::*;
 use reqwest::Client;
 use serde_json::{json, Value};
+use solana_client::client_error::ClientError;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
     pubkey::Pubkey,
     signature::Signature,
     slot_history::Slot,
+    transaction::Transaction,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -38,7 +40,7 @@ pub struct RealSolanaEngine {
     validator_process: Arc<RwLock<Option<Child>>>,
 
     /// Network clients
-    pub(crate) rpc_client: Arc<RwLock<Option<SolanaRpcClient>>>,
+    pub(crate) rpc_client: Arc<RwLock<Option<RpcClient>>>,
     pub(crate) validator_api: Arc<RwLock<Option<SolanaValidatorApi>>>,
 
     /// State tracking
@@ -240,14 +242,7 @@ impl RealSolanaEngine {
             commitment: self.connection_config.commitment_level,
         };
 
-        let rpc_client = SolanaRpcClientBuilder::new()
-            .rpc_url(rpc_url.clone())
-            .ws_url(ws_url.clone())
-            .request_timeout(self.connection_config.request_timeout)
-            .max_retries(self.connection_config.max_retries)
-            .retry_delay(self.connection_config.retry_delay)
-            .commitment(commitment)
-            .build()?;
+        let rpc_client = RpcClient::new_with_commitment(rpc_url.clone(), commitment);
 
         // Create validator API client
         let validator_api = SolanaValidatorApiBuilder::new()
@@ -355,9 +350,8 @@ impl RealSolanaEngine {
 
                 // Check RPC health
                 if let Some(client) = rpc_client.read().await.as_ref() {
-                    match client.health_check().await {
-                        Ok(true) => debug!("Solana RPC health check: OK"),
-                        Ok(false) => warn!("Solana RPC health check: FAILED"),
+                    match client.get_health().await {
+                        Ok(()) => debug!("Solana RPC health check: OK"),
                         Err(e) => error!("Solana RPC health check error: {}", e),
                     }
                 }
@@ -474,7 +468,7 @@ impl RealSolanaEngine {
     /// Submit a transaction to the Solana validator
     async fn submit_transaction_to_validator(
         &self,
-        client: &SolanaRpcClient,
+        client: &RpcClient,
         transaction: &SolanaTransaction,
     ) -> Result<String, SolanaEngineError> {
         debug!(
@@ -482,17 +476,23 @@ impl RealSolanaEngine {
             transaction.signature
         );
 
-        // Convert transaction data to base64 for submission
-        let transaction_base64 = base64::encode(&transaction.data);
+        // Deserialize transaction data from bytes to Transaction object
+        let solana_transaction: solana_sdk::transaction::Transaction =
+            bincode::deserialize(&transaction.data).map_err(|e| {
+                SolanaEngineError::Serialization(format!(
+                    "Failed to deserialize transaction: {}",
+                    e
+                ))
+            })?;
 
         // Submit transaction to the Solana validator
         match client
-            .send_and_confirm_transaction(&transaction_base64)
+            .send_and_confirm_transaction(&solana_transaction)
             .await
         {
             Ok(signature) => {
                 info!("Successfully submitted Solana transaction: {}", signature);
-                Ok(signature)
+                Ok(signature.to_string())
             }
             Err(e) => {
                 error!("Failed to submit Solana transaction: {}", e);
@@ -548,7 +548,13 @@ impl RealSolanaEngine {
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
 
-        client.get_slot().await
+        match client.get_slot().await {
+            Ok(slot) => Ok(slot),
+            Err(e) => Err(SolanaEngineError::Rpc(format!(
+                "Failed to get current slot: {}",
+                e
+            ))),
+        }
     }
 
     /// Get slot information
