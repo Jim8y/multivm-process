@@ -86,8 +86,18 @@ impl RealRethEngine {
         Self::create_jwt_token_static(secret)
     }
 
+    /// Create JWT token with custom expiration time
+    pub(super) fn create_jwt_token_with_expiry(&self, secret: &str, expiry_seconds: u64) -> Result<String, RethEngineError> {
+        Self::create_jwt_token_static_with_expiry(secret, expiry_seconds)
+    }
+
     /// Static version of JWT token creation for use in background tasks
     pub(super) fn create_jwt_token_static(secret: &str) -> Result<String, RethEngineError> {
+        Self::create_jwt_token_static_with_expiry(secret, 60)
+    }
+
+    /// Static version of JWT token creation with custom expiration
+    pub(super) fn create_jwt_token_static_with_expiry(secret: &str, expiry_seconds: u64) -> Result<String, RethEngineError> {
         use sha2::Sha256;
 
         // Create JWT header
@@ -104,7 +114,7 @@ impl RealRethEngine {
 
         let payload = serde_json::json!({
             "iat": now,
-            "exp": now + 60 // Token expires in 60 seconds
+            "exp": now + expiry_seconds
         });
 
         // Encode header and payload
@@ -144,6 +154,43 @@ impl RealRethEngine {
         Ok(jwt)
     }
 
+    /// Validate JWT token (for testing purposes)
+    pub(super) fn validate_jwt_token(token: &str, secret: &str) -> Result<bool, RethEngineError> {
+        use sha2::Sha256;
+
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return Ok(false);
+        }
+
+        let header_b64 = parts[0];
+        let payload_b64 = parts[1];
+        let signature_b64 = parts[2];
+
+        // Recreate the message
+        let message = format!("{header_b64}.{payload_b64}");
+        
+        // Decode secret
+        let secret_bytes = hex::decode(secret).map_err(|e| {
+            RethEngineError::Configuration(format!("Invalid JWT secret format: {e}"))
+        })?;
+
+        // Create HMAC
+        let mut mac = hmac::Hmac::<Sha256>::new_from_slice(&secret_bytes)
+            .map_err(|e| RethEngineError::Configuration(format!("Failed to create HMAC: {e}")))?;
+
+        use hmac::Mac;
+        mac.update(message.as_bytes());
+        let expected_signature = mac.finalize().into_bytes();
+
+        // Decode provided signature
+        let provided_signature = URL_SAFE_NO_PAD.decode(signature_b64)
+            .map_err(|e| RethEngineError::Configuration(format!("Invalid signature format: {e}")))?;
+
+        // Compare signatures
+        Ok(expected_signature.as_slice() == provided_signature.as_slice())
+    }
+
     /// Get chain name for Reth configuration
     pub(super) fn get_chain_name(&self) -> &str {
         match self.chain_id {
@@ -151,7 +198,39 @@ impl RealRethEngine {
             11155111 => "sepolia",
             17000 => "holesky",
             5 => "goerli",
+            137 => "polygon",
+            56 => "bsc",
+            43114 => "avalanche",
+            42161 => "arbitrum",
+            10 => "optimism",
             _ => "dev", // Custom development chain
+        }
+    }
+
+    /// Get human-readable chain description
+    pub(super) fn get_chain_description(&self) -> &str {
+        match self.chain_id {
+            1 => "Ethereum Mainnet",
+            11155111 => "Sepolia Testnet",
+            17000 => "Holesky Testnet",
+            5 => "Goerli Testnet (deprecated)",
+            137 => "Polygon Mainnet",
+            56 => "BNB Smart Chain",
+            43114 => "Avalanche C-Chain",
+            42161 => "Arbitrum One",
+            10 => "Optimism",
+            _ => "Development Chain",
+        }
+    }
+
+    /// Check if the chain supports EIP-1559
+    pub(super) fn supports_eip1559(&self) -> bool {
+        match self.chain_id {
+            1 | 11155111 | 17000 | 5 => true, // Ethereum networks
+            137 => true, // Polygon
+            42161 => true, // Arbitrum
+            10 => true, // Optimism
+            _ => true, // Default to true for dev chains
         }
     }
 
@@ -347,16 +426,31 @@ impl RealRethEngine {
     pub(super) fn rlp_encode_transaction(&self, tx: &Transaction) -> Vec<u8> {
         let mut stream = Vec::new();
 
-        // Determine transaction type
-        if tx.gas_price.is_some() {
-            // Legacy transaction (type 0)
-            self.encode_legacy_transaction(&mut stream, tx);
-        } else {
-            // EIP-1559 transaction (type 2) - assume this if no gas_price
+        // Determine transaction type based on chain support and transaction fields
+        let use_eip1559 = self.supports_eip1559() 
+            && tx.max_fee_per_gas.is_some() 
+            && tx.max_priority_fee_per_gas.is_some();
+
+        if use_eip1559 {
+            // EIP-1559 transaction (type 0x02)
             self.encode_eip1559_transaction(&mut stream, tx);
+        } else {
+            // Legacy transaction (type 0x00, no prefix)
+            self.encode_legacy_transaction(&mut stream, tx);
         }
 
         stream
+    }
+
+    /// Get transaction type (0 for legacy, 2 for EIP-1559)
+    pub(super) fn get_transaction_type(&self, tx: &Transaction) -> u8 {
+        if self.supports_eip1559() 
+            && tx.max_fee_per_gas.is_some() 
+            && tx.max_priority_fee_per_gas.is_some() {
+            2 // EIP-1559
+        } else {
+            0 // Legacy
+        }
     }
 
     /// Encode legacy transaction (EIP-155)

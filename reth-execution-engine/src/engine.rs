@@ -109,6 +109,9 @@ pub struct Transaction {
     pub value: U256,
     pub data: Vec<u8>,
     pub signature: TransactionSignature,
+    // EIP-1559 fields
+    pub max_fee_per_gas: Option<u64>,
+    pub max_priority_fee_per_gas: Option<u64>,
 }
 
 /// Transaction signature
@@ -499,7 +502,7 @@ impl RethExecutionEngine {
         rpc_port: u16,
         chain_id: u64,
     ) -> Result<Self, RethEngineError> {
-        Self::new_with_mode(data_dir, rpc_port, chain_id, cfg!(feature = "mock")).await
+        Self::new_with_mode(data_dir, rpc_port, chain_id, false).await
     }
 
     pub async fn new_with_mode(
@@ -1574,6 +1577,9 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
                 r: U256::from(1),
                 s: U256::from(1),
             },
+            // EIP-1559 fields
+            max_fee_per_gas: Some(30_000_000_000), // 30 gwei
+            max_priority_fee_per_gas: Some(2_000_000_000), // 2 gwei
         });
     }
 
