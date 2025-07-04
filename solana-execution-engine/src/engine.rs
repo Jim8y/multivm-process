@@ -19,7 +19,7 @@ use multivm_common::{
     ProcessingMetrics,
 };
 
-use solana_sdk::{hash::Hash, slot_history::Slot};
+use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
 
 use crate::real_engine::RealSolanaEngine;
 
@@ -133,30 +133,22 @@ impl From<SolanaEngineError> for MultivmError {
 /// Solana block data type for execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolanaBlockData {
-    /// The slot number
+    /// The slot number (not related to Solana Validator)
     pub slot: Slot,
-    /// Block hash
+    /// Block hash (not related to Solana Validator)
     pub block_hash: Hash,
-    /// Parent slot  
+    /// Parent slot (not related to Solana Validator)
     pub parent_slot: Slot,
     /// Transactions in this block
     pub transactions: Vec<SolanaTransaction>,
-    /// Block time
+    /// Block time (not related to Solana Validator)
     pub block_time: Option<i64>,
-    /// Previous block hash
+    /// Previous block hash (not related to Solana Validator)
     pub previous_blockhash: Hash,
 }
 
-/// Simplified Solana transaction type
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SolanaTransaction {
-    /// Transaction signature
-    pub signature: String,
-    /// Transaction data
-    pub data: Vec<u8>,
-    /// Compute units used
-    pub compute_units: u64,
-}
+/// Type alias for Solana transaction to maintain naming consistency
+pub type SolanaTransaction = Transaction;
 
 /// Solana execution result
 #[derive(Debug, Clone, Serialize, Deserialize)]

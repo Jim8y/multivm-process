@@ -396,7 +396,8 @@ impl RealSolanaEngine {
 
         let processing_time = start_time.elapsed();
         let transactions_count = block.transactions.len();
-        let compute_units_used: u64 = block.transactions.iter().map(|tx| tx.compute_units).sum();
+        // For now, we'll use a default compute units value since Transaction doesn't have this field
+        let compute_units_used: u64 = block.transactions.len() as u64 * 200_000; // Default estimate
 
         info!(
             "Successfully processed Solana block {} in {:?} with {} transactions, compute units: {}",
@@ -472,24 +473,12 @@ impl RealSolanaEngine {
         transaction: &SolanaTransaction,
     ) -> Result<String, SolanaEngineError> {
         debug!(
-            "Submitting Solana transaction with signature: {}",
-            transaction.signature
+            "Submitting Solana transaction with signatures: {:?}",
+            transaction.signatures
         );
 
-        // Deserialize transaction data from bytes to Transaction object
-        let solana_transaction: solana_sdk::transaction::Transaction =
-            bincode::deserialize(&transaction.data).map_err(|e| {
-                SolanaEngineError::Serialization(format!(
-                    "Failed to deserialize transaction: {}",
-                    e
-                ))
-            })?;
-
         // Submit transaction to the Solana validator
-        match client
-            .send_and_confirm_transaction(&solana_transaction)
-            .await
-        {
+        match client.send_and_confirm_transaction(transaction).await {
             Ok(signature) => {
                 info!("Successfully submitted Solana transaction: {}", signature);
                 Ok(signature.to_string())
@@ -525,9 +514,13 @@ impl RealSolanaEngine {
 
         // Add transaction signatures
         for tx in &block.transactions {
-            hasher.update(tx.signature.as_bytes());
-            // Include transaction data hash for more entropy
-            let tx_hash = Sha256::digest(&tx.data);
+            // Use the first signature if available
+            if let Some(signature) = tx.signatures.first() {
+                hasher.update(signature.as_ref());
+            }
+            // Include transaction message hash for more entropy
+            let tx_data = bincode::serialize(tx).unwrap_or_default();
+            let tx_hash = Sha256::digest(&tx_data);
             hasher.update(tx_hash);
         }
 
@@ -603,5 +596,82 @@ impl RealSolanaEngine {
 
         info!("Real Solana execution engine shutdown complete");
         Ok(())
+    }
+    /// Submit multiple signed transactions to the validator via RPC in sequence
+    ///
+    /// This method takes a mutable slice of signed Solana transactions and submits them
+    /// to the validator one by one in the order they appear in the slice.
+    ///
+    /// # Arguments
+    /// * `transactions` - A mutable slice of signed Transaction objects to submit
+    ///
+    /// # Returns
+    /// * `Ok(Vec<String>)` - Vector of transaction signatures for successfully submitted transactions
+    /// * `Err(SolanaEngineError)` - If RPC client is not initialized or other errors occur
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut transactions = vec![signed_tx1, signed_tx2, signed_tx3];
+    /// let signatures = engine.submit_transactions_to_validator(&mut transactions).await?;
+    /// ```
+    pub async fn submit_transactions_to_validator(
+        &self,
+        transactions: &mut [Transaction],
+    ) -> Result<Vec<String>, SolanaEngineError> {
+        info!(
+            "Submitting {} transactions to validator via RPC",
+            transactions.len()
+        );
+
+        if transactions.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
+
+        let mut signatures = Vec::with_capacity(transactions.len());
+        let mut successful_count = 0;
+        let mut failed_count = 0;
+
+        // Submit each transaction in sequence
+        for (index, transaction) in transactions.iter().enumerate() {
+            debug!(
+                "Submitting transaction {} of {}",
+                index + 1,
+                transactions.len()
+            );
+
+            match client.send_and_confirm_transaction(transaction).await {
+                Ok(signature) => {
+                    info!(
+                        "Transaction {} submitted successfully with signature: {}",
+                        index + 1,
+                        signature
+                    );
+                    signatures.push(signature.to_string());
+                    successful_count += 1;
+                }
+                Err(e) => {
+                    error!("Failed to submit transaction {}: {}", index + 1, e);
+                    failed_count += 1;
+
+                    // Return error immediately on first failure to maintain transaction ordering
+                    return Err(SolanaEngineError::Transaction(format!(
+                        "Transaction {} submission failed: {}. {} transactions were successfully submitted before this failure.",
+                        index + 1, e, successful_count
+                    )));
+                }
+            }
+        }
+
+        info!(
+            "Successfully submitted {} transactions to validator ({} failed)",
+            successful_count, failed_count
+        );
+
+        Ok(signatures)
     }
 }
