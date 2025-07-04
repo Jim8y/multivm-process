@@ -51,7 +51,7 @@ uuid = { workspace = true }
 # Validation and regex
 regex = "1.10"
 bs58 = { workspace = true }
-lazy_static = "1.4"
+once_cell = { workspace = true }
 
 # Concurrency utilities
 parking_lot = { workspace = true }
@@ -59,7 +59,7 @@ parking_lot = { workspace = true }
 # Additional dependencies
 bincode = { workspace = true }
 hex = { workspace = true }
-warp = { workspace = true }
+# warp removed - using axum instead
 rand = { workspace = true }
 prometheus = { workspace = true }
 redis = { workspace = true }

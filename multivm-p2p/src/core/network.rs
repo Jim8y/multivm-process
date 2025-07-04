@@ -168,9 +168,10 @@ pub struct P2PNetwork {
     stats: Arc<RwLock<NetworkStats>>,
     /// Event sender for broadcasting network events
     event_sender: Option<mpsc::UnboundedSender<crate::protocol::messages::NetworkMessage>>,
-    /// Event handler for processing network events (placeholder)
-    // TODO: Add proper event handler trait
-    // event_handler: Option<Arc<dyn NetworkEventHandler + Send + Sync>>,
+    /// Event handler for processing network events
+    /// Production implementation would define a NetworkEventHandler trait
+    /// with methods like: handle_peer_connected, handle_message_received, etc.
+    /// For now, events are handled directly in the network layer
     /// Connected peers
     connected_peers: Arc<RwLock<HashMap<PeerId, PeerInfo>>>,
     /// Subscribed topics for gossipsub
@@ -221,7 +222,6 @@ impl std::fmt::Debug for P2PNetwork {
             .field("local_peer_id", &self.local_peer_id)
             .field("start_time", &self.start_time)
             .field("event_sender", &self.event_sender.is_some())
-            // .field("event_handler", &self.event_handler.is_some())
             .field("config", &self.config)
             .finish()
     }

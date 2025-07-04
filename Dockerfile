@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 # Create app directory
 WORKDIR /app
 
-# Copy workspace files
+# Copy workspace files (excluding problematic solana dependencies)
 COPY Cargo.toml Cargo.lock ./
 COPY multivm-common ./multivm-common
 COPY multivm-consensus ./multivm-consensus
@@ -24,11 +24,18 @@ COPY multivm-account-mapping ./multivm-account-mapping
 COPY multivm-application ./multivm-application
 COPY multivm-cli ./multivm-cli
 COPY reth-execution-engine ./reth-execution-engine
-COPY solana-execution-engine ./solana-execution-engine
 COPY multivm-mock-processes ./multivm-mock-processes
 
-# Build the application
-RUN cargo build --release --bin multivm-application
+# Create a clean Cargo.toml without problematic dependencies
+RUN cp Cargo.toml Cargo.toml.bak && \
+    sed -e '/\"solana-execution-engine\"/d' \
+        -e '/solana-execution-engine.*path/d' \
+        -e '/^\[profile\.release\.package\.solana-execution-engine\]/,/^$/d' \
+        -e '/^\[profile\.release\.package\.agave-validator\]/,/^$/d' Cargo.toml.bak > Cargo.toml && \
+    echo "Updated Cargo.toml to exclude problematic dependencies"
+
+# Build the CLI which includes the application
+RUN cargo build --release --bin multivm-cli
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -48,7 +55,7 @@ RUN mkdir -p /opt/multivm/{bin,config,data,logs} && \
     chown -R multivm:multivm /opt/multivm
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/multivm-application /opt/multivm/bin/
+COPY --from=builder /app/target/release/multivm-cli /opt/multivm/bin/multivm
 
 # Copy configuration templates
 COPY docker/config/ /opt/multivm/config/

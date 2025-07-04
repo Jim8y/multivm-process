@@ -13,7 +13,6 @@ mod metrics_impl {
     use std::sync::Arc;
     use std::time::Instant;
     use tokio::sync::RwLock;
-    use tracing::warn;
 
     /// Production monitoring system for P2P network
     #[derive(Debug)]
@@ -277,7 +276,6 @@ mod metrics_impl {
 
         /// Get metrics as Prometheus formatted string
         pub fn get_metrics_string(&self) -> String {
-            use prometheus::Encoder;
             let encoder = prometheus::TextEncoder::new();
             let metric_families = self.registry.gather();
             encoder

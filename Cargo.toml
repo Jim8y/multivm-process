@@ -8,9 +8,8 @@ members = [
     "multivm-application",
     "multivm-consensus",
     "multivm-cli",
-    # Re-enabling execution engines with feature-based compilation
     "reth-execution-engine",
-    "solana-execution-engine",  # ed25519-dalek conflict resolved
+    # "solana-execution-engine",  # Temporarily excluded due to dependency conflicts
 ]
 resolver = "2"
 
@@ -46,14 +45,14 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Networking
 reqwest = { version = "0.11", features = ["json", "stream"] }
-libp2p = { version = "0.53", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify", "kad", "ping", "websocket", "serde", "macros", "tokio", "dns"] }
+libp2p = { version = "0.54", features = ["gossipsub", "mdns", "noise", "tcp", "yamux", "identify", "kad", "ping", "websocket", "serde", "macros", "tokio", "dns"] }
 tokio-tungstenite = "0.20"
 
 # Web framework
 axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "limit", "timeout"] }
-warp = "0.3"
+# Removed warp - use axum exclusively
 
 # GraphQL
 async-graphql = { version = "7.0", features = ["chrono", "uuid"] }
@@ -61,7 +60,7 @@ async-graphql-axum = "7.0"
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-rocksdb = "0.22"
+rocksdb = "0.21"
 
 # Caching
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
@@ -78,16 +77,20 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Metrics and monitoring
 prometheus = "0.13"
-opentelemetry = "0.21"
 
-# Blockchain specific
-ethers = "2.0"
+# Ethereum support - minimal dependencies only
+# ethers removed - not used in codebase
 alloy-primitives = "0.7"
-# Use specific version of solana-sdk with zeroize < 1.4
-solana-sdk = "1.14.29"
-solana-client = "1.14.29"
-solana-program = "1.14.29"
-solana-transaction-status = "1.14.29"
+alloy-consensus = "0.1"
+alloy-rlp = "0.3"
+revm = "12.1"
+
+# Solana support - using crates.io versions for stability
+# All Solana dependencies use compatible versions to avoid conflicts
+# solana-sdk = "1.18"
+# solana-client = "1.18"
+# solana-transaction-status = "1.18"
+# agave-validator = "1.18"
 
 # Process management
 nix = { version = "0.28", features = ["process", "signal"] }
@@ -97,12 +100,9 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Command line
 clap = { version = "4.4", features = ["derive", "env"] }
-dialoguer = "0.11"
 
 # Testing
-mockall = "0.12"
 tempfile = "3.8"
-wiremock = "0.5"
 proptest = "1.4"
 
 # Internal crates
@@ -115,7 +115,7 @@ multivm-application = { path = "multivm-application" }
 multivm-mock-processes = { path = "multivm-mock-processes" }
 multivm-cli = { path = "multivm-cli" }
 reth-execution-engine = { path = "reth-execution-engine" }
-solana-execution-engine = { path = "solana-execution-engine" }
+# solana-execution-engine = { path = "solana-execution-engine" }
 
 # Private repository dependencies (examples - uncomment and modify as needed)
 # multivm-shared-utils = { git = "https://github.com/your-org/multivm-shared-utils.git", tag = "v1.0.0" }
@@ -126,7 +126,7 @@ solana-execution-engine = { path = "solana-execution-engine" }
 jsonrpsee-types = "0.21"
 http = "1.0"
 hyper = "1.1"
-tonic = "0.10"
+# tonic = "0.10"  # Removed - not used in codebase
 prost = "0.12"
 bytes = "1.5"
 
@@ -134,8 +134,8 @@ bytes = "1.5"
 blake3 = "1.5"
 bs58 = "0.5"
 sha3 = "0.10"
-secp256k1 = "0.28"
-chacha20poly1305 = "0.8"
+secp256k1 = { version = "0.28", features = ["recovery", "rand-std"] }
+chacha20poly1305 = "0.10"
 hmac = "0.12"
 
 # System utilities
@@ -149,25 +149,25 @@ config = "0.14"
 dashmap = "5.5"
 
 # JSON-RPC
+jsonrpsee = "0.21"
+# Legacy JSON-RPC needed by reth-execution-engine
 jsonrpc-core = "18.0"
 jsonrpc-http-server = "18.0"
-jsonrpsee = "0.21"
 
 # JWT and authentication
-jsonwebtoken = "9.2"
-bcrypt = "0.15"
+jsonwebtoken = "9.3"
 
 # Benchmarking
 criterion = "0.5"
 
-# Malachite BFT consensus - temporarily commented out due to dependency conflicts
-# informalsystems-malachitebft-app-channel = "0.1"
-# informalsystems-malachitebft-codec = "0.1"
-# informalsystems-malachitebft-config = "0.1"
-# informalsystems-malachitebft-core-consensus = "0.1"
-# informalsystems-malachitebft-core-types = "0.1"
-# informalsystems-malachitebft-engine = "0.1"
-# informalsystems-malachitebft-proto = "0.1"
+# Malachite BFT consensus from Informal Systems - Released versions from crates.io
+informalsystems-malachitebft-app-channel = "0.3.0"
+informalsystems-malachitebft-codec = "0.3.0"
+informalsystems-malachitebft-config = "0.3.0"
+informalsystems-malachitebft-core-consensus = "0.3.0"
+informalsystems-malachitebft-core-types = "0.3.0"
+informalsystems-malachitebft-engine = "0.3.0"
+informalsystems-malachitebft-proto = "0.3.0"
 
 
 [profile.release]

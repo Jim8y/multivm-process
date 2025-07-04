@@ -215,7 +215,8 @@ impl DiscoveryService {
     pub async fn create_behaviour(&self) -> Result<DiscoveryBehaviour> {
         // Create Kademlia DHT
         let _protocol_name = libp2p::StreamProtocol::new("/multivm/1.0.0");
-        let mut kademlia_config = kad::Config::default();
+        let mut kademlia_config =
+            kad::Config::new(libp2p::StreamProtocol::new("/multivm/kad/1.0.0"));
         kademlia_config.set_replication_factor(
             std::num::NonZeroUsize::new(self.config.replication_factor)
                 .unwrap_or(std::num::NonZeroUsize::new(20).unwrap()),

@@ -22,26 +22,27 @@ impl MetricsService {
 
     /// Start metrics HTTP server
     pub async fn start_server(&self) -> ApplicationResult<()> {
+        use axum::{routing::get, Router};
+        use tower::ServiceBuilder;
+        use tower_http::trace::TraceLayer;
+
         let addr = format!("0.0.0.0:{}", self.config.metrics_port);
         tracing::info!("Starting metrics server on {}", addr);
 
-        // Start HTTP server for metrics endpoint
-        use warp::Filter;
-
-        let metrics_route = warp::path("metrics")
-            .and(warp::get())
-            .map(|| {
+        // Create axum router with metrics endpoint
+        let app = Router::new()
+            .route("/metrics", get(|| async {
                 // Return Prometheus format metrics
                 let metrics_data = format!(
                     "# HELP http_requests_total Total HTTP requests\n# TYPE http_requests_total counter\nhttp_requests_total {{}} {}\n",
                     0 // Would read from actual registry
                 );
-                warp::reply::with_header(
-                    metrics_data,
-                    "content-type",
-                    "text/plain; version=0.0.4"
+                (
+                    [("content-type", "text/plain; version=0.0.4")],
+                    metrics_data
                 )
-            });
+            }))
+            .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 
         let socket_addr: std::net::SocketAddr =
             addr.parse()
@@ -51,7 +52,17 @@ impl MetricsService {
                 })?;
 
         tokio::spawn(async move {
-            warp::serve(metrics_route).run(socket_addr).await;
+            let listener = match tokio::net::TcpListener::bind(socket_addr).await {
+                Ok(listener) => listener,
+                Err(e) => {
+                    tracing::error!("Failed to bind metrics server: {}", e);
+                    return;
+                }
+            };
+
+            if let Err(e) = axum::serve(listener, app).await {
+                tracing::error!("Metrics server error: {}", e);
+            }
         });
 
         tracing::info!("Metrics server started on {}", addr);

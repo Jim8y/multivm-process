@@ -19,7 +19,6 @@ use multivm_p2p::{
         dos_protection::{DosProtectionConfig, DosProtectionManager},
         encryption::EncryptionManager,
     },
-    NodeId,
 };
 use std::time::Duration;
 use tokio::runtime::Runtime;
@@ -31,64 +30,52 @@ fn bench_message_creation(c: &mut Criterion) {
     // Benchmark different message types
     let message_types = vec![
         (
-            "heartbeat",
-            MessagePayload::Control(ControlMessage::Heartbeat {
-                status: NodeStatus::Active,
-                uptime: Duration::from_secs(3600),
+            "ping",
+            NetworkMessage::Ping(PingMessage {
+                sequence: 1,
+                timestamp: chrono::Utc::now(),
             }),
         ),
         (
             "svm_transaction",
-            MessagePayload::Svm(SvmMessage::Transaction {
-                transaction_data: Box::new(vec![1; 1024]), // 1KB transaction
-                signature: "svm_signature_example".to_string(),
+            NetworkMessage::SVM(SVMMessage::Transaction {
+                data: vec![1; 1024], // 1KB transaction
+                signature: vec![0; 64],
             }),
         ),
         (
             "evm_transaction",
-            MessagePayload::Evm(EvmMessage::Transaction {
-                transaction_data: Box::new(vec![2; 2048]), // 2KB transaction
-                tx_hash: "0xevm_transaction_hash".to_string(),
+            NetworkMessage::EVM(EVMMessage::Transaction {
+                data: vec![2; 2048], // 2KB transaction
+                hash: [0; 32],
             }),
         ),
         (
-            "state_sync",
-            MessagePayload::MultiVm(MultiVmMessage::StateSync {
-                state_root: "0x1234567890abcdef".to_string(),
-                vm_type: VmType::Svm,
-                height: 12345,
+            "multivm_command",
+            NetworkMessage::MultiVMCommand(MultiVMCommand::StartVM {
+                vm_type: VMType::SVM,
+                config: serde_json::json!({}),
             }),
         ),
         (
-            "discovery",
-            MessagePayload::Discovery(DiscoveryMessage::Announce {
-                capabilities: NodeCapabilities::default(),
-                addresses: vec!["127.0.0.1:9000".to_string()],
+            "multivm_query",
+            NetworkMessage::MultiVMQuery(MultiVMQuery::GetVMStatus {
+                vm_type: VMType::EVM,
             }),
         ),
     ];
 
-    for (name, payload) in message_types {
-        group.bench_with_input(BenchmarkId::new("create", name), &payload, |b, payload| {
-            b.iter(|| {
-                black_box(NetworkMessage::new(
-                    payload.clone(),
-                    MessageSource::NetworkLayer,
-                    MessageTarget::Broadcast,
-                ))
-            })
+    for (name, message) in message_types {
+        group.bench_with_input(BenchmarkId::new("create", name), &message, |b, message| {
+            b.iter(|| black_box(message.clone()))
         });
     }
 
     // Benchmark message serialization
-    let test_message = NetworkMessage::new(
-        MessagePayload::Svm(SvmMessage::Transaction {
-            transaction_data: Box::new(vec![1; 1024]),
-            signature: "benchmark_signature".to_string(),
-        }),
-        MessageSource::SvmExecution,
-        MessageTarget::Broadcast,
-    );
+    let test_message = NetworkMessage::SVM(SVMMessage::Transaction {
+        data: vec![1; 1024],
+        signature: vec![0; 64],
+    });
 
     group.bench_function("serialize", |b| {
         b.iter(|| black_box(bincode::serialize(&test_message).unwrap()))
@@ -111,14 +98,10 @@ fn bench_message_throughput(c: &mut Criterion) {
     for size in sizes {
         group.throughput(Throughput::Bytes(size as u64));
 
-        let message = NetworkMessage::new(
-            MessagePayload::Svm(SvmMessage::Transaction {
-                transaction_data: Box::new(vec![0; size]),
-                signature: "throughput_test".to_string(),
-            }),
-            MessageSource::SvmExecution,
-            MessageTarget::Broadcast,
-        );
+        let message = NetworkMessage::SVM(SVMMessage::Transaction {
+            data: vec![0; size],
+            signature: vec![0; 64],
+        });
 
         group.bench_with_input(BenchmarkId::new("serialize", size), &message, |b, msg| {
             b.iter(|| black_box(bincode::serialize(msg).unwrap()))
@@ -129,14 +112,10 @@ fn bench_message_throughput(c: &mut Criterion) {
             &size,
             |b, &size| {
                 b.iter(|| {
-                    let msg = NetworkMessage::new(
-                        MessagePayload::Svm(SvmMessage::Transaction {
-                            transaction_data: Box::new(vec![0; size]),
-                            signature: "throughput_test".to_string(),
-                        }),
-                        MessageSource::SvmExecution,
-                        MessageTarget::Broadcast,
-                    );
+                    let msg = NetworkMessage::SVM(SVMMessage::Transaction {
+                        data: vec![0; size],
+                        signature: vec![0; 64],
+                    });
                     black_box(bincode::serialize(&msg).unwrap())
                 })
             },
@@ -161,33 +140,28 @@ fn bench_encryption(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_with_input(BenchmarkId::new("encrypt", size), &data, |b, data| {
-            b.to_async(&rt).iter(|| async {
+            b.iter(|| {
                 black_box(
                     encryption_manager
                         .encrypt_message(&peer_public_key, data)
-                        .await
                         .unwrap(),
                 )
             })
         });
 
         // Benchmark decryption
-        let encrypted_data = rt.block_on(async {
-            encryption_manager
-                .encrypt_message(&peer_public_key, &data)
-                .await
-                .unwrap()
-        });
+        let encrypted_data = encryption_manager
+            .encrypt_message(&peer_public_key, &data)
+            .unwrap();
 
         group.bench_with_input(
             BenchmarkId::new("decrypt", size),
             &encrypted_data,
             |b, encrypted| {
-                b.to_async(&rt).iter(|| async {
+                b.iter(|| {
                     black_box(
                         encryption_manager
                             .decrypt_message(&peer_public_key, encrypted)
-                            .await
                             .unwrap(),
                     )
                 })
@@ -204,7 +178,7 @@ fn bench_authentication(c: &mut Criterion) {
     let mut group = c.benchmark_group("authentication");
 
     let auth_config = AuthConfig::default();
-    let auth_manager = rt.block_on(async { AuthManager::new(auth_config).unwrap() });
+    let auth_manager = AuthManager::new(auth_config).unwrap();
 
     // Benchmark JWT token generation
     group.bench_function("jwt_generate", |b| {
@@ -290,11 +264,10 @@ fn bench_dos_protection(c: &mut Criterion) {
     });
 
     // Benchmark message validation
-    let test_message = NetworkMessage::new(
-        MessagePayload::Control(ControlMessage::StatusRequest),
-        MessageSource::NetworkLayer,
-        MessageTarget::Broadcast,
-    );
+    let test_message = NetworkMessage::Ping(PingMessage {
+        sequence: 1,
+        timestamp: chrono::Utc::now(),
+    });
 
     group.bench_function("check_message", |b| {
         b.to_async(&rt).iter(|| async {
@@ -347,11 +320,10 @@ fn bench_p2p_manager(c: &mut Criterion) {
     // the handle operations that don't require the manager to be running
 
     // Benchmark message creation and queueing (this will fail but measures overhead)
-    let test_message = NetworkMessage::new(
-        MessagePayload::Control(ControlMessage::StatusRequest),
-        MessageSource::NetworkLayer,
-        MessageTarget::Broadcast,
-    );
+    let test_message = NetworkMessage::Ping(PingMessage {
+        sequence: 1,
+        timestamp: chrono::Utc::now(),
+    });
 
     group.bench_function("message_send_attempt", |b| {
         b.to_async(&rt).iter(|| async {
@@ -457,11 +429,10 @@ fn bench_memory_usage(c: &mut Criterion) {
         b.iter(|| {
             let mut messages = Vec::new();
             for i in 0..1000 {
-                let message = NetworkMessage::new(
-                    MessagePayload::Control(ControlMessage::StatusRequest),
-                    MessageSource::NetworkLayer,
-                    MessageTarget::Peer(format!("peer_{}", i)),
-                );
+                let message = NetworkMessage::Ping(PingMessage {
+                    sequence: i as u64,
+                    timestamp: chrono::Utc::now(),
+                });
                 messages.push(message);
             }
             black_box(messages)
@@ -478,14 +449,10 @@ fn bench_memory_usage(c: &mut Criterion) {
             &size,
             |b, &size| {
                 b.iter(|| {
-                    let message = NetworkMessage::new(
-                        MessagePayload::Svm(SvmMessage::Transaction {
-                            transaction_data: Box::new(vec![0; size]),
-                            signature: "large_message_test".to_string(),
-                        }),
-                        MessageSource::SvmExecution,
-                        MessageTarget::Broadcast,
-                    );
+                    let message = NetworkMessage::SVM(SVMMessage::Transaction {
+                        data: vec![0; size],
+                        signature: vec![0; 64],
+                    });
 
                     // Simulate processing
                     let serialized = bincode::serialize(&message).unwrap();

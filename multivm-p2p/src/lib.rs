@@ -45,6 +45,7 @@ pub mod security {
     pub mod auth;
     pub mod dos_protection;
     pub mod encryption;
+    pub mod reputation;
 }
 
 // Protocol handling

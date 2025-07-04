@@ -22,6 +22,7 @@ use crate::{
     special_tx::AssetType,
 };
 use multivm_common::{MultivmError, MultivmResult};
+use rand::RngCore;
 use secp256k1::{Message, Secp256k1};
 use serde::{Deserialize, Serialize};
 use sha3::Digest;
@@ -1195,7 +1196,10 @@ impl Default for EthereumEngineConfig {
     fn default() -> Self {
         // Generate a random private key for default - WARNING: Not for production use
         let mut rng = rand::thread_rng();
-        let signing_key = secp256k1::SecretKey::new(&mut rng);
+        let mut key_bytes = [0u8; 32];
+        rng.fill_bytes(&mut key_bytes);
+        let signing_key = secp256k1::SecretKey::from_slice(&key_bytes)
+            .expect("32 bytes should always be valid for secp256k1 SecretKey");
 
         Self {
             rpc_url: "http://localhost:8545".to_string(),

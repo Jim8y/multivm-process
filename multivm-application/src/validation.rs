@@ -434,17 +434,17 @@ pub mod amount {
 pub mod vm_type {
     use super::*;
 
-    lazy_static::lazy_static! {
-        static ref VALID_VM_TYPES: HashSet<&'static str> = {
-            let mut set = HashSet::new();
-            set.insert("svm");
-            set.insert("evm");
-            set.insert("multivm");
-            set.insert("ethereum");
-            set.insert("solana");
-            set
-        };
-    }
+    use once_cell::sync::Lazy;
+
+    static VALID_VM_TYPES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+        let mut set = HashSet::new();
+        set.insert("svm");
+        set.insert("evm");
+        set.insert("multivm");
+        set.insert("ethereum");
+        set.insert("solana");
+        set
+    });
 
     /// Validate VM type string
     pub fn validate_vm_type(vm_type: &str) -> ApplicationResult<()> {

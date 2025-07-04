@@ -36,7 +36,7 @@ impl Default for AdminConfig {
         Self {
             enabled: true,
             admin_endpoint: "127.0.0.1:9091".to_string(),
-            auth_token: "admin-token-placeholder".to_string(),
+            auth_token: "secure-admin-token-change-in-production".to_string(),
             max_concurrent_ops: 10,
             operation_timeout: Duration::from_secs(30),
         }

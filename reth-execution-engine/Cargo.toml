@@ -51,16 +51,16 @@ rand = { workspace = true }
 
 # JWT and HMAC for Engine API authentication
 hmac = "0.12"
-base64 = "0.21"
-jsonwebtoken = "9.2"
+base64 = { workspace = true }
+jsonwebtoken = { workspace = true }
 
 # Basic Ethereum utilities for real implementation
-alloy-primitives = "0.7"
-alloy-consensus = "0.1" 
-alloy-rlp = "0.3"
+alloy-primitives = { workspace = true }
+alloy-consensus = { workspace = true }
+alloy-rlp = { workspace = true }
 
 # EVM for execution
-revm = "12.1"
+revm = { workspace = true }
 
 # JSON RPC (using current stable versions)
 jsonrpsee = { workspace = true }

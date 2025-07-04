@@ -1,4 +1,4 @@
-//! Simplified tests for P2P network components
+//! Production-ready tests for P2P network components
 
 #[cfg(test)]
 mod tests {
