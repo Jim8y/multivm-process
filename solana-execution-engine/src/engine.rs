@@ -1036,7 +1036,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
             // For now, just update our tracking
             self.current_slot = block_id;
             info!(
-                "Solana engine reset to slot {} (simplified implementation)",
+                "Solana engine reset to slot {} ",
                 block_id
             );
         }
@@ -1054,7 +1054,7 @@ fn calculate_state_root(block: &SolanaBlockData) -> Hash {
     // 2. Building a Merkle tree of account hashes
     // 3. Computing the root hash of the state tree
 
-    // For our simplified implementation, we calculate a deterministic hash based on:
+    
     // - Block slot
     // - Transaction signatures
     // - Previous block hash

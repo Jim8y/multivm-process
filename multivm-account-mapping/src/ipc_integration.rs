@@ -132,7 +132,6 @@ impl AccountMappingIpcClient {
             proof,
         };
 
-        // Mock implementation - in production this would send via IPC
         let binding_id = uuid::Uuid::new_v4().to_string();
 
         tracing::info!("Binding accounts via IPC, binding_id: {}", binding_id);

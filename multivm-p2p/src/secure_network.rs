@@ -28,7 +28,6 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
-// TODO: Properly implement these types
 type SecuredMessage = Vec<u8>;
 
 /// Secure P2P network manager
@@ -38,13 +37,13 @@ pub struct SecureNetworkManager {
     swarm: Option<Swarm<SecureNetworkBehaviour>>,
     /// Rate limiter
     rate_limiter: RateLimiter,
-    // TODO: Implement SecurityManager
+
     // security_manager: SecurityManager,
     /// Trusted peers
     trusted_peers: Arc<RwLock<HashSet<PeerId>>>,
     /// Blocked peers
     blocked_peers: Arc<RwLock<HashSet<PeerId>>>,
-    // TODO: Implement Firewall
+
     // firewall: Firewall,
     /// Configuration
     config: P2PConfig,

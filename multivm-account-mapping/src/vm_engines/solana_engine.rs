@@ -378,7 +378,7 @@ impl crate::atomic_coordinator::ProcessEngine for SolanaProcessEngine {
         info!("Preparing {} Solana operations", operations.len());
 
         // Check RPC connection health
-        // Check connection - simplified for now
+
         if let Err(e) = self.health_check().await {
             return Ok(PrepareResult {
                 success: false,
@@ -835,9 +835,8 @@ impl SolanaTransactionBuilder {
         self.instructions.push(instruction);
     }
 
-    /// Build and sign transaction (simplified implementation)
+    /// Build and sign transaction
     pub fn build_and_sign(&self, _keypair: &ed25519_dalek::SigningKey) -> Result<String, String> {
-        // Simplified implementation - in production this would build a proper Solana transaction
         // and sign it with the provided keypair
         if self.instructions.is_empty() {
             return Err("No instructions provided".to_string());

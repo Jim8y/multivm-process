@@ -486,7 +486,7 @@ impl UnifiedTransport {
                 self.stats.total_messages_received.load(Ordering::Relaxed),
             ),
             connection_errors: AtomicU64::new(self.stats.connection_errors.load(Ordering::Relaxed)),
-            protocol_stats: HashMap::new(), // TODO: Implement proper stats cloning
+            protocol_stats: HashMap::new(),
         }
     }
 

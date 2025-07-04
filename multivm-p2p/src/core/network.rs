@@ -1095,7 +1095,6 @@ impl P2PNetwork {
         self.subscribed_topics.read().await.clone()
     }
 
-    // TODO: Implement event handler
     // /// Set the event handler
     // pub fn set_event_handler(
     //     &mut self,
@@ -1422,7 +1421,6 @@ impl P2PNetwork {
 
 impl Default for P2PNetwork {
     fn default() -> Self {
-        // This is a placeholder - in practice, use P2PNetwork::new()
         futures::executor::block_on(async { Self::new(NetworkConfig::default()).await.unwrap() })
     }
 }

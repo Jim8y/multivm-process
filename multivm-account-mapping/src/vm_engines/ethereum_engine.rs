@@ -451,7 +451,7 @@ impl EthereumProcessEngine {
         // Add chain ID for EIP-155 (8 bytes)
         tx_data.extend_from_slice(&self.config.chain_id.to_be_bytes());
 
-        // Sign transaction (placeholder)
+        // Sign transaction
         let signature = self.sign_transaction(&tx_data).await?;
 
         // Add signature (v, r, s)

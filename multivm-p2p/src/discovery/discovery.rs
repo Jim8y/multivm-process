@@ -236,7 +236,6 @@ impl DiscoveryService {
         let mdns = if self.config.enable_mdns {
             Mdns::new(MdnsConfig::default(), self.local_peer_id)?
         } else {
-            // Create disabled mDNS - this is a placeholder
             // In practice, you'd have conditional compilation or different behaviour types
             Mdns::new(MdnsConfig::default(), self.local_peer_id)?
         };

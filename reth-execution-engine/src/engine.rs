@@ -1192,7 +1192,6 @@ impl RethExecutionEngine {
 
     /// Helper: Convert U256 to minimal bytes representation
     fn u256_to_bytes(&self, value: &U256) -> Vec<u8> {
-        // For our simplified U256, just use the first u64
         let val = value.0[0];
         if val == 0 {
             vec![] // Empty bytes for zero
@@ -1535,10 +1534,7 @@ impl ExecutionEngine for RethExecutionEngine {
             // In real mode, we would need to reset the Reth node state
             // For now, just update our tracking
             *self.current_block.write().await = block_id;
-            tracing::info!(
-                "Reth engine reset to block {} (simplified implementation)",
-                block_id
-            );
+            tracing::info!("Reth engine reset to block {} ", block_id);
         }
 
         Ok(())

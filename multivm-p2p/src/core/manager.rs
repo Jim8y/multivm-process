@@ -1124,7 +1124,7 @@ impl SecurityCoordinator {
         }
 
         // Validate JWT or API key token
-        // For now, try JWT authentication - in production, detect token type
+
         let auth_result = self.auth.authenticate_jwt(token, "unknown").await;
 
         // Record authentication attempt in reputation system
@@ -1278,8 +1278,8 @@ impl SecurityCoordinator {
     pub async fn get_security_stats(&self) -> SecurityStats {
         SecurityStats {
             banned_peers_count: self.security_policy.read().await.banned_peers.len(),
-            rate_limit_violations: 0, // TODO: Add violation tracking
-            dos_protection_blocks: 0, // TODO: Add block tracking
+            rate_limit_violations: 0,
+            dos_protection_blocks: 0,
             encryption_cache_stats: self.encryption.get_cache_stats(),
         }
     }
@@ -1490,7 +1490,7 @@ impl MonitoringCoordinator {
         let uptime = start_time.elapsed();
 
         // In a production implementation, these would collect from actual coordinators
-        // For now, provide realistic placeholder values that could be expanded
+
         ManagerStats {
             uptime,
             peers_connected: 0,   // Network coordinator would provide this

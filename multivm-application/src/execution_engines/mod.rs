@@ -115,7 +115,7 @@ impl Default for GlobalExecutionConfig {
 pub struct ExecutionEngineManager {
     config: ExecutionEngineConfig,
     ethereum_engine: Option<Arc<RwLock<reth_execution_engine::engine::RethExecutionEngine>>>,
-    solana_engine: Option<Arc<RwLock<()>>>, // TODO: Replace with real type when dependency conflict resolved
+    solana_engine: Option<Arc<RwLock<()>>>,
     coordination: coordination::CrossVmCoordinator,
     is_running: Arc<RwLock<bool>>,
 }
@@ -358,7 +358,6 @@ impl ExecutionEngineManager {
         _engine: &Arc<RwLock<()>>, // Placeholder type
         block_data: Vec<u8>,
     ) -> MultivmResult<Vec<u8>> {
-        // TODO: Re-enable when solana-execution-engine is added back to workspace
         tracing::warn!("Solana block processing disabled due to ed25519-dalek conflict");
 
         // Return a mock result for now

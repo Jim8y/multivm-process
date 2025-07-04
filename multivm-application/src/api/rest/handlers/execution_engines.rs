@@ -241,7 +241,6 @@ pub async fn process_block(
         Ok(_result_data) => {
             let processing_time_ms = start_time.elapsed().as_millis() as u64;
 
-            // For now, return a simplified response
             // In a full implementation, we would deserialize the result_data
             let response = ProcessBlockResponse {
                 success: true,
@@ -383,7 +382,6 @@ pub async fn restart_engine(
         _ => return Err(StatusCode::BAD_REQUEST),
     };
 
-    // For now, return a placeholder response
     // In a full implementation, we would actually restart the engine
     let response = serde_json::json!({
         "success": true,

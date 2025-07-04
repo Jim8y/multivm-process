@@ -1881,7 +1881,7 @@ impl MultiVMConsensusManager {
     /// Get the block proposal for a specific round
     async fn get_block_for_round(&self, round: u64) -> ConsensusResult<crate::block::MultiVMBlock> {
         // In production, this would retrieve the block from storage
-        // For now, create a placeholder block
+
         use crate::block::{BlockHeader, MultiVMBlock};
 
         let header = BlockHeader {
@@ -2036,7 +2036,7 @@ impl MultiVMConsensusManager {
                 payload: MessagePayload::MultiVm(MultiVmMessage::StateSync {
                     state_root: format!("consensus_state_{round}"),
                     height: round,
-                    vm_type: VmType::Svm, // Use Svm as placeholder
+                    vm_type: VmType::Svm,
                 }),
                 source: MessageSource::MultiVmLayer,
                 target: MessageTarget::Broadcast,

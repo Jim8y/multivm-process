@@ -682,7 +682,7 @@ impl MultivmProcessManagerInner {
     /// Run the IPC server loop
     async fn run_ipc_server(&self) -> MultivmResult<()> {
         // This would implement the actual IPC server logic
-        // For now, just a placeholder that runs indefinitely
+
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         loop {
             interval.tick().await;

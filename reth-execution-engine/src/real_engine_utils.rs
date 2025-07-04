@@ -477,7 +477,6 @@ impl RealRethEngine {
 
     /// Helper: Convert U256 to minimal bytes representation
     fn u256_to_bytes(&self, value: &crate::engine::U256) -> Vec<u8> {
-        // For our simplified U256, just use the first u64
         let val = value.0[0];
         if val == 0 {
             vec![] // Empty bytes for zero

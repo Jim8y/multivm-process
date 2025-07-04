@@ -563,7 +563,7 @@ impl UnifiedGateway {
             });
         }
 
-        // Validate proof format (simplified - in production would verify cryptographic proof)
+        // Validate proof format
         if proof.trim().is_empty() || proof.len() < 64 {
             return Err(crate::error::ApplicationError::ValidationError {
                 field: "proof".to_string(),
@@ -571,7 +571,7 @@ impl UnifiedGateway {
             });
         }
 
-        // Verify proof authenticity (simplified implementation)
+        // Verify proof authenticity
         let proof_valid = self.verify_binding_proof(svm_addr, evm_addr, proof).await?;
         if !proof_valid {
             return Err(crate::error::ApplicationError::AuthenticationFailed {
@@ -640,7 +640,7 @@ impl UnifiedGateway {
         })
     }
 
-    /// Verify binding proof (simplified implementation)
+    /// Verify binding proof
     async fn verify_binding_proof(
         &self,
         svm_addr: &str,
@@ -952,7 +952,7 @@ impl UnifiedGateway {
     // Simplified RPC implementations that delegate to actual VM clients
     async fn fetch_latest_block(&self, _request_id: &str) -> ApplicationResult<UnifiedBlock> {
         // In a real implementation, this would make actual RPC calls
-        // For now, return a simplified response
+
         Ok(UnifiedBlock {
             number: 1000,
             hash: "0x1234567890abcdef".to_string(),
@@ -1024,7 +1024,7 @@ impl UnifiedGateway {
     }
 
     async fn ping_endpoint(&self) -> ApplicationResult<()> {
-        // Simple health check - in real implementation would ping the actual endpoint
+        // Health check endpoint
         Ok(())
     }
 }

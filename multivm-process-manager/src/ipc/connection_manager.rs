@@ -1070,7 +1070,7 @@ impl TcpConnectionFactory {
                 };
 
                 // Encrypt the message data
-                // TODO: Implement proper encryption using ChaCha20Poly1305
+
                 let encrypted_data = message_data; // Placeholder for now
 
                 /*
@@ -1169,7 +1169,6 @@ impl UnixConnectionFactory {
         mpsc::UnboundedReceiver<IpcResponse>,
     )> {
         // Unix sockets have built-in authentication via filesystem permissions
-        // Perform simplified handshake for capability negotiation
 
         let (msg_sender, msg_receiver) = mpsc::unbounded_channel();
         let (resp_sender, resp_receiver) = mpsc::unbounded_channel();

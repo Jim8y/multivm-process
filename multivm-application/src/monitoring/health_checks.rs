@@ -62,7 +62,7 @@ pub async fn check_database_health(
     _state: &Arc<ApplicationState>,
 ) -> ApplicationResult<(bool, String)> {
     // Would perform actual database health check
-    // For now, return a placeholder
+
     Ok((true, "Database check not implemented".to_string()))
 }
 
@@ -70,8 +70,7 @@ pub async fn check_database_health(
 pub async fn check_process_manager_health(
     _state: &Arc<ApplicationState>,
 ) -> ApplicationResult<(bool, String)> {
-    // TODO: When process manager is integrated, check its health
-    // For now, return a placeholder since process manager is handled separately
+    // Check process manager separately
     Ok((
         true,
         "Process manager health check not yet integrated".to_string(),

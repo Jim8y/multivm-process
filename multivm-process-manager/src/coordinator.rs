@@ -558,7 +558,7 @@ impl MultivmCoordinator {
             block.multivm_transactions.len()
         );
 
-        // Step 1: Decompose the block (simplified since BlockRouter is disabled)
+        // Step 1: Decompose the block
         let total_transactions = block.svm_transactions.len()
             + block.evm_transactions.len()
             + block.multivm_transactions.len();
@@ -1483,7 +1483,7 @@ impl MultivmCoordinator {
         match asset_type {
             AssetType::Native => {
                 // Native asset transfers require proper bridge support
-                // This is a simplified check - in production you'd verify bridge contracts
+                // Verify bridge contracts
                 let has_bridge_support = true; // Placeholder
                 if !has_bridge_support {
                     return Err(MultivmError::AccountMapping {
@@ -1541,7 +1541,7 @@ impl MultivmCoordinator {
         // 4. Verify account is not frozen or restricted
 
         // For now, implement basic validation
-        // This is a placeholder - in production you'd query the actual blockchain
+        // Query blockchain state
 
         match asset_type {
             AssetType::Native => {

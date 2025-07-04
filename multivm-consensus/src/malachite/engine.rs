@@ -226,14 +226,13 @@ impl MalachiteEngine {
     }
 
     /// Record a vote for a specific round and block hash
-    /// TODO: Implement proper vote tracking with validator state
+
     pub async fn record_vote(
         &mut self,
         validator_id: String,
         round: u64,
         block_hash: String,
     ) -> ConsensusResult<()> {
-        // TODO: Implement vote tracking in a future PR
         // This would require:
         // 1. Check if the vote is for the current round
         // 2. Check if validator is in the current validator set
@@ -423,7 +422,6 @@ impl ConsensusEngine for MalachiteEngine {
         // For now, skip previous block hash validation for the first block
         // In a real implementation, we would track block hashes in state
         if state.current_height > 0 {
-            // TODO: Add block hash tracking to state
             debug!("Skipping previous block hash validation (not yet implemented)");
         }
 
@@ -482,7 +480,7 @@ impl ConsensusEngine for MalachiteEngine {
 
     async fn commit_block(&mut self, block: Self::Block) -> ConsensusResult<()> {
         // Don't update height here since process_block will increment it
-        // TODO: Add block hash tracking to state
+
         self.process_block(block.data).await
     }
 

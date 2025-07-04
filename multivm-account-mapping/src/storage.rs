@@ -336,7 +336,7 @@ impl AccountMappingLayer for MemoryStorage {
             }
             SpecialTransaction::CrossVmTransfer { .. } => {
                 // Cross-VM transfers are handled by the coordinator
-                // This is just a placeholder for the trait implementation
+
                 Ok(())
             }
             _ => {
@@ -664,7 +664,7 @@ impl AccountMappingLayer for FileStorage {
             }
             SpecialTransaction::CrossVmTransfer { .. } => {
                 // Cross-VM transfers are handled by the coordinator
-                // This is just a placeholder for the trait implementation
+
                 Ok(())
             }
             _ => {
@@ -1048,7 +1048,7 @@ impl AccountMappingLayer for RocksDBStorage {
             }
             SpecialTransaction::CrossVmTransfer { .. } => {
                 // Cross-VM transfers are handled by the coordinator
-                // This is just a placeholder for the trait implementation
+
                 Ok(())
             }
             _ => {

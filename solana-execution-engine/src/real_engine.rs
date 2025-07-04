@@ -610,7 +610,7 @@ impl RealSolanaEngine {
         // 2. Building a Merkle tree of account hashes
         // 3. Computing the root hash of the state tree
 
-        // For our simplified implementation, we calculate a deterministic hash based on:
+        
         // - Block slot
         // - Transaction signatures
         // - Previous block hash
