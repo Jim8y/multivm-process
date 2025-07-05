@@ -7,9 +7,9 @@ use solana_sdk::commitment_config::CommitmentLevel;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Configuration for MultiVM validator process
+/// Configuration for Solana execution engine
 #[derive(Debug, Clone)]
-pub struct MultivmValidatorConfig {
+pub struct SolanaConfig {
     /// Gossip host address
     pub gossip_host: String,
     /// Gossip port number
@@ -26,7 +26,7 @@ pub struct MultivmValidatorConfig {
     pub reset: bool,
 }
 
-impl Default for MultivmValidatorConfig {
+impl Default for SolanaConfig {
     fn default() -> Self {
         // Generate a random directory name for ledger_path
         let random_suffix = std::time::SystemTime::now()
@@ -47,29 +47,29 @@ impl Default for MultivmValidatorConfig {
     }
 }
 
-impl MultivmValidatorConfig {
-    /// Create a new MultivmValidatorConfig with default values
+impl SolanaConfig {
+    /// Create a new SolanaConfig with default values
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Create a builder for MultivmValidatorConfig
-    pub fn builder() -> MultivmValidatorConfigBuilder {
-        MultivmValidatorConfigBuilder::new()
+    /// Create a builder for SolanaConfig
+    pub fn builder() -> SolanaConfigBuilder {
+        SolanaConfigBuilder::new()
     }
 }
 
-/// Builder for MultivmValidatorConfig
+/// Builder for SolanaConfig
 #[derive(Debug)]
-pub struct MultivmValidatorConfigBuilder {
-    config: MultivmValidatorConfig,
+pub struct SolanaConfigBuilder {
+    config: SolanaConfig,
 }
 
-impl MultivmValidatorConfigBuilder {
+impl SolanaConfigBuilder {
     /// Create a new builder with default values
     pub fn new() -> Self {
         Self {
-            config: MultivmValidatorConfig::new(),
+            config: SolanaConfig::new(),
         }
     }
 
@@ -115,8 +115,8 @@ impl MultivmValidatorConfigBuilder {
         self
     }
 
-    /// Build the MultivmValidatorConfig
-    pub fn build(self) -> MultivmValidatorConfig {
+    /// Build the SolanaConfig
+    pub fn build(self) -> SolanaConfig {
         self.config
     }
 }
@@ -261,8 +261,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_multivm_validator_config_new() {
-        let config = MultivmValidatorConfig::new();
+    fn test_solana_config_new() {
+        let config = SolanaConfig::new();
         assert_eq!(config.gossip_host, "127.0.0.1");
         assert_eq!(config.gossip_port, 1024);
         assert_eq!(config.rpc_port, 8899);
@@ -273,10 +273,10 @@ mod tests {
     }
 
     #[test]
-    fn test_multivm_validator_config_builder() {
+    fn test_solana_config_builder() {
         let custom_ledger_path = PathBuf::from("/tmp/custom_ledger");
 
-        let config = MultivmValidatorConfig::builder()
+        let config = SolanaConfig::builder()
             .gossip_host("192.168.1.100")
             .gossip_port(2048)
             .rpc_port(9000)

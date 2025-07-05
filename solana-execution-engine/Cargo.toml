@@ -12,8 +12,8 @@ solana-engine = ["solana-sdk", "solana-client", "solana-transaction-status", "ag
 sdk = []
 
 [[bin]]
-name = "multivm-validator"
-path = "src/bin/multivm-validator.rs"
+name = "solana-private-validator"
+path = "src/bin/solana-private-validator.rs"
 
 [dependencies]
 # Use multivm-common with resolved ed25519-dalek conflicts

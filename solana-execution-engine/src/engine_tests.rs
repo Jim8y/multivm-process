@@ -112,7 +112,7 @@ impl SolanaEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{MultivmValidatorConfig, SolanaConnectionConfig};
+    use crate::config::{SolanaConfig, SolanaConnectionConfig};
     use solana_sdk::{
         commitment_config::CommitmentConfig,
         message::Message,

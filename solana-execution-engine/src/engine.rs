@@ -15,8 +15,8 @@ use multivm_common::MultivmError;
 
 use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
 
-// Additional imports for real engine implementation
-use crate::config::{MultivmValidatorConfig, SolanaConnectionConfig};
+// Additional imports for engine implementation
+use crate::config::{SolanaConfig, SolanaConnectionConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use std::time::Instant;
@@ -171,7 +171,7 @@ pub struct SolanaExecutionResult {
     pub error: Option<String>,
 }
 
-/// Real Solana execution engine that connects to actual Solana validators
+/// Solana execution engine that connects to actual Solana validators
 pub struct SolanaEngine {
     /// Configuration
     pub(crate) rpc_port: u16,
@@ -191,34 +191,25 @@ pub struct SolanaEngine {
     /// Connection configuration
     connection_config: SolanaConnectionConfig,
 
-    /// MultiVM validator configuration
-    validator_config: MultivmValidatorConfig,
+    /// Solana execution engine configuration
+    validator_config: SolanaConfig,
 }
 
 impl SolanaEngine {
     /// Create a new Solana execution engine
     pub async fn new_default() -> Result<Self, SolanaEngineError> {
-        Self::new_with_config(
-            SolanaConnectionConfig::default(),
-            MultivmValidatorConfig::default(),
-        )
-        .await
+        Self::new_with_config(SolanaConnectionConfig::default(), SolanaConfig::default()).await
     }
 
-    /// Create a new real Solana execution engine with custom configuration
+    /// Create a new Solana execution engine with custom configuration
     pub async fn new_with_config(
         connection_config: SolanaConnectionConfig,
-        validator_config: MultivmValidatorConfig,
+        validator_config: SolanaConfig,
     ) -> Result<Self, SolanaEngineError> {
-        info!("Creating real Solana execution engine");
+        info!("Creating Solana execution engine");
         info!("Ledger path: {}", validator_config.ledger_path.display());
         info!("RPC port: {}", validator_config.rpc_port);
         info!("WebSocket port: {}", validator_config.rpc_port + 1);
-
-        // Create ledger directory
-        std::fs::create_dir_all(&validator_config.ledger_path).map_err(|e| {
-            SolanaEngineError::Configuration(format!("Failed to create ledger directory: {e}"))
-        })?;
 
         Ok(Self {
             rpc_port: validator_config.rpc_port,
@@ -233,9 +224,9 @@ impl SolanaEngine {
         })
     }
 
-    /// Initialize the real Solana engine
+    /// Initialize the Solana engine
     pub async fn initialize(&mut self) -> Result<(), SolanaEngineError> {
-        info!("Initializing real Solana execution engine");
+        info!("Initializing Solana execution engine");
 
         // Start the Solana validator process
         self.start_solana_validator_process().await?;
@@ -243,30 +234,35 @@ impl SolanaEngine {
         // Initialize RPC clients
         self.init_rpc_clients().await?;
 
-        // Verify connections
-        self.verify_connections().await?;
+        // Verify RPC connection
+        self.verify_rpc_connection().await?;
 
         // Start health monitoring
         self.start_health_monitoring().await;
 
         *self.is_running.write().await = true;
-        info!("Real Solana execution engine initialized successfully");
+        info!("Solana execution engine initialized successfully");
 
         Ok(())
     }
 
-    /// Start the MultiVM validator process with simplified configuration
+    /// Start the Solana Private Validator process with simplified configuration
     pub async fn start_solana_validator_process(&self) -> Result<(), SolanaEngineError> {
-        info!("Starting MultiVM validator process");
+        info!("Starting Solana Private Validator process");
 
-        // Get the path to the multivm-validator binary
-        let binary_path = self.get_multivm_validator_path()?;
+        // Get the path to the solana-private-validator binary
+        let binary_path = self.get_solana_private_validator_path()?;
+
+        // Create ledger directory
+        std::fs::create_dir_all(&self.validator_config.ledger_path).map_err(|e| {
+            SolanaEngineError::Configuration(format!("Failed to create ledger directory: {e}"))
+        })?;
 
         // Create log file for validator output in ledger directory
         let log_file_path = self
             .validator_config
             .ledger_path
-            .join("multivm-validator.log");
+            .join("solana-private-validator.log");
         let log_file = std::fs::File::create(&log_file_path).map_err(|e| {
             SolanaEngineError::Configuration(format!("Failed to create log file: {e}"))
         })?;
@@ -306,20 +302,23 @@ impl SolanaEngine {
             .stderr(std::process::Stdio::from(log_file))
             .kill_on_drop(true);
 
-        debug!("MultiVM validator command: {:?}", cmd);
+        debug!("Solana Private Validator command: {:?}", cmd);
         info!(
             "Validator output will be logged to: {}",
             log_file_path.display()
         );
 
         let child = cmd.spawn().map_err(|e| {
-            SolanaEngineError::Process(format!("Failed to start MultiVM validator: {e}"))
+            SolanaEngineError::Process(format!("Failed to start Solana Private Validator: {e}"))
         })?;
 
         let pid = child.id();
         *self.validator_process.write().await = Some(child);
 
-        info!("Started MultiVM validator process with PID: {:?}", pid);
+        info!(
+            "Started Solana Private Validator process with PID: {:?}",
+            pid
+        );
         info!("Solana RPC: http://127.0.0.1:{}", self.rpc_port);
         info!("Solana WebSocket: ws://127.0.0.1:{}", self.ws_port);
 
@@ -329,8 +328,8 @@ impl SolanaEngine {
         Ok(())
     }
 
-    /// Get the path to the multivm-validator binary
-    fn get_multivm_validator_path(&self) -> Result<PathBuf, SolanaEngineError> {
+    /// Get the path to the solana-private-validator binary
+    fn get_solana_private_validator_path(&self) -> Result<PathBuf, SolanaEngineError> {
         // Get current working directory for error reporting
         let current_dir = std::env::current_dir()
             .map(|p| p.display().to_string())
@@ -338,10 +337,10 @@ impl SolanaEngine {
 
         // Try different possible paths for the binary
         let paths = [
-            PathBuf::from("target/release/multivm-validator"),
-            PathBuf::from("target/debug/multivm-validator"),
-            PathBuf::from("../target/release/multivm-validator"),
-            PathBuf::from("../target/debug/multivm-validator"),
+            PathBuf::from("target/release/solana-private-validator"),
+            PathBuf::from("target/debug/solana-private-validator"),
+            PathBuf::from("../target/release/solana-private-validator"),
+            PathBuf::from("../target/debug/solana-private-validator"),
         ];
 
         for path in &paths {
@@ -353,7 +352,7 @@ impl SolanaEngine {
         // If none found, return error with current directory info
         Err(SolanaEngineError::Configuration(
             format!(
-                "multivm-validator binary not found. Please build it first. Searched in directory: {} (tried paths: {})",
+                "solana-private-validator binary not found. Please build it first. Searched in directory: {} (tried paths: {})",
                 current_dir,
                 paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
             ),
@@ -377,17 +376,6 @@ impl SolanaEngine {
         *self.rpc_client.write().await = Some(rpc_client);
 
         info!("Solana RPC clients initialized successfully");
-        Ok(())
-    }
-
-    /// Verify connections to Solana validator
-    async fn verify_connections(&self) -> Result<(), SolanaEngineError> {
-        info!("Verifying connections to Solana validator");
-
-        // Verify RPC connection
-        self.verify_rpc_connection().await?;
-
-        info!("All connections verified successfully");
         Ok(())
     }
 
@@ -454,7 +442,7 @@ impl SolanaEngine {
         let block_hash = block.block_hash;
 
         info!(
-            "Processing Solana block for slot {} with hash {:?} via real validator",
+            "Processing Solana block for slot {} with hash {:?} via validator",
             slot, block_hash
         );
 
@@ -624,9 +612,9 @@ impl SolanaEngine {
         }
     }
 
-    /// Gracefully shutdown the real Solana engine
+    /// Gracefully shutdown the Solana engine
     pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), SolanaEngineError> {
-        info!("Shutting down real Solana execution engine");
+        info!("Shutting down Solana execution engine");
 
         *self.is_running.write().await = false;
 
@@ -657,7 +645,7 @@ impl SolanaEngine {
             }
         }
 
-        info!("Real Solana execution engine shutdown complete");
+        info!("Solana execution engine shutdown complete");
         Ok(())
     }
     /// Submit multiple signed transactions to the validator via RPC in sequence
