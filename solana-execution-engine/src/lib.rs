@@ -10,12 +10,7 @@ pub use multivm_common::{
     IpcResponse, MultivmError, MultivmResult, ProcessingMetrics,
 };
 
-// Complex engine only available in mock mode for testing
-pub mod engine;
-pub mod ipc_client;
-pub mod rpc_server;
-
 pub mod config;
-pub mod real_engine;
-pub mod real_engine_utils;
-pub mod validator_api;
+pub mod engine;
+pub mod engine_tests;
+

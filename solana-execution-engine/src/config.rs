@@ -14,6 +14,8 @@ pub struct MultivmValidatorConfig {
     pub gossip_host: String,
     /// Gossip port number
     pub gossip_port: u16,
+    /// RPC port number
+    pub rpc_port: u16,
     /// Path to the ledger directory
     pub ledger_path: PathBuf,
     /// Number of ticks per slot
@@ -26,10 +28,18 @@ pub struct MultivmValidatorConfig {
 
 impl Default for MultivmValidatorConfig {
     fn default() -> Self {
+        // Generate a random directory name for ledger_path
+        let random_suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let ledger_path = PathBuf::from(format!("/tmp/multivm_ledger_{}", random_suffix));
+
         Self {
             gossip_host: "127.0.0.1".to_string(),
             gossip_port: 1024,
-            ledger_path: PathBuf::from("/tmp/multivm_ledger"),
+            rpc_port: 8899,
+            ledger_path,
             ticks_per_slot: 2,
             deterministic: true,
             reset: true,
@@ -72,6 +82,12 @@ impl MultivmValidatorConfigBuilder {
     /// Set the gossip port
     pub fn gossip_port(mut self, port: u16) -> Self {
         self.config.gossip_port = port;
+        self
+    }
+
+    /// Set the RPC port
+    pub fn rpc_port(mut self, port: u16) -> Self {
+        self.config.rpc_port = port;
         self
     }
 
@@ -249,7 +265,8 @@ mod tests {
         let config = MultivmValidatorConfig::new();
         assert_eq!(config.gossip_host, "127.0.0.1");
         assert_eq!(config.gossip_port, 1024);
-        assert_eq!(config.ledger_path, PathBuf::from("/tmp/multivm_ledger"));
+        assert_eq!(config.rpc_port, 8899);
+        assert!(config.ledger_path.starts_with("/tmp"));
         assert_eq!(config.ticks_per_slot, 2);
         assert!(config.deterministic);
         assert!(config.reset);
@@ -257,9 +274,13 @@ mod tests {
 
     #[test]
     fn test_multivm_validator_config_builder() {
+        let custom_ledger_path = PathBuf::from("/tmp/custom_ledger");
+
         let config = MultivmValidatorConfig::builder()
             .gossip_host("192.168.1.100")
             .gossip_port(2048)
+            .rpc_port(9000)
+            .ledger_path(&custom_ledger_path)
             .ticks_per_slot(4)
             .deterministic(false)
             .reset(false)
@@ -267,6 +288,8 @@ mod tests {
 
         assert_eq!(config.gossip_host, "192.168.1.100");
         assert_eq!(config.gossip_port, 2048);
+        assert_eq!(config.rpc_port, 9000);
+        assert_eq!(config.ledger_path, custom_ledger_path);
         assert_eq!(config.ticks_per_slot, 4);
         assert!(!config.deterministic);
         assert!(!config.reset);
