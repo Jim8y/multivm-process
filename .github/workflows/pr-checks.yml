@@ -72,6 +72,7 @@ jobs:
     
     - name: Upload PR analysis
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: pr-analysis-${{ github.event.pull_request.number }}
         path: pr-analysis.md
@@ -199,6 +200,7 @@ jobs:
     
     - name: Upload dependency analysis
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: dependency-changes-${{ github.event.pull_request.number }}
         path: dependency-changes.md
