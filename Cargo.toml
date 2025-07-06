@@ -121,13 +121,14 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive", "env"] }
 
 # Malachite BFT consensus dependencies
-informalsystems-malachitebft-engine = "0.1.0-alpha.2"
-informalsystems-malachitebft-core-consensus = "0.1.0-alpha.2"
-informalsystems-malachitebft-core-types = "0.1.0-alpha.2"
-informalsystems-malachitebft-proto = "0.1.0-alpha.2"
-informalsystems-malachitebft-app-channel = "0.1.0-alpha.2"
-informalsystems-malachitebft-codec = "0.1.0-alpha.2"
-informalsystems-malachitebft-config = "0.1.0-alpha.2"
+informalsystems-malachitebft-engine = "0.3.0"
+informalsystems-malachitebft-core-consensus = "0.3.0"
+informalsystems-malachitebft-core-types = "0.3.0"
+informalsystems-malachitebft-proto = "0.3.0"
+informalsystems-malachitebft-app-channel = "0.3.0"
+informalsystems-malachitebft-codec = "0.3.0"
+informalsystems-malachitebft-config = "0.3.0"
+informalsystems-malachitebft-app = "0.3.0"
 
 # Testing
 tempfile = "3.8"
