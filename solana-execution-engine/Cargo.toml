@@ -63,6 +63,9 @@ clap = { version = "4.4", features = ["derive", "env"] }
 # HTTP client for RPC communication
 reqwest = { version = "0.11", features = ["json"] }
 
+# HTTP server for RPC proxy
+hyper = { version = "0.14", features = ["full"] }
+
 # RPC and networking (using modern JSON-RPC library)
 jsonrpsee = "0.21"
 

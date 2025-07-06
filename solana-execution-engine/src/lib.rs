@@ -12,5 +12,10 @@ pub use multivm_common::{
 
 pub mod config;
 pub mod engine;
+pub mod engine_rpc_client;
+pub mod engine_rpc_server;
+pub mod engine_rpc_tests;
 pub mod engine_tests;
 
+#[cfg(test)]
+pub mod test_utils;

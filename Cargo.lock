@@ -10249,6 +10249,7 @@ dependencies = [
  "futures 0.3.31",
  "hex",
  "hmac 0.12.1",
+ "hyper 0.14.32",
  "jsonrpc-core",
  "jsonrpc-http-server",
  "jsonrpsee",

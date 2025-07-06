@@ -9,13 +9,46 @@ use std::time::Duration;
 
 /// Configuration for Solana execution engine
 #[derive(Debug, Clone)]
+pub struct SolanaEngineConfig {
+    /// RPC server host address
+    pub rpc_server_host: String,
+    /// RPC server port number
+    pub rpc_server_port: u16,
+}
+
+impl Default for SolanaEngineConfig {
+    fn default() -> Self {
+        Self {
+            rpc_server_host: "127.0.0.1".to_string(),
+            rpc_server_port: 8888,
+        }
+    }
+}
+
+impl SolanaEngineConfig {
+    /// Create a new SolanaEngineConfig with default values
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new SolanaEngineConfig with custom values
+    pub fn new_with_config(rpc_server_host: String, rpc_server_port: u16) -> Self {
+        Self {
+            rpc_server_host,
+            rpc_server_port,
+        }
+    }
+}
+
+/// Configuration for Solana execution engine
+#[derive(Debug, Clone)]
 pub struct SolanaConfig {
-    /// Gossip host address
-    pub gossip_host: String,
     /// Gossip port number
     pub gossip_port: u16,
     /// RPC port number
     pub rpc_port: u16,
+    /// WebSocket port number
+    pub ws_port: u16,
     /// Path to the ledger directory
     pub ledger_path: PathBuf,
     /// Number of ticks per slot
@@ -36,9 +69,9 @@ impl Default for SolanaConfig {
         let ledger_path = PathBuf::from(format!("/tmp/solana-private-ledger_{}", random_suffix));
 
         Self {
-            gossip_host: "127.0.0.1".to_string(),
             gossip_port: 1024,
             rpc_port: 8899,
+            ws_port: 8900,
             ledger_path,
             ticks_per_slot: 2,
             deterministic: true,
@@ -73,12 +106,6 @@ impl SolanaConfigBuilder {
         }
     }
 
-    /// Set the gossip host
-    pub fn gossip_host<S: Into<String>>(mut self, host: S) -> Self {
-        self.config.gossip_host = host.into();
-        self
-    }
-
     /// Set the gossip port
     pub fn gossip_port(mut self, port: u16) -> Self {
         self.config.gossip_port = port;
@@ -88,6 +115,12 @@ impl SolanaConfigBuilder {
     /// Set the RPC port
     pub fn rpc_port(mut self, port: u16) -> Self {
         self.config.rpc_port = port;
+        self
+    }
+
+    /// Set the WebSocket port
+    pub fn ws_port(mut self, port: u16) -> Self {
+        self.config.ws_port = port;
         self
     }
 
@@ -136,8 +169,6 @@ pub struct SolanaConnectionConfig {
     pub connection_pool_size: u32,
     /// Commitment level for transactions
     pub commitment_level: CommitmentLevel,
-    /// Enable WebSocket connections
-    pub enable_websockets: bool,
 }
 
 impl Default for SolanaConnectionConfig {
@@ -149,7 +180,6 @@ impl Default for SolanaConnectionConfig {
             health_check_interval: Duration::from_secs(10),
             connection_pool_size: 10,
             commitment_level: CommitmentLevel::Confirmed,
-            enable_websockets: true,
         }
     }
 }
@@ -163,7 +193,6 @@ impl SolanaConnectionConfig {
         health_check_interval: Duration,
         connection_pool_size: u32,
         commitment_level: CommitmentLevel,
-        enable_websockets: bool,
     ) -> Self {
         Self {
             max_retries,
@@ -172,7 +201,6 @@ impl SolanaConnectionConfig {
             health_check_interval,
             connection_pool_size,
             commitment_level,
-            enable_websockets,
         }
     }
 
@@ -191,7 +219,6 @@ pub struct SolanaConnectionConfigBuilder {
     health_check_interval: Option<Duration>,
     connection_pool_size: Option<u32>,
     commitment_level: Option<CommitmentLevel>,
-    enable_websockets: Option<bool>,
 }
 
 impl SolanaConnectionConfigBuilder {
@@ -231,12 +258,6 @@ impl SolanaConnectionConfigBuilder {
         self
     }
 
-    /// Set whether to enable WebSockets
-    pub fn enable_websockets(mut self, enable: bool) -> Self {
-        self.enable_websockets = Some(enable);
-        self
-    }
-
     /// Build the SolanaConnectionConfig
     pub fn build(self) -> SolanaConnectionConfig {
         let default = SolanaConnectionConfig::default();
@@ -251,7 +272,6 @@ impl SolanaConnectionConfigBuilder {
                 .connection_pool_size
                 .unwrap_or(default.connection_pool_size),
             commitment_level: self.commitment_level.unwrap_or(default.commitment_level),
-            enable_websockets: self.enable_websockets.unwrap_or(default.enable_websockets),
         }
     }
 }
@@ -263,9 +283,9 @@ mod tests {
     #[test]
     fn test_solana_config_new() {
         let config = SolanaConfig::new();
-        assert_eq!(config.gossip_host, "127.0.0.1");
         assert_eq!(config.gossip_port, 1024);
         assert_eq!(config.rpc_port, 8899);
+        assert_eq!(config.ws_port, 8900);
         assert!(config.ledger_path.starts_with("/tmp"));
         assert_eq!(config.ticks_per_slot, 2);
         assert!(config.deterministic);
@@ -277,7 +297,6 @@ mod tests {
         let custom_ledger_path = PathBuf::from("/tmp/custom_ledger");
 
         let config = SolanaConfig::builder()
-            .gossip_host("192.168.1.100")
             .gossip_port(2048)
             .rpc_port(9000)
             .ledger_path(&custom_ledger_path)
@@ -286,7 +305,6 @@ mod tests {
             .reset(false)
             .build();
 
-        assert_eq!(config.gossip_host, "192.168.1.100");
         assert_eq!(config.gossip_port, 2048);
         assert_eq!(config.rpc_port, 9000);
         assert_eq!(config.ledger_path, custom_ledger_path);
@@ -302,7 +320,6 @@ mod tests {
         assert_eq!(config.retry_delay, Duration::from_millis(1000));
         assert_eq!(config.request_timeout, Duration::from_secs(30));
         assert_eq!(config.connection_pool_size, 10);
-        assert!(config.enable_websockets);
     }
 
     #[test]
@@ -312,13 +329,11 @@ mod tests {
             .retry_delay(Duration::from_millis(500))
             .request_timeout(Duration::from_secs(60))
             .connection_pool_size(20)
-            .enable_websockets(false)
             .build();
 
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.retry_delay, Duration::from_millis(500));
         assert_eq!(config.request_timeout, Duration::from_secs(60));
         assert_eq!(config.connection_pool_size, 20);
-        assert!(!config.enable_websockets);
     }
 }

@@ -36,7 +36,7 @@ impl SolanaEngine {
         lamports: u64,
     ) -> Result<Signature, SolanaEngineError> {
         // Get the RPC client from the Arc<RwLock<Option<RpcClient>>>
-        let client_guard = self.rpc_client.read().await;
+        let client_guard = self.internal_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
@@ -65,7 +65,7 @@ impl SolanaEngine {
     /// Get the balance of a Solana account
     pub(crate) async fn get_balance(&self, pubkey: &Pubkey) -> Result<u64, SolanaEngineError> {
         // Get the RPC client from the Arc<RwLock<Option<RpcClient>>>
-        let client_guard = self.rpc_client.read().await;
+        let client_guard = self.internal_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
@@ -84,7 +84,7 @@ impl SolanaEngine {
         lamports: u64,
     ) -> Result<Signature, SolanaEngineError> {
         // Get the RPC client
-        let client_guard = self.rpc_client.read().await;
+        let client_guard = self.internal_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
@@ -113,6 +113,7 @@ impl SolanaEngine {
 mod tests {
     use super::*;
     use crate::config::{SolanaConfig, SolanaConnectionConfig};
+    use crate::test_utils::{create_and_initialize_engine, setup_logging};
     use solana_sdk::{
         commitment_config::CommitmentConfig,
         message::Message,
@@ -121,45 +122,27 @@ mod tests {
         system_instruction,
         transaction::Transaction,
     };
-    use std::path::PathBuf;
+    use std::{path::PathBuf, time::Duration};
     use tokio;
     use tracing::{error, info, warn};
 
-    /// Initializes logging for tests.
-    fn setup_logging() {
-        // Initialize logging with info level, no timestamp
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_target(false)
-            .with_thread_ids(false)
-            .with_file(false)
-            .with_line_number(false)
-            .without_time()
-            .try_init()
-            .ok(); // Ignore error if already initialized
-    }
+    #[tokio::test]
+    async fn test_main() -> Result<(), SolanaEngineError> {
+        setup_logging();
+        let mut engine = create_and_initialize_engine().await?;
 
-    /// Creates and initializes a new SolanaEngine for testing.
-    async fn create_and_initialize_engine() -> Result<SolanaEngine, Box<dyn std::error::Error>> {
-        info!("Creating and initializing SolanaEngine for test...");
-        let mut engine = SolanaEngine::new_default().await?;
+        tokio::time::sleep(Duration::from_secs(60)).await;
 
-        // Try to initialize, but cleanup on failure
-        if let Err(e) = engine.initialize().await {
-            error!("✗ Failed to initialize SolanaEngine: {}", e);
-            // Attempt a cleanup shutdown on initialization failure
-            let _ = engine
-                .shutdown(Some(tokio::time::Duration::from_secs(5)))
-                .await;
-            return Err(Box::new(e));
-        }
+        // Shutdown the engine before returning
+        engine
+            .shutdown(Some(tokio::time::Duration::from_secs(5)))
+            .await?;
 
-        info!("✓ SolanaEngine initialized successfully");
-        Ok(engine)
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_solana_engine_core_functions() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_solana_engine_core_functions() -> Result<(), SolanaEngineError> {
         setup_logging();
         let mut engine = create_and_initialize_engine().await?;
 
@@ -308,7 +291,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_submit_transactions_to_validator() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_submit_transactions_to_validator() -> Result<(), SolanaEngineError> {
         setup_logging();
 
         info!("Starting submit_transactions_to_validator test...");
@@ -360,7 +343,7 @@ mod tests {
 
         // Get the RPC client to get recent blockhash
         let recent_blockhash = {
-            let client_guard = engine.rpc_client.read().await;
+            let client_guard = engine.internal_client.read().await;
             let client = client_guard.as_ref().unwrap();
             match client.get_latest_blockhash().await {
                 Ok(blockhash) => {
@@ -527,7 +510,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_block() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_process_block() -> Result<(), SolanaEngineError> {
         setup_logging();
 
         info!("Starting process_block test...");
@@ -579,7 +562,7 @@ mod tests {
 
         // Get the RPC client to get recent blockhash
         let recent_blockhash = {
-            let client_guard = engine.rpc_client.read().await;
+            let client_guard = engine.internal_client.read().await;
             let client = client_guard.as_ref().unwrap();
             match client.get_latest_blockhash().await {
                 Ok(blockhash) => {

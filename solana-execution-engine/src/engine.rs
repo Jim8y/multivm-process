@@ -16,7 +16,7 @@ use multivm_common::MultivmError;
 use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
 
 // Additional imports for engine implementation
-use crate::config::{SolanaConfig, SolanaConnectionConfig};
+use crate::config::{SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use std::time::Instant;
@@ -173,54 +173,60 @@ pub struct SolanaExecutionResult {
 
 /// Solana execution engine that connects to actual Solana validators
 pub struct SolanaEngine {
-    /// Configuration
-    pub(crate) rpc_port: u16,
-    pub(crate) ws_port: u16,
-
-    /// Process management
-    validator_process: Arc<RwLock<Option<Child>>>,
-
-    /// Network clients
-    pub(crate) rpc_client: Arc<RwLock<Option<RpcClient>>>,
+    pub(crate) internal_client: Arc<RwLock<Option<RpcClient>>>,
 
     /// State tracking
     current_slot: Arc<RwLock<Slot>>,
     slots_processed: Arc<RwLock<u64>>,
     is_running: Arc<RwLock<bool>>,
 
-    /// Connection configuration
-    connection_config: SolanaConnectionConfig,
+    /// Process management
+    solana_process: Arc<RwLock<Option<Child>>>,
 
+    /// Engine RPC server
+    pub(crate) rpc_proxy_server:
+        Arc<RwLock<Option<crate::engine_rpc_server::SolanaEngineRpcServer>>>,
+
+    /// Connection configuration
+    pub(crate) solana_connection_config: SolanaConnectionConfig,
     /// Solana execution engine configuration
-    validator_config: SolanaConfig,
+    pub(crate) solana_config: SolanaConfig,
+    /// Solana engine configuration
+    pub(crate) solana_engine_config: SolanaEngineConfig,
 }
 
 impl SolanaEngine {
     /// Create a new Solana execution engine
     pub async fn new_default() -> Result<Self, SolanaEngineError> {
-        Self::new_with_config(SolanaConnectionConfig::default(), SolanaConfig::default()).await
+        Self::new_with_config(
+            SolanaEngineConfig::default(),
+            SolanaConnectionConfig::default(),
+            SolanaConfig::default(),
+        )
+        .await
     }
 
     /// Create a new Solana execution engine with custom configuration
     pub async fn new_with_config(
-        connection_config: SolanaConnectionConfig,
-        validator_config: SolanaConfig,
+        solana_engine_config: SolanaEngineConfig,
+        solana_connection_config: SolanaConnectionConfig,
+        solana_config: SolanaConfig,
     ) -> Result<Self, SolanaEngineError> {
         info!("Creating Solana execution engine");
-        info!("Ledger path: {}", validator_config.ledger_path.display());
-        info!("RPC port: {}", validator_config.rpc_port);
-        info!("WebSocket port: {}", validator_config.rpc_port + 1);
+        info!("Ledger path: {}", solana_config.ledger_path.display());
+        info!("RPC port: {}", solana_config.rpc_port);
+        info!("WebSocket port: {}", solana_config.ws_port);
 
         Ok(Self {
-            rpc_port: validator_config.rpc_port,
-            ws_port: validator_config.rpc_port + 1,
-            validator_process: Arc::new(RwLock::new(None)),
-            rpc_client: Arc::new(RwLock::new(None)),
+            solana_process: Arc::new(RwLock::new(None)),
+            internal_client: Arc::new(RwLock::new(None)),
             current_slot: Arc::new(RwLock::new(0)),
             slots_processed: Arc::new(RwLock::new(0)),
             is_running: Arc::new(RwLock::new(false)),
-            connection_config,
-            validator_config,
+            rpc_proxy_server: Arc::new(RwLock::new(None)),
+            solana_connection_config,
+            solana_config,
+            solana_engine_config,
         })
     }
 
@@ -229,10 +235,13 @@ impl SolanaEngine {
         info!("Initializing Solana execution engine");
 
         // Start the Solana validator process
-        self.start_solana_validator_process().await?;
+        self.start_solana_solana_process().await?;
 
         // Initialize RPC clients
         self.init_rpc_clients().await?;
+
+        // Start the RPC proxy server
+        self.start_rpc_proxy_server().await?;
 
         // Start health monitoring
         self.start_health_monitoring().await;
@@ -244,14 +253,14 @@ impl SolanaEngine {
     }
 
     /// Start the Solana Private Validator process with simplified configuration
-    pub async fn start_solana_validator_process(&self) -> Result<(), SolanaEngineError> {
+    pub async fn start_solana_solana_process(&self) -> Result<(), SolanaEngineError> {
         info!("Starting Solana Private Validator process");
 
         // Get the path to the solana-private-validator binary
         let binary_path = self.get_solana_private_validator_path()?;
 
         // Create ledger directory
-        std::fs::create_dir_all(&self.validator_config.ledger_path).map_err(|e| {
+        std::fs::create_dir_all(&self.solana_config.ledger_path).map_err(|e| {
             SolanaEngineError::Configuration(format!("Failed to create ledger directory: {e}"))
         })?;
 
@@ -259,21 +268,21 @@ impl SolanaEngine {
         cmd
             // Gossip configuration
             .arg("--gossip-host")
-            .arg(&self.validator_config.gossip_host)
+            .arg(&self.solana_engine_config.rpc_server_host)
             .arg("--gossip-port")
-            .arg(self.validator_config.gossip_port.to_string())
+            .arg(self.solana_config.gossip_port.to_string())
             // RPC configuration
             .arg("--rpc-port")
-            .arg(self.validator_config.rpc_port.to_string())
+            .arg(self.solana_config.rpc_port.to_string())
             // Configuration and ledger paths
             .arg("--ledger")
-            .arg(&self.validator_config.ledger_path)
+            .arg(&self.solana_config.ledger_path)
             // Timing configuration
             .arg("--ticks-per-slot")
-            .arg(self.validator_config.ticks_per_slot.to_string())
+            .arg(self.solana_config.ticks_per_slot.to_string())
             .arg("--deterministic");
 
-        if self.validator_config.reset {
+        if self.solana_config.reset {
             cmd.arg("--reset");
         }
 
@@ -284,7 +293,7 @@ impl SolanaEngine {
         debug!("Solana Private Validator command: {:?}", cmd);
         info!(
             "Validator output will be logged to: {}",
-            self.validator_config
+            self.solana_config
                 .ledger_path
                 .join("validator.log")
                 .display()
@@ -295,7 +304,7 @@ impl SolanaEngine {
         })?;
 
         let pid = child.id();
-        *self.validator_process.write().await = Some(child);
+        *self.solana_process.write().await = Some(child);
 
         info!(
             "Started Solana Private Validator process with PID: {:?}",
@@ -304,7 +313,7 @@ impl SolanaEngine {
 
         // Wait for validator to initialize
         // TODO: WTF
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        tokio::time::sleep(Duration::from_secs(15)).await;
 
         Ok(())
     }
@@ -344,17 +353,19 @@ impl SolanaEngine {
     async fn init_rpc_clients(&self) -> Result<(), SolanaEngineError> {
         info!("Initializing Solana RPC clients");
 
-        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
-        let ws_url = format!("ws://127.0.0.1:{}", self.ws_port);
+        let rpc_url = format!(
+            "http://{}:{}",
+            self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port
+        );
 
         // Create RPC client
         let commitment = CommitmentConfig {
-            commitment: self.connection_config.commitment_level,
+            commitment: self.solana_connection_config.commitment_level,
         };
 
         let rpc_client = RpcClient::new_with_commitment(rpc_url.clone(), commitment);
 
-        *self.rpc_client.write().await = Some(rpc_client);
+        *self.internal_client.write().await = Some(rpc_client);
 
         info!("Solana RPC clients initialized successfully");
         Ok(())
@@ -362,8 +373,8 @@ impl SolanaEngine {
 
     /// Start health monitoring background task
     async fn start_health_monitoring(&self) {
-        let rpc_client = self.rpc_client.clone();
-        let interval = self.connection_config.health_check_interval;
+        let rpc_client = self.internal_client.clone();
+        let interval = self.solana_connection_config.health_check_interval;
 
         tokio::spawn(async move {
             let mut health_interval = tokio::time::interval(interval);
@@ -436,7 +447,7 @@ impl SolanaEngine {
     ) -> Result<(), SolanaEngineError> {
         debug!("Submitting Solana block for slot {} via RPC", block.slot);
 
-        let client_guard = self.rpc_client.read().await;
+        let client_guard = self.internal_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
@@ -547,33 +558,20 @@ impl SolanaEngine {
         solana_sdk::hash::Hash::new_from_array(state_hash.into())
     }
 
-    /// Get current slot from validator
-    pub async fn get_current_slot(&self) -> Result<Slot, SolanaEngineError> {
-        let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
-
-        match client.get_slot().await {
-            Ok(slot) => Ok(slot),
-            Err(e) => Err(SolanaEngineError::Rpc(format!(
-                "Failed to get current slot: {}",
-                e
-            ))),
-        }
-    }
-
     /// Gracefully shutdown the Solana engine
     pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), SolanaEngineError> {
         info!("Shutting down Solana execution engine");
 
         *self.is_running.write().await = false;
 
+        // Stop the RPC proxy server first
+        self.stop_rpc_proxy_server().await?;
+
         // Clear clients
-        *self.rpc_client.write().await = None;
+        *self.internal_client.write().await = None;
 
         // Stop the Solana validator process
-        if let Some(mut child) = self.validator_process.write().await.take() {
+        if let Some(mut child) = self.solana_process.write().await.take() {
             info!("Terminating Solana validator process");
 
             // Try graceful shutdown first
@@ -629,7 +627,7 @@ impl SolanaEngine {
             return Ok(Vec::new());
         }
 
-        let client_guard = self.rpc_client.read().await;
+        let client_guard = self.internal_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
