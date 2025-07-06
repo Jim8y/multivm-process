@@ -21,10 +21,10 @@ multivm-common = { path = "../multivm-common" }
 
 # Solana dependencies
 solana-sdk = { version = "=2.2.2", optional = true }
-solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
-solana-rpc-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
-solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
-agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "fix-extract-if-rust-188", optional = true }
+solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
+solana-rpc-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
+solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
+agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
 solana-loader-v2-interface = { version = "=2.2.1", features = [
   "bincode",
 ], optional = true }

@@ -238,8 +238,8 @@ impl SolanaEngine {
         self.start_health_monitoring().await;
 
         *self.is_running.write().await = true;
-        info!("Solana execution engine initialized successfully");
 
+        info!("Solana execution engine initialized successfully");
         Ok(())
     }
 
@@ -281,7 +281,7 @@ impl SolanaEngine {
             .stderr(std::process::Stdio::null())
             .kill_on_drop(true);
 
-        info!("Solana Private Validator command: {:?}", cmd);
+        debug!("Solana Private Validator command: {:?}", cmd);
         info!(
             "Validator output will be logged to: {}",
             self.validator_config
@@ -303,6 +303,7 @@ impl SolanaEngine {
         );
 
         // Wait for validator to initialize
+        // TODO: WTF
         tokio::time::sleep(Duration::from_secs(10)).await;
 
         Ok(())
