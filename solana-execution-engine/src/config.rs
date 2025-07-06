@@ -33,7 +33,7 @@ impl Default for SolanaConfig {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let ledger_path = PathBuf::from(format!("/tmp/multivm_ledger_{}", random_suffix));
+        let ledger_path = PathBuf::from(format!("/tmp/solana-private-ledger_{}", random_suffix));
 
         Self {
             gossip_host: "127.0.0.1".to_string(),

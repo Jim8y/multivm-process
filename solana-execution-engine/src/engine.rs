@@ -234,9 +234,6 @@ impl SolanaEngine {
         // Initialize RPC clients
         self.init_rpc_clients().await?;
 
-        // Verify RPC connection
-        self.verify_rpc_connection().await?;
-
         // Start health monitoring
         self.start_health_monitoring().await;
 
@@ -258,15 +255,6 @@ impl SolanaEngine {
             SolanaEngineError::Configuration(format!("Failed to create ledger directory: {e}"))
         })?;
 
-        // Create log file for validator output in ledger directory
-        let log_file_path = self
-            .validator_config
-            .ledger_path
-            .join("solana-private-validator.log");
-        let log_file = std::fs::File::create(&log_file_path).map_err(|e| {
-            SolanaEngineError::Configuration(format!("Failed to create log file: {e}"))
-        })?;
-
         let mut cmd = TokioCommand::new(binary_path);
         cmd
             // Gossip configuration
@@ -283,29 +271,23 @@ impl SolanaEngine {
             // Timing configuration
             .arg("--ticks-per-slot")
             .arg(self.validator_config.ticks_per_slot.to_string())
-            .arg("--log")
             .arg("--deterministic");
 
         if self.validator_config.reset {
             cmd.arg("--reset");
         }
 
-        cmd
-            // Process settings - redirect output to log file
-            .stdout(std::process::Stdio::from(log_file.try_clone().map_err(
-                |e| {
-                    SolanaEngineError::Configuration(format!(
-                        "Failed to clone log file handle: {e}"
-                    ))
-                },
-            )?))
-            .stderr(std::process::Stdio::from(log_file))
+        cmd.stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .kill_on_drop(true);
 
-        debug!("Solana Private Validator command: {:?}", cmd);
+        info!("Solana Private Validator command: {:?}", cmd);
         info!(
             "Validator output will be logged to: {}",
-            log_file_path.display()
+            self.validator_config
+                .ledger_path
+                .join("validator.log")
+                .display()
         );
 
         let child = cmd.spawn().map_err(|e| {
@@ -319,8 +301,6 @@ impl SolanaEngine {
             "Started Solana Private Validator process with PID: {:?}",
             pid
         );
-        info!("Solana RPC: http://127.0.0.1:{}", self.rpc_port);
-        info!("Solana WebSocket: ws://127.0.0.1:{}", self.ws_port);
 
         // Wait for validator to initialize
         tokio::time::sleep(Duration::from_secs(10)).await;
@@ -332,7 +312,7 @@ impl SolanaEngine {
     fn get_solana_private_validator_path(&self) -> Result<PathBuf, SolanaEngineError> {
         // Get current working directory for error reporting
         let current_dir = std::env::current_dir()
-            .map(|p| p.display().to_string())
+            .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "<unknown>".to_string());
 
         // Try different possible paths for the binary
@@ -354,7 +334,7 @@ impl SolanaEngine {
             format!(
                 "solana-private-validator binary not found. Please build it first. Searched in directory: {} (tried paths: {})",
                 current_dir,
-                paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+                paths.iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>().join(", ")
             ),
         ))
     }
@@ -377,36 +357,6 @@ impl SolanaEngine {
 
         info!("Solana RPC clients initialized successfully");
         Ok(())
-    }
-
-    /// Verify RPC connection
-    async fn verify_rpc_connection(&self) -> Result<(), SolanaEngineError> {
-        let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
-
-        for attempt in 1..=self.connection_config.max_retries {
-            match client.get_slot().await {
-                Ok(slot) => {
-                    info!(
-                        "Successfully connected to Solana validator, current slot: {}",
-                        slot
-                    );
-                    return Ok(());
-                }
-                Err(e) => {
-                    warn!("RPC connection failed on attempt {}: {}", attempt, e);
-                    if attempt < self.connection_config.max_retries {
-                        tokio::time::sleep(self.connection_config.retry_delay).await;
-                    }
-                }
-            }
-        }
-
-        Err(SolanaEngineError::Rpc(
-            "Failed to verify RPC connection after retries".to_string(),
-        ))
     }
 
     /// Start health monitoring background task
