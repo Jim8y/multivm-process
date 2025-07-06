@@ -7,7 +7,6 @@ use solana_execution_engine::simple_engine::SimpleSolanaEngine;
 
 fn main() {
     println!("Solana Execution Engine (Simple)");
-    
 
     // Example usage
     let _engine = SimpleSolanaEngine::new();

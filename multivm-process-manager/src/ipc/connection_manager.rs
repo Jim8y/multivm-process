@@ -1259,7 +1259,7 @@ impl UnixConnectionFactory {
     /// Encrypt message data using ChaCha20Poly1305
     fn encrypt_message(data: &[u8], key: &[u8]) -> MultivmResult<Vec<u8>> {
         use chacha20poly1305::{
-            aead::{Aead, AeadCore, KeyInit, OsRng},
+            aead::{Aead, NewAead},
             ChaCha20Poly1305, Key,
         };
 
@@ -1274,7 +1274,11 @@ impl UnixConnectionFactory {
         let cipher = ChaCha20Poly1305::new(cipher_key);
 
         // Generate random nonce
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+        use chacha20poly1305::Nonce;
+        use rand::{rngs::OsRng as RandOsRng, RngCore};
+        let mut nonce_bytes = [0u8; 12]; // 96-bit nonce for ChaCha20Poly1305
+        RandOsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt the data
         let ciphertext =
@@ -1293,7 +1297,7 @@ impl UnixConnectionFactory {
 
         /*
         use chacha20poly1305::{
-            aead::{Aead, AeadCore, KeyInit, OsRng},
+            aead::{Aead, NewAead},
             ChaCha20Poly1305, Key,
         };
 
@@ -1308,7 +1312,11 @@ impl UnixConnectionFactory {
         let cipher = ChaCha20Poly1305::new(cipher_key);
 
         // Generate random nonce
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+        use chacha20poly1305::Nonce;
+        use rand::{rngs::OsRng as RandOsRng, RngCore};
+        let mut nonce_bytes = [0u8; 12]; // 96-bit nonce for ChaCha20Poly1305
+        RandOsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt data
         let ciphertext = cipher
@@ -1330,7 +1338,7 @@ impl UnixConnectionFactory {
     /// Decrypt message data using ChaCha20Poly1305
     fn decrypt_message(encrypted_data: &[u8], key: &[u8]) -> MultivmResult<Vec<u8>> {
         use chacha20poly1305::{
-            aead::{Aead, KeyInit},
+            aead::{Aead, NewAead},
             ChaCha20Poly1305, Key, Nonce,
         };
 
@@ -1368,7 +1376,7 @@ impl UnixConnectionFactory {
 
         /*
         use chacha20poly1305::{
-            aead::{Aead, KeyInit},
+            aead::{Aead, NewAead},
             ChaCha20Poly1305, Key, Nonce,
         };
 

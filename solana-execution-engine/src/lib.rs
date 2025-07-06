@@ -10,21 +10,14 @@ pub use multivm_common::{
     IpcResponse, MultivmError, MultivmResult, ProcessingMetrics,
 };
 
-pub mod simple_engine;
-
-// Complex engine only available in mock mode for testing
-#[cfg(feature = "mock")]
 pub mod engine;
-#[cfg(feature = "mock")]
 pub mod ipc_client;
-#[cfg(feature = "mock")]
-pub mod rpc_server;
-
-#[cfg(feature = "real-validator")]
 pub mod real_engine;
-#[cfg(feature = "real-validator")]
 pub mod real_engine_utils;
-#[cfg(feature = "real-validator")]
 pub mod rpc_client;
-#[cfg(feature = "real-validator")]
+pub mod rpc_server;
+pub mod simple_engine;
 pub mod validator_api;
+
+#[cfg(test)]
+mod minimal_tests;

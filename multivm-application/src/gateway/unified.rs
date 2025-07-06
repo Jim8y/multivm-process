@@ -6,6 +6,7 @@
 use crate::{
     cache::CacheLayer,
     error::{ApplicationError, ApplicationResult},
+    gateway::rpc_client::VmRpcClient,
 };
 use multivm_common::VmType;
 use serde::{Deserialize, Serialize};
@@ -111,6 +112,7 @@ pub struct UnifiedGateway {
     cache: Arc<CacheLayer>,
     #[allow(dead_code)]
     http_client: reqwest::Client,
+    rpc_client: VmRpcClient,
     stats: Arc<tokio::sync::RwLock<GatewayStats>>,
     start_time: Instant,
 }
@@ -129,10 +131,13 @@ impl UnifiedGateway {
                 message: format!("Failed to create HTTP client: {e}"),
             })?;
 
+        let rpc_client = VmRpcClient::new(config.vm_type, config.rpc_url.clone(), config.timeout);
+
         Ok(Self {
             config,
             cache,
             http_client,
+            rpc_client,
             stats: Arc::new(tokio::sync::RwLock::new(GatewayStats::default())),
             start_time: Instant::now(),
         })
@@ -949,18 +954,19 @@ impl UnifiedGateway {
         stats.cache_misses += 1;
     }
 
-    // Simplified RPC implementations that delegate to actual VM clients
+    // RPC implementations that delegate to actual VM clients
     async fn fetch_latest_block(&self, _request_id: &str) -> ApplicationResult<UnifiedBlock> {
-        // In a real implementation, this would make actual RPC calls
+        // Get latest block number
+        let block_number = self.rpc_client.get_latest_block_number().await?;
 
-        Ok(UnifiedBlock {
-            number: 1000,
-            hash: "0x1234567890abcdef".to_string(),
-            parent_hash: "0x0987654321fedcba".to_string(),
-            timestamp: chrono::Utc::now().timestamp() as u64,
-            transactions: vec![],
-            vm_specific: serde_json::json!({}),
-        })
+        // Get full block data
+        let block_data = self
+            .rpc_client
+            .get_block_by_number(block_number, false)
+            .await?;
+
+        // Convert to unified format
+        self.convert_to_unified_block(block_data)
     }
 
     async fn fetch_block(
@@ -1014,18 +1020,80 @@ impl UnifiedGateway {
 
     async fn submit_transaction(
         &self,
-        _raw_tx: &str,
+        raw_tx: &str,
         _request_id: &str,
     ) -> ApplicationResult<String> {
-        // Generate a mock transaction hash
-        use sha2::{Digest, Sha256};
-        let hash = Sha256::digest(_raw_tx.as_bytes());
-        Ok(format!("0x{}", hex::encode(hash)))
+        // Submit transaction via RPC client
+        self.rpc_client.send_raw_transaction(raw_tx).await
     }
 
     async fn ping_endpoint(&self) -> ApplicationResult<()> {
-        // Health check endpoint
+        // Health check endpoint using RPC client
+        self.rpc_client.health_check().await?;
         Ok(())
+    }
+
+    // Conversion methods for unified format
+
+    fn convert_to_unified_block(
+        &self,
+        block_data: serde_json::Value,
+    ) -> ApplicationResult<UnifiedBlock> {
+        match self.config.vm_type {
+            VmType::Evm => {
+                // Convert EVM block format
+                Ok(UnifiedBlock {
+                    number: self.parse_hex_u64(block_data["number"].as_str().unwrap_or("0x0"))?,
+                    hash: block_data["hash"].as_str().unwrap_or("").to_string(),
+                    parent_hash: block_data["parentHash"].as_str().unwrap_or("").to_string(),
+                    timestamp: self
+                        .parse_hex_u64(block_data["timestamp"].as_str().unwrap_or("0x0"))?,
+                    transactions: block_data["transactions"]
+                        .as_array()
+                        .map(|txs| {
+                            txs.iter()
+                                .filter_map(|tx| tx.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    vm_specific: block_data,
+                })
+            }
+            VmType::Svm => {
+                // Convert SVM block format
+                Ok(UnifiedBlock {
+                    number: block_data["slot"].as_u64().unwrap_or(0),
+                    hash: block_data["blockhash"].as_str().unwrap_or("").to_string(),
+                    parent_hash: block_data["previousBlockhash"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
+                    timestamp: block_data["blockTime"].as_u64().unwrap_or(0),
+                    transactions: block_data["transactions"]
+                        .as_array()
+                        .map(|txs| {
+                            txs.iter()
+                                .filter_map(|tx| {
+                                    tx.get("signature")
+                                        .and_then(|s| s.as_str())
+                                        .map(|s| s.to_string())
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    vm_specific: block_data,
+                })
+            }
+        }
+    }
+
+    fn parse_hex_u64(&self, hex_str: &str) -> ApplicationResult<u64> {
+        u64::from_str_radix(hex_str.trim_start_matches("0x"), 16).map_err(|e| {
+            ApplicationError::GatewayError {
+                vm_type: format!("{:?}", self.config.vm_type),
+                message: format!("Failed to parse hex: {}", e),
+            }
+        })
     }
 }
 

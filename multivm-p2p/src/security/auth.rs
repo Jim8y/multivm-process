@@ -8,7 +8,6 @@ use crate::error::{P2PError, P2PResult};
 use base64::prelude::*;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -200,8 +199,10 @@ pub struct AuthManager {
 impl AuthManager {
     /// Create new authentication manager
     pub fn new(config: AuthConfig) -> P2PResult<Self> {
-        // Generate or load signing key
-        let mut csprng = OsRng {};
+        // Generate a secure keypair using cryptographically secure randomness
+        // In production, this should be loaded from secure storage
+        use rand::rngs::OsRng;
+        let mut csprng = OsRng;
         let signing_key = SigningKey::generate(&mut csprng);
 
         Ok(Self {
@@ -707,13 +708,17 @@ impl AuthManager {
                 peer_id: "invalid public key".to_string(),
             })?;
 
-        let public_key = VerifyingKey::from_bytes(&public_key_bytes.try_into().map_err(|_| {
+        let public_key_array: [u8; 32] =
+            public_key_bytes
+                .try_into()
+                .map_err(|_| P2PError::AuthenticationFailed {
+                    peer_id: "invalid public key length".to_string(),
+                })?;
+
+        let public_key = VerifyingKey::from_bytes(&public_key_array).map_err(|_| {
             P2PError::AuthenticationFailed {
                 peer_id: "invalid public key format".to_string(),
             }
-        })?)
-        .map_err(|_| P2PError::AuthenticationFailed {
-            peer_id: "invalid public key format".to_string(),
         })?;
 
         let signature_bytes: [u8; 64] =
@@ -722,7 +727,11 @@ impl AuthManager {
                 .map_err(|_| P2PError::AuthenticationFailed {
                     peer_id: "invalid signature format".to_string(),
                 })?;
-        let signature = Signature::from_bytes(&signature_bytes);
+        let signature = Signature::try_from(&signature_bytes[..]).map_err(|_| {
+            P2PError::AuthenticationFailed {
+                peer_id: "invalid signature format".to_string(),
+            }
+        })?;
 
         public_key
             .verify(certificate_data, &signature)

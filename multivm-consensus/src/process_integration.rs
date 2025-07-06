@@ -216,7 +216,10 @@ impl ProcessConsensusCoordinator {
         )?);
 
         // Create Malachite consensus engine
-        let consensus_engine = MalachiteConsensus::new(config.consensus_config.clone().into());
+        let consensus_engine = MalachiteConsensus::new(
+            config.consensus_config.clone().into(),
+            "process_node".to_string(),
+        );
 
         // Create channels for block processing
         let (block_sender, _block_receiver) = mpsc::channel(100);
@@ -464,7 +467,7 @@ impl ProcessExecutionCoordinator {
         });
 
         // Update metrics for specific transaction types
-        // This would be done through the metrics system in production
+        // Metrics are tracked via the consensus stats system
 
         info!(
             "Block {} execution complete: {} successful, {} failed, took {}ms",

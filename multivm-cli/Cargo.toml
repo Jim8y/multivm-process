@@ -10,6 +10,10 @@ license.workspace = true
 name = "multivm-node"
 path = "src/main.rs"
 
+[[bin]]
+name = "multivm-bench"
+path = "src/bin/multivm-bench.rs"
+
 [dependencies]
 # Common types and traits
 multivm-common = { path = "../multivm-common" }
@@ -40,6 +44,11 @@ chrono = { workspace = true }
 
 # Async utilities
 futures = { workspace = true }
+
+# Additional dependencies for benchmark
+env_logger = { workspace = true }
+rand = { workspace = true }
+multivm-account-mapping = { path = "../multivm-account-mapping" }
 
 [dev-dependencies]
 tempfile.workspace = true 

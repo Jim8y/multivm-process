@@ -39,6 +39,9 @@ pub enum ApplicationError {
     #[error("Consensus error: {message}")]
     ConsensusError { message: String },
 
+    #[error("Gateway error for {vm_type}: {message}")]
+    GatewayError { vm_type: String, message: String },
+
     /// RPC validation errors
     #[error("RPC validation failed: {field} - {reason}")]
     RpcValidationError { field: String, reason: String },
@@ -77,6 +80,9 @@ pub enum ApplicationError {
 
     #[error("Monitoring error: {component}: {message}")]
     MonitoringError { component: String, message: String },
+
+    #[error("Health check failed for {component}: {message}")]
+    HealthCheckFailed { component: String, message: String },
 
     /// Resource errors
     #[error("Resource not found: {resource_type}: {identifier}")]
@@ -153,6 +159,7 @@ impl ApplicationError {
                 | ApplicationError::ResourceExhausted { .. }
                 | ApplicationError::DatabaseError { .. }
                 | ApplicationError::InternalError { .. }
+                | ApplicationError::HealthCheckFailed { .. }
         )
     }
 
@@ -172,6 +179,7 @@ impl ApplicationError {
             | ApplicationError::EvmError { .. }
             | ApplicationError::CrossVmError { .. }
             | ApplicationError::ConsensusError { .. }
+            | ApplicationError::GatewayError { .. }
             | ApplicationError::RpcValidationError { .. }
             | ApplicationError::RpcError { .. }
             | ApplicationError::TransactionValidationError { .. }
@@ -198,6 +206,7 @@ impl ApplicationError {
             | ApplicationError::StartupError { .. }
             | ApplicationError::ServiceUnavailable { .. }
             | ApplicationError::MonitoringError { .. }
+            | ApplicationError::HealthCheckFailed { .. }
             | ApplicationError::ResourceExhausted { .. }
             | ApplicationError::PerformanceDegraded { .. }
             | ApplicationError::InternalError { .. }

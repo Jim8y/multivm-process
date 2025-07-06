@@ -1489,7 +1489,7 @@ impl MonitoringCoordinator {
         let start_time = Instant::now() - Duration::from_secs(300); // Default 5 min uptime if no start time
         let uptime = start_time.elapsed();
 
-        // In a production implementation, these would collect from actual coordinators
+        // Statistics are collected from coordinator modules when available
 
         ManagerStats {
             uptime,

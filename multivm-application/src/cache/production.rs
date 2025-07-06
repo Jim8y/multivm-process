@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 #[cfg(feature = "cache")]
 use redis::{
@@ -148,7 +148,7 @@ impl ProductionRedisCache {
                     last_failure: None,
                     last_success: None,
                 })),
-                connection_semaphore: Arc::new(Semaphore::new(1)),
+                connection_semaphore: Arc::new(Semaphore::new(config.max_connections as usize)),
                 reconnect_mutex: Arc::new(Mutex::new(())),
                 stats: Arc::new(CacheStatistics::default()),
                 hot_cache: Arc::new(DashMap::new()),
@@ -262,7 +262,12 @@ impl ProductionRedisCache {
     }
 
     /// Set value with circuit breaker
-    pub async fn set<T>(&self, key: &str, value: &T, ttl: Option<Duration>) -> ApplicationResult<()>
+    pub async fn set<T>(
+        &self,
+        key: &str,
+        value: &T,
+        _ttl: Option<Duration>,
+    ) -> ApplicationResult<()>
     where
         T: Serialize,
     {
@@ -431,7 +436,7 @@ impl ProductionRedisCache {
     pub async fn mset<T>(
         &self,
         items: &[(&str, &T)],
-        ttl: Option<Duration>,
+        _ttl: Option<Duration>,
     ) -> ApplicationResult<()>
     where
         T: Serialize,
@@ -505,7 +510,7 @@ impl ProductionRedisCache {
     pub async fn get_with_lease<T>(
         &self,
         key: &str,
-        lease_duration: Duration,
+        _lease_duration: Duration,
     ) -> ApplicationResult<Option<(T, String)>>
     where
         T: for<'de> Deserialize<'de>,
@@ -552,7 +557,7 @@ impl ProductionRedisCache {
     }
 
     /// Release lease
-    pub async fn release_lease(&self, key: &str, lease_id: &str) -> ApplicationResult<bool> {
+    pub async fn release_lease(&self, key: &str, _lease_id: &str) -> ApplicationResult<bool> {
         let full_key = format!("{}{}", self.config.key_prefix, key);
         let lease_key = format!("{full_key}_lease");
 
@@ -649,7 +654,7 @@ impl ProductionRedisCache {
         &self,
         key: &str,
         value: &str,
-        ttl: Option<Duration>,
+        _ttl: Option<Duration>,
     ) -> ApplicationResult<()> {
         let mut attempts = 0;
         let max_attempts = 3;
@@ -1053,7 +1058,7 @@ pub struct CacheStats {
 
 /// Publish cache invalidation event
 impl ProductionRedisCache {
-    pub async fn publish_invalidation(&self, key: &str) -> ApplicationResult<()> {
+    pub async fn publish_invalidation(&self, _key: &str) -> ApplicationResult<()> {
         if !self.is_circuit_closed().await {
             return Ok(());
         }

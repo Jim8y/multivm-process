@@ -19,6 +19,7 @@ pub mod block;
 pub mod crypto;
 pub mod error;
 pub mod fork_detection;
+pub mod leader_selection;
 pub mod malachite;
 pub mod manager;
 pub mod messages;
@@ -29,6 +30,8 @@ pub mod state;
 pub mod synchronization;
 pub mod traits;
 pub mod transaction_pool;
+pub mod validator_set;
+pub mod view_change;
 
 // Tests are included in individual modules
 

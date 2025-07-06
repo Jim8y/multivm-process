@@ -402,7 +402,7 @@ impl SecureNetworkManager {
         // Add to trusted peers list for authentication bypass
         self.trusted_peers.write().await.insert(peer_id);
 
-        // In a production system, you would also:
+        // Additional trust management steps:
         // 1. Store the public key for message verification
         // 2. Add the peer to a persistent trusted peers database
         // 3. Configure the gossipsub behaviour to prioritize messages from this peer

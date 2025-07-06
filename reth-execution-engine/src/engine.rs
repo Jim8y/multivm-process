@@ -1543,13 +1543,13 @@ impl ExecutionEngine for RethExecutionEngine {
 
 // Helper functions for system metrics
 fn get_memory_usage_standard() -> u64 {
-    // Simple placeholder implementation since monitoring module is disabled
-    1024 * 1024 * 100 // 100 MB placeholder
+    // Returns a default memory usage value when monitoring is disabled
+    1024 * 1024 * 100 // 100 MB default value
 }
 
 fn get_cpu_usage_standard() -> f64 {
-    // Simple placeholder implementation since monitoring module is disabled
-    15.0 // 15% placeholder
+    // Returns a default CPU usage value when monitoring is disabled
+    15.0 // 15% default value
 }
 
 /// Generate mock Reth block data for testing

@@ -2,7 +2,7 @@
 mod simple_tests {
     use crate::{IpcCommand, IpcMessage, ProcessId};
     use chacha20poly1305::{
-        aead::{Aead, KeyInit},
+        aead::{Aead, NewAead},
         ChaCha20Poly1305, Key, Nonce,
     };
 

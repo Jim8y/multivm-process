@@ -4,8 +4,44 @@
 //! to the new unified configuration schema.
 
 use multivm_common::config::MultivmConfig;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{info, warn};
+
+/// Legacy network configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyNetworkConfig {
+    pub p2p_bind_address: String,
+    pub bootstrap_peers: Vec<String>,
+}
+
+/// Legacy consensus configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyConsensusConfig {
+    pub validator_key_path: String,
+    pub block_interval_ms: u64,
+}
+
+/// Legacy Ethereum configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyEthereumConfig {
+    pub rpc_url: String,
+}
+
+/// Legacy Solana configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacySolanaConfig {
+    pub rpc_url: String,
+}
+
+/// Legacy configuration structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyConfig {
+    pub network: LegacyNetworkConfig,
+    pub consensus: LegacyConsensusConfig,
+    pub ethereum: LegacyEthereumConfig,
+    pub solana: LegacySolanaConfig,
+}
 
 /// Migration result containing the converted config and any warnings
 pub struct MigrationResult {

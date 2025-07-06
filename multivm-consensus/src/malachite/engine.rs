@@ -35,6 +35,21 @@ struct EngineState {
     /// Current height
     current_height: u64,
 
+    /// Current consensus round
+    current_round: u64,
+
+    /// Current validator set
+    validators: Vec<String>,
+
+    /// Votes for current round (vote_key -> block_hash)
+    votes: std::collections::HashMap<String, String>,
+
+    /// Whether consensus has been reached for current round
+    consensus_reached: bool,
+
+    /// Block hash that reached consensus
+    consensus_block_hash: Option<String>,
+
     /// Total blocks processed
     blocks_processed: u64,
 
@@ -50,10 +65,10 @@ struct EngineState {
 
 impl MalachiteEngine {
     /// Create a new consensus engine
-    pub fn new(config: ConsensusParams) -> Self {
+    pub fn new(config: ConsensusParams, node_id: String) -> Self {
         Self {
             config: config.clone(),
-            validator: Some(MalachiteValidator::new(config)),
+            validator: Some(MalachiteValidator::new(config, node_id)),
             state: Arc::new(RwLock::new(EngineState::default())),
         }
     }
@@ -233,18 +248,61 @@ impl MalachiteEngine {
         round: u64,
         block_hash: String,
     ) -> ConsensusResult<()> {
-        // This would require:
+        let mut state = self.state.write().await;
+
         // 1. Check if the vote is for the current round
+        if round != state.current_round {
+            return Err(ConsensusError::InvalidRound {
+                expected: state.current_round,
+                received: round,
+            });
+        }
+
         // 2. Check if validator is in the current validator set
+        if !state.validators.contains(&validator_id) {
+            return Err(ConsensusError::UnauthorizedValidator {
+                validator_id: validator_id.clone(),
+            });
+        }
+
         // 3. Check if validator has already voted for this round
+        let vote_key = format!("{}:{}", round, validator_id);
+        if state.votes.contains_key(&vote_key) {
+            return Err(ConsensusError::DuplicateVote {
+                validator_id: validator_id.clone(),
+                round,
+            });
+        }
+
         // 4. Store the vote
+        state.votes.insert(vote_key, block_hash.clone());
+
         // 5. Count votes for this block hash
+        let votes_for_block = state
+            .votes
+            .values()
+            .filter(|&hash| hash == &block_hash)
+            .count();
+
         // 6. Check if we have enough votes for consensus (2/3 + 1)
+        let total_validators = state.validators.len();
+        let required_votes = (total_validators * 2) / 3 + 1;
 
         debug!(
-            "Vote recording not yet implemented - received vote from {} for round {} block {}",
-            validator_id, round, block_hash
+            "Recorded vote from {} for round {} block {}: {}/{} votes",
+            validator_id, round, block_hash, votes_for_block, required_votes
         );
+
+        if votes_for_block >= required_votes {
+            info!(
+                "Consensus reached for block {} with {}/{} votes",
+                block_hash, votes_for_block, total_validators
+            );
+            // Trigger block finalization
+            state.consensus_reached = true;
+            state.consensus_block_hash = Some(block_hash);
+        }
+
         Ok(())
     }
 
@@ -338,11 +396,12 @@ impl ConsensusEngine for MalachiteEngine {
     }
 
     fn is_running(&self) -> bool {
-        // Convert async method to sync by using a blocking approach
-        // In a real implementation, this should be a sync field
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async { self.is_running().await })
-        })
+        // Check if the engine is running by examining the validator state
+        if let Some(validator) = &self.validator {
+            validator.is_validator_running()
+        } else {
+            false
+        }
     }
 
     async fn propose_block(
@@ -419,10 +478,10 @@ impl ConsensusEngine for MalachiteEngine {
             return Ok(false);
         }
 
-        // For now, skip previous block hash validation for the first block
-        // In a real implementation, we would track block hashes in state
-        if state.current_height > 0 {
-            debug!("Skipping previous block hash validation (not yet implemented)");
+        // Validate block height continuity
+        if state.current_height > 0 && multivm_block.header.previous_hash.is_empty() {
+            warn!("Block is missing previous hash for height > 0");
+            return Ok(false);
         }
 
         // 4. Verify block timestamp is reasonable (not too far in future)
@@ -541,7 +600,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_lifecycle() {
         let config = ConsensusParams::default();
-        let mut engine = MalachiteEngine::new(config);
+        let mut engine = MalachiteEngine::new(config, "test_node".to_string());
 
         // Test initialization
         assert!(engine.initialize().await.is_ok());
@@ -573,7 +632,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_blocks() {
         let config = ConsensusParams::default();
-        let mut engine = MalachiteEngine::new(config);
+        let mut engine = MalachiteEngine::new(config, "test_node".to_string());
 
         assert!(engine.initialize().await.is_ok());
         assert!(engine.start().await.is_ok());
@@ -595,7 +654,7 @@ mod tests {
     #[tokio::test]
     async fn test_consensus_engine_trait() {
         let config = ConsensusParams::default();
-        let mut engine = MalachiteEngine::new(config.clone());
+        let mut engine = MalachiteEngine::new(config.clone(), "test_node".to_string());
 
         // Test trait methods
         assert!(engine.initialize().await.is_ok());

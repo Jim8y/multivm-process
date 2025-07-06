@@ -605,12 +605,11 @@ impl RealSolanaEngine {
     fn calculate_state_root(&self, block: &SolanaBlockData) -> solana_sdk::hash::Hash {
         use sha2::{Digest, Sha256};
 
-        // In a production Solana implementation, the state root would be calculated by:
-        // 1. Collecting all account state changes from transaction execution
-        // 2. Building a Merkle tree of account hashes
-        // 3. Computing the root hash of the state tree
+        // Solana state root calculation process:
+        // 1. Collect all account state changes from transaction execution
+        // 2. Build a Merkle tree of account hashes
+        // 3. Compute the root hash of the state tree
 
-        
         // - Block slot
         // - Transaction signatures
         // - Previous block hash

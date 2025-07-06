@@ -17,7 +17,7 @@ impl QueryResolver {
     async fn system_info(&self, ctx: &Context<'_>) -> GraphQLResult<SystemInfo> {
         let _state = get_app_state(ctx)?;
 
-        // Get actual system uptime - simplified implementation
+        // Get system uptime using a basic implementation
         let uptime = 3600;
 
         // Get actual node count from connected VMs

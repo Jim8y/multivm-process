@@ -43,7 +43,6 @@ pub struct SolanaProcessEngine {
 }
 
 /// Configuration for Solana VM engine
-#[derive(Clone)]
 pub struct SolanaEngineConfig {
     /// RPC endpoint URL
     pub rpc_url: String,
@@ -57,9 +56,9 @@ pub struct SolanaEngineConfig {
     pub fee_payer: Option<String>,
     /// Maximum transaction size
     pub max_transaction_size: usize,
-    /// Signing keypair for transactions
+    /// Signing key for transactions
     /// WARNING: In production, use a secure key management service
-    pub signing_keypair: ed25519_dalek::SigningKey,
+    pub signing_key: ed25519_dalek::SigningKey,
     /// Commitment level as string for RPC calls
     pub commitment_level: String,
     /// Number of confirmations required
@@ -260,7 +259,7 @@ impl SolanaProcessEngine {
 
         // Build and sign the transaction
         let transaction = builder
-            .build_and_sign(&self.config.signing_keypair)
+            .build_and_sign(&self.config.signing_key)
             .map_err(|e| MultivmError::VmEngine {
                 vm_type: "solana".to_string(),
                 message: format!("Failed to build transaction: {e}"),
@@ -836,7 +835,10 @@ impl SolanaTransactionBuilder {
     }
 
     /// Build and sign transaction
-    pub fn build_and_sign(&self, _keypair: &ed25519_dalek::SigningKey) -> Result<String, String> {
+    pub fn build_and_sign(
+        &self,
+        _signing_key: &ed25519_dalek::SigningKey,
+    ) -> Result<String, String> {
         // and sign it with the provided keypair
         if self.instructions.is_empty() {
             return Err("No instructions provided".to_string());
@@ -850,7 +852,10 @@ impl SolanaTransactionBuilder {
 impl Default for SolanaEngineConfig {
     fn default() -> Self {
         // Generate a random keypair for default - WARNING: Not for production use
-        let signing_keypair = ed25519_dalek::SigningKey::generate(&mut rand::thread_rng());
+        // Generate a test signing key for default config
+        // In production, load from secure storage
+        let secret_bytes = [1u8; 32]; // WARNING: Not secure, for testing only
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
 
         Self {
             rpc_url: "http://localhost:8899".to_string(),
@@ -859,7 +864,7 @@ impl Default for SolanaEngineConfig {
             cross_vm_program_id: "CrossVM11111111111111111111111111111111".to_string(),
             fee_payer: None,
             max_transaction_size: 1232, // Solana transaction size limit
-            signing_keypair,
+            signing_key,
             commitment_level: "confirmed".to_string(),
             confirmation_count: 1,
         }

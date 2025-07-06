@@ -373,6 +373,7 @@ mod tests {
             },
             proof_data: Box::new(vec![5, 6, 7, 8]),
             timestamp: std::time::SystemTime::now(),
+            nonce: 1,
         };
 
         let binding_id = client

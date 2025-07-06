@@ -71,7 +71,7 @@ impl RealSolanaEngine {
         transaction: &Transaction,
     ) -> Result<bool, SolanaEngineError> {
         // Solana transactions are automatically verified during deserialization
-        
+
         Ok(!transaction.signatures.is_empty()
             && transaction
                 .signatures

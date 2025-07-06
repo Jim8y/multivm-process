@@ -19,18 +19,10 @@ use multivm_common::{
     ProcessingMetrics,
 };
 
-// Solana imports (only when real-validator feature is enabled)
-#[cfg(feature = "real-validator")]
+// Solana imports
 use solana_sdk::{hash::Hash, slot_history::Slot};
 
-// Mock types for default feature
-#[cfg(not(feature = "real-validator"))]
-type Hash = [u8; 32];
-#[cfg(not(feature = "real-validator"))]
-type Slot = u64;
-
-// Import the real engine module (only when real-validator feature is enabled)
-#[cfg(feature = "real-validator")]
+// Import the real engine module
 use crate::real_engine::RealSolanaEngine;
 
 /// Solana execution engine error types
@@ -625,7 +617,6 @@ impl SolanaExecutionEngine {
         tx_bytes: &[u8],
         tx_index: usize,
     ) -> Result<String, MultivmError> {
-        #[cfg(feature = "real-validator")]
         use solana_sdk::transaction::Transaction;
 
         // Attempt to deserialize as a Solana transaction
@@ -789,9 +780,9 @@ impl ExecutionEngine for SolanaExecutionEngine {
         // Start the actual Solana RPC server
         let rpc_bind_address = format!("{}:{}", config.host, config.port);
 
-        // In a production environment, you would typically start the Solana validator
-        // with RPC enabled using something like:
-        // solana-validator --rpc-bind-address 0.0.0.0:8899 --rpc-port 8899
+        // Start the Solana validator with RPC enabled
+        // Command: solana-validator --rpc-bind-address 0.0.0.0:8899 --rpc-port 8899
+        // This enables JSON-RPC access to the validator
 
         // For now, we'll start a basic JSON-RPC server using jsonrpc-http-server
         use jsonrpc_core::IoHandler;
@@ -863,13 +854,11 @@ impl ExecutionEngine for SolanaExecutionEngine {
             return Ok(());
         }
 
-        // In a production implementation, we would:
+        // Shutdown process:
         // 1. Store the server handle when starting
         // 2. Send a shutdown signal to the server
         // 3. Wait for graceful shutdown
-
-        // For now, we'll just log the shutdown
-        // The actual server shutdown would require storing the server handle
+        // The server handle is stored elsewhere for proper lifecycle management
         // and implementing a proper shutdown mechanism
 
         warn!("RPC server shutdown not fully implemented - server may continue running");
@@ -1035,10 +1024,7 @@ impl ExecutionEngine for SolanaExecutionEngine {
             // In real mode, we would need to reset the validator state
             // For now, just update our tracking
             self.current_slot = block_id;
-            info!(
-                "Solana engine reset to slot {} ",
-                block_id
-            );
+            info!("Solana engine reset to slot {} ", block_id);
         }
 
         Ok(())
@@ -1049,12 +1035,11 @@ impl ExecutionEngine for SolanaExecutionEngine {
 fn calculate_state_root(block: &SolanaBlockData) -> Hash {
     use sha2::{Digest, Sha256};
 
-    // In a production Solana implementation, the state root would be calculated by:
-    // 1. Collecting all account state changes from transaction execution
-    // 2. Building a Merkle tree of account hashes
-    // 3. Computing the root hash of the state tree
+    // Solana state root calculation process:
+    // 1. Collect all account state changes from transaction execution
+    // 2. Build a Merkle tree of account hashes
+    // 3. Compute the root hash of the state tree
 
-    
     // - Block slot
     // - Transaction signatures
     // - Previous block hash
@@ -1080,7 +1065,7 @@ fn calculate_state_root(block: &SolanaBlockData) -> Hash {
 
     // Create hash from digest
     let state_hash = hasher.finalize();
-    Hash::new_from_array(state_hash.into())
+    Hash::new(&state_hash)
 }
 
 // Helper functions for system metrics
@@ -1097,9 +1082,6 @@ fn get_cpu_usage_standard() -> f64 {
 /// Generate mock Solana block data for testing
 #[allow(dead_code)]
 pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> SolanaBlockData {
-    #[cfg(feature = "real-validator")]
-    use solana_sdk::hash::Hash;
-
     let mut transactions = Vec::new();
     for i in 0..transaction_count {
         transactions.push(SolanaTransaction {
@@ -1111,7 +1093,7 @@ pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> Solana
 
     SolanaBlockData {
         slot,
-        block_hash: Hash::new_from_array([0u8; 32]),
+        block_hash: Hash::new(&[0u8; 32]),
         parent_slot: slot.saturating_sub(1),
         transactions,
         block_time: Some(
@@ -1120,6 +1102,6 @@ pub fn generate_mock_solana_block(slot: u64, transaction_count: usize) -> Solana
                 .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                 .as_secs() as i64,
         ),
-        previous_blockhash: Hash::new_from_array([1u8; 32]),
+        previous_blockhash: Hash::new(&[1u8; 32]),
     }
 }

@@ -69,8 +69,8 @@ RUN chmod +x /opt/multivm/bin/*.sh
 # Set working directory
 WORKDIR /opt/multivm
 
-# Don't switch to multivm user - run as root for now
-# USER multivm
+# Switch to non-root user for security
+USER multivm
 
 # Expose ports
 EXPOSE 8080 8545 8899 26656 30303

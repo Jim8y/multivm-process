@@ -119,6 +119,22 @@ pub enum ConsensusError {
     /// Validator not found error
     #[error("Validator not found: {0}")]
     ValidatorNotFound(String),
+
+    /// Invalid proposal error
+    #[error("Invalid proposal: {0}")]
+    InvalidProposal(String),
+
+    /// Invalid round error
+    #[error("Invalid round: expected {expected}, received {received}")]
+    InvalidRound { expected: u64, received: u64 },
+
+    /// Unauthorized validator error
+    #[error("Unauthorized validator: {validator_id}")]
+    UnauthorizedValidator { validator_id: String },
+
+    /// Duplicate vote error
+    #[error("Duplicate vote from validator {validator_id} in round {round}")]
+    DuplicateVote { validator_id: String, round: u64 },
 }
 
 impl ConsensusError {
@@ -151,6 +167,10 @@ impl ConsensusError {
             ConsensusError::SerializationError(_) => false,
             ConsensusError::ValidatorNotFound(_) => true,
             ConsensusError::InsufficientVotesForRound { .. } => true,
+            ConsensusError::InvalidProposal(_) => false,
+            ConsensusError::InvalidRound { .. } => false,
+            ConsensusError::UnauthorizedValidator { .. } => false,
+            ConsensusError::DuplicateVote { .. } => true,
         }
     }
 
@@ -194,6 +214,10 @@ impl ConsensusError {
             ConsensusError::SerializationError(_) => "serialization",
             ConsensusError::ValidatorNotFound(_) => "validation",
             ConsensusError::InsufficientVotesForRound { .. } => "consensus",
+            ConsensusError::InvalidProposal(_) => "validation",
+            ConsensusError::InvalidRound { .. } => "validation",
+            ConsensusError::UnauthorizedValidator { .. } => "security",
+            ConsensusError::DuplicateVote { .. } => "duplicate",
         }
     }
 }
