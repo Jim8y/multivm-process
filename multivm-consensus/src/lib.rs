@@ -2,6 +2,39 @@
 //!
 //! This crate provides a unified consensus layer for the MultiVM architecture,
 //! supporting multiple consensus algorithms and ensuring cross-VM state consistency.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use multivm_consensus::manager::{MultiVMConsensusManager, ConsensusManagerConfig};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create a consensus manager with configuration
+//! let config = ConsensusManagerConfig::default();
+//! let manager = MultiVMConsensusManager::new(config).await?;
+//! 
+//! // The manager starts in a stopped state
+//! assert!(!manager.is_running());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Leader Selection
+//!
+//! ```rust
+//! use multivm_consensus::leader_selection::LeaderSelector;
+//! use multivm_consensus::traits::ValidatorAddress;
+//!
+//! let validators = vec![
+//!     (ValidatorAddress::new(b"validator1".to_vec()), 100),
+//!     (ValidatorAddress::new(b"validator2".to_vec()), 50),
+//! ];
+//! let selector = LeaderSelector::new_weighted(validators);
+//!
+//! // Test leader selection at different heights
+//! let leader = selector.get_leader(1, 0);
+//! assert!(leader.is_some());
+//! ```
 
 // Only allow dead code and warnings in debug builds
 #![cfg_attr(

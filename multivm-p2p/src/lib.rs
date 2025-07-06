@@ -22,6 +22,33 @@
 //! │                 │                 │    Cross-VM Transfers)  │
 //! └─────────────────┴─────────────────┴─────────────────────────┘
 //! ```
+//!
+//! ## Examples
+//!
+//! ### Basic P2P Manager Usage
+//!
+//! ```rust
+//! use multivm_p2p::core::manager::P2PManager;
+//! use multivm_p2p::config::P2PConfig;
+//!
+//! let config = P2PConfig::default();
+//! let manager = P2PManager::new(config);
+//! 
+//! // Manager is created but not yet started
+//! assert!(!manager.is_running());
+//! ```
+//!
+//! ### Network Configuration
+//!
+//! ```rust
+//! use multivm_p2p::config::{P2PConfig, NetworkMode};
+//!
+//! let mut config = P2PConfig::default();
+//! config.network_mode = NetworkMode::FullNode;
+//! config.max_peers = 50;
+//! 
+//! assert_eq!(config.max_peers, 50);
+//! ```
 
 // Core modules
 pub mod config;

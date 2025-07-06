@@ -5,6 +5,9 @@
 
 use solana_execution_engine::simple_engine::SimpleSolanaEngine;
 
+#[cfg(test)]
+mod main_tests;
+
 fn main() {
     println!("Solana Execution Engine (Simple)");
 
