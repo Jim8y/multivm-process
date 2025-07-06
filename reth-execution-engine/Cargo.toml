@@ -58,7 +58,6 @@ parking_lot = "0.12"
 
 # Note: Using custom types instead of alloy/revm to avoid c-kzg conflicts
 
-# 使用 workspace 定义的依赖版本
 ed25519-dalek = { workspace = true }
 libp2p = { workspace = true }
 

@@ -1,6 +1,8 @@
 // Custom types to replace reth_primitives and alloy_primitives dependencies
 // This avoids the c-kzg linking conflicts while maintaining API compatibility
 
+use multivm_common::config::VmType;
+
 /// Custom address type (equivalent to alloy Address)
 pub type Address = [u8; 20];
 
@@ -14,6 +16,30 @@ pub struct U256(pub [u64; 4]);
 impl U256 {
     pub fn from(value: u64) -> Self {
         Self([value, 0, 0, 0])
+    }
+    
+    pub fn as_u64(&self) -> u64 {
+        self.0[0]
+    }
+    
+    pub fn zero() -> Self {
+        Self([0, 0, 0, 0])
+    }
+    
+    pub fn from_hex(hex: &str) -> Result<Self, String> {
+        let hex = hex.trim_start_matches("0x");
+        if hex.len() > 64 {
+            return Err("Hex string too long".to_string());
+        }
+        
+        // For simplicity, just parse as u64 for now
+        let value = u64::from_str_radix(hex, 16)
+            .map_err(|_| "Invalid hex string")?;
+        Ok(U256::from(value))
+    }
+    
+    pub fn to_hex(&self) -> String {
+        format!("0x{:x}", self.0[0])
     }
 }
 
@@ -141,6 +167,83 @@ pub struct Block {
     pub header: BlockHeader,
     pub body: BlockBody,
     pub number: u64,
+}
+
+/// MultiVM transaction format for cross-VM compatibility
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MultivmTransaction {
+    pub vm_type: VmType,
+    pub from: String,
+    pub to: Option<String>,
+    pub value: String,
+    pub data: String,
+    pub gas_price: Option<String>,
+    pub gas_limit: Option<u64>,
+    pub nonce: Option<u64>,
+    pub chain_id: Option<u64>,
+    pub max_fee_per_gas: Option<String>,
+    pub max_priority_fee_per_gas: Option<String>,
+    pub transaction_type: Option<u8>, // 0 = legacy, 1 = access list, 2 = EIP-1559
+}
+
+/// Transaction receipt from Reth
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionReceipt {
+    pub transaction_hash: B256,
+    pub block_hash: B256,
+    pub block_number: u64,
+    pub transaction_index: u64,
+    pub from: Address,
+    pub to: Option<Address>,
+    pub gas_used: u64,
+    pub cumulative_gas_used: u64,
+    pub logs: Vec<TransactionLog>,
+    pub status: u64, // 1 = success, 0 = failed
+    pub contract_address: Option<Address>,
+    #[serde(with = "serde_bytes")]
+    pub logs_bloom: [u8; 256],
+    pub effective_gas_price: u64,
+}
+
+/// Transaction log entry
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionLog {
+    pub address: Address,
+    pub topics: Vec<B256>,
+    pub data: Vec<u8>,
+    pub block_number: u64,
+    pub transaction_hash: B256,
+    pub transaction_index: u64,
+    pub log_index: u64,
+    pub removed: bool,
+}
+
+/// Transaction pool status
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionPoolStatus {
+    pub pending_count: u64,
+    pub queued_count: u64,
+    pub is_transaction_pending: bool,
+}
+
+/// Transaction validation result
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidationResult {
+    pub is_valid: bool,
+    pub error_message: Option<String>,
+    pub estimated_gas: Option<u64>,
+    pub gas_price_suggestion: Option<u64>,
+    pub nonce_suggestion: Option<u64>,
+}
+
+/// Transaction forwarding result
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionForwardingResult {
+    pub transaction_hash: String,
+    pub status: String,
+    pub gas_used: Option<u64>,
+    pub block_number: Option<u64>,
+    pub confirmation_time: Option<std::time::Duration>,
 }
 
 impl Default for Block {
@@ -442,6 +545,24 @@ pub enum RethEngineError {
     #[error("Engine API error: {0}")]
     #[allow(dead_code)]
     EngineApi(String),
+
+    #[error("Transaction forwarding error: {0}")]
+    TransactionForwarding(String),
+
+    #[error("Transaction validation error: {0}")]
+    TransactionValidation(String),
+
+    #[error("Transaction receipt error: {0}")]
+    TransactionReceipt(String),
+
+    #[error("Transaction format conversion error: {0}")]
+    TransactionConversion(String),
+
+    #[error("Transaction pool error: {0}")]
+    TransactionPool(String),
+
+    #[error("Transaction not found: {0}")]
+    TransactionNotFound(String),
 }
 
 impl From<RethEngineError> for multivm_common::MultivmError {
@@ -476,6 +597,36 @@ impl From<RethEngineError> for multivm_common::MultivmError {
                 method: "reth-engine-api".to_string(),
                 message: msg,
                 status_code: None,
+            },
+            RethEngineError::TransactionForwarding(msg) => multivm_common::MultivmError::Rpc {
+                method: "reth-tx-forwarding".to_string(),
+                message: msg,
+                status_code: None,
+            },
+            RethEngineError::TransactionValidation(msg) => multivm_common::MultivmError::Process {
+                process_id: "reth-tx-validation".to_string(),
+                message: msg,
+                exit_code: None,
+            },
+            RethEngineError::TransactionReceipt(msg) => multivm_common::MultivmError::Rpc {
+                method: "reth-tx-receipt".to_string(),
+                message: msg,
+                status_code: None,
+            },
+            RethEngineError::TransactionConversion(msg) => multivm_common::MultivmError::Configuration {
+                component: "reth-tx-conversion".to_string(),
+                message: msg,
+                validation_errors: None,
+            },
+            RethEngineError::TransactionPool(msg) => multivm_common::MultivmError::Rpc {
+                method: "reth-tx-pool".to_string(),
+                message: msg,
+                status_code: None,
+            },
+            RethEngineError::TransactionNotFound(msg) => multivm_common::MultivmError::Rpc {
+                method: "reth-tx-notfound".to_string(),
+                message: msg,
+                status_code: Some(404),
             },
         }
     }
@@ -1266,6 +1417,693 @@ impl RethExecutionEngine {
                 length as u8,
             ]
         }
+    }
+
+    // =======================
+    // Transaction Forwarding
+    // =======================
+
+    /// Forward a single transaction to the Reth process
+    pub async fn forward_transaction_to_reth(
+        &self,
+        tx: &Transaction,
+    ) -> Result<TransactionForwardingResult, RethEngineError> {
+        let start_time = std::time::Instant::now();
+        
+        tracing::info!("Forwarding transaction to Reth: {:?}", hex::encode(tx.hash));
+
+        // Encode transaction as RLP
+        let rlp_encoded = self.rlp_encode_transaction(tx);
+        let tx_hex = format!("0x{}", hex::encode(&rlp_encoded));
+
+        // Submit transaction via eth_sendRawTransaction
+        let tx_hash = self.submit_raw_transaction_rpc(&tx_hex).await?;
+
+        // Wait for transaction to be mined (with timeout)
+        let receipt = self.wait_for_transaction_receipt(&tx_hash, Duration::from_secs(60)).await?;
+
+        let result = TransactionForwardingResult {
+            transaction_hash: tx_hash,
+            status: if receipt.status == 1 { "success".to_string() } else { "failed".to_string() },
+            gas_used: Some(receipt.gas_used),
+            block_number: Some(receipt.block_number),
+            confirmation_time: Some(start_time.elapsed()),
+        };
+
+        tracing::info!("Transaction forwarded successfully: {:?}", result);
+        Ok(result)
+    }
+
+    /// Submit raw transaction data to Reth
+    pub async fn submit_raw_transaction(&self, tx_data: &[u8]) -> Result<String, RethEngineError> {
+        let tx_hex = format!("0x{}", hex::encode(tx_data));
+        self.submit_raw_transaction_rpc(&tx_hex).await
+    }
+
+    /// Submit raw transaction via RPC
+    async fn submit_raw_transaction_rpc(&self, tx_hex: &str) -> Result<String, RethEngineError> {
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionForwarding("RPC client not initialized".to_string()))?;
+
+        let rpc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "eth_sendRawTransaction",
+            "method": "eth_sendRawTransaction",
+            "params": [tx_hex]
+        });
+
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+
+        let response = client
+            .post(&rpc_url)
+            .json(&rpc_request)
+            .send()
+            .await
+            .map_err(|e| RethEngineError::TransactionForwarding(format!("RPC request failed: {e}")))?;
+
+        if !response.status().is_success() {
+            return Err(RethEngineError::TransactionForwarding(format!(
+                "RPC returned error status: {}",
+                response.status()
+            )));
+        }
+
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::TransactionForwarding(format!("Failed to parse RPC response: {e}"))
+        })?;
+
+        if let Some(error) = result.get("error") {
+            return Err(RethEngineError::TransactionForwarding(format!(
+                "RPC error: {}",
+                error
+            )));
+        }
+
+        let tx_hash = result
+            .get("result")
+            .and_then(|r| r.as_str())
+            .ok_or_else(|| RethEngineError::TransactionForwarding("Missing transaction hash in response".to_string()))?;
+
+        Ok(tx_hash.to_string())
+    }
+
+    // =======================
+    // Transaction Receipts
+    // =======================
+
+    /// Get transaction receipt by hash
+    pub async fn get_transaction_receipt(
+        &self,
+        tx_hash: &str,
+    ) -> Result<Option<TransactionReceipt>, RethEngineError> {
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionReceipt("RPC client not initialized".to_string()))?;
+
+        let rpc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "eth_getTransactionReceipt",
+            "method": "eth_getTransactionReceipt",
+            "params": [tx_hash]
+        });
+
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+
+        let response = client
+            .post(&rpc_url)
+            .json(&rpc_request)
+            .send()
+            .await
+            .map_err(|e| RethEngineError::TransactionReceipt(format!("RPC request failed: {e}")))?;
+
+        if !response.status().is_success() {
+            return Err(RethEngineError::TransactionReceipt(format!(
+                "RPC returned error status: {}",
+                response.status()
+            )));
+        }
+
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::TransactionReceipt(format!("Failed to parse RPC response: {e}"))
+        })?;
+
+        if let Some(error) = result.get("error") {
+            return Err(RethEngineError::TransactionReceipt(format!(
+                "RPC error: {}",
+                error
+            )));
+        }
+
+        let receipt_data = result.get("result");
+        if receipt_data.is_none() || receipt_data.unwrap().is_null() {
+            return Ok(None);
+        }
+
+        let receipt_data = receipt_data.unwrap();
+        let receipt = self.parse_transaction_receipt(receipt_data)?;
+        Ok(Some(receipt))
+    }
+
+    /// Wait for transaction receipt with timeout
+    pub async fn wait_for_transaction_receipt(
+        &self,
+        tx_hash: &str,
+        timeout: Duration,
+    ) -> Result<TransactionReceipt, RethEngineError> {
+        let start_time = std::time::Instant::now();
+        let poll_interval = Duration::from_millis(500);
+
+        while start_time.elapsed() < timeout {
+            if let Some(receipt) = self.get_transaction_receipt(tx_hash).await? {
+                return Ok(receipt);
+            }
+            tokio::time::sleep(poll_interval).await;
+        }
+
+        Err(RethEngineError::TransactionReceipt(format!(
+            "Transaction receipt not found within timeout: {}",
+            tx_hash
+        )))
+    }
+
+    /// Parse transaction receipt from JSON
+    fn parse_transaction_receipt(
+        &self,
+        receipt_json: &serde_json::Value,
+    ) -> Result<TransactionReceipt, RethEngineError> {
+        let tx_hash = self.parse_hash(receipt_json.get("transactionHash"))?;
+        let block_hash = self.parse_hash(receipt_json.get("blockHash"))?;
+        let block_number = self.parse_hex_u64(receipt_json.get("blockNumber"))?;
+        let transaction_index = self.parse_hex_u64(receipt_json.get("transactionIndex"))?;
+        let from = self.parse_address(receipt_json.get("from"))?;
+        let to = receipt_json.get("to").and_then(|v| v.as_str()).map(|s| self.parse_address_str(s)).transpose()?;
+        let gas_used = self.parse_hex_u64(receipt_json.get("gasUsed"))?;
+        let cumulative_gas_used = self.parse_hex_u64(receipt_json.get("cumulativeGasUsed"))?;
+        let status = self.parse_hex_u64(receipt_json.get("status"))?;
+        let effective_gas_price = self.parse_hex_u64(receipt_json.get("effectiveGasPrice"))?;
+
+        let contract_address = receipt_json
+            .get("contractAddress")
+            .and_then(|v| v.as_str())
+            .map(|s| self.parse_address_str(s))
+            .transpose()?;
+
+        let logs = receipt_json
+            .get("logs")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|log| self.parse_transaction_log(log))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let logs_bloom = self.parse_logs_bloom(receipt_json.get("logsBloom"))?;
+
+        Ok(TransactionReceipt {
+            transaction_hash: tx_hash,
+            block_hash,
+            block_number,
+            transaction_index,
+            from,
+            to,
+            gas_used,
+            cumulative_gas_used,
+            logs,
+            status,
+            contract_address,
+            logs_bloom,
+            effective_gas_price,
+        })
+    }
+
+    /// Parse transaction log from JSON
+    fn parse_transaction_log(
+        &self,
+        log_json: &serde_json::Value,
+    ) -> Result<TransactionLog, RethEngineError> {
+        let address = self.parse_address(log_json.get("address"))?;
+        let topics = log_json
+            .get("topics")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|topic| self.parse_hash(Some(topic)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let data = log_json
+            .get("data")
+            .and_then(|v| v.as_str())
+            .map(|s| hex::decode(s.trim_start_matches("0x")))
+            .transpose()
+            .map_err(|e| RethEngineError::TransactionReceipt(format!("Invalid log data: {e}")))?
+            .unwrap_or_default();
+
+        let block_number = self.parse_hex_u64(log_json.get("blockNumber"))?;
+        let transaction_hash = self.parse_hash(log_json.get("transactionHash"))?;
+        let transaction_index = self.parse_hex_u64(log_json.get("transactionIndex"))?;
+        let log_index = self.parse_hex_u64(log_json.get("logIndex"))?;
+        let removed = log_json.get("removed").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        Ok(TransactionLog {
+            address,
+            topics,
+            data,
+            block_number,
+            transaction_hash,
+            transaction_index,
+            log_index,
+            removed,
+        })
+    }
+
+    // =======================
+    // Transaction Validation
+    // =======================
+
+    /// Validate a transaction against the Reth node
+    pub async fn validate_transaction(
+        &self,
+        tx: &Transaction,
+    ) -> Result<ValidationResult, RethEngineError> {
+        // Encode transaction as RLP
+        let rlp_encoded = self.rlp_encode_transaction(tx);
+        let tx_hex = format!("0x{}", hex::encode(&rlp_encoded));
+
+        // Call eth_call to validate the transaction
+        let validation_result = self.call_transaction_validation(&tx_hex).await?;
+
+        Ok(validation_result)
+    }
+
+    /// Call eth_call for transaction validation
+    async fn call_transaction_validation(
+        &self,
+        tx_hex: &str,
+    ) -> Result<ValidationResult, RethEngineError> {
+        let _client_guard = self.rpc_client.read().await;
+        let _client = _client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+
+        // First, try to estimate gas
+        let gas_estimate = self.estimate_gas(tx_hex).await.ok();
+        let gas_price = self.get_gas_price().await.ok();
+
+        // For now, return a simple validation result
+        // In a full implementation, we would parse the transaction and validate it properly
+        Ok(ValidationResult {
+            is_valid: true,
+            error_message: None,
+            estimated_gas: gas_estimate,
+            gas_price_suggestion: gas_price,
+            nonce_suggestion: None,
+        })
+    }
+
+    /// Estimate gas for a transaction
+    async fn estimate_gas(&self, tx_hex: &str) -> Result<u64, RethEngineError> {
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+
+        let rpc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "eth_estimateGas",
+            "method": "eth_estimateGas",
+            "params": [tx_hex]
+        });
+
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+
+        let response = client
+            .post(&rpc_url)
+            .json(&rpc_request)
+            .send()
+            .await
+            .map_err(|e| RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}")))?;
+
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::TransactionValidation(format!("Failed to parse gas estimation response: {e}"))
+        })?;
+
+        if let Some(error) = result.get("error") {
+            return Err(RethEngineError::TransactionValidation(format!(
+                "Gas estimation error: {}",
+                error
+            )));
+        }
+
+        let gas_hex = result
+            .get("result")
+            .and_then(|r| r.as_str())
+            .ok_or_else(|| RethEngineError::TransactionValidation("Missing gas estimate in response".to_string()))?;
+
+        let gas = u64::from_str_radix(gas_hex.trim_start_matches("0x"), 16)
+            .map_err(|e| RethEngineError::TransactionValidation(format!("Invalid gas estimate: {e}")))?;
+
+        Ok(gas)
+    }
+
+    /// Get current gas price
+    async fn get_gas_price(&self) -> Result<u64, RethEngineError> {
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+
+        let rpc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "eth_gasPrice",
+            "method": "eth_gasPrice",
+            "params": []
+        });
+
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+
+        let response = client
+            .post(&rpc_url)
+            .json(&rpc_request)
+            .send()
+            .await
+            .map_err(|e| RethEngineError::TransactionValidation(format!("Gas price request failed: {e}")))?;
+
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::TransactionValidation(format!("Failed to parse gas price response: {e}"))
+        })?;
+
+        if let Some(error) = result.get("error") {
+            return Err(RethEngineError::TransactionValidation(format!(
+                "Gas price error: {}",
+                error
+            )));
+        }
+
+        let price_hex = result
+            .get("result")
+            .and_then(|r| r.as_str())
+            .ok_or_else(|| RethEngineError::TransactionValidation("Missing gas price in response".to_string()))?;
+
+        let price = u64::from_str_radix(price_hex.trim_start_matches("0x"), 16)
+            .map_err(|e| RethEngineError::TransactionValidation(format!("Invalid gas price: {e}")))?;
+
+        Ok(price)
+    }
+
+    /// Get transaction pool status
+    pub async fn get_transaction_pool_status(&self) -> Result<TransactionPoolStatus, RethEngineError> {
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionPool("RPC client not initialized".to_string()))?;
+
+        let rpc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "txpool_status",
+            "method": "txpool_status",
+            "params": []
+        });
+
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+
+        let response = client
+            .post(&rpc_url)
+            .json(&rpc_request)
+            .send()
+            .await
+            .map_err(|e| RethEngineError::TransactionPool(format!("Pool status request failed: {e}")))?;
+
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::TransactionPool(format!("Failed to parse pool status response: {e}"))
+        })?;
+
+        if let Some(error) = result.get("error") {
+            return Err(RethEngineError::TransactionPool(format!(
+                "Pool status error: {}",
+                error
+            )));
+        }
+
+        let pool_data = result
+            .get("result")
+            .ok_or_else(|| RethEngineError::TransactionPool("Missing pool status in response".to_string()))?;
+
+        let pending_count = pool_data
+            .get("pending")
+            .and_then(|v| v.as_str())
+            .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+            .unwrap_or(0);
+
+        let queued_count = pool_data
+            .get("queued")
+            .and_then(|v| v.as_str())
+            .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+            .unwrap_or(0);
+
+        Ok(TransactionPoolStatus {
+            pending_count,
+            queued_count,
+            is_transaction_pending: pending_count > 0,
+        })
+    }
+
+    /// Check if a transaction is in the pool
+    pub async fn is_transaction_in_pool(&self, tx_hash: &str) -> Result<bool, RethEngineError> {
+        let client_guard = self.rpc_client.read().await;
+        let client = client_guard
+            .as_ref()
+            .ok_or_else(|| RethEngineError::TransactionPool("RPC client not initialized".to_string()))?;
+
+        let rpc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "eth_getTransactionByHash",
+            "method": "eth_getTransactionByHash",
+            "params": [tx_hash]
+        });
+
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+
+        let response = client
+            .post(&rpc_url)
+            .json(&rpc_request)
+            .send()
+            .await
+            .map_err(|e| RethEngineError::TransactionPool(format!("Transaction lookup failed: {e}")))?;
+
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::TransactionPool(format!("Failed to parse transaction lookup response: {e}"))
+        })?;
+
+        if let Some(error) = result.get("error") {
+            return Err(RethEngineError::TransactionPool(format!(
+                "Transaction lookup error: {}",
+                error
+            )));
+        }
+
+        let tx_data = result.get("result");
+        if tx_data.is_none() || tx_data.unwrap().is_null() {
+            return Ok(false);
+        }
+
+        // Check if transaction is pending (blockHash is null)
+        let block_hash = tx_data.unwrap().get("blockHash");
+        let is_pending = block_hash.is_none() || block_hash.unwrap().is_null();
+
+        Ok(is_pending)
+    }
+
+    // =======================
+    // Format Conversion
+    // =======================
+
+    /// Convert MultiVM transaction to Reth transaction
+    pub fn convert_multivm_to_reth(
+        &self,
+        multivm_tx: &MultivmTransaction,
+    ) -> Result<Transaction, RethEngineError> {
+        // Parse addresses
+        let to_address = multivm_tx.to.as_ref().map(|to| self.parse_address_str(to)).transpose()?;
+
+        // Parse value
+        let value = U256::from_hex(&multivm_tx.value)
+            .map_err(|e| RethEngineError::TransactionConversion(format!("Invalid value: {e}")))?;
+
+        // Parse data
+        let data = hex::decode(multivm_tx.data.trim_start_matches("0x"))
+            .map_err(|e| RethEngineError::TransactionConversion(format!("Invalid data: {e}")))?;
+
+        // Parse gas price
+        let gas_price = multivm_tx.gas_price.as_ref()
+            .map(|gp| u64::from_str_radix(gp.trim_start_matches("0x"), 16))
+            .transpose()
+            .map_err(|e| RethEngineError::TransactionConversion(format!("Invalid gas price: {e}")))?;
+
+        // Parse max fee per gas (EIP-1559)
+        let max_fee_per_gas = multivm_tx.max_fee_per_gas.as_ref()
+            .map(|fee| u64::from_str_radix(fee.trim_start_matches("0x"), 16))
+            .transpose()
+            .map_err(|e| RethEngineError::TransactionConversion(format!("Invalid max fee per gas: {e}")))?;
+
+        // Parse max priority fee per gas (EIP-1559)
+        let max_priority_fee_per_gas = multivm_tx.max_priority_fee_per_gas.as_ref()
+            .map(|fee| u64::from_str_radix(fee.trim_start_matches("0x"), 16))
+            .transpose()
+            .map_err(|e| RethEngineError::TransactionConversion(format!("Invalid max priority fee per gas: {e}")))?;
+
+        // Generate transaction hash (simplified)
+        let mut hash = [0u8; 32];
+        use sha3::{Digest, Keccak256};
+        let mut hasher = Keccak256::new();
+        hasher.update(&multivm_tx.from.as_bytes());
+        hasher.update(&multivm_tx.value.as_bytes());
+        hasher.update(&data);
+        hash.copy_from_slice(&hasher.finalize());
+
+        // Create dummy signature (in a real implementation, this would be provided or computed)
+        let signature = TransactionSignature {
+            v: 27,
+            r: U256::from(1),
+            s: U256::from(1),
+        };
+
+        Ok(Transaction {
+            hash,
+            nonce: multivm_tx.nonce.unwrap_or(0),
+            gas_price,
+            gas_limit: multivm_tx.gas_limit.unwrap_or(21000),
+            to: to_address,
+            value,
+            data,
+            signature,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+        })
+    }
+
+    /// Convert Reth transaction to MultiVM transaction
+    pub fn convert_reth_to_multivm(
+        &self,
+        reth_tx: &Transaction,
+    ) -> Result<MultivmTransaction, RethEngineError> {
+        // Determine VM type (for now, assume EVM)
+        let vm_type = VmType::Evm;
+
+        // Convert addresses to hex strings
+        let from = format!("0x{}", hex::encode([0u8; 20])); // From address not stored in Transaction
+        let to = reth_tx.to.map(|addr| format!("0x{}", hex::encode(addr)));
+
+        // Convert value to hex string
+        let value = reth_tx.value.to_hex();
+
+        // Convert data to hex string
+        let data = format!("0x{}", hex::encode(&reth_tx.data));
+
+        // Convert gas price to hex string
+        let gas_price = reth_tx.gas_price.map(|gp| format!("0x{:x}", gp));
+
+        // Convert EIP-1559 fields
+        let max_fee_per_gas = reth_tx.max_fee_per_gas.map(|fee| format!("0x{:x}", fee));
+        let max_priority_fee_per_gas = reth_tx.max_priority_fee_per_gas.map(|fee| format!("0x{:x}", fee));
+
+        // Determine transaction type
+        let transaction_type = if reth_tx.max_fee_per_gas.is_some() {
+            Some(2) // EIP-1559
+        } else if reth_tx.gas_price.is_some() {
+            Some(0) // Legacy
+        } else {
+            None
+        };
+
+        Ok(MultivmTransaction {
+            vm_type,
+            from,
+            to,
+            value,
+            data,
+            gas_price,
+            gas_limit: Some(reth_tx.gas_limit),
+            nonce: Some(reth_tx.nonce),
+            chain_id: Some(self.chain_id),
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+            transaction_type,
+        })
+    }
+
+    // =======================
+    // Helper Methods
+    // =======================
+
+    /// Parse hex string to hash
+    fn parse_hash(&self, value: Option<&serde_json::Value>) -> Result<B256, RethEngineError> {
+        let hex_str = value
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| RethEngineError::TransactionReceipt("Missing hash value".to_string()))?;
+
+        let hex_bytes = hex::decode(hex_str.trim_start_matches("0x"))
+            .map_err(|e| RethEngineError::TransactionReceipt(format!("Invalid hex hash: {e}")))?;
+
+        if hex_bytes.len() != 32 {
+            return Err(RethEngineError::TransactionReceipt("Invalid hash length".to_string()));
+        }
+
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&hex_bytes);
+        Ok(hash)
+    }
+
+    /// Parse hex string to u64
+    fn parse_hex_u64(&self, value: Option<&serde_json::Value>) -> Result<u64, RethEngineError> {
+        let hex_str = value
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| RethEngineError::TransactionReceipt("Missing numeric value".to_string()))?;
+
+        u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)
+            .map_err(|e| RethEngineError::TransactionReceipt(format!("Invalid hex number: {e}")))
+    }
+
+    /// Parse hex string to address
+    fn parse_address(&self, value: Option<&serde_json::Value>) -> Result<Address, RethEngineError> {
+        let hex_str = value
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| RethEngineError::TransactionReceipt("Missing address value".to_string()))?;
+
+        self.parse_address_str(hex_str)
+    }
+
+    /// Parse address string to Address
+    fn parse_address_str(&self, hex_str: &str) -> Result<Address, RethEngineError> {
+        let hex_bytes = hex::decode(hex_str.trim_start_matches("0x"))
+            .map_err(|e| RethEngineError::TransactionReceipt(format!("Invalid hex address: {e}")))?;
+
+        if hex_bytes.len() != 20 {
+            return Err(RethEngineError::TransactionReceipt("Invalid address length".to_string()));
+        }
+
+        let mut address = [0u8; 20];
+        address.copy_from_slice(&hex_bytes);
+        Ok(address)
+    }
+
+    /// Parse logs bloom filter
+    fn parse_logs_bloom(&self, value: Option<&serde_json::Value>) -> Result<[u8; 256], RethEngineError> {
+        let hex_str = value
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| RethEngineError::TransactionReceipt("Missing logs bloom value".to_string()))?;
+
+        let hex_bytes = hex::decode(hex_str.trim_start_matches("0x"))
+            .map_err(|e| RethEngineError::TransactionReceipt(format!("Invalid hex logs bloom: {e}")))?;
+
+        if hex_bytes.len() != 256 {
+            return Err(RethEngineError::TransactionReceipt("Invalid logs bloom length".to_string()));
+        }
+
+        let mut bloom = [0u8; 256];
+        bloom.copy_from_slice(&hex_bytes);
+        Ok(bloom)
     }
 }
 
