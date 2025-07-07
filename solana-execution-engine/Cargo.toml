@@ -15,6 +15,10 @@ sdk = []
 name = "solana-private-validator"
 path = "src/bin/solana-private-validator.rs"
 
+[[example]]
+name = "basic_engine_usage"
+path = "examples/basic_engine_usage.rs"
+
 [dependencies]
 # Use multivm-common with resolved ed25519-dalek conflicts
 multivm-common = { path = "../multivm-common" }
@@ -76,6 +80,7 @@ jsonrpc-core = "18.0"
 # Additional dependencies for real integration
 rand = "0.8"
 hmac = "0.12"
+indicatif = "0.17"
 
 [dev-dependencies]
 tempfile = "3.8"
@@ -83,3 +88,4 @@ tokio-test = "0.4"
 tracing-test = "0.2"
 futures = "0.3"
 ctor = "0.2"
+indicatif = "0.18"

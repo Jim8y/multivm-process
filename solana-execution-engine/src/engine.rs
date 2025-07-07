@@ -4,131 +4,20 @@
 //! within the MultiVM system. It manages the Solana runtime, transaction processing,
 //! and state management.
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
-
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use tracing::{debug, error, info, warn};
-
-// Common types from multivm-common
-use multivm_common::MultivmError;
-
-use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
-
-// Additional imports for engine implementation
 use crate::config::{SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig};
+use crate::error::SolanaEngineError;
+use indicatif::{ProgressBar, ProgressStyle};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::signature::Signature;
+use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
 use std::time::Instant;
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::RwLock;
-
-/// Solana execution engine error types
-#[derive(Debug, Error)]
-pub enum SolanaEngineError {
-    #[error("Runtime error: {0}")]
-    Runtime(String),
-
-    #[error("RPC communication error: {0}")]
-    Rpc(String),
-
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("Configuration error: {0}")]
-    Configuration(String),
-
-    #[error("Block processing error: {0}")]
-    #[allow(dead_code)]
-    BlockProcessing(String),
-
-    #[error("Invalid block data: {0}")]
-    #[allow(dead_code)]
-    InvalidBlock(String),
-
-    #[error("Process error: {0}")]
-    Process(String),
-
-    #[error("Serialization error: {0}")]
-    Serialization(String),
-
-    #[error("Transaction error: {0}")]
-    Transaction(String),
-}
-
-impl From<MultivmError> for SolanaEngineError {
-    fn from(err: MultivmError) -> Self {
-        match err {
-            MultivmError::Configuration { message, .. } => {
-                SolanaEngineError::Configuration(message)
-            }
-            MultivmError::Process { message, .. } => SolanaEngineError::Process(message),
-            MultivmError::Rpc { message, .. } => SolanaEngineError::Rpc(message),
-            MultivmError::Serialization { message, .. } => {
-                SolanaEngineError::Serialization(message)
-            }
-            _ => SolanaEngineError::Runtime(err.to_string()),
-        }
-    }
-}
-
-// Add conversion from solana_client::client_error::ClientError to SolanaEngineError
-impl From<solana_client::client_error::ClientError> for SolanaEngineError {
-    fn from(err: solana_client::client_error::ClientError) -> Self {
-        SolanaEngineError::Rpc(format!("Solana client error: {}", err))
-    }
-}
-
-impl From<SolanaEngineError> for MultivmError {
-    fn from(err: SolanaEngineError) -> Self {
-        match err {
-            SolanaEngineError::Configuration(msg) => MultivmError::Configuration {
-                component: "solana-engine".to_string(),
-                message: msg,
-                validation_errors: None,
-            },
-            SolanaEngineError::Process(msg) => MultivmError::Process {
-                process_id: "solana-engine".to_string(),
-                message: msg,
-                exit_code: None,
-            },
-            SolanaEngineError::Rpc(msg) => MultivmError::Rpc {
-                method: "solana-rpc".to_string(),
-                message: msg,
-                status_code: None,
-            },
-            SolanaEngineError::Serialization(msg) => MultivmError::Serialization {
-                message: msg,
-                data_type: Some("solana-data".to_string()),
-            },
-            SolanaEngineError::Transaction(msg) => MultivmError::Process {
-                process_id: "solana-transaction".to_string(),
-                message: msg,
-                exit_code: None,
-            },
-            SolanaEngineError::Runtime(msg) => MultivmError::Process {
-                process_id: "solana-runtime".to_string(),
-                message: msg,
-                exit_code: None,
-            },
-            SolanaEngineError::Io(e) => MultivmError::Process {
-                process_id: "solana-io".to_string(),
-                message: e.to_string(),
-                exit_code: None,
-            },
-            SolanaEngineError::BlockProcessing(msg) => MultivmError::Process {
-                process_id: "solana-block-processing".to_string(),
-                message: msg,
-                exit_code: None,
-            },
-            SolanaEngineError::InvalidBlock(msg) => MultivmError::Process {
-                process_id: "solana-block-validation".to_string(),
-                message: msg,
-                exit_code: None,
-            },
-        }
-    }
-}
+use tracing::{debug, error, info, warn};
 
 /// Solana block data type for execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,10 +101,18 @@ impl SolanaEngine {
         solana_connection_config: SolanaConnectionConfig,
         solana_config: SolanaConfig,
     ) -> Result<Self, SolanaEngineError> {
-        info!("Creating Solana execution engine");
-        info!("Ledger path: {}", solana_config.ledger_path.display());
-        info!("RPC port: {}", solana_config.rpc_port);
-        info!("WebSocket port: {}", solana_config.ws_port);
+        info!(
+            "Solana Private Validator Ledger path: {}",
+            solana_config.ledger_path.display()
+        );
+        info!(
+            "Solana Private Validator RPC port: {}",
+            solana_config.rpc_port
+        );
+        info!(
+            "Solana Private Validator WebSocket port: {}",
+            solana_config.ws_port
+        );
 
         Ok(Self {
             solana_process: Arc::new(RwLock::new(None)),
@@ -311,9 +208,27 @@ impl SolanaEngine {
             pid
         );
 
-        // Wait for validator to initialize
-        // TODO: WTF
-        tokio::time::sleep(Duration::from_secs(15)).await;
+        // Wait for validator to initialize with progress bar
+        info!("Waiting for Solana to initialize...");
+        let pb = ProgressBar::new(15);
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len}s {msg}",
+                )
+                .unwrap()
+                .progress_chars("#>-"),
+        );
+        pb.set_message("Initializing Solana");
+
+        for i in 0..15 {
+            pb.set_position(i);
+            pb.set_message(format!("remaining {}s ...", 15 - i));
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+        pb.set_position(15);
+        pb.finish_with_message("Complete!");
 
         Ok(())
     }
@@ -459,20 +374,20 @@ impl SolanaEngine {
         for (i, tx_data) in block.transactions.iter().enumerate() {
             debug!("Submitting transaction {} for slot {}", i, block.slot);
 
-            match self.submit_transaction_to_validator(client, tx_data).await {
-                Ok(signature) => {
+            self.submit_transaction_to_validator(client, tx_data)
+                .await
+                .map(|signature| {
                     debug!(
                         "Transaction {} submitted successfully with signature: {}",
                         i, signature
                     );
                     successful_txs += 1;
-                }
-                Err(e) => {
+                })
+                .unwrap_or_else(|e| {
                     warn!("Failed to submit transaction {}: {}", i, e);
                     failed_txs += 1;
                     // Continue with other transactions rather than failing the entire block
-                }
-            }
+                });
         }
 
         if successful_txs > 0 {
@@ -490,46 +405,32 @@ impl SolanaEngine {
         Ok(())
     }
 
-    /// Submit a transaction to the Solana validator
+    /// Submit a transaction to the Solana Private Validator
     async fn submit_transaction_to_validator(
         &self,
         client: &RpcClient,
         transaction: &SolanaTransaction,
-    ) -> Result<String, SolanaEngineError> {
+    ) -> Result<Signature, SolanaEngineError> {
         debug!(
             "Submitting Solana transaction with signatures: {:?}",
             transaction.signatures
         );
 
-        // Submit transaction to the Solana validator
-        match client.send_and_confirm_transaction(transaction).await {
-            Ok(signature) => {
-                info!("Successfully submitted Solana transaction: {}", signature);
-                Ok(signature.to_string())
-            }
-            Err(e) => {
-                error!("Failed to submit Solana transaction: {}", e);
-                Err(SolanaEngineError::Transaction(format!(
-                    "Transaction submission failed: {e}"
-                )))
-            }
-        }
+        // Submit transaction to the Solana Private Validator
+        let signature = client
+            .send_and_confirm_transaction(transaction)
+            .await
+            .map_err(|e| {
+                error!("Failed to submit transaction: {}", e);
+                SolanaEngineError::Transaction(format!("Transaction submission failed: {e}"))
+            })?;
+
+        info!("Successfully submitted transaction: {}", signature);
+        Ok(signature)
     }
 
     /// Calculate state root for a processed block
     fn calculate_state_root(&self, block: &SolanaBlockData) -> solana_sdk::hash::Hash {
-        use sha2::{Digest, Sha256};
-
-        // In a production Solana implementation, the state root would be calculated by:
-        // 1. Collecting all account state changes from transaction execution
-        // 2. Building a Merkle tree of account hashes
-        // 3. Computing the root hash of the state tree
-
-        // For our simplified implementation, we calculate a deterministic hash based on:
-        // - Block slot
-        // - Transaction signatures
-        // - Previous block hash
-
         let mut hasher = Sha256::new();
 
         // Add block metadata
@@ -546,11 +447,6 @@ impl SolanaEngine {
             let tx_data = bincode::serialize(tx).unwrap_or_default();
             let tx_hash = Sha256::digest(&tx_data);
             hasher.update(tx_hash);
-        }
-
-        // Add timestamp for additional uniqueness
-        if let Ok(timestamp) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-            hasher.update(timestamp.as_secs().to_le_bytes());
         }
 
         // Create hash from digest
@@ -570,31 +466,21 @@ impl SolanaEngine {
         // Clear clients
         *self.internal_client.write().await = None;
 
-        // Stop the Solana validator process
+        // Stop the Solana Private Validator process
         if let Some(mut child) = self.solana_process.write().await.take() {
-            info!("Terminating Solana validator process");
+            info!("Terminating Solana Private Validator");
 
             // Try graceful shutdown first
-            if let Err(e) = child.kill().await {
-                warn!("Failed to kill Solana validator process: {}", e);
-            }
+            child.kill().await.unwrap_or_else(|e| {
+                warn!("Failed to kill Solana Private Validator: {}", e);
+            });
 
             // Wait for it to exit
             let wait_timeout = timeout.unwrap_or(Duration::from_secs(10));
-            match tokio::time::timeout(wait_timeout, child.wait()).await {
-                Ok(Ok(status)) => {
-                    info!("Solana validator exited with status: {}", status);
-                }
-                Ok(Err(e)) => {
-                    warn!("Error waiting for Solana validator to exit: {}", e);
-                }
-                Err(_) => {
-                    warn!("Solana validator did not exit within timeout");
-                }
-            }
+            let status = tokio::time::timeout(wait_timeout, child.wait()).await??;
+            info!("Solana Private Validator exited with status: {:?}", status);
         }
 
-        info!("Solana execution engine shutdown complete");
         Ok(())
     }
     /// Submit multiple signed transactions to the validator via RPC in sequence
@@ -644,27 +530,23 @@ impl SolanaEngine {
                 transactions.len()
             );
 
-            match client.send_and_confirm_transaction(transaction).await {
-                Ok(signature) => {
-                    info!(
-                        "Transaction {} submitted successfully with signature: {}",
-                        index + 1,
-                        signature
-                    );
-                    signatures.push(signature.to_string());
-                    successful_count += 1;
-                }
-                Err(e) => {
+            let signature = client.send_and_confirm_transaction(transaction).await
+                .map_err(|e| {
                     error!("Failed to submit transaction {}: {}", index + 1, e);
                     failed_count += 1;
-
-                    // Return error immediately on first failure to maintain transaction ordering
-                    return Err(SolanaEngineError::Transaction(format!(
+                    SolanaEngineError::Transaction(format!(
                         "Transaction {} submission failed: {}. {} transactions were successfully submitted before this failure.",
                         index + 1, e, successful_count
-                    )));
-                }
-            }
+                    ))
+                })?;
+
+            info!(
+                "Transaction {} submitted successfully with signature: {}",
+                index + 1,
+                signature
+            );
+            signatures.push(signature.to_string());
+            successful_count += 1;
         }
 
         info!(

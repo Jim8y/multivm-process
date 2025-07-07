@@ -6,16 +6,16 @@
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
 
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, Server};
+use hyper::{Body, Request, Response, Server};
 use reqwest::Client;
 use serde_json::Value;
 use tracing::{debug, error, info, warn};
 
-use crate::engine::{SolanaEngine, SolanaEngineError};
+use crate::engine::SolanaEngine;
+use crate::SolanaEngineError;
 
 /// Engine RPC server for forwarding requests to internal Solana validator
 pub struct SolanaEngineRpcServer {
@@ -49,12 +49,6 @@ impl SolanaEngineRpcServer {
 
     /// Start the Engine RPC server using hyper
     pub async fn start(&mut self) -> Result<(), SolanaEngineError> {
-        info!(
-            "Starting Solana Engine RPC server on {}:{}",
-            self.server_host, self.server_port
-        );
-        info!("Proxying requests to: {}", self.internal_rpc_url);
-
         let server_addr = format!("{}:{}", self.server_host, self.server_port);
         let http_client = self.http_client.clone();
         let internal_rpc_url = self.internal_rpc_url.clone();
@@ -65,11 +59,6 @@ impl SolanaEngineRpcServer {
         });
 
         self.server_handle = Some(handle);
-
-        info!(
-            "Solana Engine RPC server started successfully on {}:{}",
-            self.server_host, self.server_port
-        );
 
         Ok(())
     }
@@ -94,11 +83,37 @@ impl SolanaEngineRpcServer {
         // Create the server
         let server = Server::bind(&addr).serve(make_service);
 
-        info!("Engine RPC server listening on {}", addr);
+        info!("Engine RPC server listening on http://{}", addr);
 
         // Run the server
         if let Err(e) = server.await {
             error!("Engine RPC server error: {}", e);
+        }
+    }
+
+    /// Check if the request contains a forbidden method
+    fn check_forbidden_method(body_bytes: &[u8]) -> Option<Response<Body>> {
+        let json_str = std::str::from_utf8(body_bytes).ok()?;
+        let json_value = serde_json::from_str::<Value>(json_str).ok()?;
+        let method = json_value.get("method")?.as_str()?;
+
+        if matches!(
+            method,
+            "requestAirdrop" | "sendTransaction" | "simulateTransaction"
+        ) {
+            warn!("Blocked forbidden RPC method: {}", method);
+            Some(
+                Response::builder()
+                    .status(403)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        r#"{"error":{"code":-25041,"message":"Method not allowed"}}"#,
+                    ))
+                    .unwrap(),
+            )
+        } else {
+            debug!("Allowing RPC method: {}", method);
+            None
         }
     }
 
@@ -109,39 +124,24 @@ impl SolanaEngineRpcServer {
         internal_rpc_url: String,
     ) -> Result<Response<Body>, Infallible> {
         // Read the request body as raw bytes
-        let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
-            Ok(bytes) => bytes,
-            Err(e) => {
+        let body_bytes = hyper::body::to_bytes(req.into_body())
+            .await
+            .map_err(|e| {
                 error!("Failed to read request body: {}", e);
-                return Ok(Response::builder()
-                    .status(400)
-                    .body(Body::from("Bad Request"))
-                    .unwrap());
-            }
-        };
+                e
+            })
+            .unwrap_or_else(|_| hyper::body::Bytes::new());
 
-        // Parse JSON to check for forbidden methods
-        if let Ok(json_str) = std::str::from_utf8(&body_bytes) {
-            if let Ok(json_value) = serde_json::from_str::<Value>(json_str) {
-                if let Some(method) = json_value.get("method").and_then(|m| m.as_str()) {
-                    // Check if the method is forbidden
-                    match method {
-                        "requestAirdrop" | "sendTransaction" | "simulateTransaction" => {
-                            warn!("Blocked forbidden RPC method: {}", method);
-                            return Ok(Response::builder()
-                                .status(403)
-                                .header("Content-Type", "application/json")
-                                .body(Body::from(
-                                    r#"{"error":{"code":-250,"message":"Method not allowed"}}"#,
-                                ))
-                                .unwrap());
-                        }
-                        _ => {
-                            debug!("Allowing RPC method: {}", method);
-                        }
-                    }
-                }
-            }
+        if body_bytes.is_empty() {
+            return Ok(Response::builder()
+                .status(400)
+                .body(Body::from("Bad Request"))
+                .unwrap());
+        }
+
+        // Check for forbidden methods
+        if let Some(forbidden_response) = Self::check_forbidden_method(&body_bytes) {
+            return Ok(forbidden_response);
         }
 
         debug!("Forwarding raw RPC request ({} bytes)", body_bytes.len());
@@ -166,16 +166,21 @@ impl SolanaEngineRpcServer {
 
         // Get the response status and body
         let status = response.status();
-        let response_body = match response.text().await {
-            Ok(body) => body,
-            Err(e) => {
+        let response_body = response
+            .text()
+            .await
+            .map_err(|e| {
                 error!("Failed to read response from internal RPC: {}", e);
-                return Ok(Response::builder()
-                    .status(500)
-                    .body(Body::from("Internal Server Error"))
-                    .unwrap());
-            }
-        };
+                e
+            })
+            .unwrap_or_else(|_| "Internal Server Error".to_string());
+
+        if response_body == "Internal Server Error" {
+            return Ok(Response::builder()
+                .status(500)
+                .body(Body::from("Internal Server Error"))
+                .unwrap());
+        }
 
         debug!(
             "Received response from internal RPC ({} bytes, status: {})",
@@ -194,11 +199,9 @@ impl SolanaEngineRpcServer {
     /// Stop the Engine RPC server
     pub async fn stop(&mut self) -> Result<(), SolanaEngineError> {
         if let Some(handle) = self.server_handle.take() {
-            info!("Stopping Solana Engine RPC server");
-
+            debug!("Stopping Solana Engine RPC server");
             handle.abort();
-
-            info!("Solana Engine RPC server stopped successfully");
+            debug!("Solana Engine RPC server stopped successfully");
         }
         Ok(())
     }
@@ -228,8 +231,6 @@ impl SolanaEngine {
 
     /// Start the Engine RPC server
     pub async fn start_rpc_proxy_server(&mut self) -> Result<(), SolanaEngineError> {
-        info!("Starting Solana Engine RPC server");
-
         let internal_rpc_url = format!(
             "http://{}:{}",
             self.get_rpc_server_host(),
@@ -247,22 +248,14 @@ impl SolanaEngine {
         // Store the engine RPC server instance for later shutdown
         *self.rpc_proxy_server.write().await = Some(engine_rpc_server);
 
-        info!(
-            "Engine RPC server started on {}:{}",
-            self.get_rpc_server_host(),
-            self.get_rpc_server_port()
-        );
-
         Ok(())
     }
 
     /// Stop the Engine RPC server
     pub async fn stop_rpc_proxy_server(&mut self) -> Result<(), SolanaEngineError> {
-        if let Some(mut engine_rpc_server) = self.rpc_proxy_server.write().await.take() {
-            info!("Stopping Solana Engine RPC server");
-            engine_rpc_server.stop().await?;
-            info!("Solana Engine RPC server stopped successfully");
+        match self.rpc_proxy_server.write().await.take() {
+            Some(mut server) => server.stop().await,
+            None => Ok(()),
         }
-        Ok(())
     }
 }

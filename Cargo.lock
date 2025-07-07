@@ -168,11 +168,11 @@ dependencies = [
  "bincode",
  "chrono",
  "clap 2.34.0",
- "console",
+ "console 0.15.11",
  "core_affinity",
  "crossbeam-channel",
  "fd-lock",
- "indicatif",
+ "indicatif 0.17.11",
  "itertools 0.12.1",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -1980,6 +1980,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e09ced7ebbccb63b4c65413d821f2e00ce54c5ca4514ddc6b3c892fdbcbc69d"
+dependencies = [
+ "encode_unicode",
+ "libc",
+ "once_cell",
+ "unicode-width 0.2.1",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2538,7 +2551,7 @@ version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59c6f2989294b9a498d3ad5491a79c6deb604617378e1cdc4bfc1c1361fe2f87"
 dependencies = [
- "console",
+ "console 0.15.11",
  "shell-words",
  "tempfile",
  "zeroize",
@@ -4703,10 +4716,23 @@ version = "0.17.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "183b3088984b400f4cfac3620d5e076c84da5364016b4f49473de574b2586235"
 dependencies = [
- "console",
+ "console 0.15.11",
  "number_prefix",
  "portable-atomic",
  "unicode-width 0.2.1",
+ "web-time",
+]
+
+[[package]]
+name = "indicatif"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70a646d946d06bedbbc4cac4c218acf4bbf2d87757a784857025f4d447e4e1cd"
+dependencies = [
+ "console 0.16.0",
+ "portable-atomic",
+ "unicode-width 0.2.1",
+ "unit-prefix",
  "web-time",
 ]
 
@@ -9696,9 +9722,9 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap 2.34.0",
- "console",
+ "console 0.15.11",
  "humantime",
- "indicatif",
+ "indicatif 0.17.11",
  "pretty-hex",
  "semver 1.0.26",
  "serde",
@@ -9739,7 +9765,7 @@ dependencies = [
  "futures 0.3.31",
  "futures-util",
  "indexmap 2.10.0",
- "indicatif",
+ "indicatif 0.17.11",
  "log",
  "quinn",
  "rayon",
@@ -10250,6 +10276,8 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "hyper 0.14.32",
+ "indicatif 0.17.11",
+ "indicatif 0.18.0",
  "jsonrpc-core",
  "jsonrpc-http-server",
  "jsonrpsee",
@@ -10380,8 +10408,8 @@ version = "2.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05a9744774fdbd7ae8575e5bd6d5df6946f321fb9b6019410b300a515369a37d"
 dependencies = [
- "console",
- "indicatif",
+ "console 0.15.11",
+ "indicatif 0.17.11",
  "log",
  "reqwest",
 ]
@@ -11394,7 +11422,7 @@ name = "solana-remote-wallet"
 version = "2.2.15"
 source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
- "console",
+ "console 0.15.11",
  "dialoguer",
  "hidapi",
  "log",
@@ -11545,7 +11573,7 @@ dependencies = [
  "base64 0.22.1",
  "bincode",
  "bs58",
- "indicatif",
+ "indicatif 0.17.11",
  "log",
  "reqwest",
  "reqwest-middleware",
@@ -12479,7 +12507,7 @@ dependencies = [
  "bincode",
  "futures-util",
  "indexmap 2.10.0",
- "indicatif",
+ "indicatif 0.17.11",
  "log",
  "rayon",
  "solana-client-traits",
@@ -14846,6 +14874,12 @@ name = "unicode_categories"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e"
+
+[[package]]
+name = "unit-prefix"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "323402cff2dd658f39ca17c789b502021b3f18707c91cdf22e3838e1b4023817"
 
 [[package]]
 name = "universal-hash"
