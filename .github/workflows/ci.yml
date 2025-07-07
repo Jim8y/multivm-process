@@ -189,22 +189,3 @@ jobs:
         exit 0
       continue-on-error: true  # Don't fail CI on security issues during development
 
-  # Summary job to check all required jobs passed
-  ci-success:
-    name: CI Success
-    runs-on: ubuntu-latest
-    needs: [build, security-audit]
-    if: always()
-    
-    steps:
-    - name: Check job results
-      run: |
-        if [[ "${{ needs.build.result }}" != "success" ]]; then
-          echo "Build job failed"
-          exit 1
-        fi
-        # Security audit is optional for now
-        if [[ "${{ needs.security-audit.result }}" == "failure" ]]; then
-          echo "Security audit failed (optional)"
-        fi
-        echo "All required CI jobs passed successfully!"
