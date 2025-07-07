@@ -19,6 +19,14 @@ path = "src/bin/solana-private-validator.rs"
 name = "basic_engine_usage"
 path = "examples/basic_engine_usage.rs"
 
+[[example]]
+name = "leader_engine"
+path = "examples/leader_engine.rs"
+
+[[example]]
+name = "follower_engine"
+path = "examples/follower_engine.rs"
+
 [dependencies]
 # Use multivm-common with resolved ed25519-dalek conflicts
 multivm-common = { path = "../multivm-common" }

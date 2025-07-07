@@ -1,8 +1,3 @@
-//! Solana Engine RPC Tests
-//!
-//! This module contains tests for the Solana execution engine RPC functionality,
-//! specifically testing the getSlot RPC method through the RPC proxy server.
-
 mod test_utils;
 
 use solana_execution_engine::engine_rpc_client::solana_engine_client::rpc_client::RpcClient;

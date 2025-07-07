@@ -1,9 +1,3 @@
-//! Solana Engine RPC Server Implementation
-//!
-//! This module provides an Engine RPC server that forwards external RPC requests
-//! to the internal Solana validator process. It acts as a transparent proxy,
-//! forwarding all requests and responses without modification.
-
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::time::Duration;

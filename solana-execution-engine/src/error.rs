@@ -1,14 +1,6 @@
-//! Error handling for Solana execution engine
-//!
-//! This module contains all error types and error handling logic
-//! for the Solana execution engine integration with MultiVM.
-
+use multivm_common::MultivmError;
 use thiserror::Error;
 
-// Common types from multivm-common
-use multivm_common::MultivmError;
-
-/// Solana execution engine error types
 #[derive(Debug, Error)]
 pub enum SolanaEngineError {
     #[error("Runtime error: {0}")]

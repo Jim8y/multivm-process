@@ -1,9 +1,3 @@
-//! Solana Execution Engine Library
-//!
-//! This library provides both mock and real implementations of the Solana execution engine
-//! for the MultiVM system. It includes comprehensive Solana RPC integration, transaction
-//! execution, and state management capabilities.
-
 pub use engine_helper::create_transfer_transaction;
 pub use error::SolanaEngineError;
 pub use multivm_common::{

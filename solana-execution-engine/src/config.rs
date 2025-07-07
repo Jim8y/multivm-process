@@ -1,8 +1,3 @@
-//! Configuration structures for Solana execution engine
-//!
-//! This module contains all configuration-related structures and their default implementations
-//! for the Solana execution engine integration with MultiVM.
-
 use solana_sdk::commitment_config::CommitmentLevel;
 use std::path::PathBuf;
 use std::time::Duration;

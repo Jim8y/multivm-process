@@ -1,8 +1,3 @@
-//! Test utilities for Solana execution engine tests
-//!
-//! This module contains common test utilities and helper functions
-//! that are shared across different test modules.
-
 use solana_execution_engine::engine::SolanaEngine;
 use solana_execution_engine::SolanaEngineError;
 use solana_sdk::signature::Keypair;

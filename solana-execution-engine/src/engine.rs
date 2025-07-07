@@ -1,14 +1,8 @@
-//! Solana Execution Engine Implementation
-//!
-//! This module provides the core execution engine for processing Solana transactions
-//! within the MultiVM system. It manages the Solana runtime, transaction processing,
-//! and state management.
-
 use crate::config::{SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig};
+use crate::engine_helper::compute_block_hash;
 use crate::error::SolanaEngineError;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::signature::Signature;
@@ -26,12 +20,12 @@ pub struct SolanaBlockData {
     pub slot: Slot,
     /// Block hash (not related to Solana Validator)
     pub block_hash: Hash,
-    /// Parent slot (not related to Solana Validator)
-    pub parent_slot: Slot,
     /// Transactions in this block
     pub transactions: Vec<SolanaTransaction>,
     /// Block time (not related to Solana Validator)
     pub block_time: Option<i64>,
+    /// Parent slot (not related to Solana Validator)
+    pub parent_slot: Slot,
     /// Previous block hash (not related to Solana Validator)
     pub previous_blockhash: Hash,
 }
@@ -39,33 +33,13 @@ pub struct SolanaBlockData {
 /// Type alias for Solana transaction to maintain naming consistency
 pub type SolanaTransaction = Transaction;
 
-/// Solana execution result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SolanaExecutionResult {
-    /// The slot that was processed
-    pub slot: Slot,
-    /// Hash of the executed block
-    pub block_hash: Hash,
-    /// New state root after execution
-    pub state_root: Hash,
-    /// Number of transactions processed
-    pub transaction_count: usize,
-    /// Compute units used
-    pub compute_units_used: u64,
-    /// Processing time
-    pub processing_time: Duration,
-    /// Success flag
-    pub success: bool,
-    /// Error message if any
-    pub error: Option<String>,
-}
-
 /// Solana execution engine that connects to actual Solana validators
 pub struct SolanaEngine {
     pub(crate) internal_client: Arc<RwLock<Option<RpcClient>>>,
 
     /// State tracking
-    current_slot: Arc<RwLock<Slot>>,
+    pub(crate) current_slot: Arc<RwLock<Slot>>,
+    pub(crate) current_blockhash: Arc<RwLock<Hash>>,
     slots_processed: Arc<RwLock<u64>>,
     is_running: Arc<RwLock<bool>>,
 
@@ -120,6 +94,7 @@ impl SolanaEngine {
             current_slot: Arc::new(RwLock::new(0)),
             slots_processed: Arc::new(RwLock::new(0)),
             is_running: Arc::new(RwLock::new(false)),
+            current_blockhash: Arc::new(RwLock::new(Hash::default())),
             rpc_proxy_server: Arc::new(RwLock::new(None)),
             solana_connection_config,
             solana_config,
@@ -309,50 +284,77 @@ impl SolanaEngine {
         info!("Health monitoring started");
     }
 
-    /// Process a block using the Solana validator
-    pub async fn process_block(
+    /// Replay a block using the Solana validator
+    /// Blocks must be received in sequential order (slot n+1 after slot n)
+    /// Returns true if replay was successful, false otherwise
+    pub async fn replay_block(
         &mut self,
         block: SolanaBlockData,
-    ) -> Result<SolanaExecutionResult, SolanaEngineError> {
+    ) -> Result<bool, SolanaEngineError> {
         let start_time = Instant::now();
         let slot = block.slot;
         let block_hash = block.block_hash;
 
+        // Validate block sequence - blocks must be received in order
+        let current_slot = *self.current_slot.read().await;
+        let expected_slot = current_slot + 1;
+
+        if slot != expected_slot {
+            return Err(SolanaEngineError::Configuration(format!(
+                "Block sequence error: expected slot {}, but received slot {}. Blocks must be received in sequential order.",
+                expected_slot, slot
+            )));
+        }
+
+        // Validate block hash by computing it ourselves
+        let previous_blockhash = *self.current_blockhash.read().await;
+        let block_time = block.block_time.unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64
+        });
+
+        let computed_hash =
+            compute_block_hash(&block.transactions, slot, previous_blockhash, block_time);
+
+        if computed_hash != block_hash {
+            return Err(SolanaEngineError::Configuration(format!(
+                "Block hash verification failed for slot {}: expected {:?}, but computed {:?}",
+                slot, block_hash, computed_hash
+            )));
+        }
+
         info!(
-            "Processing Solana block for slot {} with hash {:?} via validator",
+            "Replaying Solana block for slot {} with verified hash {:?} via validator",
             slot, block_hash
         );
 
         // Submit block to Solana via RPC
-        self.submit_block_to_validator(&block).await?;
+        match self.submit_block_to_validator(&block).await {
+            Ok(_) => {
+                // Update metrics
+                let mut current_slot = self.current_slot.write().await;
+                *current_slot = slot;
 
-        // Update metrics
-        let mut current_slot = self.current_slot.write().await;
-        *current_slot = slot;
+                let mut slots_processed = self.slots_processed.write().await;
+                *slots_processed += 1;
 
-        let mut slots_processed = self.slots_processed.write().await;
-        *slots_processed += 1;
+                let processing_time = start_time.elapsed();
+                let transactions_count = block.transactions.len();
 
-        let processing_time = start_time.elapsed();
-        let transactions_count = block.transactions.len();
-        // For now, we'll use a default compute units value since Transaction doesn't have this field
-        let compute_units_used: u64 = block.transactions.len() as u64 * 200_000; // Default estimate
+                info!(
+                    "Successfully replayed Solana block {} in {:?} with {} transactions",
+                    slot, processing_time, transactions_count
+                );
 
-        info!(
-            "Successfully processed Solana block {} in {:?} with {} transactions, compute units: {}",
-            slot, processing_time, transactions_count, compute_units_used
-        );
-
-        Ok(SolanaExecutionResult {
-            slot,
-            block_hash,
-            state_root: self.calculate_state_root(&block),
-            transaction_count: transactions_count,
-            compute_units_used,
-            processing_time,
-            success: true,
-            error: None,
-        })
+                Ok(true)
+            }
+            Err(e) => {
+                error!("Failed to replay block {}: {}", slot, e);
+                Ok(false)
+            }
+        }
     }
 
     /// Submit block to Solana validator via RPC
@@ -429,31 +431,6 @@ impl SolanaEngine {
         Ok(signature)
     }
 
-    /// Calculate state root for a processed block
-    fn calculate_state_root(&self, block: &SolanaBlockData) -> solana_sdk::hash::Hash {
-        let mut hasher = Sha256::new();
-
-        // Add block metadata
-        hasher.update(block.slot.to_le_bytes());
-        hasher.update(block.block_hash.to_bytes());
-
-        // Add transaction signatures
-        for tx in &block.transactions {
-            // Use the first signature if available
-            if let Some(signature) = tx.signatures.first() {
-                hasher.update(signature.as_ref());
-            }
-            // Include transaction message hash for more entropy
-            let tx_data = bincode::serialize(tx).unwrap_or_default();
-            let tx_hash = Sha256::digest(&tx_data);
-            hasher.update(tx_hash);
-        }
-
-        // Create hash from digest
-        let state_hash = hasher.finalize();
-        solana_sdk::hash::Hash::new_from_array(state_hash.into())
-    }
-
     /// Gracefully shutdown the Solana engine
     pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), SolanaEngineError> {
         info!("Shutting down Solana execution engine");
@@ -483,34 +460,59 @@ impl SolanaEngine {
 
         Ok(())
     }
-    /// Submit multiple signed transactions to the validator via RPC in sequence
+    /// Create a block by submitting multiple signed transactions to the validator via RPC
     ///
     /// This method takes a mutable slice of signed Solana transactions and submits them
-    /// to the validator one by one in the order they appear in the slice.
+    /// to the validator one by one in the order they appear in the slice, then creates
+    /// and returns a SolanaBlockData containing the submitted transactions.
     ///
     /// # Arguments
     /// * `transactions` - A mutable slice of signed Transaction objects to submit
     ///
     /// # Returns
-    /// * `Ok(Vec<String>)` - Vector of transaction signatures for successfully submitted transactions
+    /// * `Ok(SolanaBlockData)` - A block containing the successfully submitted transactions
     /// * `Err(SolanaEngineError)` - If RPC client is not initialized or other errors occur
     ///
     /// # Example
     /// ```rust
     /// let mut transactions = vec![signed_tx1, signed_tx2, signed_tx3];
-    /// let signatures = engine.submit_transactions_to_validator(&mut transactions).await?;
+    /// let block = engine.create_block(&mut transactions).await?;
     /// ```
-    pub async fn submit_transactions_to_validator(
+    pub async fn create_block(
         &self,
         transactions: &mut [Transaction],
-    ) -> Result<Vec<String>, SolanaEngineError> {
+    ) -> Result<SolanaBlockData, SolanaEngineError> {
         info!(
             "Submitting {} transactions to validator via RPC",
             transactions.len()
         );
 
         if transactions.is_empty() {
-            return Ok(Vec::new());
+            // Return an empty block if no transactions
+            let current_slot = *self.current_slot.read().await;
+            let next_slot = current_slot + 1;
+            let previous_blockhash = *self.current_blockhash.read().await;
+
+            // Get timestamp once for consistency
+            let block_time = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+
+            let block_hash = compute_block_hash(&[], next_slot, previous_blockhash, block_time);
+
+            // Update current slot and previous block hash
+            *self.current_slot.write().await = next_slot;
+            *self.current_blockhash.write().await = block_hash;
+
+            return Ok(SolanaBlockData {
+                slot: next_slot,
+                block_hash,
+                parent_slot: current_slot,
+                transactions: Vec::new(),
+                block_time: Some(block_time),
+                previous_blockhash,
+            });
         }
 
         let client_guard = self.internal_client.read().await;
@@ -519,34 +521,29 @@ impl SolanaEngine {
             .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
 
         let mut signatures = Vec::with_capacity(transactions.len());
+        let mut successful_transactions = Vec::new();
         let mut successful_count = 0;
         let mut failed_count = 0;
 
         // Submit each transaction in sequence
         for (index, transaction) in transactions.iter().enumerate() {
-            debug!(
-                "Submitting transaction {} of {}",
-                index + 1,
-                transactions.len()
-            );
-
-            let signature = client.send_and_confirm_transaction(transaction).await
-                .map_err(|e| {
+            match client.send_and_confirm_transaction(transaction).await {
+                Ok(signature) => {
+                    info!(
+                        "Transaction {} submitted successfully with signature: {}",
+                        index + 1,
+                        signature
+                    );
+                    signatures.push(signature.to_string());
+                    successful_transactions.push(transaction.clone());
+                    successful_count += 1;
+                }
+                Err(e) => {
                     error!("Failed to submit transaction {}: {}", index + 1, e);
                     failed_count += 1;
-                    SolanaEngineError::Transaction(format!(
-                        "Transaction {} submission failed: {}. {} transactions were successfully submitted before this failure.",
-                        index + 1, e, successful_count
-                    ))
-                })?;
-
-            info!(
-                "Transaction {} submitted successfully with signature: {}",
-                index + 1,
-                signature
-            );
-            signatures.push(signature.to_string());
-            successful_count += 1;
+                    // Continue with other transactions rather than failing entirely
+                }
+            }
         }
 
         info!(
@@ -554,6 +551,48 @@ impl SolanaEngine {
             successful_count, failed_count
         );
 
-        Ok(signatures)
+        // Get current slot and create next slot
+        let current_slot = *self.current_slot.read().await;
+        let next_slot = current_slot + 1;
+
+        // Get previous block hash
+        let previous_blockhash = *self.current_blockhash.read().await;
+
+        // Get timestamp once for consistency
+        let block_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        // Create block hash from successful transactions
+        let block_hash = compute_block_hash(
+            &successful_transactions,
+            next_slot,
+            previous_blockhash,
+            block_time,
+        );
+
+        // Create and return the block
+        let block = SolanaBlockData {
+            slot: next_slot,
+            block_hash,
+            parent_slot: current_slot,
+            transactions: successful_transactions,
+            block_time: Some(block_time),
+            previous_blockhash,
+        };
+
+        // Update current slot and previous block hash for next block
+        *self.current_slot.write().await = next_slot;
+        *self.current_blockhash.write().await = block_hash;
+
+        info!(
+            "Created block for slot {} with {} transactions and hash: {:?}",
+            block.slot,
+            block.transactions.len(),
+            block.block_hash
+        );
+
+        Ok(block)
     }
 }

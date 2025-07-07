@@ -1,8 +1,3 @@
-//! Utility functions for the Solana execution engine
-//!
-//! This module contains helper functions for transaction encoding, account management,
-//! signature verification, and other utility operations specific to Solana.
-
 mod test_utils;
 
 use solana_execution_engine::SolanaEngineError;
@@ -119,7 +114,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_submit_transactions_to_validator() -> Result<(), SolanaEngineError> {
+    async fn test_create_block() -> Result<(), SolanaEngineError> {
         setup_logging();
         let engine = create_and_initialize_engine()
             .await
@@ -174,22 +169,43 @@ mod tests {
             recent_blockhash,
         ));
 
-        // Submit transactions
-        info!("Submitting transactions to validator...");
-        let signatures = engine
-            .submit_transactions_to_validator(&mut transactions)
+        // Create block with transactions
+        info!("Creating block with transactions...");
+        let block = engine
+            .create_block(&mut transactions)
             .await
-            .expect("Failed to submit transactions to validator");
+            .expect("Failed to create block with transactions");
 
         assert_eq!(
-            signatures.len(),
+            block.transactions.len(),
             2,
-            "Expected 2 signatures, got {}",
-            signatures.len()
+            "Expected 2 transactions in block, got {}",
+            block.transactions.len()
         );
 
-        // Wait for transactions to be processed
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+        // Check block fields
+        assert_eq!(block.slot, 1, "Block slot should be 1, got {}", block.slot);
+
+        // Check that block hash is not the default/initial hash
+        assert_ne!(
+            block.block_hash,
+            Hash::default(),
+            "Block hash should not be default/empty, got {}",
+            block.block_hash
+        );
+
+        // Check that all transactions were successful (assuming they should be)
+        // Note: In a real implementation, you might want to check individual transaction success
+        info!(
+            "Block validation passed - slot: {}, hash: {}",
+            block.slot, block.block_hash
+        );
+
+        info!(
+            "Created block with slot {} and {} transactions",
+            block.slot,
+            block.transactions.len()
+        );
 
         // Check Bob's balance
         let bob_balance = engine
@@ -229,14 +245,14 @@ mod tests {
 
         // Test with empty transaction array
         let mut empty_transactions: Vec<Transaction> = Vec::new();
-        let empty_signatures = engine
-            .submit_transactions_to_validator(&mut empty_transactions)
+        let empty_block = engine
+            .create_block(&mut empty_transactions)
             .await
-            .expect("Failed to submit empty transaction array");
+            .expect("Failed to create block with empty transaction array");
         assert!(
-            empty_signatures.is_empty(),
-            "Expected empty signatures for empty transaction array, got {}",
-            empty_signatures.len()
+            empty_block.transactions.is_empty(),
+            "Expected empty transactions in block for empty transaction array, got {}",
+            empty_block.transactions.len()
         );
 
         shutdown_engine(engine)
@@ -246,7 +262,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_block() -> Result<(), SolanaEngineError> {
+    async fn test_replay_block() -> Result<(), SolanaEngineError> {
         setup_logging();
         let mut engine = create_and_initialize_engine()
             .await
@@ -309,32 +325,38 @@ mod tests {
             recent_blockhash,
         ));
 
-        // Create test block
+        // Create test block with sequential slot (current_slot + 1)
+        // Note: Engine starts with slot 0, so first block should be slot 1
+        let block_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Use the engine's compute_block_hash function to create a valid hash
+        let previous_blockhash = Hash::default(); // Engine starts with default hash
+        let computed_hash = solana_execution_engine::engine_helper::compute_block_hash(
+            &transactions,
+            1, // slot
+            previous_blockhash,
+            block_time,
+        );
+
         let test_block = SolanaBlockData {
-            slot: 54321,
-            block_hash: Hash::new_unique(),
-            parent_slot: 54320,
+            slot: 1,
+            block_hash: computed_hash, // Use computed hash instead of random
+            parent_slot: 0,
             transactions,
-            block_time: Some(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() as i64,
-            ),
-            previous_blockhash: Hash::new_unique(),
+            block_time: Some(block_time),
+            previous_blockhash,
         };
 
-        // Process block
-        info!("Processing block...");
-        let result = engine
-            .process_block(test_block)
-            .await
-            .expect("Failed to process block");
-
-        assert_eq!(
-            result.transaction_count, 3,
-            "Expected 3 transactions, got {}",
-            result.transaction_count
+        // Replay block
+        assert!(
+            engine
+                .replay_block(test_block)
+                .await
+                .expect("Failed to replay block"),
+            "Block replay should be successful"
         );
 
         // Check Bob's balance (received two transfers)
@@ -374,6 +396,98 @@ mod tests {
             alice_final_balance,
             expected_remaining
         );
+
+        shutdown_engine(engine)
+            .await
+            .expect("Failed to shutdown engine");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_replay_block_hash_verification() -> Result<(), SolanaEngineError> {
+        setup_logging();
+        let mut engine = create_and_initialize_engine()
+            .await
+            .expect("Failed to create and initialize engine");
+
+        // Create test keypairs
+        let alice_keypair = create_test_keypair();
+        let bob_keypair = create_test_keypair();
+
+        // Airdrop to Alice to fund transactions
+        let airdrop_amount = 1_000_000_000; // 1 SOL in lamports
+        info!("Requesting airdrop to Alice...");
+        let _signature = engine
+            .request_and_confirm_airdrop(&alice_keypair.pubkey(), airdrop_amount)
+            .await
+            .expect("Failed to request and confirm airdrop to Alice");
+
+        // Get recent blockhash
+        let recent_blockhash = engine
+            .get_latest_blockhash()
+            .await
+            .expect("Failed to get recent blockhash");
+
+        // Create a transaction
+        let transfer_amount = 100_000_000;
+        let transaction = create_transfer_transaction(
+            &alice_keypair,
+            &bob_keypair.pubkey(),
+            transfer_amount,
+            recent_blockhash,
+        );
+
+        let block_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Test 1: Valid hash should succeed
+        let previous_blockhash = Hash::default();
+        let valid_hash = solana_execution_engine::engine_helper::compute_block_hash(
+            &[transaction.clone()],
+            1, // slot
+            previous_blockhash,
+            block_time,
+        );
+
+        let valid_block = SolanaBlockData {
+            slot: 1,
+            block_hash: valid_hash,
+            parent_slot: 0,
+            transactions: vec![transaction.clone()],
+            block_time: Some(block_time),
+            previous_blockhash,
+        };
+
+        // This should succeed
+        let result = engine.replay_block(valid_block).await;
+        assert!(result.is_ok(), "Valid hash should succeed");
+        assert!(result.unwrap(), "Valid block replay should return true");
+
+        // Test 2: Invalid hash should fail
+        let invalid_block = SolanaBlockData {
+            slot: 2,                        // Next sequential slot
+            block_hash: Hash::new_unique(), // Invalid random hash
+            parent_slot: 1,
+            transactions: vec![transaction],
+            block_time: Some(block_time),
+            previous_blockhash: valid_hash, // Use previous valid hash
+        };
+
+        // This should fail due to hash mismatch
+        let result = engine.replay_block(invalid_block).await;
+        assert!(result.is_err(), "Invalid hash should fail");
+
+        // Check that the error message contains hash verification failure
+        let error_msg = format!("{}", result.unwrap_err());
+        assert!(
+            error_msg.contains("Block hash verification failed"),
+            "Error should mention hash verification failure, got: {}",
+            error_msg
+        );
+
+        info!("Hash verification test completed successfully");
 
         shutdown_engine(engine)
             .await

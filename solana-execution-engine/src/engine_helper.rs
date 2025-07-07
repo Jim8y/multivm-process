@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::engine::SolanaEngine;
 use crate::SolanaEngineError;
+use sha2::{Digest, Sha256};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -9,6 +10,7 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Keypair, Signature, Signer},
+    slot_history::Slot,
     system_instruction,
     transaction::Transaction,
 };
@@ -132,6 +134,38 @@ impl SolanaEngine {
     pub fn get_internal_client(&self) -> Arc<RwLock<Option<RpcClient>>> {
         self.internal_client.clone()
     }
+
+    /// Get the current block hash of the engine
+    ///
+    /// This method returns the current block hash that represents the state
+    /// of the blockchain after processing all blocks up to the current slot.
+    ///
+    /// # Returns
+    /// * `Hash` - The current block hash
+    ///
+    /// # Example
+    /// ```rust
+    /// let current_hash = engine.get_current_block_hash().await;
+    /// ```
+    pub async fn get_current_block_hash(&self) -> Hash {
+        *self.current_blockhash.read().await
+    }
+
+    /// Get the current slot number of the engine
+    ///
+    /// This method returns the current slot number that represents the latest
+    /// processed block slot in the blockchain.
+    ///
+    /// # Returns
+    /// * `Slot` - The current slot number
+    ///
+    /// # Example
+    /// ```rust
+    /// let current_slot = engine.get_current_slot().await;
+    /// ```
+    pub async fn get_current_slot(&self) -> Slot {
+        *self.current_slot.read().await
+    }
 }
 
 /// Create a signed transfer transaction
@@ -151,4 +185,55 @@ pub fn create_transfer_transaction(
     transaction.sign(&[from_keypair], recent_blockhash);
 
     transaction
+}
+
+/// Compute a block hash from transactions, slot, previous block hash, and timestamp
+///
+/// This function creates a cryptographically secure hash for a block by combining
+/// the previous block hash, slot number, transaction data, and timestamp.
+///
+/// # Arguments
+/// * `transactions` - A slice of transactions to include in the hash
+/// * `slot` - The slot number for this block
+/// * `previous_hash` - The hash of the previous block in the chain
+/// * `timestamp` - The block timestamp in seconds since Unix epoch
+///
+/// # Returns
+/// * `Hash` - A cryptographically secure hash representing this block
+///
+/// # Example
+/// ```rust
+/// let block_hash = compute_block_hash(&transactions, 42, previous_hash, 1640995200);
+/// ```
+pub fn compute_block_hash(
+    transactions: &[Transaction],
+    slot: Slot,
+    previous_hash: Hash,
+    timestamp: i64,
+) -> Hash {
+    let mut hasher = Sha256::new();
+
+    // Add previous block hash to ensure chain continuity
+    hasher.update(previous_hash.to_bytes());
+
+    // Add slot to hash
+    hasher.update(slot.to_le_bytes());
+
+    // Add transaction data to hash
+    for tx in transactions {
+        if let Some(signature) = tx.signatures.first() {
+            hasher.update(signature.as_ref());
+        }
+        // Include transaction message hash for more entropy
+        let tx_data = bincode::serialize(tx).unwrap_or_default();
+        let tx_hash = Sha256::digest(&tx_data);
+        hasher.update(tx_hash);
+    }
+
+    // Add timestamp for uniqueness and consistency
+    hasher.update(timestamp.to_le_bytes());
+
+    // Create hash from digest
+    let block_hash = hasher.finalize();
+    Hash::new_from_array(block_hash.into())
 }
