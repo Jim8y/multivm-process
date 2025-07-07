@@ -15,7 +15,7 @@ pub struct RethRpcServer {
 #[allow(dead_code)]
 impl RethRpcServer {
     pub fn new(port: u16) -> Self {
-        Self::new_with_mode(port, cfg!(feature = "mock"))
+        Self::new_with_mode(port, false)
     }
 
     pub fn new_with_mode(port: u16, mock_mode: bool) -> Self {

@@ -7,8 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["mock"]
-mock = []
+default = ["real-node"]
 real-node = []
 
 [dependencies]
@@ -54,13 +53,13 @@ hmac = "0.12"
 base64 = "0.21"
 jsonwebtoken = "9.2"
 
-# Basic Ethereum utilities for real implementation
-alloy-primitives = "0.7"
-alloy-consensus = "0.1" 
-alloy-rlp = "0.3"
+# Additional dependencies for enhanced engine API
+parking_lot = "0.12"
 
-# EVM for execution
-revm = "12.1"
+# Note: Using custom types instead of alloy/revm to avoid c-kzg conflicts
+
+ed25519-dalek = { workspace = true }
+libp2p = { workspace = true }
 
 # JSON RPC (using current stable versions)
 jsonrpsee = { workspace = true }
@@ -73,6 +72,11 @@ jsonrpc-core = { workspace = true }
 sha2 = { workspace = true }
 sha3 = "0.10"
 keccak = "0.1"
+
+# Note: Reth integration is done via process spawning and JSON-RPC, not direct library linking
+# This avoids complex dependency conflicts with c-kzg and other native libraries
+
+
 
 [dev-dependencies]
 tempfile.workspace = true

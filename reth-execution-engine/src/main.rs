@@ -7,6 +7,12 @@ mod engine;
 mod ipc_client;
 mod rpc_server;
 
+// Conditional imports based on features
+#[cfg(feature = "real-node")]
+mod real_engine;
+#[cfg(feature = "real-node")]
+mod real_engine_utils;
+
 use engine::RethExecutionEngine;
 
 #[tokio::main]
@@ -54,10 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🌐 RPC port: {rpc_port}");
     println!("🔗 Chain ID: {chain_id}");
 
-    #[cfg(feature = "mock")]
-    println!("🎭 Running in MOCK mode (no real Reth node process)");
-    #[cfg(not(feature = "mock"))]
+    #[cfg(feature = "real-node")]
     println!("⚡ Running in REAL mode (will spawn Reth node process)");
+    
+    #[cfg(not(feature = "real-node"))]
+    println!("🔧 Running in DEFAULT mode (using engine.rs implementation)");
 
     let mut engine = RethExecutionEngine::new(data_dir_path, rpc_port, chain_id).await?;
 

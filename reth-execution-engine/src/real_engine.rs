@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use rand::Rng;
 
 /// Real Reth execution engine that connects to actual Reth nodes
 pub struct RealRethEngine {
@@ -133,7 +134,7 @@ impl RealRethEngine {
         Ok(())
     }
 
-    /// Start the Reth node process with optimized configuration
+    /// Start the Reth node process with simplified configuration
     async fn start_reth_process(&self) -> Result<(), RethEngineError> {
         info!("Starting Reth node process");
 
@@ -142,49 +143,31 @@ impl RealRethEngine {
             // Data directory
             .arg("--datadir")
             .arg(&self.data_dir)
-            // HTTP RPC configuration
-            .arg("--http")
-            .arg("--http.port")
-            .arg(self.rpc_port.to_string())
-            .arg("--http.addr")
-            .arg("127.0.0.1")
-            .arg("--http.api")
-            .arg("engine,eth,net,web3,debug,trace")
-            .arg("--http.corsdomain")
-            .arg("*")
             // Engine API configuration
-            .arg("--authrpc.port")
-            .arg(self.engine_port.to_string())
-            .arg("--authrpc.addr")
-            .arg("127.0.0.1")
             .arg("--authrpc.jwtsecret")
             .arg(self.data_dir.join("jwt.hex"))
-            // Disable P2P for execution-only mode
-            .arg("--no-discovery")
-            .arg("--port")
+            .arg("--authrpc.addr")
+            .arg("127.0.0.1")
+            .arg("--authrpc.port")
+            .arg(self.engine_port.to_string())
+            // HTTP RPC configuration
+            .arg("--http")
+            .arg("--http.addr")
+            .arg("127.0.0.1")
+            .arg("--http.port")
+            .arg(self.rpc_port.to_string())
+            // Disable P2P networking for MultiVM
+            .arg("--disable-discovery")
+            .arg("--max-inbound-peers")
             .arg("0")
             .arg("--max-outbound-peers")
             .arg("0")
-            .arg("--max-inbound-peers")
+            .arg("--port")
             .arg("0")
-            // Chain configuration
-            .arg("--chain")
-            .arg(self.get_chain_name())
-            // Performance optimizations
-            .arg("--max-block-gas-limit")
-            .arg("30000000")
-            .arg("--block-time")
-            .arg("12") // 12 second blocks
-            // Execution optimizations
-            .arg("--execution-block-cache-size")
-            .arg("1000")
-            .arg("--execution-receipt-cache-size")
-            .arg("1000")
-            // Logging
-            .arg("--log.stdout.format")
-            .arg("json")
-            .arg("--log.stdout.filter")
-            .arg("info,reth=debug,engine=debug,evm=debug")
+            // Disable IPC
+            .arg("--ipcdisable")
+            // Use development mode to avoid genesis hash conflicts
+            .arg("--dev")
             // Process management
             .kill_on_drop(true);
 
@@ -401,7 +384,7 @@ impl RealRethEngine {
                     }
                 }
 
-                // Check Engine API health
+                // Check Engine API health with JWT authentication
                 if let (Some(client), Some(secret)) = (
                     engine_client.read().await.as_ref(),
                     jwt_secret.read().await.as_ref(),
@@ -412,7 +395,7 @@ impl RealRethEngine {
                             "jsonrpc": "2.0",
                             "id": "engine_health",
                             "method": "engine_exchangeCapabilities",
-                            "params": [[]]
+                            "params": [["engine_newPayloadV3", "engine_forkchoiceUpdatedV3"]]
                         });
 
                         match client
@@ -438,6 +421,161 @@ impl RealRethEngine {
         });
 
         info!("Health monitoring started");
+    }
+
+    /// Stop the Reth node process (following Solana pattern)
+    pub async fn stop_reth_process(&self) -> Result<(), RethEngineError> {
+        info!("Stopping Reth node process");
+
+        let mut process_guard = self.reth_process.write().await;
+        if let Some(mut child) = process_guard.take() {
+            // Try graceful shutdown first (SIGTERM)
+            if let Some(pid) = child.id() {
+                info!("Sending SIGTERM to Reth process (PID: {})", pid);
+                
+                #[cfg(unix)]
+                {
+                    use tokio::process::Command;
+                    let _ = Command::new("kill")
+                        .arg("-TERM")
+                        .arg(pid.to_string())
+                        .output()
+                        .await;
+                }
+                
+                // Wait for graceful shutdown
+                match tokio::time::timeout(Duration::from_secs(15), child.wait()).await {
+                    Ok(Ok(status)) => {
+                        info!("Reth process exited gracefully with status: {}", status);
+                        return Ok(());
+                    }
+                    Ok(Err(e)) => {
+                        warn!("Error waiting for Reth process to exit: {}", e);
+                    }
+                    Err(_) => {
+                        warn!("Reth process did not exit gracefully within 15 seconds");
+                    }
+                }
+            }
+
+            // Force kill if graceful shutdown failed
+            info!("Force killing Reth process");
+            if let Err(e) = child.kill().await {
+                warn!("Failed to force kill Reth process: {}", e);
+            }
+
+            // Wait for forced shutdown
+            match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
+                Ok(Ok(status)) => {
+                    info!("Reth process force killed with status: {}", status);
+                }
+                Ok(Err(e)) => {
+                    error!("Error waiting for Reth process after force kill: {}", e);
+                }
+                Err(_) => {
+                    error!("Reth process did not exit even after force kill");
+                }
+            }
+        } else {
+            info!("No Reth process to stop");
+        }
+
+        Ok(())
+    }
+
+    /// Shutdown with timeout (following Solana pattern)
+    pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), RethEngineError> {
+        let timeout = timeout.unwrap_or(Duration::from_secs(30));
+        
+        info!("Shutting down Reth execution engine with timeout: {:?}", timeout);
+        
+        // Mark as not running
+        *self.is_running.write().await = false;
+
+        // Stop the process
+        match tokio::time::timeout(timeout, self.stop_reth_process()).await {
+            Ok(result) => result,
+            Err(_) => {
+                error!("Shutdown timeout exceeded, force killing process");
+                // Force kill any remaining process
+                if let Some(mut child) = self.reth_process.write().await.take() {
+                    let _ = child.kill().await;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Restart the Reth node process
+    pub async fn restart_reth_process(&self) -> Result<(), RethEngineError> {
+        info!("Restarting Reth node process");
+
+        // Stop the existing process
+        self.stop_reth_process().await?;
+
+        // Wait a moment for cleanup
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Start a new process
+        self.start_reth_process().await?;
+
+        // Re-verify connections
+        self.verify_connections().await?;
+
+        info!("Reth node process restarted successfully");
+        Ok(())
+    }
+
+    /// Check if the Reth process is running
+    pub async fn is_reth_process_running(&self) -> bool {
+        let mut process_guard = self.reth_process.write().await;
+        if let Some(child) = process_guard.as_mut() {
+            match child.try_wait() {
+                Ok(Some(_)) => false, // Process has exited
+                Ok(None) => true,     // Process is still running
+                Err(_) => false,      // Error checking process
+            }
+        } else {
+            false // No process
+        }
+    }
+
+    /// Get Reth process PID
+    pub async fn get_reth_process_pid(&self) -> Option<u32> {
+        let process_guard = self.reth_process.read().await;
+        process_guard.as_ref().and_then(|child| child.id())
+    }
+
+    /// Get engine status information
+    pub async fn get_engine_status(&self) -> Result<Value, RethEngineError> {
+        let current_block = *self.current_block.read().await;
+        let blocks_processed = *self.blocks_processed.read().await;
+        let is_running = *self.is_running.read().await;
+        let process_running = self.is_reth_process_running().await;
+        let process_pid = self.get_reth_process_pid().await;
+
+        let status = json!({
+            "engine_type": "reth",
+            "is_running": is_running,
+            "process_running": process_running,
+            "process_pid": process_pid,
+            "current_block": current_block,
+            "blocks_processed": blocks_processed,
+            "rpc_port": self.rpc_port,
+            "engine_port": self.engine_port,
+            "chain_id": self.chain_id,
+            "chain_name": self.get_chain_name(),
+            "data_dir": self.data_dir.display().to_string(),
+            "connection_config": {
+                "max_retries": self.connection_config.max_retries,
+                "retry_delay_ms": self.connection_config.retry_delay.as_millis(),
+                "request_timeout_ms": self.connection_config.request_timeout.as_millis(),
+                "health_check_interval_ms": self.connection_config.health_check_interval.as_millis(),
+                "connection_pool_size": self.connection_config.connection_pool_size
+            }
+        });
+
+        Ok(status)
     }
 
     /// Process a block using the real Reth node
