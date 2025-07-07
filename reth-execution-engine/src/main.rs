@@ -7,7 +7,6 @@ mod engine;
 mod ipc_client;
 mod rpc_server;
 
-
 use engine::RethExecutionEngine;
 
 #[tokio::main]
