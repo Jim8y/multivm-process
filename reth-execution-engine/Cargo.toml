@@ -50,13 +50,8 @@ rand = { workspace = true }
 
 # JWT and HMAC for Engine API authentication
 hmac = "0.12"
-base64 = { workspace = true }
-jsonwebtoken = { workspace = true }
-
-# Basic Ethereum utilities for real implementation
-alloy-primitives = { workspace = true }
-alloy-consensus = { workspace = true }
-alloy-rlp = { workspace = true }
+base64 = "0.21"
+jsonwebtoken = "9.2"
 
 # Additional dependencies for enhanced engine API
 parking_lot = "0.12"

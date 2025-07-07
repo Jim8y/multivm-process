@@ -70,7 +70,7 @@ impl RealRethEngine {
 
         // Store JWT secret in memory for our communication with Reth
         *self.jwt_secret.write().await = Some(hex_secret.clone());
-
+        
         info!("Fresh JWT secret generated and saved to: {:?}", jwt_path);
         info!("JWT secret length: {} characters", hex_secret.len());
 
@@ -83,11 +83,7 @@ impl RealRethEngine {
     }
 
     /// Create JWT token with custom expiration time
-    pub(super) fn create_jwt_token_with_expiry(
-        &self,
-        secret: &str,
-        expiry_seconds: u64,
-    ) -> Result<String, RethEngineError> {
+    pub(super) fn create_jwt_token_with_expiry(&self, secret: &str, expiry_seconds: u64) -> Result<String, RethEngineError> {
         Self::create_jwt_token_static_with_expiry(secret, expiry_seconds)
     }
 
@@ -97,10 +93,7 @@ impl RealRethEngine {
     }
 
     /// Static version of JWT token creation with custom expiration
-    pub(super) fn create_jwt_token_static_with_expiry(
-        secret: &str,
-        expiry_seconds: u64,
-    ) -> Result<String, RethEngineError> {
+    pub(super) fn create_jwt_token_static_with_expiry(secret: &str, expiry_seconds: u64) -> Result<String, RethEngineError> {
         use sha2::Sha256;
 
         // Create JWT header
@@ -172,7 +165,7 @@ impl RealRethEngine {
 
         // Recreate the message
         let message = format!("{header_b64}.{payload_b64}");
-
+        
         // Decode secret
         let secret_bytes = hex::decode(secret).map_err(|e| {
             RethEngineError::Configuration(format!("Invalid JWT secret format: {e}"))
@@ -187,9 +180,8 @@ impl RealRethEngine {
         let expected_signature = mac.finalize().into_bytes();
 
         // Decode provided signature
-        let provided_signature = URL_SAFE_NO_PAD.decode(signature_b64).map_err(|e| {
-            RethEngineError::Configuration(format!("Invalid signature format: {e}"))
-        })?;
+        let provided_signature = URL_SAFE_NO_PAD.decode(signature_b64)
+            .map_err(|e| RethEngineError::Configuration(format!("Invalid signature format: {e}")))?;
 
         // Compare signatures
         Ok(expected_signature.as_slice() == provided_signature.as_slice())
@@ -231,10 +223,10 @@ impl RealRethEngine {
     pub fn supports_eip1559(&self) -> bool {
         match self.chain_id {
             1 | 11155111 | 17000 | 5 => true, // Ethereum networks
-            137 => true,                      // Polygon
-            42161 => true,                    // Arbitrum
-            10 => true,                       // Optimism
-            _ => true,                        // Default to true for dev chains
+            137 => true, // Polygon
+            42161 => true, // Arbitrum
+            10 => true, // Optimism
+            _ => true, // Default to true for dev chains
         }
     }
 
@@ -431,8 +423,8 @@ impl RealRethEngine {
         let mut stream = Vec::new();
 
         // Determine transaction type based on chain support and transaction fields
-        let use_eip1559 = self.supports_eip1559()
-            && tx.max_fee_per_gas.is_some()
+        let use_eip1559 = self.supports_eip1559() 
+            && tx.max_fee_per_gas.is_some() 
             && tx.max_priority_fee_per_gas.is_some();
 
         if use_eip1559 {
@@ -575,6 +567,7 @@ impl RealRethEngine {
 
     /// Helper: Convert U256 to minimal bytes representation
     fn u256_to_bytes(&self, value: &crate::engine::U256) -> Vec<u8> {
+        // For our simplified U256, just use the first u64
         let val = value.0[0];
         if val == 0 {
             vec![] // Empty bytes for zero
@@ -646,4 +639,6 @@ impl RealRethEngine {
             ]
         }
     }
+
+
 }

@@ -1,4 +1,4 @@
-use multivm_common::traits::ExecutionEngine;
+use multivm_common::{traits::ExecutionEngine, IpcCommand};
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "real-node")]
     println!("⚡ Running in REAL mode (will spawn Reth node process)");
-
+    
     #[cfg(not(feature = "real-node"))]
     println!("🔧 Running in DEFAULT mode (using engine.rs implementation)");
 
@@ -95,7 +95,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        // Health status
+        // Demonstrate health status
         println!("✨ Reth engine running - Status: Healthy");
+        let _heartbeat = IpcCommand::GetHealth;
     }
 }

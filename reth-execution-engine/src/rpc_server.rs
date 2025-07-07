@@ -48,8 +48,8 @@ impl RethRpcServer {
                 // Get balance for an address
                 match params.parse::<Vec<String>>() {
                     Ok(parsed) if !parsed.is_empty() => {
-                        // Return balance - placeholder implementation
-                        Ok(Value::String("0x0".to_string()))
+                        // Return balance (hardcoded for demo)
+                        Ok(Value::String("0x1bc16d674ec80000".to_string())) // 2 ETH
                     }
                     _ => Err(JsonRpcError::invalid_params("Expected address parameter")),
                 }

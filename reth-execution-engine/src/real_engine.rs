@@ -5,7 +5,6 @@
 //! production-grade EVM transaction execution and state management.
 
 use crate::engine::{Block, RethEngineError, RethExecutionResult};
-use rand::Rng;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -14,6 +13,7 @@ use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use rand::Rng;
 
 /// Real Reth execution engine that connects to actual Reth nodes
 pub struct RealRethEngine {
@@ -432,7 +432,7 @@ impl RealRethEngine {
             // Try graceful shutdown first (SIGTERM)
             if let Some(pid) = child.id() {
                 info!("Sending SIGTERM to Reth process (PID: {})", pid);
-
+                
                 #[cfg(unix)]
                 {
                     use tokio::process::Command;
@@ -442,7 +442,7 @@ impl RealRethEngine {
                         .output()
                         .await;
                 }
-
+                
                 // Wait for graceful shutdown
                 match tokio::time::timeout(Duration::from_secs(15), child.wait()).await {
                     Ok(Ok(status)) => {
@@ -486,12 +486,9 @@ impl RealRethEngine {
     /// Shutdown with timeout (following Solana pattern)
     pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), RethEngineError> {
         let timeout = timeout.unwrap_or(Duration::from_secs(30));
-
-        info!(
-            "Shutting down Reth execution engine with timeout: {:?}",
-            timeout
-        );
-
+        
+        info!("Shutting down Reth execution engine with timeout: {:?}", timeout);
+        
         // Mark as not running
         *self.is_running.write().await = false;
 
