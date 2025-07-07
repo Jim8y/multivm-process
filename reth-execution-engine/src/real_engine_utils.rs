@@ -188,7 +188,7 @@ impl RealRethEngine {
     }
 
     /// Get chain name for Reth configuration
-    pub(super) fn get_chain_name(&self) -> &str {
+    pub fn get_chain_name(&self) -> &str {
         match self.chain_id {
             1 => "mainnet",
             11155111 => "sepolia",
@@ -204,7 +204,7 @@ impl RealRethEngine {
     }
 
     /// Get human-readable chain description
-    pub(super) fn get_chain_description(&self) -> &str {
+    pub fn get_chain_description(&self) -> &str {
         match self.chain_id {
             1 => "Ethereum Mainnet",
             11155111 => "Sepolia Testnet",
@@ -220,7 +220,7 @@ impl RealRethEngine {
     }
 
     /// Check if the chain supports EIP-1559
-    pub(super) fn supports_eip1559(&self) -> bool {
+    pub fn supports_eip1559(&self) -> bool {
         match self.chain_id {
             1 | 11155111 | 17000 | 5 => true, // Ethereum networks
             137 => true, // Polygon
@@ -419,7 +419,7 @@ impl RealRethEngine {
     }
 
     /// RLP encode transaction for Ethereum compatibility
-    pub(super) fn rlp_encode_transaction(&self, tx: &Transaction) -> Vec<u8> {
+    pub fn rlp_encode_transaction(&self, tx: &Transaction) -> Vec<u8> {
         let mut stream = Vec::new();
 
         // Determine transaction type based on chain support and transaction fields
@@ -439,7 +439,7 @@ impl RealRethEngine {
     }
 
     /// Get transaction type (0 for legacy, 2 for EIP-1559)
-    pub(super) fn get_transaction_type(&self, tx: &Transaction) -> u8 {
+    pub fn get_transaction_type(&self, tx: &Transaction) -> u8 {
         if self.supports_eip1559() 
             && tx.max_fee_per_gas.is_some() 
             && tx.max_priority_fee_per_gas.is_some() {
