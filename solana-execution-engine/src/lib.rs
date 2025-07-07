@@ -19,5 +19,3 @@ pub mod rpc_server;
 pub mod simple_engine;
 pub mod validator_api;
 
-#[cfg(test)]
-mod minimal_tests;

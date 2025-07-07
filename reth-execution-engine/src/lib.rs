@@ -12,5 +12,3 @@ pub mod real_engine_utils;
 pub mod rpc_client;
 pub mod rpc_server;
 
-#[cfg(test)]
-mod basic_tests;

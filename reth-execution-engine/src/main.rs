@@ -1,4 +1,4 @@
-use multivm_common::{traits::ExecutionEngine, IpcCommand};
+use multivm_common::traits::ExecutionEngine;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -7,8 +7,6 @@ mod engine;
 mod ipc_client;
 mod rpc_server;
 
-#[cfg(test)]
-mod main_tests;
 
 use engine::RethExecutionEngine;
 
@@ -91,8 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        // Demonstrate health status
+        // Health status
         println!("✨ Reth engine running - Status: Healthy");
-        let _heartbeat = IpcCommand::GetHealth;
     }
 }

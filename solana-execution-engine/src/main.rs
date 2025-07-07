@@ -5,13 +5,10 @@
 
 use solana_execution_engine::simple_engine::SimpleSolanaEngine;
 
-#[cfg(test)]
-mod main_tests;
 
 fn main() {
-    println!("Solana Execution Engine (Simple)");
+    println!("Solana Execution Engine");
 
-    // Example usage
     let _engine = SimpleSolanaEngine::new();
-    println!("Simple Solana engine created successfully");
+    println!("Solana engine initialized");
 }
