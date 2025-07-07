@@ -351,10 +351,10 @@ The MultiVM project is organized for a 3-person specialist team. Below are detai
   - Verify clean compilation with MultiVM infrastructure
 
 ##### **Task 1.2: Solana Process Coordination**
-- [ ] **Complete `solana-execution-engine/src/real_engine.rs` (665 lines)**
+- [x] **Complete `solana-execution-engine/src/real_engine.rs` (665 lines)**
   - Implement external Solana validator process spawning and management (lines 148-260)
   - Set up execution-only mode validator coordination (P2P/consensus disabled)
-  - Complete `submit_block_to_validator()` method for external process communication
+  - Complete `process_block_real()` method for external process communication
   - Add proper validator process lifecycle management and health monitoring
 
 #### **Phase 2: Core SVM Integration**
