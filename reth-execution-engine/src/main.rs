@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "real-node")]
     println!("⚡ Running in REAL mode (will spawn Reth node process)");
-    
+
     #[cfg(not(feature = "real-node"))]
     println!("🔧 Running in DEFAULT mode (using engine.rs implementation)");
 

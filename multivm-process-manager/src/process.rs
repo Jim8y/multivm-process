@@ -669,7 +669,6 @@ fn get_engine_binary_path(binary_name: &str) -> MultivmResult<PathBuf> {
         return Ok(release_binary.canonicalize().unwrap_or(release_binary));
     }
 
-    // In test mode, return a dummy path that will be handled by start()
     if is_test_mode {
         return Ok(PathBuf::from("/tmp").join(binary_name));
     }

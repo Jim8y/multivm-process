@@ -1,179 +1,306 @@
-# MultiVM Consensus
+# MultiVM Consensus Module
 
-Malachite BFT consensus integration for the MultiVM blockchain execution platform.
+Production-grade Byzantine Fault Tolerant consensus layer for the MultiVM blockchain platform, powered by Malachite BFT from Informal Systems.
 
-## Overview
+## 🏛️ Overview
 
-The MultiVM Consensus module integrates the Malachite Byzantine Fault Tolerant consensus engine to provide unified consensus across both Solana VM and Ethereum VM transactions. It ensures consistent block production and state agreement across the distributed system.
+The MultiVM Consensus module provides a robust, scalable consensus mechanism that ensures consistency across multiple virtual machine implementations (EVM and SVM) while maintaining Byzantine fault tolerance.
 
-## Features
-
-### 🔐 Byzantine Fault Tolerance
-- **Malachite Integration**: Production-grade BFT consensus
-- **3f+1 Tolerance**: Handles up to f Byzantine validators
-- **Leader-based**: Efficient single-leader consensus rounds
-- **View Changes**: Automatic leader rotation on failures
-
-### 🔄 Cross-VM Consensus
-- **Unified Blocks**: Single consensus for both VMs
-- **Transaction Ordering**: Deterministic cross-VM ordering
-- **State Coordination**: Synchronized state updates
-- **Special Transaction Support**: Consensus for cross-VM operations
-
-### 📊 Performance
-- **High Throughput**: Optimized for blockchain workloads
-- **Low Latency**: Sub-second block times
-- **Efficient Communication**: Minimal message overhead
-- **Parallel Validation**: Concurrent transaction validation
-
-## Architecture
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│          Consensus Layer                │
-├─────────────────────────────────────────┤
-│   ┌─────────────┐    ┌─────────────┐   │
-│   │  Malachite  │    │  Consensus  │   │
-│   │   Engine    │    │   Manager   │   │
-│   └─────────────┘    └─────────────┘   │
-├─────────────────────────────────────────┤
-│   ┌─────────────┐    ┌─────────────┐   │
-│   │    State    │    │   Message   │   │
-│   │ Coordinator │    │  Protocol   │   │
-│   └─────────────┘    └─────────────┘   │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                 Consensus Manager                        │
+│            (MultiVMConsensusManager)                     │
+├─────────────────────────────────────────────────────────┤
+│              Malachite BFT Engine                        │
+│         (Byzantine Fault Tolerant Core)                  │
+├─────────────────────────────────────────────────────────┤
+│  Transaction  │   State      │   Block    │    Fork     │
+│     Pool      │  Management  │  Producer  │  Detection  │
+├───────────────┴──────────────┴────────────┴─────────────┤
+│                    P2P Network Layer                     │
+│              (Message Broadcasting)                      │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Usage
+## 🔑 Key Features
 
-### Basic Consensus Setup
+### **Malachite BFT Consensus**
+- Production-ready Byzantine Fault Tolerant consensus from [Informal Systems](https://github.com/informalsystems/malachite)
+- Tolerates up to f < n/3 Byzantine validators
+- Implements PBTS (Proposer-Based Timestamp) system
+- Formally verified for safety and liveness
+
+### **Cross-VM State Management**
+- Unified state root across EVM and SVM
+- Merkle tree-based state verification
+- Persistent state storage with RocksDB
+- Checkpoint and recovery mechanisms
+
+### **High-Performance Transaction Pool**
+- Concurrent, lock-free transaction pool
+- Priority-based transaction ordering
+- VM-specific transaction handling
+- Configurable pool size and eviction policies
+
+### **Advanced Features**
+- Fork detection and resolution
+- Network partition recovery
+- State synchronization
+- Comprehensive metrics and monitoring
+
+## 📦 Core Components
+
+### **Consensus Manager** (`manager.rs`)
+Central orchestrator that coordinates all consensus operations:
+```rust
+pub struct MultiVMConsensusManager {
+    consensus_engine: MalachiteConsensus,
+    state_coordinator: Arc<RwLock<PersistentCrossVMStateManager>>,
+    p2p_network: Option<Arc<RwLock<P2PNetwork>>>,
+    transaction_pool: Arc<ConcurrentTransactionPool>,
+    // ...
+}
+```
+
+### **Malachite Integration** (`malachite/`)
+- **Engine**: Core consensus engine implementation
+- **Config**: Malachite BFT configuration parameters
+- **Validator**: Validator management and key handling
+- **Types**: Consensus-specific types and messages
+
+### **State Management** (`state/`)
+- **CrossVMStateCoordinator**: Manages state across VMs
+- **PersistentStateManager**: RocksDB-based persistence
+- **MerkleTree**: State verification and proofs
+- **Checkpoint**: State snapshot management
+
+### **Transaction Pool** (`transaction_pool.rs`)
+- **ConcurrentTransactionPool**: Lock-free pool implementation
+- **PriorityQueue**: Transaction prioritization
+- **VMRouter**: Routes transactions to appropriate VMs
+- **Mempool**: In-memory transaction storage
+
+## 🚀 Usage
+
+### **Basic Setup**
 
 ```rust
-use multivm_consensus::*;
-
-// Create Malachite configuration
-let config = MalachiteConfig {
-    node_id: "validator-0".to_string(),
-    network_config: NetworkConfig {
-        listen_addr: "127.0.0.1:26657".parse()?,
-        peers: vec![
-            "validator-1:26657".parse()?,
-            "validator-2:26657".parse()?,
-        ],
-    },
-    consensus_params: ConsensusParams {
-        timeout_ms: 5000,
-        max_block_size: 1_000_000,
-        max_transaction_size: 100_000,
-    },
-    validators: vec![validator_info_1, validator_info_2, validator_info_3],
+use multivm_consensus::{
+    ConsensusConfig, MultiVMConsensusManager,
+    malachite::ConsensusParams,
 };
 
-// Initialize consensus
-let consensus = MalachiteConsensus::new(config).await?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create consensus configuration
+    let mut config = ConsensusConfig::default();
+    config.malachite.consensus_params = ConsensusParams {
+        block_time_ms: 5000,
+        timeout_propose_ms: 3000,
+        timeout_prevote_ms: 1000,
+        timeout_precommit_ms: 1000,
+        timeout_commit_ms: 5000,
+        max_block_size: 1024 * 1024, // 1MB
+        validator_set_size: 3,
+    };
 
-// Start consensus engine
-consensus.start().await?;
+    // Initialize consensus manager
+    let mut consensus_manager = MultiVMConsensusManager::new(config).await?;
+    
+    // Start consensus
+    consensus_manager.start().await?;
+    
+    println!("Malachite BFT consensus started!");
+    
+    Ok(())
+}
 ```
 
-### Block Production
+### **Transaction Submission**
 
 ```rust
-// Create a new block
-let block = MultiVMBlock {
-    header: BlockHeader {
-        height: 100,
-        previous_hash: prev_hash,
-        timestamp: SystemTime::now(),
-        proposer: validator_id,
-    },
-    svm_transactions: vec![svm_tx1, svm_tx2],
-    evm_transactions: vec![evm_tx1, evm_tx2],
-    special_transactions: vec![cross_vm_tx],
-    state_changes: vec![],
-};
+use multivm_consensus::transaction_pool::TransactionPriority;
 
-// Propose block for consensus
-let result = consensus.propose_block(block).await?;
-```
-
-### State Management
-
-```rust
-// Create consensus manager
-let manager = ConsensusManager::new(
-    consensus_engine,
-    state_coordinator,
-    network_layer,
+// Submit EVM transaction
+let evm_tx = vec![/* transaction data */];
+consensus_manager.submit_transaction(
+    evm_tx,
+    TransactionPriority::High
 ).await?;
 
-// Process incoming messages
-manager.handle_consensus_message(message).await?;
-
-// Get consensus status
-let status = manager.get_consensus_status().await?;
-println!("Current height: {}", status.current_height);
-println!("Current leader: {}", status.current_leader);
+// Submit SVM transaction
+let svm_tx = vec![/* transaction data */];
+consensus_manager.submit_transaction(
+    svm_tx,
+    TransactionPriority::Normal
+).await?;
 ```
 
-## Configuration
+### **Block Production**
 
-### Validator Configuration
+```rust
+// Consensus automatically produces blocks based on configuration
+// Manual block production (for testing)
+let block = consensus_manager.produce_block().await?;
+println!("Produced block at height: {}", block.header.height);
+```
+
+### **State Queries**
+
+```rust
+// Get current consensus state
+let state = consensus_manager.get_consensus_state().await?;
+println!("Current height: {}", state.height);
+println!("Current round: {}", state.round);
+
+// Get cross-VM state root
+let state_root = consensus_manager.get_state_root().await?;
+println!("State root: {}", state_root);
+```
+
+## ⚙️ Configuration
+
+### **Consensus Parameters**
 
 ```toml
 [consensus]
-# Node identity
-node_id = "validator-0"
+algorithm = "malachite-bft"
+block_time_ms = 5000
+max_block_size = 1048576  # 1MB
 
-# Network settings
-listen_addr = "0.0.0.0:26657"
-external_addr = "validator-0.example.com:26657"
+[consensus.timeouts]
+propose = "3s"
+prevote = "1s"
+precommit = "1s"
+commit = "5s"
 
-# Consensus parameters
-block_time_ms = 1000
-timeout_propose_ms = 3000
-timeout_prevote_ms = 1000
-timeout_precommit_ms = 1000
-
-# Validator set
-[[consensus.validators]]
-public_key = "Ed25519:..."
-voting_power = 10
-
-[[consensus.validators]]
-public_key = "Ed25519:..."
-voting_power = 10
+[consensus.validator]
+address = "0x1234567890abcdef"
+voting_power = 1
 ```
 
-## Implementation Status
+### **State Management**
 
-✅ **Complete and Functional**
-- Malachite consensus engine integration
-- Block production and validation
-- State coordination across VMs
-- Network message handling
-- Leader election and view changes
+```toml
+[state]
+enable_persistence = true
+db_path = "./data/consensus"
+checkpoint_interval = 1000
+max_checkpoints = 10
+cache_size = 1073741824  # 1GB
+```
 
-## Testing
+### **Transaction Pool**
+
+```toml
+[transaction_pool]
+max_size = 10000
+eviction_batch_size = 100
+ttl_seconds = 300
+enable_priority_queue = true
+```
+
+## 🧪 Testing
 
 ```bash
-# Run unit tests
+# Run all tests
 cargo test -p multivm-consensus
 
-# Run consensus simulation
-cargo test -p multivm-consensus --test consensus_simulation
+# Run integration tests
+cargo test -p multivm-consensus --test integration
 
-# Run with debug logging
+# Run with logging
 RUST_LOG=debug cargo test -p multivm-consensus
+
+# Run benchmarks
+cargo bench -p multivm-consensus
 ```
 
-## Performance Considerations
+## 📊 Metrics
 
-- **Validator Count**: Optimal performance with 4-7 validators
-- **Network Latency**: Sub-100ms latency recommended
-- **Block Size**: Configure based on transaction throughput
-- **Timeout Tuning**: Adjust timeouts based on network conditions
+The consensus module provides comprehensive metrics:
 
-## License
+- **Consensus Metrics**: Block height, round, voting statistics
+- **Performance Metrics**: Block time, transaction throughput, latency
+- **State Metrics**: State size, checkpoint frequency, sync status
+- **Network Metrics**: Peer count, message rates, bandwidth usage
 
-Licensed under either Apache 2.0 or MIT license at your option.
+```rust
+let stats = consensus_manager.get_stats().await;
+println!("Blocks processed: {}", stats.consensus_stats.total_blocks);
+println!("Average block time: {}ms", stats.consensus_stats.avg_block_time);
+println!("Transaction pool size: {}", stats.transaction_pool_size);
+```
+
+## 🔒 Security
+
+### **Byzantine Fault Tolerance**
+- Tolerates up to f malicious validators where f < n/3
+- Cryptographic signatures on all messages
+- Fork detection and prevention
+- Slashing for malicious behavior
+
+### **State Security**
+- Merkle tree verification for all state changes
+- Cryptographic commitments for cross-VM state
+- Audit trail for all consensus decisions
+
+## 🛠️ Advanced Features
+
+### **Fork Detection**
+```rust
+use multivm_consensus::fork_detection::ForkDetector;
+
+let fork_detector = consensus_manager.get_fork_detector();
+if let Some(fork) = fork_detector.detect_fork().await? {
+    println!("Fork detected at height: {}", fork.height);
+    fork_detector.resolve_fork(fork).await?;
+}
+```
+
+### **Network Recovery**
+```rust
+use multivm_consensus::network_recovery::NetworkRecovery;
+
+let recovery = consensus_manager.get_network_recovery();
+if recovery.is_partitioned().await {
+    recovery.initiate_recovery().await?;
+}
+```
+
+### **State Synchronization**
+```rust
+use multivm_consensus::synchronization::BlockSynchronizer;
+
+let sync = consensus_manager.get_synchronizer();
+sync.sync_to_latest().await?;
+```
+
+## 📝 Development
+
+### **Adding New Consensus Algorithms**
+
+1. Implement the `ConsensusEngine` trait
+2. Add configuration support
+3. Update the consensus manager
+4. Add comprehensive tests
+
+### **Contributing**
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## 📚 References
+
+- [Malachite BFT Paper](https://github.com/informalsystems/malachite/blob/main/docs/paper.pdf)
+- [Byzantine Fault Tolerance](https://en.wikipedia.org/wiki/Byzantine_fault)
+- [PBFT Algorithm](https://pmg.csail.mit.edu/papers/osdi99.pdf)
+
+## 📄 License
+
+This module is part of the MultiVM project and follows the same license.

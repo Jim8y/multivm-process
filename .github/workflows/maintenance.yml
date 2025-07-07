@@ -59,6 +59,7 @@ jobs:
     
     - name: Upload audit report
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: security-audit-report
         path: audit-report.md
@@ -101,6 +102,7 @@ jobs:
     
     - name: Upload license report
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: license-report
         path: license-report.md
@@ -148,6 +150,7 @@ jobs:
     
     - name: Upload update report
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: dependency-update-report
         path: update-report.md

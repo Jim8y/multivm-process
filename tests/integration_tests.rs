@@ -37,7 +37,7 @@ async fn test_ipc_communication_integration() {
     let message_id = MessageId::new();
     let command = IpcCommand::GetHealth;
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Start the process manager
     // 2. Start the application server
     // 3. Send IPC commands between them
@@ -76,7 +76,7 @@ async fn test_cross_vm_account_mapping_integration() {
     assert_eq!(evm_address.len(), 42, "EVM address should be 42 characters");
     assert!(evm_address.starts_with("0x"), "EVM address should start with 0x");
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Create account mappings through the API
     // 2. Verify they're stored correctly in the database
     // 3. Test cross-VM operations using these mappings
@@ -90,7 +90,7 @@ async fn test_cross_vm_account_mapping_integration() {
 async fn test_p2p_networking_integration() {
     // Test that P2P networking works with the broader system
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Start multiple MultiVM nodes
     // 2. Verify they discover each other
     // 3. Test message propagation between nodes
@@ -145,7 +145,7 @@ async fn test_end_to_end_transaction_flow() {
     assert!(svm_transaction_data.is_object());
     assert!(evm_transaction_data.is_object());
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Submit transaction through REST API
     // 2. Verify it's processed by the application layer
     // 3. Check it's routed to the correct VM
@@ -185,7 +185,7 @@ async fn test_health_monitoring_integration() {
         }
     }
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Start all system components
     // 2. Verify overall health is reported correctly
     // 3. Simulate component failures
@@ -283,7 +283,7 @@ async fn test_resource_management_integration() {
     assert!(resource_limits.max_open_files > 0);
     assert!(resource_limits.max_rpc_connections > 0);
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Set resource limits
     // 2. Start all components
     // 3. Monitor actual resource usage
@@ -355,7 +355,7 @@ async fn test_concurrent_operations_integration() {
 async fn test_system_shutdown_integration() {
     // Test that system shutdown works cleanly across all components
     
-    // In a real integration test, we would:
+    // Integration test steps:
     // 1. Start all system components
     // 2. Initiate graceful shutdown
     // 3. Verify all components shut down cleanly

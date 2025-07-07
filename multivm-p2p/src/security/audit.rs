@@ -4,15 +4,21 @@
 //! enabling security analysis, compliance reporting, and forensic investigation
 //! of network activities.
 
-use crate::error::{P2PError, P2PResult};
+#[cfg(feature = "persistence")]
+use crate::error::P2PError;
+use crate::error::P2PResult;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+#[cfg(feature = "persistence")]
+use std::time::UNIX_EPOCH;
+use std::time::{Duration, SystemTime};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{debug, error, info, warn};
+#[cfg(feature = "persistence")]
+use tracing::error;
+use tracing::{debug, info, warn};
 
 /// Maximum in-memory audit entries before forced flush
 const MAX_MEMORY_ENTRIES: usize = 10_000;
@@ -371,7 +377,7 @@ impl AuditLogger {
         let iter = db.iterator(rocksdb::IteratorMode::Start);
 
         for item in iter {
-            let (key, value) =
+            let (_key, value) =
                 item.map_err(|e| P2PError::Internal(format!("Database iteration error: {}", e)))?;
 
             let event: AuditEvent = serde_json::from_slice(&value).map_err(|e| {
@@ -461,7 +467,10 @@ impl AuditLogger {
         let config = self.config.clone();
         #[cfg(feature = "persistence")]
         let db = self.db.clone();
+        #[cfg(feature = "persistence")]
         let stats = self.stats.clone();
+        #[cfg(not(feature = "persistence"))]
+        let _stats = self.stats.clone();
 
         tokio::spawn(async move {
             let mut interval = interval(config.flush_interval);

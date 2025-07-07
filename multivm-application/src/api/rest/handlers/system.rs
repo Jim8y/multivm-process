@@ -12,6 +12,15 @@ use axum::{
 use std::sync::Arc;
 
 /// Get system status
+#[utoipa::path(
+    get,
+    path = "/api/v1/system/status",
+    tag = "System",
+    responses(
+        (status = 200, description = "System status retrieved successfully", body = ApiResponse<SystemStatus>),
+        (status = 500, description = "Internal server error", body = ApiResponse<()>)
+    )
+)]
 pub async fn get_system_status(
     State(state): State<Arc<ApplicationState>>,
     headers: HeaderMap,
@@ -192,7 +201,7 @@ async fn check_node_health(_node_type: &str, _state: &Arc<ApplicationState>) -> 
 
 // Response types
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct SystemStatus {
     pub status: String,
     pub uptime: Option<std::time::Duration>,
@@ -201,7 +210,7 @@ pub struct SystemStatus {
     pub vm_nodes: VmNodeStatus,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct ComponentStatus {
     pub svm_gateway: bool,
     pub evm_gateway: bool,

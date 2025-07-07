@@ -197,7 +197,7 @@ impl ShutdownCoordinator {
         info!("Phase 4: Stopping consensus");
 
         let consensus_guard = self.state.consensus_manager.read().await;
-        if let Some(consensus) = consensus_guard.as_ref() {
+        if let Some(_consensus) = consensus_guard.as_ref() {
             // In a real implementation, this would call consensus shutdown
             info!("Stopping consensus manager...");
             tokio::time::sleep(Duration::from_millis(500)).await;

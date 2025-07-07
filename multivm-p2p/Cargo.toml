@@ -18,14 +18,13 @@ futures = { workspace = true }
 
 # Networking
 libp2p = { workspace = true }
-tokio-tungstenite = "0.20"
-socket2 = "0.5"
+tokio-tungstenite = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
 bincode = { workspace = true }
-base64 = "0.21"
+base64 = { workspace = true }
 
 # Error handling and logging
 thiserror = { workspace = true }
@@ -38,10 +37,9 @@ rand = { workspace = true }
 ed25519-dalek = { workspace = true }
 x25519-dalek = "2.0"
 curve25519-dalek = "4.1"
-rand_chacha = "0.3"
 anyhow = { workspace = true }
-chacha20poly1305 = "0.10"
-jsonwebtoken = "9.2"
+chacha20poly1305 = { workspace = true }
+jsonwebtoken = { workspace = true }
 
 # Rate limiting
 governor = { workspace = true }
@@ -58,7 +56,7 @@ uuid = { workspace = true, features = ["v4"] }
 parking_lot = { workspace = true }
 
 # Optional metrics dependencies
-lazy_static = { version = "1.4", optional = true }
+once_cell = { workspace = true, optional = true }
 prometheus = { version = "0.13", optional = true }
 reqwest = { version = "0.11", optional = true }
 
@@ -66,7 +64,7 @@ reqwest = { version = "0.11", optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # System monitoring
-sysinfo = "0.30"
+sysinfo = { workspace = true }
 
 # Persistent storage
 rocksdb = { workspace = true, optional = true }
@@ -81,11 +79,10 @@ criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 [features]
 default = []
 testing = []
-metrics = ["lazy_static", "prometheus", "reqwest"]
+metrics = ["once_cell", "prometheus", "reqwest"]
 persistence = ["rocksdb"]
 tracing-subscriber = ["dep:tracing-subscriber"]
 
-# Benchmarks temporarily disabled - see p2p_benchmarks.rs.disabled
-# [[bench]]
-# name = "p2p_benchmarks"
-# harness = false
+[[bench]]
+name = "p2p_benchmarks"
+harness = false

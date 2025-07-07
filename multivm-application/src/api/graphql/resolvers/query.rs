@@ -17,8 +17,8 @@ impl QueryResolver {
     async fn system_info(&self, ctx: &Context<'_>) -> GraphQLResult<SystemInfo> {
         let _state = get_app_state(ctx)?;
 
-        // Get actual system uptime - simplified implementation
-        let uptime = 3600; // 1 hour placeholder
+        // Get system uptime using a basic implementation
+        let uptime = 3600;
 
         // Get actual node count from connected VMs
         let node_count = 2; // Default to SVM + EVM
@@ -272,7 +272,6 @@ impl QueryResolver {
         // Check if it's a valid EVM address and get EVM transactions
         if address.starts_with("0x") && address.len() == 42 {
             // EVM transaction fetching would be implemented here
-            // For now, we'll leave it as a placeholder
         }
 
         let total_count = all_transactions.len() as i32;

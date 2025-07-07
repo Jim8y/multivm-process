@@ -113,6 +113,9 @@ pub enum P2PError {
 
     #[error("Signature verification error: {0}")]
     SignatureVerificationError(String),
+
+    #[error("Key generation error: {0}")]
+    KeyGenerationError(String),
 }
 
 /// Result type alias for P2P operations
@@ -273,6 +276,7 @@ impl P2PError {
             P2PError::EncryptionError(_) => "security",
             P2PError::DecryptionError(_) => "security",
             P2PError::SignatureVerificationError(_) => "security",
+            P2PError::KeyGenerationError(_) => "security",
         }
     }
 

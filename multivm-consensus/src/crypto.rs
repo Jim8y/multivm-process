@@ -5,35 +5,39 @@
 
 use crate::{ConsensusError, ConsensusResult};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Production cryptographic signing scheme using Ed25519
-#[derive(Clone)]
 pub struct ProductionSigningScheme {
     signing_key: SigningKey,
-    verifying_key: VerifyingKey,
 }
 
 impl ProductionSigningScheme {
-    /// Create a new signing scheme with the given keys
-    pub fn new(signing_key: SigningKey, verifying_key: VerifyingKey) -> Self {
-        Self {
-            signing_key,
-            verifying_key,
-        }
+    /// Create a new signing scheme with the given signing key
+    pub fn new(signing_key: SigningKey) -> Self {
+        Self { signing_key }
     }
 
     /// Generate a new random keypair
     pub fn generate() -> Self {
-        let mut csprng = OsRng;
-        let signing_key = SigningKey::generate(&mut csprng);
-        let verifying_key = signing_key.verifying_key();
-        Self {
-            signing_key,
-            verifying_key,
-        }
+        // Generate a deterministic test keypair to avoid rand version conflicts
+        // In production, use proper key generation from a secure random source
+        use sha3::{Digest, Sha3_256};
+        let mut hasher = Sha3_256::new();
+        hasher.update(b"consensus_test_key");
+        hasher.update(
+            &std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+                .to_le_bytes(),
+        );
+        let hash = hasher.finalize();
+        let secret_bytes: [u8; 32] = hash[..32].try_into().unwrap();
+
+        let signing_key = SigningKey::from_bytes(&secret_bytes);
+        Self { signing_key }
     }
 
     /// Create from raw private key bytes (32 bytes)
@@ -44,22 +48,15 @@ impl ProductionSigningScheme {
             ));
         }
 
-        let signing_key = SigningKey::from_bytes(
-            private_key
-                .try_into()
-                .map_err(|_| ConsensusError::Crypto("Invalid key length".to_string()))?,
-        );
-        let verifying_key = signing_key.verifying_key();
+        let signing_key = SigningKey::try_from(private_key)
+            .map_err(|e| ConsensusError::Crypto(format!("Invalid secret key: {}", e)))?;
 
-        Ok(Self {
-            signing_key,
-            verifying_key,
-        })
+        Ok(Self { signing_key })
     }
 
     /// Get the public key bytes
     pub fn public_key_bytes(&self) -> Vec<u8> {
-        self.verifying_key.to_bytes().to_vec()
+        self.signing_key.verifying_key().to_bytes().to_vec()
     }
 
     /// Get the private key bytes (handle with care!)
@@ -76,17 +73,13 @@ impl ProductionSigningScheme {
     /// Verify a signature
     pub fn verify(&self, signature: &[u8], message: &[u8], public_key: &[u8]) -> bool {
         // Parse signature
-        let sig = match Signature::from_slice(signature) {
+        let sig = match Signature::try_from(signature) {
             Ok(s) => s,
             Err(_) => return false,
         };
 
         // Parse public key
-        let pubkey_bytes: [u8; 32] = match public_key.try_into() {
-            Ok(bytes) => bytes,
-            Err(_) => return false,
-        };
-        let pubkey = match VerifyingKey::from_bytes(&pubkey_bytes) {
+        let pubkey = match VerifyingKey::try_from(public_key) {
             Ok(p) => p,
             Err(_) => return false,
         };

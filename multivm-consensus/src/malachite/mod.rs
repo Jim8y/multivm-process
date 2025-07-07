@@ -16,5 +16,6 @@ pub use types::{
 };
 pub use validator::MalachiteValidator;
 
-// Alias for backward compatibility
+// For now, use the mock implementation with Malachite BFT principles
+// The real Malachite BFT integration will be implemented in a future update
 pub use engine::MalachiteEngine as MalachiteConsensus;

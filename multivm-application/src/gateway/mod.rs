@@ -3,6 +3,7 @@
 //! This module provides a clean, unified interface for interacting with different
 //! virtual machines (EVM, SVM) through a single consistent API.
 
+pub mod rpc_client;
 pub mod unified;
 
 // Re-export unified types as the primary interface

@@ -409,7 +409,7 @@ pub async fn cancel_transaction(
     let start_time = std::time::Instant::now();
 
     let consensus_guard = state.consensus_manager.read().await;
-    if let Some(consensus) = consensus_guard.as_ref() {
+    if let Some(_consensus) = consensus_guard.as_ref() {
         // In a real implementation, we would remove the transaction from the pool
         // For now, return a mock response
         let response = CancelTransactionResponse {

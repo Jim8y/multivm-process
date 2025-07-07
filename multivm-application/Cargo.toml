@@ -36,6 +36,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 
+# OpenAPI documentation
+utoipa = "4.0"
+utoipa-swagger-ui = "6.0"
+
 # Error handling and logging
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -51,7 +55,7 @@ uuid = { workspace = true }
 # Validation and regex
 regex = "1.10"
 bs58 = { workspace = true }
-lazy_static = "1.4"
+once_cell = { workspace = true }
 
 # Concurrency utilities
 parking_lot = { workspace = true }
@@ -59,7 +63,7 @@ parking_lot = { workspace = true }
 # Additional dependencies
 bincode = { workspace = true }
 hex = { workspace = true }
-warp = { workspace = true }
+# warp removed - using axum instead
 rand = { workspace = true }
 prometheus = { workspace = true }
 redis = { workspace = true }
@@ -70,6 +74,7 @@ jsonwebtoken = { workspace = true }
 dashmap = { workspace = true }
 async-stream = { workspace = true }
 tokio-tungstenite = { workspace = true }
+hmac = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

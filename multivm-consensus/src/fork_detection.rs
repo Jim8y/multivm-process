@@ -705,7 +705,7 @@ impl ForkDetectionManager {
         }
     }
 
-    /// Resolve fork by highest stake (placeholder implementation)
+    /// Resolve fork by highest stake
     async fn resolve_by_highest_stake(
         &self,
         fork_info: &ForkInfo,

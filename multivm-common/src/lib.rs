@@ -1,8 +1,33 @@
-//! MultiVM Common Library
+//! `MultiVM` Common Library
 //!
 //! This library provides unified functionality, types, and utilities shared
-//! across all MultiVM components. It eliminates duplication and provides
+//! across all `MultiVM` components. It eliminates duplication and provides
 //! consistent patterns throughout the system.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use multivm_common::{MultivmError, MultivmResult, VmType};
+//!
+//! // Create a VM type
+//! let vm_type = VmType::Svm;
+//! assert_eq!(format!("{:?}", vm_type), "Svm");
+//!
+//! // Work with results
+//! let result: MultivmResult<i32> = Ok(42);
+//! assert!(result.is_ok());
+//! ```
+//!
+//! # Configuration
+//!
+//! ```rust
+//! use multivm_common::config::VmType;
+//!
+//! let solana_vm = VmType::Svm;
+//! let ethereum_vm = VmType::Evm;
+//!
+//! assert_ne!(solana_vm, ethereum_vm);
+//! ```
 
 pub mod config;
 pub mod error;
