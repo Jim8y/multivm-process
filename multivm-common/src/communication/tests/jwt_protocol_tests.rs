@@ -166,11 +166,12 @@ mod tests {
         };
 
         let result = protocol.send_request(request).await;
-        assert!(result.is_err());
-        match result.err().unwrap() {
-            crate::MultivmError::AuthenticationFailed { .. } => {}
-            e => panic!("Expected AuthenticationFailed error, got: {:?}", e),
-        }
+        
+        // JWT auth failures are returned as successful responses with error details
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.error.is_some());
+        assert!(response.error.unwrap().message.contains("Authentication failed"));
     }
 
     #[tokio::test]

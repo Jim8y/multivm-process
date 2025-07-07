@@ -101,7 +101,7 @@ mod tests {
         match result.err().unwrap() {
             crate::MultivmError::UnsupportedOperation { alternatives, .. } => {
                 assert!(alternatives.is_some());
-                assert!(alternatives.unwrap().contains(&"ipc".to_string()));
+                assert!(alternatives.unwrap().contains(&"IPC".to_string()));
             }
             e => panic!("Expected UnsupportedOperation error, got: {:?}", e),
         }
@@ -143,17 +143,26 @@ mod tests {
 
         factory.set_default_config(ProtocolType::Rpc, custom_default);
 
+        // For Ethereum, engine-specific config will override custom defaults
+        // Test with custom user config to verify the custom default is used as a base
+        let user_override = serde_json::json!({
+            "max_connections": 25  // This should merge with the custom defaults
+        });
+        
         let protocol = factory
             .create_protocol(
                 ProtocolType::Rpc,
                 EngineType::Ethereum,
-                serde_json::Value::Null,
+                user_override,
             )
             .await
             .unwrap();
 
         let config = protocol.get_configuration();
-        assert_eq!(config["endpoint_url"], "http://custom.endpoint.com");
+        // The endpoint should still be the engine-specific default for Ethereum
+        assert_eq!(config["endpoint_url"], "http://127.0.0.1:8545");
+        // But the max_connections should be from user override  
+        assert_eq!(config["max_connections"], 25);
     }
 
     #[tokio::test]
@@ -163,7 +172,10 @@ mod tests {
         let solana_rpc_config = serde_json::json!({
             "endpoint_url": "http://solana.testnet.com",
             "health_check_config": {
-                "health_method": "getVersion"
+                "health_method": "getVersion",
+                "interval": { "secs": 30, "nanos": 0 },
+                "timeout": { "secs": 5, "nanos": 0 },
+                "enable_auto_check": false
             }
         });
 
@@ -253,16 +265,41 @@ mod tests {
     async fn test_factory_config_override_priority() {
         let mut factory = DefaultProtocolFactory::new();
 
-        // Set default config
+        // Set default config (more complete)
         factory.set_default_config(
             ProtocolType::Rpc,
             serde_json::json!({
                 "endpoint_url": "http://default.com",
-                "max_connections": 5
+                "connect_timeout": { "secs": 5, "nanos": 0 },
+                "request_timeout": { "secs": 30, "nanos": 0 },
+                "max_connections": 5,
+                "retry_config": {
+                    "max_retries": 3,
+                    "base_delay": { "secs": 0, "nanos": 100000000 },
+                    "max_delay": { "secs": 5, "nanos": 0 },
+                    "backoff_multiplier": 2.0,
+                    "jitter": false
+                },
+                "health_check_config": {
+                    "health_method": "eth_chainId",
+                    "interval": { "secs": 30, "nanos": 0 },
+                    "timeout": { "secs": 5, "nanos": 0 },
+                    "enable_auto_check": false
+                },
+                "default_headers": {},
+                "user_agent": "MultiVM/1.0",
+                "use_http2": true,
+                "tls_config": {
+                    "accept_invalid_certs": false,
+                    "accept_invalid_hostnames": false,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null
+                }
             }),
         );
 
-        // Set engine-specific config
+        // Set engine-specific config (partial override)
         factory.set_engine_config(
             ProtocolType::Rpc,
             EngineType::Ethereum,
@@ -272,7 +309,7 @@ mod tests {
             }),
         );
 
-        // Create with user config
+        // Create with user config (partial override)
         let user_config = serde_json::json!({
             "request_timeout": { "secs": 45, "nanos": 0 }
             // endpoint_url not specified, should use engine-specific

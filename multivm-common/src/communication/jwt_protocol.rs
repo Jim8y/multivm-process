@@ -191,7 +191,8 @@ impl JwtProtocol {
             warn!("Using default JWT secret - this is insecure for production!");
         }
 
-        if config.jwt_secret.len() < 32 {
+        // Only validate JWT secret length if it's not empty (empty means using API key auth)
+        if !config.jwt_secret.is_empty() && config.jwt_secret.len() < 32 {
             return Err(MultivmError::Configuration {
                 component: "jwt_protocol".to_string(),
                 message: "JWT secret must be at least 32 characters for security".to_string(),

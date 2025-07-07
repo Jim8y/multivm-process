@@ -68,7 +68,13 @@ mod tests {
         // Replace with new config by adding again
         let new_config = serde_json::json!({
             "transport_config": {
-                "tcp_port": 9999
+                "use_unix_sockets": false,
+                "tcp_host": "127.0.0.1",
+                "tcp_port": 9999,
+                "unix_socket_path": null,
+                "connect_timeout": { "secs": 5, "nanos": 0 },
+                "read_timeout": { "secs": 5, "nanos": 0 },
+                "write_timeout": { "secs": 5, "nanos": 0 }
             }
         });
 
