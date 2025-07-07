@@ -207,19 +207,25 @@ impl EngineApiClient {
 
         let response = self.make_authenticated_request(method, params).await?;
         let mut payload_response = self.parse_new_payload_response(response)?;
-        
+
         payload_response.processing_time = start_time.elapsed();
         payload_response.blob_gas_used = execution_payload
             .get("blobGasUsed")
             .and_then(|v| v.as_str())
             .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok());
 
-        self.metrics.payload_submissions.fetch_add(1, Ordering::Relaxed);
-        self.metrics.requests_successful.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .payload_submissions
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .requests_successful
+            .fetch_add(1, Ordering::Relaxed);
 
         // Update blob metrics if blobs were processed
         if !expected_blob_versioned_hashes.is_empty() {
-            self.metrics.blob_bundles_processed.fetch_add(1, Ordering::Relaxed);
+            self.metrics
+                .blob_bundles_processed
+                .fetch_add(1, Ordering::Relaxed);
         }
 
         info!(
@@ -245,8 +251,12 @@ impl EngineApiClient {
         let mut payload_response = self.parse_new_payload_response(response)?;
         payload_response.processing_time = start_time.elapsed();
 
-        self.metrics.payload_submissions.fetch_add(1, Ordering::Relaxed);
-        self.metrics.requests_successful.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .payload_submissions
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .requests_successful
+            .fetch_add(1, Ordering::Relaxed);
 
         Ok(payload_response)
     }
@@ -261,7 +271,7 @@ impl EngineApiClient {
         self.metrics.requests_total.fetch_add(1, Ordering::Relaxed);
 
         let method = "engine_forkchoiceUpdatedV3";
-        
+
         // Convert PayloadAttributes to JSON with withdrawal support
         let payload_attrs_json = if let Some(attrs) = payload_attributes {
             Some(self.serialize_payload_attributes(attrs)?)
@@ -278,21 +288,30 @@ impl EngineApiClient {
             .unwrap_or(0);
 
         if withdrawal_count > 0 {
-            info!("Processing {} withdrawals in forkchoiceUpdatedV3", withdrawal_count);
+            info!(
+                "Processing {} withdrawals in forkchoiceUpdatedV3",
+                withdrawal_count
+            );
         }
 
         let response = self.make_authenticated_request(method, params).await?;
         let mut fc_response = self.parse_forkchoice_updated_response(response)?;
-        
+
         fc_response.processing_time = start_time.elapsed();
         fc_response.withdrawals_processed = withdrawal_count as u32;
 
-        self.metrics.forkchoice_updates.fetch_add(1, Ordering::Relaxed);
-        self.metrics.requests_successful.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .forkchoice_updates
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .requests_successful
+            .fetch_add(1, Ordering::Relaxed);
 
         // Update withdrawal metrics
         if withdrawal_count > 0 {
-            self.metrics.withdrawals_processed.fetch_add(withdrawal_count as u64, Ordering::Relaxed);
+            self.metrics
+                .withdrawals_processed
+                .fetch_add(withdrawal_count as u64, Ordering::Relaxed);
         }
 
         info!(
@@ -319,8 +338,12 @@ impl EngineApiClient {
         let mut fc_response = self.parse_forkchoice_updated_response(response)?;
         fc_response.processing_time = start_time.elapsed();
 
-        self.metrics.forkchoice_updates.fetch_add(1, Ordering::Relaxed);
-        self.metrics.requests_successful.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .forkchoice_updates
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .requests_successful
+            .fetch_add(1, Ordering::Relaxed);
 
         Ok(fc_response)
     }
@@ -342,12 +365,18 @@ impl EngineApiClient {
         let mut payload_response = self.parse_get_payload_response(response)?;
         payload_response.processing_time = start_time.elapsed();
 
-        self.metrics.payload_retrievals.fetch_add(1, Ordering::Relaxed);
-        self.metrics.requests_successful.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .payload_retrievals
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .requests_successful
+            .fetch_add(1, Ordering::Relaxed);
 
         // Update blob bundle metrics
         if let Some(ref blobs_bundle) = payload_response.blobs_bundle {
-            self.metrics.blob_bundles_processed.fetch_add(1, Ordering::Relaxed);
+            self.metrics
+                .blob_bundles_processed
+                .fetch_add(1, Ordering::Relaxed);
             info!(
                 "Retrieved payload with {} blobs ({} bytes total)",
                 blobs_bundle.blob_count, blobs_bundle.total_size_bytes
@@ -377,8 +406,12 @@ impl EngineApiClient {
         let mut payload_response = self.parse_get_payload_response(response)?;
         payload_response.processing_time = start_time.elapsed();
 
-        self.metrics.payload_retrievals.fetch_add(1, Ordering::Relaxed);
-        self.metrics.requests_successful.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .payload_retrievals
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .requests_successful
+            .fetch_add(1, Ordering::Relaxed);
 
         Ok(payload_response)
     }
@@ -441,9 +474,14 @@ impl EngineApiClient {
             // Create fresh JWT token for each attempt (handles expiration)
             let jwt_token = self.create_jwt_token(&jwt_secret)?;
 
-            let request_id = format!("{method}_{attempt}_{}", 
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis());
-            
+            let request_id = format!(
+                "{method}_{attempt}_{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            );
+
             let rpc_request = json!({
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -451,7 +489,10 @@ impl EngineApiClient {
                 "params": params
             });
 
-            debug!("Engine API request: {} (attempt {}/{})", method, attempt, self.retry_config.max_retries);
+            debug!(
+                "Engine API request: {} (attempt {}/{})",
+                method, attempt, self.retry_config.max_retries
+            );
 
             let request_start = Instant::now();
 
@@ -469,15 +510,21 @@ impl EngineApiClient {
                     match response.json::<Value>().await {
                         Ok(result) => {
                             let duration = request_start.elapsed();
-                            debug!("Engine API {} succeeded in {:?} (attempt {})", method, duration, attempt);
-                            
+                            debug!(
+                                "Engine API {} succeeded in {:?} (attempt {})",
+                                method, duration, attempt
+                            );
+
                             // Update average response time
                             self.update_average_response_time(duration);
-                            
+
                             return Ok(result);
                         }
                         Err(e) => {
-                            warn!("Failed to parse Engine API response on attempt {}: {}", attempt, e);
+                            warn!(
+                                "Failed to parse Engine API response on attempt {}: {}",
+                                attempt, e
+                            );
                             last_error = Some(RethEngineError::Rpc(format!(
                                 "Failed to parse Engine API response: {e}"
                             )));
@@ -486,15 +533,19 @@ impl EngineApiClient {
                 }
                 Ok(response) => {
                     let status_code = response.status();
-                    let error_body = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                    
+                    let error_body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
+
                     warn!(
                         "Engine API {} returned error status {} on attempt {}: {}",
                         method, status_code, attempt, error_body
                     );
 
                     last_error = Some(RethEngineError::Rpc(format!(
-                        "Engine API returned error status {}: {}", status_code, error_body
+                        "Engine API returned error status {}: {}",
+                        status_code, error_body
                     )));
 
                     // Don't retry on client errors (4xx)
@@ -503,7 +554,10 @@ impl EngineApiClient {
                     }
                 }
                 Err(e) => {
-                    warn!("Engine API {} request failed on attempt {}: {}", method, attempt, e);
+                    warn!(
+                        "Engine API {} request failed on attempt {}: {}",
+                        method, attempt, e
+                    );
                     last_error = Some(RethEngineError::Rpc(format!(
                         "Engine API request failed: {e}"
                     )));
@@ -521,13 +575,20 @@ impl EngineApiClient {
                     current_delay
                 };
 
-                debug!("Retrying {} in {:?} (attempt {}/{})", method, delay, attempt + 1, self.retry_config.max_retries);
+                debug!(
+                    "Retrying {} in {:?} (attempt {}/{})",
+                    method,
+                    delay,
+                    attempt + 1,
+                    self.retry_config.max_retries
+                );
                 tokio::time::sleep(delay).await;
 
                 // Exponential backoff with max delay cap
                 current_delay = std::cmp::min(
                     Duration::from_millis(
-                        (current_delay.as_millis() as f64 * self.retry_config.backoff_multiplier) as u64
+                        (current_delay.as_millis() as f64 * self.retry_config.backoff_multiplier)
+                            as u64,
                     ),
                     self.retry_config.max_delay,
                 );
@@ -537,7 +598,10 @@ impl EngineApiClient {
         // Update failure metrics
         self.metrics.requests_failed.fetch_add(1, Ordering::Relaxed);
 
-        error!("All {} retry attempts exhausted for method: {}", self.retry_config.max_retries, method);
+        error!(
+            "All {} retry attempts exhausted for method: {}",
+            self.retry_config.max_retries, method
+        );
         Err(last_error.unwrap_or_else(|| {
             RethEngineError::Rpc(format!("All retry attempts exhausted for method: {method}"))
         }))
@@ -553,17 +617,22 @@ impl EngineApiClient {
 
     /// Update average response time metric
     fn update_average_response_time(&self, duration: Duration) {
-        let current_avg = self.metrics.average_response_time_ms.load(Ordering::Relaxed);
+        let current_avg = self
+            .metrics
+            .average_response_time_ms
+            .load(Ordering::Relaxed);
         let new_value = duration.as_millis() as u64;
-        
+
         // Simple exponential moving average
         let updated_avg = if current_avg == 0 {
             new_value
         } else {
             (current_avg * 9 + new_value) / 10
         };
-        
-        self.metrics.average_response_time_ms.store(updated_avg, Ordering::Relaxed);
+
+        self.metrics
+            .average_response_time_ms
+            .store(updated_avg, Ordering::Relaxed);
     }
 
     /// Serialize payload attributes with withdrawal support
@@ -581,12 +650,14 @@ impl EngineApiClient {
         if let Some(ref withdrawals) = attrs.withdrawals {
             let withdrawals_json: Vec<Value> = withdrawals
                 .iter()
-                .map(|w| json!({
-                    "index": format!("0x{:x}", w.index),
-                    "validatorIndex": format!("0x{:x}", w.validator_index),
-                    "address": w.address,
-                    "amount": format!("0x{:x}", w.amount)
-                }))
+                .map(|w| {
+                    json!({
+                        "index": format!("0x{:x}", w.index),
+                        "validatorIndex": format!("0x{:x}", w.validator_index),
+                        "address": w.address,
+                        "amount": format!("0x{:x}", w.amount)
+                    })
+                })
                 .collect();
 
             payload_attrs["withdrawals"] = json!(withdrawals_json);
@@ -639,7 +710,7 @@ impl EngineApiClient {
             latest_valid_hash,
             validation_error,
             processing_time: Duration::default(), // Will be set by caller
-            blob_gas_used: None, // Will be set by caller
+            blob_gas_used: None,                  // Will be set by caller
         })
     }
 
@@ -690,7 +761,7 @@ impl EngineApiClient {
             latest_valid_hash,
             validation_error,
             processing_time: Duration::default(), // Will be set by caller
-            withdrawals_processed: 0, // Will be set by caller
+            withdrawals_processed: 0,             // Will be set by caller
         })
     }
 
@@ -771,15 +842,14 @@ impl EngineApiClient {
         if commitments.len() != proofs.len() || commitments.len() != blobs.len() {
             return Err(RethEngineError::Rpc(format!(
                 "Inconsistent blob bundle sizes: {} commitments, {} proofs, {} blobs",
-                commitments.len(), proofs.len(), blobs.len()
+                commitments.len(),
+                proofs.len(),
+                blobs.len()
             )));
         }
 
         let blob_count = blobs.len();
-        let total_size_bytes = blobs
-            .iter()
-            .map(|blob| blob.len() as u64)
-            .sum();
+        let total_size_bytes = blobs.iter().map(|blob| blob.len() as u64).sum();
 
         debug!(
             "Parsed blob bundle with {} blobs, total size: {} bytes",
@@ -856,7 +926,7 @@ impl EngineApiClient {
     /// Enhanced health check with detailed diagnostics
     pub async fn health_check(&self) -> Result<EngineHealthStatus, RethEngineError> {
         let start_time = Instant::now();
-        
+
         match self.exchange_capabilities(&[]).await {
             Ok(capabilities) => {
                 let response_time = start_time.elapsed();
@@ -909,7 +979,10 @@ impl EngineApiClient {
             requests_successful: self.metrics.requests_successful.load(Ordering::Relaxed),
             requests_failed: self.metrics.requests_failed.load(Ordering::Relaxed),
             retries_total: self.metrics.retries_total.load(Ordering::Relaxed),
-            average_response_time_ms: self.metrics.average_response_time_ms.load(Ordering::Relaxed),
+            average_response_time_ms: self
+                .metrics
+                .average_response_time_ms
+                .load(Ordering::Relaxed),
             payload_submissions: self.metrics.payload_submissions.load(Ordering::Relaxed),
             forkchoice_updates: self.metrics.forkchoice_updates.load(Ordering::Relaxed),
             payload_retrievals: self.metrics.payload_retrievals.load(Ordering::Relaxed),
@@ -923,7 +996,7 @@ impl EngineApiClient {
     fn calculate_success_rate(&self) -> f64 {
         let total = self.metrics.requests_total.load(Ordering::Relaxed);
         let successful = self.metrics.requests_successful.load(Ordering::Relaxed);
-        
+
         if total == 0 {
             0.0
         } else {
@@ -937,12 +1010,18 @@ impl EngineApiClient {
         self.metrics.requests_successful.store(0, Ordering::Relaxed);
         self.metrics.requests_failed.store(0, Ordering::Relaxed);
         self.metrics.retries_total.store(0, Ordering::Relaxed);
-        self.metrics.average_response_time_ms.store(0, Ordering::Relaxed);
+        self.metrics
+            .average_response_time_ms
+            .store(0, Ordering::Relaxed);
         self.metrics.payload_submissions.store(0, Ordering::Relaxed);
         self.metrics.forkchoice_updates.store(0, Ordering::Relaxed);
         self.metrics.payload_retrievals.store(0, Ordering::Relaxed);
-        self.metrics.blob_bundles_processed.store(0, Ordering::Relaxed);
-        self.metrics.withdrawals_processed.store(0, Ordering::Relaxed);
+        self.metrics
+            .blob_bundles_processed
+            .store(0, Ordering::Relaxed);
+        self.metrics
+            .withdrawals_processed
+            .store(0, Ordering::Relaxed);
     }
 }
 

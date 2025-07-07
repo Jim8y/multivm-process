@@ -1,6 +1,5 @@
 use reth_execution_engine::engine_api::{
-    EngineApiClient, EngineApiClientBuilder, RetryConfig, 
-    PayloadAttributes, WithdrawalRequest
+    EngineApiClient, EngineApiClientBuilder, PayloadAttributes, RetryConfig, WithdrawalRequest,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -17,7 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("");
 
     // Configuration
-    let jwt_secret = Arc::new(RwLock::new(Some("test_secret_64_chars_long_for_testing_purposes_only_1234567890".to_string())));
+    let jwt_secret = Arc::new(RwLock::new(Some(
+        "test_secret_64_chars_long_for_testing_purposes_only_1234567890".to_string(),
+    )));
     let engine_url = "http://127.0.0.1:8551".to_string();
 
     // Create custom retry configuration
@@ -51,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 1: engine_newPayloadV3
     println!("🚀 Testing engine_newPayloadV3 with blob support:");
     println!("================================================");
-    
+
     let execution_payload = json!({
         "parentHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "feeRecipient": "0x0000000000000000000000000000000000000000",
@@ -76,7 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "0x5555555555555555555555555555555555555555555555555555555555555555".to_string(),
     ];
 
-    let parent_beacon_block_root = "0x6666666666666666666666666666666666666666666666666666666666666666";
+    let parent_beacon_block_root =
+        "0x6666666666666666666666666666666666666666666666666666666666666666";
 
     println!("- Execution payload block number: 0x1");
     println!("- Blob hashes count: {}", blob_hashes.len());
@@ -114,7 +116,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let payload_attributes = PayloadAttributes {
         timestamp: 100,
-        prev_randao: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+        prev_randao: "0x2222222222222222222222222222222222222222222222222222222222222222"
+            .to_string(),
         suggested_fee_recipient: "0x9999999999999999999999999999999999999999".to_string(),
         withdrawals: Some(withdrawals.clone()),
         parent_beacon_block_root: Some(parent_beacon_block_root.to_string()),
@@ -122,10 +125,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("- Forkchoice head: 0x3333...3333");
     println!("- Withdrawals count: {}", withdrawals.len());
-    println!("- Total withdrawal amount: {} gwei", 
-             withdrawals.iter().map(|w| w.amount).sum::<u64>());
+    println!(
+        "- Total withdrawal amount: {} gwei",
+        withdrawals.iter().map(|w| w.amount).sum::<u64>()
+    );
 
-    println!("📝 Would call: client.forkchoice_updated_v3(&forkchoice_state, Some(&payload_attributes))");
+    println!(
+        "📝 Would call: client.forkchoice_updated_v3(&forkchoice_state, Some(&payload_attributes))"
+    );
     println!("✅ engine_forkchoiceUpdatedV3 method with withdrawals verified!");
     println!("");
 
@@ -158,8 +165,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let metrics = client.get_metrics();
     println!("- Requests total: {}", metrics.requests_total);
     println!("- Success rate: {:.2}%", metrics.success_rate);
-    println!("- Average response time: {}ms", metrics.average_response_time_ms);
-    println!("- Blob bundles processed: {}", metrics.blob_bundles_processed);
+    println!(
+        "- Average response time: {}ms",
+        metrics.average_response_time_ms
+    );
+    println!(
+        "- Blob bundles processed: {}",
+        metrics.blob_bundles_processed
+    );
     println!("- Withdrawals processed: {}", metrics.withdrawals_processed);
     println!("");
 
@@ -180,7 +193,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ 连接管理和监控 - 完全实现");
     println!("✅ Builder 模式配置 - 完全实现");
     println!("");
-    
+
     println!("🚀 Ready for production use with external Reth nodes!");
 
     Ok(())

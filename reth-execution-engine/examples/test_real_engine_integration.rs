@@ -34,12 +34,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut real_engine = RealRethEngine::new(data_dir.clone(), rpc_port, chain_id).await?;
 
     println!("🚀 Starting Reth node using real_engine.rs code...");
-    
+
     // Initialize the engine (this calls real_engine.rs initialize() method!)
     real_engine.initialize().await?;
 
     println!("✅ Reth node started successfully!");
-    println!("🔍 Process ID: {:?}", real_engine.get_reth_process_pid().await);
+    println!(
+        "🔍 Process ID: {:?}",
+        real_engine.get_reth_process_pid().await
+    );
     println!("🌐 RPC URL: http://127.0.0.1:{rpc_port}");
     println!("⚡ Engine URL: http://127.0.0.1:{}", rpc_port + 1);
     println!("");
@@ -51,7 +54,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Check if node process is running
     println!("🔍 Checking node status...");
     let is_running = real_engine.is_reth_process_running().await;
-    println!("💓 Node process running: {}", if is_running { "✅ Running" } else { "❌ Not Running" });
+    println!(
+        "💓 Node process running: {}",
+        if is_running {
+            "✅ Running"
+        } else {
+            "❌ Not Running"
+        }
+    );
 
     // Test Engine API status
     println!("🧪 Testing Engine API status...");
@@ -73,7 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Press Ctrl+C to stop the node...");
 
     // Set up graceful shutdown
-    let mut shutdown_signal = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+    let mut shutdown_signal =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
     shutdown_signal.recv().await;
 
     println!("🛑 Shutting down...");
