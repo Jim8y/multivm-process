@@ -17,6 +17,25 @@ pub mod transactions;
 use crate::api::ApiResponse;
 use axum::{http::StatusCode, response::Json};
 
+/// Start request timer for measuring response time
+pub fn start_request_timer() -> std::time::Instant {
+    std::time::Instant::now()
+}
+
+/// Calculate response time in milliseconds
+pub fn calculate_response_time(start_time: std::time::Instant) -> u64 {
+    start_time.elapsed().as_millis() as u64
+}
+
+/// Create a success response
+pub fn success_response<T: serde::Serialize>(
+    data: T,
+    request_id: String,
+    response_time: u64,
+) -> Json<ApiResponse<T>> {
+    Json(ApiResponse::success(data, request_id, response_time))
+}
+
 /// Health check endpoint
 pub async fn health_check() -> Result<Json<ApiResponse<HealthStatus>>, StatusCode> {
     let request_id = crate::api::utils::generate_request_id();
@@ -93,25 +112,6 @@ pub async fn handle_error(
     };
 
     Json(api_response)
-}
-
-/// Extract request timing information
-pub fn start_request_timer() -> std::time::Instant {
-    std::time::Instant::now()
-}
-
-/// Calculate request response time
-pub fn calculate_response_time(start_time: std::time::Instant) -> u64 {
-    start_time.elapsed().as_millis() as u64
-}
-
-/// Common response wrapper for successful operations
-pub fn success_response<T>(
-    data: T,
-    request_id: String,
-    response_time: u64,
-) -> Json<ApiResponse<T>> {
-    Json(ApiResponse::success(data, request_id, response_time))
 }
 
 /// Common response wrapper for error operations
