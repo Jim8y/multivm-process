@@ -1,6 +1,5 @@
 use reth_execution_engine::engine_api::{
-    EngineApiClient, EngineApiClientBuilder, RetryConfig, 
-    PayloadAttributes, WithdrawalRequest
+    EngineApiClientBuilder, PayloadAttributes, RetryConfig, WithdrawalRequest,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -14,10 +13,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧪 Testing Engine API Features");
     println!("===============================");
     println!("Demonstrating all implemented Engine API v3 capabilities");
-    println!("");
+    println!();
 
     // Configuration
-    let jwt_secret = Arc::new(RwLock::new(Some("test_secret_64_chars_long_for_testing_purposes_only_1234567890".to_string())));
+    let jwt_secret = Arc::new(RwLock::new(Some(
+        "test_secret_64_chars_long_for_testing_purposes_only_1234567890".to_string(),
+    )));
     let engine_url = "http://127.0.0.1:8551".to_string();
 
     // Create custom retry configuration
@@ -31,11 +32,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("🔧 Building Engine API Client with advanced features:");
-    println!("- Engine URL: {}", engine_url);
+    println!("- Engine URL: {engine_url}");
     println!("- Max retries: {}", retry_config.max_retries);
     println!("- Connection timeout: {:?}", retry_config.timeout);
     println!("- Max concurrent requests: 5");
-    println!("");
+    println!();
 
     // Build client using builder pattern
     let client = EngineApiClientBuilder::new()
@@ -46,13 +47,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     println!("✅ Engine API Client created successfully!");
-    println!("");
+    println!();
 
     // Test 1: engine_newPayloadV3
     println!("🚀 Testing engine_newPayloadV3 with blob support:");
     println!("================================================");
-    
-    let execution_payload = json!({
+
+    let _execution_payload = json!({
         "parentHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "feeRecipient": "0x0000000000000000000000000000000000000000",
         "stateRoot": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
@@ -71,27 +72,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "excessBlobGas": "0x0"
     });
 
-    let blob_hashes = vec![
+    let blob_hashes = [
         "0x4444444444444444444444444444444444444444444444444444444444444444".to_string(),
         "0x5555555555555555555555555555555555555555555555555555555555555555".to_string(),
     ];
 
-    let parent_beacon_block_root = "0x6666666666666666666666666666666666666666666666666666666666666666";
+    let parent_beacon_block_root =
+        "0x6666666666666666666666666666666666666666666666666666666666666666";
 
     println!("- Execution payload block number: 0x1");
     println!("- Blob hashes count: {}", blob_hashes.len());
-    println!("- Parent beacon block root: {}", parent_beacon_block_root);
+    println!("- Parent beacon block root: {parent_beacon_block_root}");
 
     // This would normally call the actual Reth node
     println!("📝 Would call: client.new_payload_v3(&execution_payload, &blob_hashes, parent_beacon_block_root)");
     println!("✅ engine_newPayloadV3 method signature verified!");
-    println!("");
+    println!();
 
     // Test 2: engine_forkchoiceUpdatedV3 with withdrawals
     println!("🔄 Testing engine_forkchoiceUpdatedV3 with withdrawal processing:");
     println!("================================================================");
 
-    let forkchoice_state = json!({
+    let _forkchoice_state = json!({
         "headBlockHash": "0x3333333333333333333333333333333333333333333333333333333333333333",
         "safeBlockHash": "0x3333333333333333333333333333333333333333333333333333333333333333",
         "finalizedBlockHash": "0x3333333333333333333333333333333333333333333333333333333333333333"
@@ -112,9 +114,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ];
 
-    let payload_attributes = PayloadAttributes {
+    let _payload_attributes = PayloadAttributes {
         timestamp: 100,
-        prev_randao: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+        prev_randao: "0x2222222222222222222222222222222222222222222222222222222222222222"
+            .to_string(),
         suggested_fee_recipient: "0x9999999999999999999999999999999999999999".to_string(),
         withdrawals: Some(withdrawals.clone()),
         parent_beacon_block_root: Some(parent_beacon_block_root.to_string()),
@@ -122,23 +125,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("- Forkchoice head: 0x3333...3333");
     println!("- Withdrawals count: {}", withdrawals.len());
-    println!("- Total withdrawal amount: {} gwei", 
-             withdrawals.iter().map(|w| w.amount).sum::<u64>());
+    println!(
+        "- Total withdrawal amount: {} gwei",
+        withdrawals.iter().map(|w| w.amount).sum::<u64>()
+    );
 
-    println!("📝 Would call: client.forkchoice_updated_v3(&forkchoice_state, Some(&payload_attributes))");
+    println!(
+        "📝 Would call: client.forkchoice_updated_v3(&forkchoice_state, Some(&payload_attributes))"
+    );
     println!("✅ engine_forkchoiceUpdatedV3 method with withdrawals verified!");
-    println!("");
+    println!();
 
     // Test 3: engine_getPayloadV3
     println!("📦 Testing engine_getPayloadV3 with blob bundle handling:");
     println!("========================================================");
 
     let payload_id = "0xaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd";
-    println!("- Payload ID: {}", payload_id);
+    println!("- Payload ID: {payload_id}");
 
     println!("📝 Would call: client.get_payload_v3(payload_id)");
     println!("✅ engine_getPayloadV3 method signature verified!");
-    println!("");
+    println!();
 
     // Test 4: Error handling and retry logic
     println!("🛡️  Testing Error Handling and Retry Logic:");
@@ -149,7 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("- JWT token management: ✅");
     println!("- Comprehensive metrics tracking: ✅");
     println!("- HTTP/2 with keep-alive: ✅");
-    println!("");
+    println!();
 
     // Test 5: Metrics and monitoring
     println!("📊 Testing Metrics and Monitoring:");
@@ -158,17 +165,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let metrics = client.get_metrics();
     println!("- Requests total: {}", metrics.requests_total);
     println!("- Success rate: {:.2}%", metrics.success_rate);
-    println!("- Average response time: {}ms", metrics.average_response_time_ms);
-    println!("- Blob bundles processed: {}", metrics.blob_bundles_processed);
+    println!(
+        "- Average response time: {}ms",
+        metrics.average_response_time_ms
+    );
+    println!(
+        "- Blob bundles processed: {}",
+        metrics.blob_bundles_processed
+    );
     println!("- Withdrawals processed: {}", metrics.withdrawals_processed);
-    println!("");
+    println!();
 
     // Test 6: Health check
     println!("💓 Testing Health Check:");
     println!("========================");
     println!("📝 Would call: client.health_check().await");
     println!("✅ Health check with capability detection verified!");
-    println!("");
+    println!();
 
     println!("🎉 All Engine API Features Verified!");
     println!("====================================");
@@ -179,8 +192,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ JWT 认证管理 - 完全实现");
     println!("✅ 连接管理和监控 - 完全实现");
     println!("✅ Builder 模式配置 - 完全实现");
-    println!("");
-    
+    println!();
+
     println!("🚀 Ready for production use with external Reth nodes!");
 
     Ok(())

@@ -1,19 +1,18 @@
-use reth_execution_engine::real_engine::{RealRethEngine, ConnectionConfig};
-use reth_execution_engine::engine::{Block, RethEngineError};
-use std::path::PathBuf;
+use reth_execution_engine::engine::RethEngineError;
+use reth_execution_engine::real_engine::{ConnectionConfig, RealRethEngine};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
-use tracing::{info, warn};
+use tracing::warn;
 
 /// Integration test for real Reth node process management
-/// 
+///
 /// This test demonstrates:
 /// 1. Starting a real Reth node process
 /// 2. Verifying connections
 /// 3. Checking process status
 /// 4. Stopping the process
-/// 
+///
 /// Prerequisites:
 /// - `reth` binary must be installed and available in PATH
 /// - Sufficient disk space for temporary blockchain data
@@ -22,14 +21,14 @@ use tracing::{info, warn};
 async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging for test visibility
     tracing_subscriber::fmt::init();
-    
+
     println!("🚀 Starting Real Reth Node Integration Test");
     println!("===========================================");
 
     // Create temporary directory for Reth data
     let temp_dir = TempDir::new()?;
     let data_dir = temp_dir.path().to_path_buf();
-    
+
     println!("📁 Using temporary data directory: {}", data_dir.display());
 
     // Configure connection settings for faster testing
@@ -44,17 +43,18 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
     // Create RealRethEngine instance
     let mut reth_engine = RealRethEngine::new_with_config(
         data_dir.clone(),
-        18545,  // RPC port
-        1337,   // Test chain ID
+        18545, // RPC port
+        1337,  // Test chain ID
         connection_config,
-    ).await?;
+    )
+    .await?;
 
     println!("✅ RealRethEngine created successfully");
 
     // Test 1: Initialize and start the Reth process
     println!("\n🔧 1. Initializing Reth Engine (this will start the Reth process)");
     println!("   This may take 30-60 seconds for first-time initialization...");
-    
+
     match reth_engine.initialize().await {
         Ok(()) => {
             println!("   ✅ Reth engine initialized successfully!");
@@ -74,17 +74,17 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
 
     // Test 2: Verify process is running
     println!("\n🔍 2. Checking Process Status");
-    
+
     let is_running = reth_engine.is_reth_process_running().await;
     println!("   Process running: {}", is_running);
-    
+
     if let Some(pid) = reth_engine.get_reth_process_pid().await {
         println!("   Process PID: {}", pid);
     }
 
     // Test 3: Get engine status
     println!("\n📊 3. Getting Engine Status");
-    
+
     match reth_engine.get_engine_status().await {
         Ok(status) => {
             println!("   ✅ Engine status retrieved:");
@@ -97,16 +97,16 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
 
     // Test 4: Stop the process
     println!("\n🛑 4. Stopping Reth Process");
-    
+
     match reth_engine.stop_reth_process().await {
         Ok(()) => {
             println!("   ✅ Reth process stopped successfully");
-            
+
             // Verify process is actually stopped
             sleep(Duration::from_secs(2)).await;
             let is_running_after_stop = reth_engine.is_reth_process_running().await;
             println!("   Process running after stop: {}", is_running_after_stop);
-            
+
             if !is_running_after_stop {
                 println!("   ✅ Process cleanup verified");
             } else {
@@ -120,9 +120,9 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
 
     println!("\n🎉 Real Reth Node Integration Test Complete!");
     println!("============================================");
-    
+
     // Cleanup happens automatically when temp_dir is dropped
-    
+
     Ok(())
 }
 
@@ -130,16 +130,16 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
 #[tokio::test]
 async fn test_reth_not_available() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Testing behavior when Reth binary is not available");
-    
+
     let temp_dir = TempDir::new()?;
     let data_dir = temp_dir.path().to_path_buf();
 
     // Try to create engine with non-existent binary (by using wrong data dir)
     let mut reth_engine = RealRethEngine::new(
-        data_dir,
-        18546,  // Different port to avoid conflicts
+        data_dir, 18546, // Different port to avoid conflicts
         1337,
-    ).await?;
+    )
+    .await?;
 
     // This should fail if reth binary is not available
     match reth_engine.initialize().await {

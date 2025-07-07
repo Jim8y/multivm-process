@@ -1,6 +1,5 @@
 use reth_execution_engine::engine_api::{
-    EngineApiClientBuilder, RetryConfig,
-    PayloadAttributes, WithdrawalRequest
+    EngineApiClientBuilder, PayloadAttributes, RetryConfig, WithdrawalRequest,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -18,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create JWT secret
     let jwt_secret = Arc::new(RwLock::new(Some(
-        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string()
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
     )));
 
     // Configure advanced retry strategy
@@ -42,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 1: Health Check
     println!("\n📊 1. Health Check Test");
     println!("----------------------");
-    
+
     match client.health_check().await {
         Ok(health_status) => {
             info!("Health check completed!");
@@ -62,17 +61,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 2: Create mock execution payload with blob support
     println!("\n🔧 2. Engine API V3 Methods Test");
     println!("--------------------------------");
-    
+
     let execution_payload = create_mock_execution_payload();
     let blob_hashes = vec![
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
         "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string(),
     ];
-    let parent_beacon_block_root = "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba";
+    let parent_beacon_block_root =
+        "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba";
 
     // Test engine_newPayloadV3
     println!("  Testing engine_newPayloadV3 with blob support...");
-    match client.new_payload_v3(&execution_payload, &blob_hashes, parent_beacon_block_root).await {
+    match client
+        .new_payload_v3(&execution_payload, &blob_hashes, parent_beacon_block_root)
+        .await
+    {
         Ok(response) => {
             info!("newPayloadV3 succeeded!");
             println!("    ✅ Status: {:?}", response.status);
@@ -93,11 +96,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 3: Fork choice update with withdrawals
     println!("\n💰 3. Fork Choice Update with Withdrawals");
     println!("------------------------------------------");
-    
+
     let forkchoice_state = create_mock_forkchoice_state();
     let payload_attributes = PayloadAttributes {
         timestamp: 1234567890,
-        prev_randao: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
+        prev_randao: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+            .to_string(),
         suggested_fee_recipient: "0xabcdef1234567890abcdef1234567890abcdef12".to_string(),
         withdrawals: Some(vec![
             WithdrawalRequest {
@@ -116,37 +120,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         parent_beacon_block_root: Some(parent_beacon_block_root.to_string()),
     };
 
-    match client.forkchoice_updated_v3(&forkchoice_state, Some(&payload_attributes)).await {
+    match client
+        .forkchoice_updated_v3(&forkchoice_state, Some(&payload_attributes))
+        .await
+    {
         Ok(response) => {
             info!("forkchoiceUpdatedV3 succeeded!");
             println!("    ✅ Status: {:?}", response.payload_status);
             println!("    ⏱️  Processing time: {:?}", response.processing_time);
-            println!("    💰 Withdrawals processed: {}", response.withdrawals_processed);
+            println!(
+                "    💰 Withdrawals processed: {}",
+                response.withdrawals_processed
+            );
             if let Some(payload_id) = response.payload_id {
                 println!("    🆔 Payload ID: {}", payload_id);
-                
+
                 // Test engine_getPayloadV3 if we got a payload ID
                 println!("\n📦 4. Get Payload V3 with Blob Bundle");
                 println!("--------------------------------------");
-                
+
                 match client.get_payload_v3(&payload_id).await {
                     Ok(payload_response) => {
                         info!("getPayloadV3 succeeded!");
                         println!("    ✅ Payload retrieved successfully");
-                        println!("    ⏱️  Processing time: {:?}", payload_response.processing_time);
-                        
+                        println!(
+                            "    ⏱️  Processing time: {:?}",
+                            payload_response.processing_time
+                        );
+
                         if let Some(ref blobs_bundle) = payload_response.blobs_bundle {
                             println!("    🫧 Blob bundle details:");
                             println!("        Count: {}", blobs_bundle.blob_count);
-                            println!("        Total size: {} bytes", blobs_bundle.total_size_bytes);
+                            println!(
+                                "        Total size: {} bytes",
+                                blobs_bundle.total_size_bytes
+                            );
                             println!("        Commitments: {}", blobs_bundle.commitments.len());
                             println!("        Proofs: {}", blobs_bundle.proofs.len());
                         }
-                        
+
                         if let Some(block_value) = payload_response.block_value {
                             println!("    💵 Block value: {}", block_value);
                         }
-                        
+
                         if let Some(override_builder) = payload_response.should_override_builder {
                             println!("    🔧 Should override builder: {}", override_builder);
                         }
@@ -167,18 +183,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 5: Show metrics
     println!("\n📈 5. Engine API Metrics");
     println!("------------------------");
-    
+
     let metrics = client.get_metrics();
     println!("  📊 Total requests: {}", metrics.requests_total);
     println!("  ✅ Successful requests: {}", metrics.requests_successful);
     println!("  ❌ Failed requests: {}", metrics.requests_failed);
     println!("  🔄 Total retries: {}", metrics.retries_total);
-    println!("  ⏱️  Average response time: {}ms", metrics.average_response_time_ms);
+    println!(
+        "  ⏱️  Average response time: {}ms",
+        metrics.average_response_time_ms
+    );
     println!("  📦 Payload submissions: {}", metrics.payload_submissions);
     println!("  🔀 Forkchoice updates: {}", metrics.forkchoice_updates);
     println!("  📥 Payload retrievals: {}", metrics.payload_retrievals);
-    println!("  🫧 Blob bundles processed: {}", metrics.blob_bundles_processed);
-    println!("  💰 Withdrawals processed: {}", metrics.withdrawals_processed);
+    println!(
+        "  🫧 Blob bundles processed: {}",
+        metrics.blob_bundles_processed
+    );
+    println!(
+        "  💰 Withdrawals processed: {}",
+        metrics.withdrawals_processed
+    );
     println!("  📊 Success rate: {:.2}%", metrics.success_rate);
 
     println!("\n🎉 Enhanced Engine API Client Test Complete!");
