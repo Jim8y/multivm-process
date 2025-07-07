@@ -16,6 +16,7 @@ mod metrics_impl {
 
     /// Production monitoring system for P2P network
     #[derive(Debug)]
+    #[allow(dead_code)]
     pub struct P2PMonitor {
         /// Prometheus metrics registry
         registry: Arc<Registry>,
@@ -284,6 +285,7 @@ mod metrics_impl {
         }
 
         /// Send webhook alert
+        #[allow(dead_code)]
         async fn send_webhook_alert(
             &self,
             webhook_url: &str,
@@ -315,12 +317,14 @@ mod metrics_impl {
 
     /// Alert state tracking
     #[derive(Debug, Default)]
+    #[allow(dead_code)]
     pub(super) struct AlertState {
         last_alerts: HashMap<String, Instant>,
     }
 
     /// Performance baselines for anomaly detection
     #[derive(Debug, Default)]
+    #[allow(dead_code)]
     pub(super) struct PerformanceBaselines {
         baseline_cpu: f64,
         baseline_memory: u64,

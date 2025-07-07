@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[cfg(feature = "cache")]
 use redis::{
@@ -104,7 +104,7 @@ impl ProductionRedisCache {
                 })?;
 
             // Create connection manager for connection pooling
-            let connection_manager = match client.get_tokio_connection_manager().await {
+            let connection_manager = match client.get_connection_manager().await {
                 Ok(cm) => Some(cm),
                 Err(e) => {
                     warn!("Failed to create connection manager, will retry: {}", e);
