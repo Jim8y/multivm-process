@@ -30,24 +30,25 @@
 //! ```rust
 //! use multivm_p2p::core::manager::P2PManager;
 //! use multivm_p2p::config::P2PConfig;
+//! use libp2p::identity::Keypair;
 //!
 //! let config = P2PConfig::default();
-//! let manager = P2PManager::new(config);
-//! 
-//! // Manager is created but not yet started
-//! assert!(!manager.is_running());
+//! let keypair = Keypair::generate_ed25519();
+//! let (manager, _rx) = P2PManager::new(config, keypair);
+//!
+//! // Manager is created and ready to be started
+//! let _handle = manager.get_handle();
 //! ```
 //!
 //! ### Network Configuration
 //!
 //! ```rust
-//! use multivm_p2p::config::{P2PConfig, NetworkMode};
+//! use multivm_p2p::config::P2PConfig;
 //!
 //! let mut config = P2PConfig::default();
-//! config.network_mode = NetworkMode::FullNode;
-//! config.max_peers = 50;
-//! 
-//! assert_eq!(config.max_peers, 50);
+//! config.network.max_connections = 50;
+//!
+//! assert_eq!(config.network.max_connections, 50);
 //! ```
 
 // Core modules

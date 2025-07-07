@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Main configuration structure for all MultiVM components
+/// Main configuration structure for all `MultiVM` components
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MultivmConfig {
     /// System-wide settings

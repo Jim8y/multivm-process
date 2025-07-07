@@ -4,7 +4,6 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use multivm_common::MultivmConfig;
 use std::time::Duration;
 
 #[derive(Parser)]

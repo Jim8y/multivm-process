@@ -1,7 +1,7 @@
-//! MultiVM Common Library
+//! `MultiVM` Common Library
 //!
 //! This library provides unified functionality, types, and utilities shared
-//! across all MultiVM components. It eliminates duplication and provides
+//! across all `MultiVM` components. It eliminates duplication and provides
 //! consistent patterns throughout the system.
 //!
 //! # Examples

@@ -340,12 +340,11 @@ impl RateLimiter {
             if now.duration_since(penalty_time) < self.config.penalty_duration {
                 debug!("Process {} still in penalty period", process_id);
                 return Ok(false);
-            } else {
-                // Penalty period over, reset
-                state.last_penalty = None;
-                state.message_count = 0;
-                state.window_start = now;
             }
+            // Penalty period over, reset
+            state.last_penalty = None;
+            state.message_count = 0;
+            state.window_start = now;
         }
 
         // Check if we need a new window

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+
     use std::path::PathBuf;
 
     #[test]
@@ -10,7 +10,7 @@ mod tests {
         // Test that default values are set correctly
         let data_dir = String::from("./data/reth");
         let rpc_port = 8545u16;
-        
+
         assert_eq!(data_dir, "./data/reth");
         assert_eq!(rpc_port, 8545);
     }
@@ -19,7 +19,7 @@ mod tests {
     fn test_data_dir_parsing() {
         let test_dir = "./test/data";
         let path: PathBuf = test_dir.into();
-        
+
         assert_eq!(path.to_string_lossy(), "./test/data");
     }
 
@@ -27,11 +27,11 @@ mod tests {
     fn test_chain_id_configuration() {
         let chain_id = 1337u64;
         assert_eq!(chain_id, 1337);
-        
+
         // Test other common chain IDs
         let mainnet_id = 1u64;
         let goerli_id = 5u64;
-        
+
         assert_eq!(mainnet_id, 1);
         assert_eq!(goerli_id, 5);
     }
@@ -40,7 +40,7 @@ mod tests {
     fn test_rpc_port_validation() {
         let valid_port = 8545u16;
         let alternative_port = 9000u16;
-        
+
         assert!(valid_port > 1024); // Not a privileged port
         assert!(valid_port < 65535); // Valid port range
         assert!(alternative_port > 1024);
@@ -91,7 +91,7 @@ mod tests {
         let invalid_port_str = "invalid";
         let result = invalid_port_str.parse::<u16>();
         assert!(result.is_err());
-        
+
         // Test fallback behavior
         let fallback_port = invalid_port_str.parse().unwrap_or(8545);
         assert_eq!(fallback_port, 8545);

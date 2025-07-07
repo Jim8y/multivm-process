@@ -262,12 +262,7 @@ impl ProductionRedisCache {
     }
 
     /// Set value with circuit breaker
-    pub async fn set<T>(
-        &self,
-        key: &str,
-        value: &T,
-        _ttl: Option<Duration>,
-    ) -> ApplicationResult<()>
+    pub async fn set<T>(&self, key: &str, value: &T, ttl: Option<Duration>) -> ApplicationResult<()>
     where
         T: Serialize,
     {
@@ -436,7 +431,7 @@ impl ProductionRedisCache {
     pub async fn mset<T>(
         &self,
         items: &[(&str, &T)],
-        _ttl: Option<Duration>,
+        ttl: Option<Duration>,
     ) -> ApplicationResult<()>
     where
         T: Serialize,
@@ -510,7 +505,7 @@ impl ProductionRedisCache {
     pub async fn get_with_lease<T>(
         &self,
         key: &str,
-        _lease_duration: Duration,
+        lease_duration: Duration,
     ) -> ApplicationResult<Option<(T, String)>>
     where
         T: for<'de> Deserialize<'de>,
@@ -557,7 +552,7 @@ impl ProductionRedisCache {
     }
 
     /// Release lease
-    pub async fn release_lease(&self, key: &str, _lease_id: &str) -> ApplicationResult<bool> {
+    pub async fn release_lease(&self, key: &str, lease_id: &str) -> ApplicationResult<bool> {
         let full_key = format!("{}{}", self.config.key_prefix, key);
         let lease_key = format!("{full_key}_lease");
 
@@ -604,14 +599,12 @@ impl ProductionRedisCache {
             .reconnect_attempts
             .fetch_add(1, Ordering::Relaxed);
 
-        let conn = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|e| ApplicationError::CacheError {
+        let conn = self.client.get_connection_manager().await.map_err(|e| {
+            ApplicationError::CacheError {
                 operation: "reconnect".to_string(),
                 message: format!("Failed to reconnect: {}", e),
-            })?;
+            }
+        })?;
 
         *conn_guard = Some(conn.clone());
         Ok(conn)
@@ -654,7 +647,7 @@ impl ProductionRedisCache {
         &self,
         key: &str,
         value: &str,
-        _ttl: Option<Duration>,
+        ttl: Option<Duration>,
     ) -> ApplicationResult<()> {
         let mut attempts = 0;
         let max_attempts = 3;
@@ -1058,7 +1051,7 @@ pub struct CacheStats {
 
 /// Publish cache invalidation event
 impl ProductionRedisCache {
-    pub async fn publish_invalidation(&self, _key: &str) -> ApplicationResult<()> {
+    pub async fn publish_invalidation(&self, key: &str) -> ApplicationResult<()> {
         if !self.is_circuit_closed().await {
             return Ok(());
         }
