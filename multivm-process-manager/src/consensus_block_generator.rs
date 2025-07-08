@@ -6,7 +6,7 @@
 use crate::coordinator::MultivmCoordinator;
 use multivm_common::MultivmResult;
 use multivm_consensus::{BlockHeader, EvmSignature, EvmTransaction, MultiVMBlock, SvmTransaction};
-use reth_execution_engine::{RethRpcClient, RethRpcClientBuilder};
+use reth_execution_engine::rpc_client::{RethRpcClient, RethRpcClientBuilder};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -263,10 +263,10 @@ impl ConsensusBlockGenerator {
     async fn collect_evm_transactions_from_reth(&self, height: u64, _timestamp_secs: u64) -> MultivmResult<(Vec<EvmTransaction>, RethBlockData)> {
         // Get the latest block from Reth
         let current_reth_block = self.reth_client.get_block_number().await
-            .map_err(|e| multivm_common::MultivmError::External {
-                service: "reth".to_string(),
+            .map_err(|e| multivm_common::MultivmError::Network {
                 message: format!("Failed to get current block number: {}", e),
-                recoverable: true,
+                endpoint: Some("reth".to_string()),
+                retry_after: None,
             })?;
 
         // Update our tracking of Reth block number
@@ -279,16 +279,15 @@ impl ConsensusBlockGenerator {
 
         // Get the latest block with full transaction details
         let reth_block = self.reth_client.get_block_by_number(current_reth_block, true).await
-            .map_err(|e| multivm_common::MultivmError::External {
-                service: "reth".to_string(),
+            .map_err(|e| multivm_common::MultivmError::Network {
                 message: format!("Failed to get block {}: {}", current_reth_block, e),
-                recoverable: true,
+                endpoint: Some("reth".to_string()),
+                retry_after: None,
             })?;
 
-        let reth_block = reth_block.ok_or_else(|| multivm_common::MultivmError::External {
-            service: "reth".to_string(),
-            message: format!("Block {} not found", current_reth_block),
-            recoverable: true,
+        let reth_block = reth_block.ok_or_else(|| multivm_common::MultivmError::NotFound {
+            resource: format!("Block {}", current_reth_block),
+            resource_id: Some(current_reth_block.to_string()),
         })?;
 
         // Convert Reth transactions to MultiVM format
@@ -388,7 +387,7 @@ impl ConsensusBlockGenerator {
             data,
             nonce,
             signature: EvmSignature {
-                v,
+                v: v as u8,
                 r,
                 s,
             },
@@ -466,10 +465,10 @@ impl ConsensusBlockGenerator {
         
         if reth_data.state_root.is_empty() {
             warn!("Empty state root received from Reth block {}", reth_data.block_number);
-            return Err(multivm_common::MultivmError::External {
-                service: "reth".to_string(),
+            return Err(multivm_common::MultivmError::Validation {
+                field: "state_root".to_string(),
                 message: "Invalid state root from Reth".to_string(),
-                recoverable: true,
+                value: Some(reth_data.state_root.clone()),
             });
         }
 
@@ -495,17 +494,17 @@ impl ConsensusBlockGenerator {
     async fn coordinate_block_timing(&self, _height: u64) -> MultivmResult<()> {
         // Get the latest Reth block timestamp
         let current_reth_block = self.reth_client.get_block_number().await
-            .map_err(|e| multivm_common::MultivmError::External {
-                service: "reth".to_string(),
+            .map_err(|e| multivm_common::MultivmError::Network {
                 message: format!("Failed to get current block number for timing: {}", e),
-                recoverable: true,
+                endpoint: Some("reth".to_string()),
+                retry_after: None,
             })?;
 
         let reth_block = self.reth_client.get_block_by_number(current_reth_block, false).await
-            .map_err(|e| multivm_common::MultivmError::External {
-                service: "reth".to_string(),
+            .map_err(|e| multivm_common::MultivmError::Network {
                 message: format!("Failed to get block for timing: {}", e),
-                recoverable: true,
+                endpoint: Some("reth".to_string()),
+                retry_after: None,
             })?;
 
         if let Some(block) = reth_block {
@@ -539,5 +538,4 @@ struct RethBlockData {
     pub gas_limit: u64,
     pub gas_used: u64,
     pub base_fee_per_gas: Option<u64>,
-}
 }

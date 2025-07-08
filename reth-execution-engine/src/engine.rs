@@ -94,6 +94,7 @@ pub struct BlockHeader {
     pub blob_gas_used: Option<u64>,
     pub excess_blob_gas: Option<u64>,
     pub parent_beacon_block_root: Option<B256>,
+    pub requests_root: Option<B256>,
 }
 
 impl Default for BlockHeader {
@@ -119,6 +120,7 @@ impl Default for BlockHeader {
             blob_gas_used: None,
             excess_blob_gas: None,
             parent_beacon_block_root: None,
+            requests_root: None,
         }
     }
 }
@@ -262,170 +264,63 @@ impl Block {
         }
     }
 
-    /// Calculate block hash using proper Ethereum Keccak-256 and RLP encoding
+    /// Calculate block hash using alloy standard library (matches reth implementation)
     pub fn hash_slow(&self) -> B256 {
-        use sha3::{Digest, Keccak256};
-
-        // RLP encode the block header in Ethereum specification order
-        let rlp_encoded = self.rlp_encode_header();
-
-        // Hash with Keccak-256 (Ethereum's hashing algorithm)
-        let mut hasher = Keccak256::new();
-        hasher.update(&rlp_encoded);
-        let result = hasher.finalize();
-
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&result);
-        hash
+        // Convert to alloy header structure
+        let alloy_header = self.to_alloy_header();
+        
+        // Use alloy's standard RLP encoding and keccak256 hashing
+        let mut out = Vec::new();
+        alloy_header.encode(&mut out);
+        let hash = alloy_primitives::keccak256(&out);
+        
+        // Convert to our custom B256
+        let mut custom_hash = [0u8; 32];
+        custom_hash.copy_from_slice(hash.as_slice());
+        custom_hash
     }
-
-    /// RLP encode the block header according to Ethereum specification
-    fn rlp_encode_header(&self) -> Vec<u8> {
-        // Ethereum block header RLP encoding follows this exact field order:
-        // [parent_hash, ommers_hash, beneficiary, state_root, transactions_root,
-        //  receipts_root, logs_bloom, difficulty, number, gas_limit, gas_used,
-        //  timestamp, extra_data, mix_hash, nonce, base_fee_per_gas?, withdrawals_root?,
-        //  blob_gas_used?, excess_blob_gas?, parent_beacon_block_root?]
-
-        // Required fields (present in all Ethereum blocks)
-        let mut rlp_items = vec![
-            self.encode_bytes(&self.header.parent_hash),
-            self.encode_bytes(&self.header.ommers_hash),
-            self.encode_bytes(&self.header.beneficiary),
-            self.encode_bytes(&self.header.state_root),
-            self.encode_bytes(&self.header.transactions_root),
-            self.encode_bytes(&self.header.receipts_root),
-            self.encode_bytes(&self.header.logs_bloom),
-            self.encode_u256(&self.header.difficulty),
-            self.encode_u64(self.header.number),
-            self.encode_u64(self.header.gas_limit),
-            self.encode_u64(self.header.gas_used),
-            self.encode_u64(self.header.timestamp),
-            self.encode_bytes(&self.header.extra_data),
-            self.encode_bytes(&self.header.mix_hash),
-            self.encode_u64(self.header.nonce),
-        ];
-
-        // EIP-1559 fields (present since London fork)
-        if let Some(base_fee) = self.header.base_fee_per_gas {
-            rlp_items.push(self.encode_u64(base_fee));
-        }
-
-        // EIP-4895 fields (present since Shanghai fork)
-        if let Some(withdrawals_root) = self.header.withdrawals_root {
-            rlp_items.push(self.encode_bytes(&withdrawals_root));
-        }
-
-        // EIP-4844 fields (present since Cancun fork)
-        if let Some(blob_gas_used) = self.header.blob_gas_used {
-            rlp_items.push(self.encode_u64(blob_gas_used));
-        }
-
-        if let Some(excess_blob_gas) = self.header.excess_blob_gas {
-            rlp_items.push(self.encode_u64(excess_blob_gas));
-        }
-
-        // EIP-4788 fields (present since Cancun fork)
-        if let Some(parent_beacon_block_root) = self.header.parent_beacon_block_root {
-            rlp_items.push(self.encode_bytes(&parent_beacon_block_root));
-        }
-
-        // RLP encode the list of items
-        self.encode_list(&rlp_items)
-    }
-
-    /// Encode bytes for RLP
-    fn encode_bytes(&self, data: &[u8]) -> Vec<u8> {
-        if data.is_empty() {
-            vec![0x80] // empty string
-        } else if data.len() == 1 && data[0] < 0x80 {
-            data.to_vec() // single byte < 0x80
-        } else if data.len() < 56 {
-            let mut result = vec![0x80 + data.len() as u8];
-            result.extend_from_slice(data);
-            result
-        } else {
-            // Long string
-            let len_bytes = self.encode_length(data.len());
-            let mut result = vec![0xb7 + len_bytes.len() as u8];
-            result.extend_from_slice(&len_bytes);
-            result.extend_from_slice(data);
-            result
+    
+    /// Convert to alloy consensus header (standard format)
+    fn to_alloy_header(&self) -> alloy_consensus::Header {
+        alloy_consensus::Header {
+            parent_hash: alloy_primitives::B256::from_slice(&self.header.parent_hash),
+            ommers_hash: alloy_primitives::B256::from_slice(&self.header.ommers_hash),
+            beneficiary: alloy_primitives::Address::from_slice(&self.header.beneficiary),
+            state_root: alloy_primitives::B256::from_slice(&self.header.state_root),
+            transactions_root: alloy_primitives::B256::from_slice(&self.header.transactions_root),
+            receipts_root: alloy_primitives::B256::from_slice(&self.header.receipts_root),
+            logs_bloom: alloy_primitives::Bloom::from_slice(&self.header.logs_bloom),
+            difficulty: alloy_primitives::U256::from_limbs(self.header.difficulty.0),
+            number: self.header.number,
+            gas_limit: self.header.gas_limit,
+            gas_used: self.header.gas_used,
+            timestamp: self.header.timestamp,
+            extra_data: alloy_primitives::Bytes::from(self.header.extra_data.clone()),
+            mix_hash: alloy_primitives::B256::from_slice(&self.header.mix_hash),
+            nonce: alloy_primitives::B64::from(self.header.nonce.to_be_bytes()),
+            base_fee_per_gas: self.header.base_fee_per_gas,
+            withdrawals_root: self.header.withdrawals_root.map(|r| alloy_primitives::B256::from_slice(&r)),
+            blob_gas_used: self.header.blob_gas_used,
+            excess_blob_gas: self.header.excess_blob_gas,
+            parent_beacon_block_root: self.header.parent_beacon_block_root.map(|r| alloy_primitives::B256::from_slice(&r)),
+            requests_hash: if self.should_include_prague_fields() {
+                self.header.requests_root.map(|r| alloy_primitives::B256::from_slice(&r))
+            } else {
+                None
+            },
         }
     }
 
-    /// Encode U256 for RLP (big-endian, minimal representation)
-    fn encode_u256(&self, value: &U256) -> Vec<u8> {
-        // Convert U256 to minimal big-endian bytes
-        let mut bytes = [0u8; 32];
 
-        // Convert from little-endian u64 array to big-endian bytes
-        for i in 0..4 {
-            let start = (3 - i) * 8;
-            bytes[start..start + 8].copy_from_slice(&value.0[i].to_be_bytes());
-        }
 
-        // Remove leading zeros for minimal representation
-        let first_non_zero = bytes.iter().position(|&b| b != 0).unwrap_or(31);
-        let minimal_bytes = &bytes[first_non_zero..];
-
-        if minimal_bytes.is_empty() {
-            vec![0x80] // RLP encoding of 0
-        } else {
-            self.encode_bytes(minimal_bytes)
-        }
+    /// Check if Prague fork fields (like requests_root) should be included in block hash
+    fn should_include_prague_fields(&self) -> bool {
+        // Based on reth's dev chain behavior, include Prague fork fields
+        // This ensures our hash calculation matches reth's implementation
+        true
     }
 
-    /// Encode u64 for RLP (big-endian, minimal representation)
-    fn encode_u64(&self, value: u64) -> Vec<u8> {
-        if value == 0 {
-            vec![0x80] // RLP encoding of 0
-        } else {
-            let bytes = value.to_be_bytes();
-            let first_non_zero = bytes.iter().position(|&b| b != 0).unwrap_or(7);
-            let minimal_bytes = &bytes[first_non_zero..];
-            self.encode_bytes(minimal_bytes)
-        }
-    }
 
-    /// Encode RLP list
-    fn encode_list(&self, items: &[Vec<u8>]) -> Vec<u8> {
-        let mut payload = Vec::new();
-        for item in items {
-            payload.extend_from_slice(item);
-        }
-
-        if payload.len() < 56 {
-            let mut result = vec![0xc0 + payload.len() as u8];
-            result.extend_from_slice(&payload);
-            result
-        } else {
-            // Long list
-            let len_bytes = self.encode_length(payload.len());
-            let mut result = vec![0xf7 + len_bytes.len() as u8];
-            result.extend_from_slice(&len_bytes);
-            result.extend_from_slice(&payload);
-            result
-        }
-    }
-
-    /// Encode length for RLP
-    fn encode_length(&self, len: usize) -> Vec<u8> {
-        if len < 256 {
-            vec![len as u8]
-        } else if len < 65536 {
-            vec![(len >> 8) as u8, len as u8]
-        } else if len < 16777216 {
-            vec![(len >> 16) as u8, (len >> 8) as u8, len as u8]
-        } else {
-            vec![
-                (len >> 24) as u8,
-                (len >> 16) as u8,
-                (len >> 8) as u8,
-                len as u8,
-            ]
-        }
-    }
 }
 use async_trait::async_trait;
 use multivm_common::{types_rpc::RpcConfig, *};
@@ -436,6 +331,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
+use tokio::io::AsyncReadExt;
+
+// Alloy imports for standard Ethereum types and RLP encoding
+use alloy_primitives::{self, keccak256};
+use alloy_rlp::{self, Encodable};
 
 // Import real engine implementation when not in mock mode
 // Real engine implementation available when real-node feature is enabled
@@ -474,6 +374,8 @@ pub struct ExecutionPayload {
     pub blob_gas_used: Option<u64>,
     #[serde(rename = "excessBlobGas")]
     pub excess_blob_gas: Option<u64>,
+    #[serde(rename = "requestsRoot")]
+    pub requests_root: Option<B256>,
 }
 
 /// Simplified fork choice state type
@@ -698,7 +600,8 @@ impl RethExecutionEngine {
         cmd.arg("node")
             // Data directory
             .arg("--datadir")
-            .arg(&self.data_dir)
+            .arg(std::fs::canonicalize(&self.data_dir)
+                .map_err(|e| RethEngineError::Configuration(format!("Failed to canonicalize data dir: {e}")))?)
             // HTTP RPC configuration
             .arg("--http")
             .arg("--http.port")
@@ -706,30 +609,28 @@ impl RethExecutionEngine {
             .arg("--http.addr")
             .arg("127.0.0.1")
             .arg("--http.api")
-            .arg("engine,eth,net,web3,debug")
+            .arg("eth,net,web3,debug")
             .arg("--http.corsdomain")
             .arg("*")
-            // Disable P2P completely
-            .arg("--no-discovery")
+            // Disable P2P completely (dev mode already disables discovery)
             .arg("--port")
             .arg("0") // Disable P2P listening port
             .arg("--max-outbound-peers")
             .arg("0")
             .arg("--max-inbound-peers")
             .arg("0")
-            // Disable consensus and block production
-            .arg("--dev") // Development mode
+            // Development mode (disables discovery automatically)
+            .arg("--dev")
             .arg("--dev.block-time")
-            .arg("0") // Disable automatic block production
-            // Disable transaction pool (we'll submit blocks directly)
-            .arg("--no-txpool")
+            .arg("100sec") // Use a very long block time to effectively disable auto-production
             // Enable Engine API for block submission
             .arg("--authrpc.port")
             .arg((self.rpc_port + 1).to_string())
             .arg("--authrpc.addr")
             .arg("127.0.0.1")
             .arg("--authrpc.jwtsecret")
-            .arg(self.data_dir.join("jwt.hex"))
+            .arg(std::fs::canonicalize(self.data_dir.join("jwt.hex"))
+                .map_err(|e| RethEngineError::Configuration(format!("Failed to canonicalize JWT path: {e}")))?)
             // Chain configuration
             .arg("--chain")
             .arg(match self.chain_id {
@@ -738,14 +639,11 @@ impl RethExecutionEngine {
                 17000 => "holesky",
                 _ => "dev", // Custom development chain
             })
-            // Performance settings for execution-only mode
-            .arg("--max-block-gas-limit")
-            .arg("30000000")
             // Logging configuration
             .arg("--log.stdout.format")
             .arg("json")
             .arg("--log.stdout.filter")
-            .arg("info,reth=debug,engine=debug")
+            .arg("info,reth=debug")
             // Process settings
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -753,11 +651,32 @@ impl RethExecutionEngine {
 
         tracing::info!("Reth command: {:?}", cmd);
 
-        let child = cmd
+        let mut child = cmd
             .spawn()
             .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?;
 
         let pid = child.id();
+        
+        // Check if the process is still running after a brief moment
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        
+        if let Ok(Some(exit_status)) = child.try_wait() {
+            // Process exited immediately, capture output
+            let stdout = child.stdout.take().unwrap();
+            let stderr = child.stderr.take().unwrap();
+            
+            let mut stdout_buf = String::new();
+            let mut stderr_buf = String::new();
+            
+            tokio::io::AsyncReadExt::read_to_string(&mut tokio::io::BufReader::new(stdout), &mut stdout_buf).await.ok();
+            tokio::io::AsyncReadExt::read_to_string(&mut tokio::io::BufReader::new(stderr), &mut stderr_buf).await.ok();
+            
+            return Err(RethEngineError::Process(format!(
+                "Reth node exited immediately with status: {:?}\nStdout: {}\nStderr: {}",
+                exit_status, stdout_buf, stderr_buf
+            )));
+        }
+        
         *self.reth_process.write().await = Some(child);
 
         tracing::info!(
@@ -770,8 +689,11 @@ impl RethExecutionEngine {
         // Wait for Reth to initialize
         tokio::time::sleep(Duration::from_secs(15)).await;
 
-        // Initialize RPC client
-        let client = reqwest::Client::new();
+        // Initialize RPC client with no proxy for local connections
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .map_err(|e| RethEngineError::Configuration(format!("Failed to create HTTP client: {e}")))?;
         *self.rpc_client.write().await = Some(client);
 
         // Verify connection
@@ -846,6 +768,37 @@ impl RethExecutionEngine {
         }
 
         Ok(())
+    }
+
+    /// Generate JWT token for Engine API authentication
+    fn generate_jwt_token(&self) -> Result<String, RethEngineError> {
+        use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+        
+        let jwt_path = self.data_dir.join("jwt.hex");
+        let hex_secret = std::fs::read_to_string(&jwt_path)
+            .map_err(|e| RethEngineError::Configuration(format!("Failed to read JWT secret: {e}")))?;
+        
+        let secret_bytes = hex::decode(hex_secret.trim())
+            .map_err(|e| RethEngineError::Configuration(format!("Invalid JWT secret format: {e}")))?;
+        
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| RethEngineError::Configuration(format!("Time error: {e}")))?
+            .as_secs();
+        
+        let claims = serde_json::json!({
+            "iat": now,
+            "exp": now + 3600, // Token expires in 1 hour
+        });
+        
+        let token = encode(
+            &Header::new(Algorithm::HS256),
+            &claims,
+            &EncodingKey::from_secret(&secret_bytes),
+        )
+        .map_err(|e| RethEngineError::Configuration(format!("JWT generation failed: {e}")))?;
+        
+        Ok(token)
     }
 
     /// Verify connection to Reth node
@@ -962,6 +915,33 @@ impl RethExecutionEngine {
         let payload_response = self.submit_execution_payload(&execution_payload).await?;
         tracing::debug!("Payload submission response: {:?}", payload_response);
 
+        // Step 2.1: Check if payload was accepted by reth
+        if let Some(result) = payload_response.get("result") {
+            if let Some(status) = result.get("status").and_then(|s| s.as_str()) {
+                match status {
+                    "VALID" => {
+                        tracing::debug!("Reth accepted the payload as VALID");
+                    }
+                    "INVALID" => {
+                        let error_msg = result.get("validationError")
+                            .and_then(|e| e.as_str())
+                            .unwrap_or("Unknown validation error");
+                        return Err(RethEngineError::BlockProcessing(format!(
+                            "Reth rejected block {}: {}",
+                            block.number, error_msg
+                        )));
+                    }
+                    "SYNCING" => {
+                        tracing::warn!("Reth is syncing, block {} status is SYNCING", block.number);
+                        // Continue with fork choice update for syncing blocks
+                    }
+                    other => {
+                        tracing::warn!("Unexpected payload status: {}", other);
+                    }
+                }
+            }
+        }
+
         // Step 3: Update fork choice via engine_forkchoiceUpdatedV1
         let fork_choice_state = self.create_fork_choice_state_from_block(block)?;
         let fork_choice_response = self.update_fork_choice(&fork_choice_state).await?;
@@ -1015,9 +995,21 @@ impl RethExecutionEngine {
             withdrawals: None,     // Pre-Shanghai
             blob_gas_used: None,   // Pre-Cancun
             excess_blob_gas: None, // Pre-Cancun
+            requests_root: if self.should_include_prague_fields_for_block(block) {
+                block.header.requests_root
+            } else {
+                None // Skip requests_root for compatibility with reth dev chains
+            },
         };
 
         Ok(payload)
+    }
+
+    /// Check if Prague fork fields should be included for this block
+    fn should_include_prague_fields_for_block(&self, _block: &Block) -> bool {
+        // Based on reth's dev chain behavior, include Prague fork fields
+        // This ensures our payload matches reth's implementation
+        true
     }
 
     /// Create fork choice state from Reth Block
@@ -1053,8 +1045,12 @@ impl RethExecutionEngine {
 
         let engine_url = format!("http://127.0.0.1:{}", self.rpc_port + 1);
 
+        // Generate JWT token for authentication
+        let jwt_token = self.generate_jwt_token()?;
+
         let response = client
             .post(&engine_url)
+            .header("Authorization", format!("Bearer {}", jwt_token))
             .json(&rpc_request)
             .send()
             .await
@@ -1093,8 +1089,12 @@ impl RethExecutionEngine {
 
         let engine_url = format!("http://127.0.0.1:{}", self.rpc_port + 1);
 
+        // Generate JWT token for authentication
+        let jwt_token = self.generate_jwt_token()?;
+
         let response = client
             .post(&engine_url)
+            .header("Authorization", format!("Bearer {}", jwt_token))
             .json(&rpc_request)
             .send()
             .await
@@ -2445,6 +2445,7 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
         blob_gas_used: None,
         excess_blob_gas: None,
         parent_beacon_block_root: None,
+        requests_root: Some([0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21]), // Empty requests root
     };
 
     Block {

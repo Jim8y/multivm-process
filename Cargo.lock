@@ -80,7 +80,7 @@ dependencies = [
 [[package]]
 name = "agave-banking-stage-ingress-types"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "crossbeam-channel",
  "solana-perf",
@@ -89,7 +89,7 @@ dependencies = [
 [[package]]
 name = "agave-feature-set"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "ahash 0.8.12",
  "solana-epoch-schedule",
@@ -101,7 +101,7 @@ dependencies = [
 [[package]]
 name = "agave-geyser-plugin-interface"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "log",
  "solana-clock",
@@ -114,7 +114,7 @@ dependencies = [
 [[package]]
 name = "agave-precompiles"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -136,7 +136,7 @@ dependencies = [
 [[package]]
 name = "agave-reserved-account-keys"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "lazy_static",
@@ -147,7 +147,7 @@ dependencies = [
 [[package]]
 name = "agave-transaction-view"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "solana-hash",
  "solana-message",
@@ -162,7 +162,7 @@ dependencies = [
 [[package]]
 name = "agave-validator"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-geyser-plugin-interface",
  "bincode",
@@ -286,42 +286,82 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy-consensus"
-version = "0.1.4"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da374e868f54c7f4ad2ad56829827badca388efd645f8cf5fccc61c2b5343504"
+checksum = "74a694d8be621ee12b45ae23e7f18393b9a1e04f1ba47a0136767cb8c955f7f8"
 dependencies = [
- "alloy-eips 0.1.4",
- "alloy-primitives",
+ "alloy-eips",
+ "alloy-primitives 1.2.1",
  "alloy-rlp",
+ "alloy-serde",
+ "alloy-trie",
+ "alloy-tx-macros",
+ "auto_impl",
  "c-kzg",
-]
-
-[[package]]
-name = "alloy-eips"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f76ecab54890cdea1e4808fc0891c7e6cfcf71fe1a9fe26810c7280ef768f4ed"
-dependencies = [
- "alloy-primitives",
- "alloy-rlp",
- "c-kzg",
- "once_cell",
- "serde",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "alloy-eips"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9431c99a3b3fe606ede4b3d4043bdfbcb780c45b8d8d226c3804e2b75cfbe68"
-dependencies = [
- "alloy-primitives",
- "alloy-rlp",
- "c-kzg",
+ "derive_more 2.0.1",
+ "either",
  "k256",
  "once_cell",
+ "secp256k1 0.30.0",
  "serde",
+ "serde_with",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "alloy-eip2124"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "741bdd7499908b3aa0b159bba11e71c8cddd009a2c2eb7a06e825f1ec87900a5"
+dependencies = [
+ "alloy-primitives 1.2.1",
+ "alloy-rlp",
+ "crc",
+ "serde",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "alloy-eip2930"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b82752a889170df67bbb36d42ca63c531eb16274f0d7299ae2a680facba17bd"
+dependencies = [
+ "alloy-primitives 1.2.1",
+ "alloy-rlp",
+ "serde",
+]
+
+[[package]]
+name = "alloy-eip7702"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d4769c6ffddca380b0070d71c8b7f30bed375543fe76bb2f74ec0acf4b7cd16"
+dependencies = [
+ "alloy-primitives 1.2.1",
+ "alloy-rlp",
+ "serde",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "alloy-eips"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "715ae25d525c567481ba2fc97000415624836d516958b9c3f189f1e267d1d90a"
+dependencies = [
+ "alloy-eip2124",
+ "alloy-eip2930",
+ "alloy-eip7702",
+ "alloy-primitives 1.2.1",
+ "alloy-rlp",
+ "alloy-serde",
+ "auto_impl",
+ "c-kzg",
+ "derive_more 2.0.1",
+ "either",
+ "serde",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -347,6 +387,60 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-primitives"
+version = "0.8.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c77490fe91a0ce933a1f219029521f20fc28c2c0ca95d53fa4da9c00b8d9d4e"
+dependencies = [
+ "alloy-rlp",
+ "bytes",
+ "cfg-if 1.0.1",
+ "const-hex",
+ "derive_more 2.0.1",
+ "foldhash",
+ "hashbrown 0.15.4",
+ "indexmap 2.10.0",
+ "itoa",
+ "k256",
+ "keccak-asm",
+ "paste",
+ "proptest",
+ "rand 0.8.5",
+ "ruint",
+ "rustc-hash 2.1.1",
+ "serde",
+ "sha3",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "alloy-primitives"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6177ed26655d4e84e00b65cb494d4e0b8830e7cae7ef5d63087d445a2600fb55"
+dependencies = [
+ "alloy-rlp",
+ "bytes",
+ "cfg-if 1.0.1",
+ "const-hex",
+ "derive_more 2.0.1",
+ "foldhash",
+ "hashbrown 0.15.4",
+ "indexmap 2.10.0",
+ "itoa",
+ "k256",
+ "keccak-asm",
+ "paste",
+ "proptest",
+ "rand 0.9.1",
+ "ruint",
+ "rustc-hash 2.1.1",
+ "serde",
+ "sha3",
+ "tiny-keccak",
+]
+
+[[package]]
 name = "alloy-rlp"
 version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -363,6 +457,46 @@ version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64b728d511962dda67c1bc7ea7c03736ec275ed2cf4c35d9585298ac9ccf3b73"
 dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "alloy-serde"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8070bc2af2d48969e3aa709ea3ebf1f8316176b91c2132efe33d113f74383a9e"
+dependencies = [
+ "alloy-primitives 1.2.1",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alloy-trie"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bada1fc392a33665de0dc50d401a3701b62583c655e3522a323490a5da016962"
+dependencies = [
+ "alloy-primitives 1.2.1",
+ "alloy-rlp",
+ "arrayvec",
+ "derive_more 2.0.1",
+ "nybbles",
+ "serde",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "alloy-tx-macros"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "472e12600c46b766110edd8382b4804d70188870f064531ee8fd61a35ed18686"
+dependencies = [
+ "alloy-primitives 1.2.1",
+ "darling",
  "proc-macro2",
  "quote",
  "syn 2.0.104",
@@ -1011,16 +1145,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aurora-engine-modexp"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518bc5745a6264b5fd7b09dffb9667e400ee9e2bbe18555fac75e1fe9afa0df9"
-dependencies = [
- "hex",
- "num 0.4.3",
-]
-
-[[package]]
 name = "auto_impl"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1303,6 +1427,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
+name = "bitcoin-io"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b47c4ab7a93edb0c7198c5535ed9b52b63095f4e9b45279c6736cec4b856baf"
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb18c03d0db0247e147a21a6faafd5a7eb851c743db062de72018b6b7e8e4d16"
+dependencies = [
+ "bitcoin-io",
+ "hex-conservative",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1579,9 +1719,9 @@ dependencies = [
 
 [[package]]
 name = "c-kzg"
-version = "1.0.3"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0307f72feab3300336fb803a57134159f6e20139af1357f36c54cb90d8e8928"
+checksum = "7318cfa722931cb5fe0838b98d3ce5621e75f6a6408abc21721d80de9223f2e4"
 dependencies = [
  "blst",
  "cc",
@@ -2480,6 +2620,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c9e6a11ca8224451684bc0d7d5a7adbf8f2fd6887261a1cfc3c0432f9d4068e"
 dependencies = [
  "powerfmt",
+ "serde",
 ]
 
 [[package]]
@@ -2529,7 +2670,16 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
 dependencies = [
- "derive_more-impl",
+ "derive_more-impl 1.0.0",
+]
+
+[[package]]
+name = "derive_more"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
+dependencies = [
+ "derive_more-impl 2.0.1",
 ]
 
 [[package]]
@@ -2539,6 +2689,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
  "convert_case 0.6.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
+ "unicode-xid",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
+dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.104",
@@ -2910,17 +3072,6 @@ checksum = "1bf1fa3f06bbff1ea5b1a9c7b14aa992a39657db60a2759457328d7e058f49ee"
 dependencies = [
  "num-bigint 0.4.6",
  "num-traits",
- "proc-macro2",
- "quote",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "enumn"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.104",
@@ -4002,6 +4153,7 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
+ "serde",
 ]
 
 [[package]]
@@ -4081,6 +4233,18 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "hex-conservative"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5313b072ce3c597065a808dbf612c4c8e8590bdbf8b579508bf7a762c5eae6cd"
+dependencies = [
+ "arrayvec",
+]
 
 [[package]]
 name = "hex-literal"
@@ -4696,6 +4860,7 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
+ "serde",
 ]
 
 [[package]]
@@ -6090,7 +6255,7 @@ dependencies = [
 name = "multivm-account-mapping"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
+ "alloy-primitives 0.7.7",
  "async-trait",
  "base64 0.21.7",
  "bincode",
@@ -6324,6 +6489,8 @@ dependencies = [
 name = "multivm-process-manager"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
+ "alloy-primitives 1.2.1",
  "async-trait",
  "bincode",
  "blake3",
@@ -6341,6 +6508,7 @@ dependencies = [
  "proptest",
  "rand 0.8.5",
  "reqwest",
+ "reth-execution-engine",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -6549,24 +6717,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
 dependencies = [
  "num-bigint 0.2.6",
- "num-complex 0.2.4",
+ "num-complex",
  "num-integer",
  "num-iter",
- "num-rational 0.2.4",
- "num-traits",
-]
-
-[[package]]
-name = "num"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
-dependencies = [
- "num-bigint 0.4.6",
- "num-complex 0.4.6",
- "num-integer",
- "num-iter",
- "num-rational 0.4.2",
+ "num-rational",
  "num-traits",
 ]
 
@@ -6615,15 +6769,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
-dependencies = [
  "num-traits",
 ]
 
@@ -6677,17 +6822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-rational"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
-dependencies = [
- "num-bigint 0.4.6",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6734,6 +6868,20 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
+
+[[package]]
+name = "nybbles"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "675b3a54e5b12af997abc8b6638b0aee51a28caedab70d4967e0d5db3a3f1d06"
+dependencies = [
+ "alloy-rlp",
+ "cfg-if 1.0.1",
+ "proptest",
+ "ruint",
+ "serde",
+ "smallvec",
+]
 
 [[package]]
 name = "object"
@@ -7108,7 +7256,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fd23b938276f14057220b707937bcb42fa76dda7560e57a2da30cb52d557937"
 dependencies = [
- "num 0.2.1",
+ "num",
 ]
 
 [[package]]
@@ -7796,6 +7944,7 @@ dependencies = [
  "libc",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+ "serde",
 ]
 
 [[package]]
@@ -7806,6 +7955,7 @@ checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
+ "serde",
 ]
 
 [[package]]
@@ -7863,6 +8013,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.3",
+ "serde",
 ]
 
 [[package]]
@@ -8002,6 +8153,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ref-cast"
+version = "1.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a0ae411dbe946a674d89546582cea4ba2bb8defac896622d6496f14c23ba5cf"
+dependencies = [
+ "ref-cast-impl",
+]
+
+[[package]]
+name = "ref-cast-impl"
+version = "1.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1165225c21bff1f3bbce98f5a1f889949bc902d3575308cc7b0de30b4f6d27c7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
+]
+
+[[package]]
 name = "regex"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8118,14 +8289,15 @@ checksum = "95325155c684b1c89f7765e30bc1c42e4a6da51ca513615660cb8a62ef9a88e3"
 name = "reth-execution-engine"
 version = "0.1.0"
 dependencies = [
- "alloy-consensus",
- "alloy-primitives",
+ "alloy-primitives 0.8.25",
  "alloy-rlp",
  "anyhow",
  "async-trait",
  "base64 0.21.7",
  "bincode",
+ "chacha20poly1305",
  "clap 4.5.40",
+ "ed25519-dalek 2.1.1",
  "futures 0.3.31",
  "hex",
  "hmac 0.12.1",
@@ -8134,11 +8306,12 @@ dependencies = [
  "jsonrpsee",
  "jsonwebtoken 9.3.1",
  "keccak",
+ "libp2p",
  "multivm-common",
  "once_cell",
+ "parking_lot 0.12.4",
  "rand 0.8.5",
  "reqwest",
- "revm",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -8151,72 +8324,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tracing-test",
-]
-
-[[package]]
-name = "revm"
-version = "12.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6cfb48bce8ca2113e157bdbddbd5eeb09daac1c903d79ec17085897c38c7c91"
-dependencies = [
- "auto_impl",
- "cfg-if 1.0.1",
- "dyn-clone",
- "revm-interpreter",
- "revm-precompile",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "revm-interpreter"
-version = "8.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b0daddea06fc6da5346acc39b32a357bbe3579e9e3d94117d9ae125cd596fc"
-dependencies = [
- "revm-primitives",
- "serde",
-]
-
-[[package]]
-name = "revm-precompile"
-version = "9.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef55228211251d7b6c7707c3ee13bb70dea4d2fd81ec4034521e4fe31010b2ea"
-dependencies = [
- "aurora-engine-modexp",
- "blst",
- "c-kzg",
- "cfg-if 1.0.1",
- "k256",
- "once_cell",
- "revm-primitives",
- "ripemd",
- "secp256k1 0.29.1",
- "sha2 0.10.9",
- "substrate-bn",
-]
-
-[[package]]
-name = "revm-primitives"
-version = "7.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fc4311037ee093ec50ec734e1424fcb3e12d535c6cef683b75d1c064639630c"
-dependencies = [
- "alloy-eips 0.2.1",
- "alloy-primitives",
- "auto_impl",
- "bitflags 2.9.1",
- "bitvec",
- "c-kzg",
- "cfg-if 1.0.1",
- "derive_more 0.99.20",
- "dyn-clone",
- "enumn",
- "hashbrown 0.14.5",
- "hex",
- "once_cell",
- "serde",
+ "uuid 1.17.0",
 ]
 
 [[package]]
@@ -8700,6 +8808,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "schemars"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cd191f9397d57d581cddd31014772520aa448f65ef991055d7f61582c65165f"
+dependencies = [
+ "dyn-clone",
+ "ref-cast",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "schemars"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82d20c4491bc164fa2f6c5d44565947a52ad80b9505d8e36f8d54c27c739fcd0"
+dependencies = [
+ "dyn-clone",
+ "ref-cast",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8759,10 +8891,11 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.29.1"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9465315bc9d4566e1724f0fffcbcc446268cb522e60f9a27bcded6b19c108113"
+checksum = "b50c5943d326858130af85e049f2661ba3c78b26589b8ab98e65e80ae44a1252"
 dependencies = [
+ "bitcoin_hashes",
  "rand 0.8.5",
  "secp256k1-sys 0.10.1",
 ]
@@ -8913,7 +9046,6 @@ version = "1.0.140"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
 dependencies = [
- "indexmap 2.10.0",
  "itoa",
  "memchr",
  "ryu",
@@ -8957,9 +9089,18 @@ version = "3.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2c45cd61fefa9db6f254525d46e392b852e0e61d9a1fd36e5bd183450a556d5"
 dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "hex",
+ "indexmap 1.9.3",
+ "indexmap 2.10.0",
+ "schemars 0.9.0",
+ "schemars 1.0.4",
  "serde",
  "serde_derive",
+ "serde_json",
  "serde_with_macros",
+ "time",
 ]
 
 [[package]]
@@ -9273,7 +9414,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
@@ -9311,7 +9452,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder-client-types"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "base64 0.22.1",
  "bs58",
@@ -9339,7 +9480,7 @@ dependencies = [
 [[package]]
 name = "solana-accounts-db"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "ahash 0.8.12",
  "bincode",
@@ -9405,7 +9546,7 @@ dependencies = [
 [[package]]
 name = "solana-address-lookup-table-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -9438,7 +9579,7 @@ dependencies = [
 [[package]]
 name = "solana-banks-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "borsh 1.5.7",
  "futures 0.3.31",
@@ -9455,7 +9596,7 @@ dependencies = [
 [[package]]
 name = "solana-banks-interface"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "serde",
  "serde_derive",
@@ -9467,7 +9608,7 @@ dependencies = [
 [[package]]
 name = "solana-banks-server"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -9522,7 +9663,7 @@ dependencies = [
 [[package]]
 name = "solana-bloom"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bv",
  "fnv",
@@ -9562,7 +9703,7 @@ dependencies = [
 [[package]]
 name = "solana-bpf-loader-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "agave-precompiles",
@@ -9610,7 +9751,7 @@ dependencies = [
 [[package]]
 name = "solana-bucket-map"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bv",
  "bytemuck",
@@ -9629,7 +9770,7 @@ dependencies = [
 [[package]]
 name = "solana-builtins"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "solana-address-lookup-table-program",
@@ -9650,7 +9791,7 @@ dependencies = [
 [[package]]
 name = "solana-builtins-default-costs"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "ahash 0.8.12",
@@ -9672,7 +9813,7 @@ dependencies = [
 [[package]]
 name = "solana-clap-utils"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "chrono",
  "clap 2.34.0",
@@ -9700,7 +9841,7 @@ dependencies = [
 [[package]]
 name = "solana-cli-config"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "dirs-next",
  "lazy_static",
@@ -9715,7 +9856,7 @@ dependencies = [
 [[package]]
 name = "solana-cli-output"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "Inflector",
  "agave-reserved-account-keys",
@@ -9757,7 +9898,7 @@ dependencies = [
 [[package]]
 name = "solana-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-trait",
  "bincode",
@@ -9857,7 +9998,7 @@ dependencies = [
 [[package]]
 name = "solana-compute-budget"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "solana-fee-structure",
  "solana-program-entrypoint",
@@ -9866,7 +10007,7 @@ dependencies = [
 [[package]]
 name = "solana-compute-budget-instruction"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "log",
@@ -9899,7 +10040,7 @@ dependencies = [
 [[package]]
 name = "solana-compute-budget-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "qualifier_attr",
  "solana-program-runtime",
@@ -9908,7 +10049,7 @@ dependencies = [
 [[package]]
 name = "solana-config-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "chrono",
@@ -9931,7 +10072,7 @@ dependencies = [
 [[package]]
 name = "solana-connection-cache"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-trait",
  "bincode",
@@ -9954,7 +10095,7 @@ dependencies = [
 [[package]]
 name = "solana-core"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-banking-stage-ingress-types",
  "agave-feature-set",
@@ -10047,7 +10188,7 @@ dependencies = [
 [[package]]
 name = "solana-cost-model"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "ahash 0.8.12",
@@ -10089,7 +10230,7 @@ dependencies = [
 [[package]]
 name = "solana-curve25519"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bytemuck",
  "bytemuck_derive",
@@ -10142,7 +10283,7 @@ dependencies = [
 [[package]]
 name = "solana-download-utils"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "log",
  "solana-clock",
@@ -10169,7 +10310,7 @@ dependencies = [
 [[package]]
 name = "solana-entry"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -10307,7 +10448,7 @@ dependencies = [
 [[package]]
 name = "solana-faucet"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "clap 2.34.0",
@@ -10372,7 +10513,7 @@ dependencies = [
 [[package]]
 name = "solana-fee"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "solana-fee-structure",
@@ -10447,7 +10588,7 @@ dependencies = [
 [[package]]
 name = "solana-genesis-utils"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "log",
  "solana-accounts-db",
@@ -10459,7 +10600,7 @@ dependencies = [
 [[package]]
 name = "solana-geyser-plugin-manager"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-geyser-plugin-interface",
  "bs58",
@@ -10489,7 +10630,7 @@ dependencies = [
 [[package]]
 name = "solana-gossip"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "assert_matches",
@@ -10580,7 +10721,7 @@ dependencies = [
 [[package]]
 name = "solana-inline-spl"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bytemuck",
  "solana-pubkey",
@@ -10668,7 +10809,7 @@ dependencies = [
 [[package]]
 name = "solana-lattice-hash"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -10679,7 +10820,7 @@ dependencies = [
 [[package]]
 name = "solana-ledger"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "agave-reserved-account-keys",
@@ -10799,7 +10940,7 @@ dependencies = [
 [[package]]
 name = "solana-loader-v4-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "log",
  "qualifier_attr",
@@ -10824,7 +10965,7 @@ dependencies = [
 [[package]]
 name = "solana-log-collector"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "log",
 ]
@@ -10845,12 +10986,12 @@ dependencies = [
 [[package]]
 name = "solana-measure"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 
 [[package]]
 name = "solana-merkle-tree"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "fast-math",
  "solana-hash",
@@ -10883,7 +11024,7 @@ dependencies = [
 [[package]]
 name = "solana-metrics"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "crossbeam-channel",
  "gethostname",
@@ -10915,7 +11056,7 @@ checksum = "33e9de00960197412e4be3902a6cd35e60817c511137aca6c34c66cd5d4017ec"
 [[package]]
 name = "solana-net-utils"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10998,7 +11139,7 @@ dependencies = [
 [[package]]
 name = "solana-perf"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "ahash 0.8.12",
  "bincode",
@@ -11029,7 +11170,7 @@ dependencies = [
 [[package]]
 name = "solana-poh"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "core_affinity",
  "crossbeam-channel",
@@ -11061,7 +11202,7 @@ dependencies = [
 [[package]]
 name = "solana-poseidon"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "ark-bn254",
  "light-poseidon",
@@ -11242,7 +11383,7 @@ dependencies = [
 [[package]]
 name = "solana-program-runtime"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "agave-precompiles",
@@ -11282,7 +11423,7 @@ dependencies = [
 [[package]]
 name = "solana-program-test"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "assert_matches",
@@ -11346,7 +11487,7 @@ dependencies = [
 [[package]]
 name = "solana-pubsub-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "crossbeam-channel",
  "futures-util",
@@ -11372,7 +11513,7 @@ dependencies = [
 [[package]]
 name = "solana-quic-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -11411,7 +11552,7 @@ dependencies = [
 [[package]]
 name = "solana-rayon-threadlimit"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -11420,7 +11561,7 @@ dependencies = [
 [[package]]
 name = "solana-remote-wallet"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "console 0.15.11",
  "dialoguer",
@@ -11505,7 +11646,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "base64 0.22.1",
@@ -11567,7 +11708,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -11604,7 +11745,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client-api"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -11634,7 +11775,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client-nonce-utils"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "solana-account",
  "solana-commitment-config",
@@ -11650,7 +11791,7 @@ dependencies = [
 [[package]]
 name = "solana-runtime"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "agave-precompiles",
@@ -11739,7 +11880,7 @@ dependencies = [
 [[package]]
 name = "solana-runtime-transaction"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-transaction-view",
  "log",
@@ -11944,7 +12085,7 @@ dependencies = [
 [[package]]
 name = "solana-send-transaction-service"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "crossbeam-channel",
  "itertools 0.12.1",
@@ -12105,7 +12246,7 @@ dependencies = [
 [[package]]
 name = "solana-stake-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -12133,7 +12274,7 @@ dependencies = [
 [[package]]
 name = "solana-storage-bigtable"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-reserved-account-keys",
  "backoff",
@@ -12174,7 +12315,7 @@ dependencies = [
 [[package]]
 name = "solana-storage-proto"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "bs58",
@@ -12198,7 +12339,7 @@ dependencies = [
 [[package]]
 name = "solana-streamer"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-channel",
  "bytes",
@@ -12244,7 +12385,7 @@ dependencies = [
 [[package]]
 name = "solana-svm"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "agave-precompiles",
@@ -12288,7 +12429,7 @@ dependencies = [
 [[package]]
 name = "solana-svm-rent-collector"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "solana-sdk",
  "solana-transaction-context 2.2.15",
@@ -12297,7 +12438,7 @@ dependencies = [
 [[package]]
 name = "solana-svm-transaction"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "solana-hash",
  "solana-message",
@@ -12326,7 +12467,7 @@ dependencies = [
 [[package]]
 name = "solana-system-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "log",
@@ -12413,7 +12554,7 @@ dependencies = [
 [[package]]
 name = "solana-test-validator"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "base64 0.22.1",
@@ -12445,7 +12586,7 @@ dependencies = [
 [[package]]
 name = "solana-thin-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "log",
@@ -12479,7 +12620,7 @@ checksum = "6af261afb0e8c39252a04d026e3ea9c405342b08c871a2ad8aa5448e068c784c"
 [[package]]
 name = "solana-timings"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "eager",
  "enum-iterator",
@@ -12489,7 +12630,7 @@ dependencies = [
 [[package]]
 name = "solana-tls-utils"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "rustls 0.23.28",
  "solana-keypair",
@@ -12501,7 +12642,7 @@ dependencies = [
 [[package]]
 name = "solana-tpu-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-trait",
  "bincode",
@@ -12561,7 +12702,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-context"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bincode",
  "serde",
@@ -12605,7 +12746,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-metrics-tracker"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -12621,7 +12762,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "Inflector",
  "agave-reserved-account-keys",
@@ -12661,7 +12802,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status-client-types"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -12683,7 +12824,7 @@ dependencies = [
 [[package]]
 name = "solana-turbine"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -12724,7 +12865,7 @@ dependencies = [
 [[package]]
 name = "solana-type-overrides"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "lazy_static",
  "rand 0.8.5",
@@ -12733,7 +12874,7 @@ dependencies = [
 [[package]]
 name = "solana-udp-client"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "async-trait",
  "solana-connection-cache",
@@ -12748,7 +12889,7 @@ dependencies = [
 [[package]]
 name = "solana-unified-scheduler-logic"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "assert_matches",
  "solana-pubkey",
@@ -12760,7 +12901,7 @@ dependencies = [
 [[package]]
 name = "solana-unified-scheduler-pool"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-banking-stage-ingress-types",
  "aquamarine",
@@ -12796,7 +12937,7 @@ checksum = "7bbf6d7a3c0b28dd5335c52c0e9eae49d0ae489a8f324917faf0ded65a812c1d"
 [[package]]
 name = "solana-version"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "semver 1.0.26",
@@ -12809,7 +12950,7 @@ dependencies = [
 [[package]]
 name = "solana-vote"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "itertools 0.12.1",
  "log",
@@ -12857,7 +12998,7 @@ dependencies = [
 [[package]]
 name = "solana-vote-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -12889,7 +13030,7 @@ dependencies = [
 [[package]]
 name = "solana-wen-restart"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "anyhow",
  "log",
@@ -12915,7 +13056,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-elgamal-proof-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "bytemuck",
  "num-derive",
@@ -12930,7 +13071,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-sdk"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "aes-gcm-siv",
  "base64 0.22.1",
@@ -13003,7 +13144,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-proof-program"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "agave-feature-set",
  "bytemuck",
@@ -13019,7 +13160,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-sdk"
 version = "2.2.15"
-source = "git+ssh://git@github.com/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
+source = "git+ssh://git@github.com-bks/vm-multiverse/multivm-agave.git?branch=master#e5cbaab20c4785a30da0df7df0590e2838a58b5d"
 dependencies = [
  "aes-gcm-siv",
  "base64 0.22.1",
@@ -13778,19 +13919,6 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.104",
-]
-
-[[package]]
-name = "substrate-bn"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b5bbfa79abbae15dd642ea8176a21a635ff3c00059961d1ea27ad04e5b441c"
-dependencies = [
- "byteorder",
- "crunchy",
- "lazy_static",
- "rand 0.8.5",
- "rustc-hex",
 ]
 
 [[package]]

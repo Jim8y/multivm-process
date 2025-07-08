@@ -4,7 +4,7 @@ use multivm_common::{config::LoggingConfig, MultivmError, MultivmResult};
 
 // pub mod block_generator;  // Temporarily disabled due to dependency conflicts
 // pub mod block_router;  // Temporarily disabled due to dependency conflicts
-// pub mod consensus_block_generator;  // Temporarily disabled due to dependency conflicts
+pub mod consensus_block_generator;
 pub mod coordinator;
 pub mod health;
 pub mod ipc;
@@ -33,11 +33,11 @@ mod resource_monitor_tests;
 
 // Re-export key types
 pub use manager::MultivmProcessManager;
-// pub use coordinator::{MultivmCoordinator, CoordinatorConfig};  // Temporarily disabled
+pub use coordinator::{MultivmCoordinator, CoordinatorConfig};
 pub use health::HealthMonitor;
 // pub use block_router::BlockRouter;  // Temporarily disabled
 pub use process::ProcessHandle;
-// pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};  // Temporarily disabled
+pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};
 pub use zombie_reaper::{ZombieReaper, ZombieReaperConfig, ZombieReaperStats};
 
 /// Initialize logging system

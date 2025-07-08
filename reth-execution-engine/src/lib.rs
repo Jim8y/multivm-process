@@ -32,6 +32,11 @@ pub mod real_engine_utils;
 #[cfg(feature = "real-node")]
 pub use real_engine::RealRethEngine;
 
+// Re-export Alloy/Reth native types for proper hash calculation
+pub use alloy_primitives::{B256, U256, Address, Bytes, Bloom, FixedBytes};
+
+
+
 // Test modules
 #[cfg(test)]
 mod ipc_client_tests;
