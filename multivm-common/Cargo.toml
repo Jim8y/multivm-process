@@ -61,6 +61,10 @@ tempfile = { workspace = true }
 proptest = { workspace = true }
 wiremock = "0.5"
 
+[[example]]
+name = "communication_protocols"
+path = "../examples/communication_protocols.rs"
+
 [features]
 default = []
 testing = []
