@@ -31,3 +31,7 @@ pub mod real_engine_utils;
 // Feature-specific exports
 #[cfg(feature = "real-node")]
 pub use real_engine::RealRethEngine;
+
+// Test modules
+#[cfg(test)]
+mod ipc_client_tests;

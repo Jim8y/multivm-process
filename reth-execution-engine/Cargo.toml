@@ -73,6 +73,12 @@ sha2 = { workspace = true }
 sha3 = "0.10"
 keccak = "0.1"
 
+# Encryption for secure IPC
+chacha20poly1305 = "0.10"
+
+# UUID for message tracking
+uuid = { workspace = true }
+
 # Note: Reth integration is done via process spawning and JSON-RPC, not direct library linking
 # This avoids complex dependency conflicts with c-kzg and other native libraries
 
