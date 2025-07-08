@@ -12,6 +12,7 @@ description = "Process management service for the MultiVM platform"
 multivm-common = { path = "../multivm-common" }
 multivm-account-mapping = { path = "../multivm-account-mapping" }
 multivm-consensus = { path = "../multivm-consensus" }
+reth-execution-engine = { path = "../reth-execution-engine" }
 
 # Core async runtime
 tokio = { workspace = true }
