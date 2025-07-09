@@ -17,14 +17,20 @@ permissions:
 jobs:
   pr-info:
     name: PR Information
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        clean: true
         fetch-depth: 0
     
     - name: Setup SSH authentication
@@ -80,14 +86,20 @@ jobs:
 
   check-conventional-commits:
     name: Check Conventional Commits
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        clean: true
         fetch-depth: 0
     
     - name: Setup SSH authentication
@@ -135,11 +147,16 @@ jobs:
 
   dependency-changes:
     name: Check Dependency Changes
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target base pr || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Setup SSH authentication
       run: |
         mkdir -p ~/.ssh
