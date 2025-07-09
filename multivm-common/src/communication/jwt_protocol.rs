@@ -709,9 +709,7 @@ impl CommunicationProtocol for JwtProtocol {
                     .await
                     .unwrap_or_else(|_| "Unknown error".to_string());
                 Err(MultivmError::Network {
-                    message: format!(
-                        "Connection test failed: HTTP {status_code}: {error_text}"
-                    ),
+                    message: format!("Connection test failed: HTTP {status_code}: {error_text}"),
                     endpoint: Some(self.config.endpoint_url.clone()),
                     retry_after: None,
                 })

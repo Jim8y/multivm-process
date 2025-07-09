@@ -233,20 +233,17 @@ impl CommunicationConfig {
                 match protocol {
                     ProtocolType::Ipc => {
                         if !self.protocol_configs.ipc.contains_key(engine) {
-                            errors
-                                .push(format!("Missing IPC configuration for engine: {engine}"));
+                            errors.push(format!("Missing IPC configuration for engine: {engine}"));
                         }
                     }
                     ProtocolType::Rpc => {
                         if !self.protocol_configs.rpc.contains_key(engine) {
-                            errors
-                                .push(format!("Missing RPC configuration for engine: {engine}"));
+                            errors.push(format!("Missing RPC configuration for engine: {engine}"));
                         }
                     }
                     ProtocolType::Jwt => {
                         if !self.protocol_configs.jwt.contains_key(engine) {
-                            errors
-                                .push(format!("Missing JWT configuration for engine: {engine}"));
+                            errors.push(format!("Missing JWT configuration for engine: {engine}"));
                         }
                     }
                 }

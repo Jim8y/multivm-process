@@ -73,8 +73,7 @@ pub struct HealthCheckConfig {
 }
 
 /// TLS configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TlsConfig {
     /// Accept invalid certificates (for testing)
     pub accept_invalid_certs: bool,
@@ -127,7 +126,6 @@ impl Default for HealthCheckConfig {
         }
     }
 }
-
 
 /// JSON-RPC request structure
 #[derive(Debug, Clone, Serialize, Deserialize)]

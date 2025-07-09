@@ -182,7 +182,7 @@ async fn example_jwt_protocol() -> MultivmResult<()> {
     let jwt_config = JwtProtocolConfig {
         endpoint_url: "http://127.0.0.1:8551".to_string(),
         jwt_secret: "your-secret-key-here-minimum-32-characters-long".to_string(),
-        token_expiry: Duration::from_secs(3600), // 1 hour
+        token_expiry: Duration::from_secs(3600),     // 1 hour
         refresh_threshold: Duration::from_secs(300), // 5 minutes
         http_config: HttpClientConfig {
             connect_timeout: Duration::from_secs(10),
