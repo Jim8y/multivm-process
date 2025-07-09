@@ -86,6 +86,8 @@ uuid = { workspace = true }
 alloy-primitives = { version = "1.1.0", default-features = false, features = ["serde"] }
 alloy-rlp = { version = "0.3.10", default-features = false }
 alloy-consensus = { version = "1.0.9", default-features = false }
+# Remove reth dependencies to avoid workspace issues
+# We'll implement the logic directly using alloy consensus
 
 
 
