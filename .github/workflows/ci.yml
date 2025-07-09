@@ -212,27 +212,11 @@ jobs:
         cargo +nightly-2025-06-15 build --workspace --release --all-features --examples --jobs ${CORES} || true
         
         echo "::endgroup::"
-    
-    
-    - name: Upload all build artifacts
-      uses: actions/upload-artifact@v4
-      continue-on-error: true
-      with:
-        name: release-build-artifacts-${{ github.sha }}
-        path: |
-          target/release/
-          Cargo.lock
-        retention-days: 1
-        compression-level: 6
-    
-    outputs:
-      artifact-name: release-build-artifacts-${{ github.sha }}
 
-  # Security audit using pre-built artifacts
+  # Security audit
   security-audit:
     name: Security Audit
     runs-on: self-hosted
-    needs: build
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     timeout-minutes: 60
     
@@ -261,11 +245,6 @@ jobs:
       with:
         toolchain: nightly-2025-06-15
     
-    - name: Download pre-built artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ needs.build.outputs.artifact-name }}
-        path: .
     
     - name: Install cargo-audit
       uses: taiki-e/install-action@v2
