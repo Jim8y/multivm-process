@@ -159,26 +159,26 @@ impl CommunicationConfig {
                 .await
                 .map_err(|e| MultivmError::Configuration {
                     component: "communication_config".to_string(),
-                    message: format!("Failed to read configuration file {}: {}", path, e),
+                    message: format!("Failed to read configuration file {path}: {e}"),
                     validation_errors: None,
                 })?;
 
         let config: Self = if path.ends_with(".toml") {
             toml::from_str(&content).map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to parse TOML configuration: {}", e),
+                message: format!("Failed to parse TOML configuration: {e}"),
                 validation_errors: None,
             })?
         } else if path.ends_with(".yaml") || path.ends_with(".yml") {
             serde_yaml::from_str(&content).map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to parse YAML configuration: {}", e),
+                message: format!("Failed to parse YAML configuration: {e}"),
                 validation_errors: None,
             })?
         } else {
             serde_json::from_str(&content).map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to parse JSON configuration: {}", e),
+                message: format!("Failed to parse JSON configuration: {e}"),
                 validation_errors: None,
             })?
         };
@@ -192,19 +192,19 @@ impl CommunicationConfig {
         let content = if path.ends_with(".toml") {
             toml::to_string_pretty(self).map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to serialize to TOML: {}", e),
+                message: format!("Failed to serialize to TOML: {e}"),
                 validation_errors: None,
             })?
         } else if path.ends_with(".yaml") || path.ends_with(".yml") {
             serde_yaml::to_string(self).map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to serialize to YAML: {}", e),
+                message: format!("Failed to serialize to YAML: {e}"),
                 validation_errors: None,
             })?
         } else {
             serde_json::to_string_pretty(self).map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to serialize to JSON: {}", e),
+                message: format!("Failed to serialize to JSON: {e}"),
                 validation_errors: None,
             })?
         };
@@ -213,7 +213,7 @@ impl CommunicationConfig {
             .await
             .map_err(|e| MultivmError::Configuration {
                 component: "communication_config".to_string(),
-                message: format!("Failed to write configuration file {}: {}", path, e),
+                message: format!("Failed to write configuration file {path}: {e}"),
                 validation_errors: None,
             })
     }
@@ -225,7 +225,7 @@ impl CommunicationConfig {
         // Validate protocol preferences
         for (engine, protocols) in &self.protocol_preferences {
             if protocols.is_empty() {
-                errors.push(format!("No protocols configured for engine: {}", engine));
+                errors.push(format!("No protocols configured for engine: {engine}"));
             }
 
             // Check that all referenced protocols have configurations
@@ -234,19 +234,19 @@ impl CommunicationConfig {
                     ProtocolType::Ipc => {
                         if !self.protocol_configs.ipc.contains_key(engine) {
                             errors
-                                .push(format!("Missing IPC configuration for engine: {}", engine));
+                                .push(format!("Missing IPC configuration for engine: {engine}"));
                         }
                     }
                     ProtocolType::Rpc => {
                         if !self.protocol_configs.rpc.contains_key(engine) {
                             errors
-                                .push(format!("Missing RPC configuration for engine: {}", engine));
+                                .push(format!("Missing RPC configuration for engine: {engine}"));
                         }
                     }
                     ProtocolType::Jwt => {
                         if !self.protocol_configs.jwt.contains_key(engine) {
                             errors
-                                .push(format!("Missing JWT configuration for engine: {}", engine));
+                                .push(format!("Missing JWT configuration for engine: {engine}"));
                         }
                     }
                 }
@@ -395,7 +395,7 @@ impl CommunicationConfig {
                 let ipc_config: IpcProtocolConfig =
                     serde_json::from_value(config).map_err(|e| MultivmError::Configuration {
                         component: "communication_config".to_string(),
-                        message: format!("Invalid IPC configuration: {}", e),
+                        message: format!("Invalid IPC configuration: {e}"),
                         validation_errors: None,
                     })?;
                 self.protocol_configs.ipc.insert(engine_type, ipc_config);
@@ -404,7 +404,7 @@ impl CommunicationConfig {
                 let rpc_config: RpcProtocolConfig =
                     serde_json::from_value(config).map_err(|e| MultivmError::Configuration {
                         component: "communication_config".to_string(),
-                        message: format!("Invalid RPC configuration: {}", e),
+                        message: format!("Invalid RPC configuration: {e}"),
                         validation_errors: None,
                     })?;
                 self.protocol_configs.rpc.insert(engine_type, rpc_config);
@@ -413,7 +413,7 @@ impl CommunicationConfig {
                 let jwt_config: JwtProtocolConfig =
                     serde_json::from_value(config).map_err(|e| MultivmError::Configuration {
                         component: "communication_config".to_string(),
-                        message: format!("Invalid JWT configuration: {}", e),
+                        message: format!("Invalid JWT configuration: {e}"),
                         validation_errors: None,
                     })?;
                 self.protocol_configs.jwt.insert(engine_type, jwt_config);

@@ -74,6 +74,7 @@ pub struct HealthCheckConfig {
 
 /// TLS configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct TlsConfig {
     /// Accept invalid certificates (for testing)
     pub accept_invalid_certs: bool,
@@ -127,17 +128,6 @@ impl Default for HealthCheckConfig {
     }
 }
 
-impl Default for TlsConfig {
-    fn default() -> Self {
-        Self {
-            accept_invalid_certs: false,
-            accept_invalid_hostnames: false,
-            ca_cert_path: None,
-            client_cert_path: None,
-            client_key_path: None,
-        }
-    }
-}
 
 /// JSON-RPC request structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -362,7 +352,7 @@ impl RpcProtocol {
                         // Handle rate limiting
                         if status_code == reqwest::StatusCode::TOO_MANY_REQUESTS {
                             last_error = Some(MultivmError::RateLimited {
-                                message: format!("Rate limited: {}", error_text),
+                                message: format!("Rate limited: {error_text}"),
                                 retry_after: Some(Duration::from_secs(60)), // Default retry after 60s
                                 current_rate: None,
                             });
@@ -371,7 +361,7 @@ impl RpcProtocol {
                             tokio::time::sleep(Duration::from_secs(5)).await;
                         } else {
                             last_error = Some(MultivmError::Network {
-                                message: format!("HTTP error {}: {}", status_code, error_text),
+                                message: format!("HTTP error {status_code}: {error_text}"),
                                 endpoint: Some(self.config.endpoint_url.clone()),
                                 retry_after: None,
                             });

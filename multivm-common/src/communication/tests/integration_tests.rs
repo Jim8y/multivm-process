@@ -306,9 +306,7 @@ mod tests {
             for protocol in [ProtocolType::Ipc, ProtocolType::Rpc, ProtocolType::Jwt] {
                 assert!(
                     manager.get_protocol(&protocol, &engine).is_some(),
-                    "Missing {} protocol for {} engine",
-                    protocol,
-                    engine
+                    "Missing {protocol} protocol for {engine} engine"
                 );
             }
         }

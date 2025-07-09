@@ -208,7 +208,7 @@ mod tests {
         assert!(result.is_err());
         match result.err().unwrap() {
             crate::MultivmError::RateLimited { .. } => {}
-            e => panic!("Expected RateLimited error, got: {:?}", e),
+            e => panic!("Expected RateLimited error, got: {e:?}"),
         }
     }
 

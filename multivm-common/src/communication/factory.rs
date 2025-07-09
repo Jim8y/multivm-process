@@ -260,7 +260,7 @@ impl DefaultProtocolFactory {
                     || config
                         .get("jwt_secret")
                         .and_then(|v| v.as_str())
-                        .map_or(true, |s| s.is_empty())
+                        .is_none_or(|s| s.is_empty())
                 {
                     warn!("JWT secret not configured - using default (insecure for production)");
                 }

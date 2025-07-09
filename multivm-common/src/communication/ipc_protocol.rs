@@ -65,7 +65,7 @@ impl IpcTransport for UnixSocketTransport {
         use tokio::io::AsyncWriteExt;
 
         let serialized = bincode::serialize(&message).map_err(|e| MultivmError::Serialization {
-            message: format!("Failed to serialize IPC message: {}", e),
+            message: format!("Failed to serialize IPC message: {e}"),
             data_type: Some("IpcMessage".to_string()),
         })?;
 
@@ -77,7 +77,7 @@ impl IpcTransport for UnixSocketTransport {
             .write_all(&len.to_be_bytes())
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to write message length: {}", e),
+                message: format!("Failed to write message length: {e}"),
                 endpoint: Some("unix_socket".to_string()),
                 retry_after: None,
             })?;
@@ -87,13 +87,13 @@ impl IpcTransport for UnixSocketTransport {
             .write_all(&serialized)
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to write message data: {}", e),
+                message: format!("Failed to write message data: {e}"),
                 endpoint: Some("unix_socket".to_string()),
                 retry_after: None,
             })?;
 
         stream.flush().await.map_err(|e| MultivmError::Network {
-            message: format!("Failed to flush stream: {}", e),
+            message: format!("Failed to flush stream: {e}"),
             endpoint: Some("unix_socket".to_string()),
             retry_after: None,
         })?;
@@ -112,7 +112,7 @@ impl IpcTransport for UnixSocketTransport {
             .read_exact(&mut len_bytes)
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to read message length: {}", e),
+                message: format!("Failed to read message length: {e}"),
                 endpoint: Some("unix_socket".to_string()),
                 retry_after: None,
             })?;
@@ -124,7 +124,7 @@ impl IpcTransport for UnixSocketTransport {
             // 10MB max
             return Err(MultivmError::Validation {
                 field: "message_length".to_string(),
-                message: format!("Message too large: {} bytes", len),
+                message: format!("Message too large: {len} bytes"),
                 value: Some(len.to_string()),
             });
         }
@@ -135,13 +135,13 @@ impl IpcTransport for UnixSocketTransport {
             .read_exact(&mut buffer)
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to read message data: {}", e),
+                message: format!("Failed to read message data: {e}"),
                 endpoint: Some("unix_socket".to_string()),
                 retry_after: None,
             })?;
 
         let message = bincode::deserialize(&buffer).map_err(|e| MultivmError::Serialization {
-            message: format!("Failed to deserialize IPC message: {}", e),
+            message: format!("Failed to deserialize IPC message: {e}"),
             data_type: Some("IpcMessage".to_string()),
         })?;
 
@@ -188,7 +188,7 @@ impl IpcTransport for TcpSocketTransport {
         use tokio::io::AsyncWriteExt;
 
         let serialized = bincode::serialize(&message).map_err(|e| MultivmError::Serialization {
-            message: format!("Failed to serialize IPC message: {}", e),
+            message: format!("Failed to serialize IPC message: {e}"),
             data_type: Some("IpcMessage".to_string()),
         })?;
 
@@ -200,7 +200,7 @@ impl IpcTransport for TcpSocketTransport {
             .write_all(&len.to_be_bytes())
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to write message length: {}", e),
+                message: format!("Failed to write message length: {e}"),
                 endpoint: Some("tcp_socket".to_string()),
                 retry_after: None,
             })?;
@@ -210,13 +210,13 @@ impl IpcTransport for TcpSocketTransport {
             .write_all(&serialized)
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to write message data: {}", e),
+                message: format!("Failed to write message data: {e}"),
                 endpoint: Some("tcp_socket".to_string()),
                 retry_after: None,
             })?;
 
         stream.flush().await.map_err(|e| MultivmError::Network {
-            message: format!("Failed to flush stream: {}", e),
+            message: format!("Failed to flush stream: {e}"),
             endpoint: Some("tcp_socket".to_string()),
             retry_after: None,
         })?;
@@ -235,7 +235,7 @@ impl IpcTransport for TcpSocketTransport {
             .read_exact(&mut len_bytes)
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to read message length: {}", e),
+                message: format!("Failed to read message length: {e}"),
                 endpoint: Some("tcp_socket".to_string()),
                 retry_after: None,
             })?;
@@ -247,7 +247,7 @@ impl IpcTransport for TcpSocketTransport {
             // 10MB max
             return Err(MultivmError::Validation {
                 field: "message_length".to_string(),
-                message: format!("Message too large: {} bytes", len),
+                message: format!("Message too large: {len} bytes"),
                 value: Some(len.to_string()),
             });
         }
@@ -258,13 +258,13 @@ impl IpcTransport for TcpSocketTransport {
             .read_exact(&mut buffer)
             .await
             .map_err(|e| MultivmError::Network {
-                message: format!("Failed to read message data: {}", e),
+                message: format!("Failed to read message data: {e}"),
                 endpoint: Some("tcp_socket".to_string()),
                 retry_after: None,
             })?;
 
         let message = bincode::deserialize(&buffer).map_err(|e| MultivmError::Serialization {
-            message: format!("Failed to deserialize IPC message: {}", e),
+            message: format!("Failed to deserialize IPC message: {e}"),
             data_type: Some("IpcMessage".to_string()),
         })?;
 
@@ -541,8 +541,8 @@ impl IpcProtocol {
 
         Ok(IpcMessage {
             id: message_id,
-            source: self.config.source_process_id.clone(),
-            destination: self.config.target_process_id.clone(),
+            source: self.config.source_process_id,
+            destination: self.config.target_process_id,
             command,
             timestamp: SystemTime::now(),
             timeout: request.timeout.or(Some(self.config.default_timeout)),
@@ -829,7 +829,7 @@ impl CommunicationProtocol for IpcProtocol {
             }
             Err(e) => {
                 return Err(MultivmError::Network {
-                    message: format!("Failed to establish IPC connection: {}", e),
+                    message: format!("Failed to establish IPC connection: {e}"),
                     endpoint: Some("ipc_protocol".to_string()),
                     retry_after: None,
                 });

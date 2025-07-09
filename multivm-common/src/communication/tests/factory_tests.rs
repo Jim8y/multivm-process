@@ -103,7 +103,7 @@ mod tests {
                 assert!(alternatives.is_some());
                 assert!(alternatives.unwrap().contains(&"IPC".to_string()));
             }
-            e => panic!("Expected UnsupportedOperation error, got: {:?}", e),
+            e => panic!("Expected UnsupportedOperation error, got: {e:?}"),
         }
     }
 
@@ -148,20 +148,16 @@ mod tests {
         let user_override = serde_json::json!({
             "max_connections": 25  // This should merge with the custom defaults
         });
-        
+
         let protocol = factory
-            .create_protocol(
-                ProtocolType::Rpc,
-                EngineType::Ethereum,
-                user_override,
-            )
+            .create_protocol(ProtocolType::Rpc, EngineType::Ethereum, user_override)
             .await
             .unwrap();
 
         let config = protocol.get_configuration();
         // The endpoint should still be the engine-specific default for Ethereum
         assert_eq!(config["endpoint_url"], "http://127.0.0.1:8545");
-        // But the max_connections should be from user override  
+        // But the max_connections should be from user override
         assert_eq!(config["max_connections"], 25);
     }
 
@@ -342,7 +338,7 @@ mod tests {
         assert!(result.is_err());
         match result.err().unwrap() {
             crate::MultivmError::Configuration { .. } => {}
-            e => panic!("Expected Configuration error, got: {:?}", e),
+            e => panic!("Expected Configuration error, got: {e:?}"),
         }
     }
 

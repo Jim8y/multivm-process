@@ -70,7 +70,7 @@ mod tests {
             crate::MultivmError::Configuration { message, .. } => {
                 assert!(message.contains("32 characters"));
             }
-            e => panic!("Expected Configuration error, got: {:?}", e),
+            e => panic!("Expected Configuration error, got: {e:?}"),
         }
     }
 
@@ -166,12 +166,16 @@ mod tests {
         };
 
         let result = protocol.send_request(request).await;
-        
+
         // JWT auth failures are returned as successful responses with error details
         assert!(result.is_ok());
         let response = result.unwrap();
         assert!(response.error.is_some());
-        assert!(response.error.unwrap().message.contains("Authentication failed"));
+        assert!(response
+            .error
+            .unwrap()
+            .message
+            .contains("Authentication failed"));
     }
 
     #[tokio::test]
@@ -447,7 +451,7 @@ mod tests {
         assert!(result.is_err());
         match result.err().unwrap() {
             crate::MultivmError::Network { .. } => {}
-            e => panic!("Expected Network error, got: {:?}", e),
+            e => panic!("Expected Network error, got: {e:?}"),
         }
     }
 }

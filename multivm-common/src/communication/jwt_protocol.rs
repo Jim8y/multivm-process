@@ -270,12 +270,12 @@ impl JwtProtocol {
         let payload_b64 = BASE64.encode(serde_json::to_string(&payload).unwrap());
 
         // Create signature
-        let message = format!("{}.{}", header_b64, payload_b64);
+        let message = format!("{header_b64}.{payload_b64}");
         let signature = self.create_hmac_signature(&message)?;
         let signature_b64 = BASE64.encode(signature);
 
         // Combine into final JWT
-        let token = format!("{}.{}.{}", header_b64, payload_b64, signature_b64);
+        let token = format!("{header_b64}.{payload_b64}.{signature_b64}");
 
         Ok(TokenInfo {
             token,
@@ -344,7 +344,7 @@ impl JwtProtocol {
             if let Some(token) = &auth.token {
                 headers.insert(
                     reqwest::header::AUTHORIZATION,
-                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)).map_err(
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")).map_err(
                         |e| MultivmError::AuthenticationFailed {
                             reason: format!("Invalid authorization header: {e}"),
                             user_id: None,
@@ -380,7 +380,7 @@ impl JwtProtocol {
                 let token = self.get_valid_token().await?;
                 headers.insert(
                     reqwest::header::AUTHORIZATION,
-                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)).map_err(
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")).map_err(
                         |e| MultivmError::AuthenticationFailed {
                             reason: format!("Invalid authorization header: {e}"),
                             user_id: None,
@@ -520,7 +520,7 @@ impl JwtProtocol {
                             );
 
                             last_error = Some(MultivmError::AuthenticationFailed {
-                                reason: format!("HTTP 401: {}", error_text),
+                                reason: format!("HTTP 401: {error_text}"),
                                 user_id: None,
                                 required_permissions: None,
                             });
@@ -532,8 +532,7 @@ impl JwtProtocol {
                                 .unwrap_or_else(|_| "Unauthorized".to_string());
                             return Err(MultivmError::AuthenticationFailed {
                                 reason: format!(
-                                    "Authentication failed after retries: {}",
-                                    error_text
+                                    "Authentication failed after retries: {error_text}"
                                 ),
                                 user_id: None,
                                 required_permissions: None,
@@ -545,7 +544,7 @@ impl JwtProtocol {
                             .await
                             .unwrap_or_else(|_| "Unknown error".to_string());
                         last_error = Some(MultivmError::Network {
-                            message: format!("HTTP error {}: {}", status_code, error_text),
+                            message: format!("HTTP error {status_code}: {error_text}"),
                             endpoint: Some("jwt_protocol".to_string()),
                             retry_after: None,
                         });
@@ -711,8 +710,7 @@ impl CommunicationProtocol for JwtProtocol {
                     .unwrap_or_else(|_| "Unknown error".to_string());
                 Err(MultivmError::Network {
                     message: format!(
-                        "Connection test failed: HTTP {}: {}",
-                        status_code, error_text
+                        "Connection test failed: HTTP {status_code}: {error_text}"
                     ),
                     endpoint: Some(self.config.endpoint_url.clone()),
                     retry_after: None,
