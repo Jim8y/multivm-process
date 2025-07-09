@@ -9,8 +9,14 @@ runs:
       run: |
         # Check if we're on a system with apt (Ubuntu/Debian)
         if command -v apt-get >/dev/null 2>&1; then
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config protobuf-compiler
+          # Check if packages are already installed
+          if dpkg -l | grep -q libudev-dev && dpkg -l | grep -q pkg-config && dpkg -l | grep -q protobuf-compiler; then
+            echo "All required packages already installed, skipping update"
+          else
+            echo "Installing missing packages..."
+            sudo apt-get update -qq
+            sudo apt-get install -y libudev-dev pkg-config protobuf-compiler
+          fi
         # Check if we're on a system with yum (RHEL/CentOS)
         elif command -v yum >/dev/null 2>&1; then
           sudo yum install -y libudev-devel pkgconfig protobuf-compiler
