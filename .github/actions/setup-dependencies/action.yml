@@ -7,5 +7,35 @@ runs:
     - name: Install system dependencies
       shell: bash
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config protobuf-compiler
+        # Check if we're on a system with apt (Ubuntu/Debian)
+        if command -v apt-get >/dev/null 2>&1; then
+          # Check if packages are already installed
+          if dpkg -l | grep -q libudev-dev && dpkg -l | grep -q pkg-config && dpkg -l | grep -q protobuf-compiler; then
+            echo "All required packages already installed, skipping update"
+          else
+            echo "Installing missing packages..."
+            sudo apt-get update -qq
+            sudo apt-get install -y libudev-dev pkg-config protobuf-compiler
+          fi
+        # Check if we're on a system with yum (RHEL/CentOS)
+        elif command -v yum >/dev/null 2>&1; then
+          sudo yum install -y libudev-devel pkgconfig protobuf-compiler
+        # Check if we're on a system with dnf (Fedora)
+        elif command -v dnf >/dev/null 2>&1; then
+          sudo dnf install -y libudev-devel pkgconfig protobuf-compiler
+        # Check if we're on macOS
+        elif command -v brew >/dev/null 2>&1; then
+          brew install pkg-config protobuf
+        else
+          echo "Warning: Could not install system dependencies - package manager not recognized"
+          echo "Please ensure the following packages are installed:"
+          echo "  - libudev-dev (or libudev-devel)"
+          echo "  - pkg-config (or pkgconfig)"
+          echo "  - protobuf-compiler"
+          echo ""
+          echo "Available package managers:"
+          command -v apt-get >/dev/null 2>&1 && echo "  - apt-get (found)"
+          command -v yum >/dev/null 2>&1 && echo "  - yum (found)"
+          command -v dnf >/dev/null 2>&1 && echo "  - dnf (found)"
+          command -v brew >/dev/null 2>&1 && echo "  - brew (found)"
+        fi

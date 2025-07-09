@@ -5,7 +5,6 @@
 //! production-grade EVM transaction execution and state management.
 
 use crate::engine::{Block, RethEngineError, RethExecutionResult};
-use rand::Rng;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::path::PathBuf;

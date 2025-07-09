@@ -29,6 +29,7 @@
 //! assert_ne!(solana_vm, ethereum_vm);
 //! ```
 
+pub mod communication;
 pub mod config;
 pub mod error;
 pub mod ipc;

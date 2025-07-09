@@ -9,7 +9,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::process::Command;
-use tracing::{info, warn};
+use tracing::info;
 
 /// JWT authentication utilities
 impl RealRethEngine {

@@ -12,6 +12,7 @@ pub mod ipc_transport;
 pub mod lock_ordering;
 pub mod manager;
 pub mod process;
+pub mod process_with_protocols;
 pub mod resource_monitor;
 pub mod transaction_batcher;
 pub mod zombie_reaper;
@@ -37,6 +38,7 @@ pub use manager::MultivmProcessManager;
 pub use health::HealthMonitor;
 // pub use block_router::BlockRouter;  // Temporarily disabled
 pub use process::ProcessHandle;
+pub use process_with_protocols::ProcessHandleWithProtocols;
 // pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};  // Temporarily disabled
 pub use zombie_reaper::{ZombieReaper, ZombieReaperConfig, ZombieReaperStats};
 
