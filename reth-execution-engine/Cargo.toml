@@ -85,9 +85,12 @@ uuid = { workspace = true }
 # Alloy libraries for standard Ethereum types and RLP encoding
 alloy-primitives = { version = "1.1.0", default-features = false, features = ["serde"] }
 alloy-rlp = { version = "0.3.10", default-features = false }
-alloy-consensus = { version = "1.0.9", default-features = false }
-# Remove reth dependencies to avoid workspace issues
-# We'll implement the logic directly using alloy consensus
+alloy-consensus = { version = "1.0.9", default-features = false, features = ["serde"] }
+alloy-rpc-types-eth = { version = "1.0.9", default-features = false, features = ["serde"] }
+# Alloy RPC types for official ExecutionPayloadV3
+alloy-rpc-types-engine = { version = "1.0.9", default-features = false, features = ["serde"] }
+# Secp256k1 for transaction signing
+secp256k1 = { version = "0.28", features = ["rand-std", "recovery"] }
 
 
 
