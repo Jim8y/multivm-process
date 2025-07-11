@@ -5,10 +5,10 @@
 //! production-grade EVM transaction execution and state management.
 
 use crate::engine::{RethBlock, RethEngineError, RethExecutionResult};
-use reqwest::Client;
-use serde_json::{json, Value};
 use alloy_consensus;
 use alloy_rlp;
+use reqwest::Client;
+use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -665,7 +665,7 @@ impl RealRethEngine {
             .transactions
             .iter()
             .map(|tx| {
-                // Use TxEnvelope's built-in encoding 
+                // Use TxEnvelope's built-in encoding
                 let encoded = alloy_rlp::encode(tx).to_vec();
                 format!("0x{}", hex::encode(encoded))
             })

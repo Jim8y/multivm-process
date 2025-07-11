@@ -1,15 +1,13 @@
- //! Example: Secure IPC Client for Reth Communication
+//! Example: Secure IPC Client for Reth Communication
 //!
 //! This example demonstrates how to use the SecureRethIpcClient with encryption,
 //! message queuing, connection recovery, and health monitoring.
 
-use reth_execution_engine::ipc_client::{
-    IpcClientConfig, SecureRethIpcClient
-};
 use multivm_common::{IpcCommand, IpcResponse};
+use reth_execution_engine::ipc_client::{IpcClientConfig, SecureRethIpcClient};
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,8 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create the secure IPC client
-    let mut client = SecureRethIpcClient::new(config.clone())
-        .expect("Failed to create secure IPC client");
+    let mut client =
+        SecureRethIpcClient::new(config.clone()).expect("Failed to create secure IPC client");
 
     info!("Created secure IPC client for: {}", config.address);
 
@@ -116,7 +114,11 @@ async fn demonstrate_secure_communication(client: &SecureRethIpcClient) {
         // Send command with automatic retry
         match client.send_command_with_retry(command.clone()).await {
             Ok(response) => {
-                info!("Received response for command {}: {:?}", index + 1, response);
+                info!(
+                    "Received response for command {}: {:?}",
+                    index + 1,
+                    response
+                );
             }
             Err(e) => {
                 warn!("Failed to send command {}: {}", index + 1, e);
@@ -135,10 +137,14 @@ async fn demonstrate_connection_recovery(client: &SecureRethIpcClient) {
     // Monitor health status changes
     for i in 1..=5 {
         sleep(Duration::from_secs(2)).await;
-        
+
         let health_status = client.get_health_status().await;
-        info!("Health check {}: status = {:?}, healthy = {}", 
-              i, health_status.status, client.is_healthy());
+        info!(
+            "Health check {}: status = {:?}, healthy = {}",
+            i,
+            health_status.status,
+            client.is_healthy()
+        );
 
         // Try to send a command to test the connection
         match client.send_command(IpcCommand::GetHealth).await {
@@ -168,7 +174,7 @@ fn create_test_commands() -> Vec<IpcCommand> {
         IpcCommand::Ping,
         IpcCommand::GetHealth,
         IpcCommand::HealthCheck,
-        IpcCommand::ProcessBlock { 
+        IpcCommand::ProcessBlock {
             block_data_bytes: Box::new(vec![1, 2, 3, 4]),
             blockchain_type: BlockchainType::Ethereum,
             expect_response: true,
@@ -184,7 +190,7 @@ async fn demonstrate_metrics_collection(client: &SecureRethIpcClient) {
     // Send multiple commands to generate metrics
     for i in 1..=10 {
         let command = IpcCommand::GetState;
-        
+
         match client.send_command(command).await {
             Ok(_) => {
                 info!("Command {} completed successfully", i);
@@ -201,9 +207,14 @@ async fn demonstrate_metrics_collection(client: &SecureRethIpcClient) {
     info!("  Total requests: {}", metrics.total_requests);
     info!("  Successful requests: {}", metrics.successful_requests);
     info!("  Failed requests: {}", metrics.failed_requests);
-    info!("  Success rate: {:.2}%", 
-          (metrics.successful_requests as f64 / metrics.total_requests as f64) * 100.0);
-    info!("  Average response time: {} ms", metrics.average_response_time_ms);
+    info!(
+        "  Success rate: {:.2}%",
+        (metrics.successful_requests as f64 / metrics.total_requests as f64) * 100.0
+    );
+    info!(
+        "  Average response time: {} ms",
+        metrics.average_response_time_ms
+    );
 }
 
 /// Demonstrate encryption and security features
@@ -213,8 +224,8 @@ async fn demonstrate_encryption_features() {
 
     // Create client with custom encryption key
     let custom_key: [u8; 32] = [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32,
     ];
 
     let secure_config = IpcClientConfig {
@@ -227,7 +238,7 @@ async fn demonstrate_encryption_features() {
     match SecureRethIpcClient::new(secure_config) {
         Ok(mut secure_client) => {
             info!("Created client with custom encryption key");
-            
+
             if let Err(e) = secure_client.start().await {
                 warn!("Failed to start secure client: {}", e);
                 return;

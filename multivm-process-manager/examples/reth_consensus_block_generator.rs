@@ -1,13 +1,13 @@
- //! Example: Using ConsensusBlockGenerator with Reth Integration
+//! Example: Using ConsensusBlockGenerator with Reth Integration
 //!
 //! This example demonstrates how to use the ConsensusBlockGenerator with real Reth
 //! block data instead of mock EVM transactions.
 
+use multivm_consensus::MalachiteConfig;
 use multivm_process_manager::consensus_block_generator::{
     ConsensusBlockGenerator, ConsensusBlockGeneratorConfig,
 };
-use multivm_process_manager::coordinator::{MultivmCoordinator, CoordinatorConfig};
-use multivm_consensus::MalachiteConfig;
+use multivm_process_manager::coordinator::{CoordinatorConfig, MultivmCoordinator};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -60,7 +60,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the coordinator
     {
         let mut coordinator_guard = coordinator.write().await;
-        coordinator_guard.start().await.expect("Failed to start coordinator");
+        coordinator_guard
+            .start()
+            .await
+            .expect("Failed to start coordinator");
         info!("Coordinator started");
     }
 
@@ -90,7 +93,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Stop the coordinator
     {
         let mut coordinator_guard = coordinator.write().await;
-        coordinator_guard.stop().await.expect("Failed to stop coordinator");
+        coordinator_guard
+            .stop()
+            .await
+            .expect("Failed to stop coordinator");
         info!("Coordinator stopped");
     }
 

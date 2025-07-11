@@ -4,11 +4,13 @@
 use multivm_common::config::VmType;
 
 // Import native Reth and Alloy types
-use alloy_primitives::{Address, B256, U256, Bloom, Bytes, TxHash, Log};
-use alloy_consensus::{Header, Block, BlockBody, TxEnvelope, Receipt, ReceiptEnvelope, Eip658Value, TxReceipt};
-use alloy_rpc_types_eth::{TransactionReceipt};
 use alloy_consensus::private::alloy_eips::eip2718::Encodable2718;
-use serde::{Serialize, Deserialize};
+use alloy_consensus::{
+    Block, BlockBody, Eip658Value, Header, Receipt, ReceiptEnvelope, TxEnvelope, TxReceipt,
+};
+use alloy_primitives::{Address, Bloom, Bytes, Log, TxHash, B256, U256};
+use alloy_rpc_types_eth::TransactionReceipt;
+use serde::{Deserialize, Serialize};
 
 // Use native Alloy types with concrete transaction types
 pub type RethTransaction = TxEnvelope;
@@ -19,8 +21,6 @@ pub type RethReceipt = Receipt<Log>;
 
 // Export Transaction as an alias for RethTransaction for backward compatibility
 pub type Transaction = RethTransaction;
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Withdrawal {
@@ -145,9 +145,9 @@ pub fn calculate_block_hash(block: &RethBlock) -> B256 {
 
 /// Calculate block hash the same way Reth does: RLP encode + Keccak256
 pub fn calculate_reth_style_hash(payload: &ExecutionPayloadV3) -> B256 {
-    use alloy_rlp::Encodable;
     use alloy_primitives::keccak256;
-    
+    use alloy_rlp::Encodable;
+
     // Calculate withdrawals root (empty list for empty withdrawals)
     let withdrawals_root = match &payload.payload_inner.withdrawals {
         Some(withdrawals) if withdrawals.is_empty() => {
@@ -158,14 +158,14 @@ pub fn calculate_reth_style_hash(payload: &ExecutionPayloadV3) -> B256 {
         }
         None => None, // No withdrawals field (pre-Shanghai)
     };
-    
+
     // Calculate requests hash (empty list for empty requests)
     let requests_hash = if payload.requests.is_empty() {
         Some(alloy_primitives::keccak256(&[0xc0])) // RLP encoding of empty list
     } else {
         None // This would need actual calculation for non-empty requests
     };
-    
+
     // Create a header from the payload
     let header = Header {
         parent_hash: payload.payload_inner.payload_inner.parent_hash,
@@ -182,19 +182,25 @@ pub fn calculate_reth_style_hash(payload: &ExecutionPayloadV3) -> B256 {
         timestamp: payload.payload_inner.payload_inner.timestamp,
         extra_data: payload.payload_inner.payload_inner.extra_data.clone(),
         mix_hash: payload.payload_inner.payload_inner.prev_randao, // In PoS, mix_hash = prev_randao
-        nonce: alloy_primitives::B64::ZERO, // PoS chains have zero nonce
-        base_fee_per_gas: Some(payload.payload_inner.payload_inner.base_fee_per_gas.to::<u64>()),
+        nonce: alloy_primitives::B64::ZERO,                        // PoS chains have zero nonce
+        base_fee_per_gas: Some(
+            payload
+                .payload_inner
+                .payload_inner
+                .base_fee_per_gas
+                .to::<u64>(),
+        ),
         withdrawals_root,
         blob_gas_used: Some(payload.blob_gas_used),
         excess_blob_gas: Some(payload.excess_blob_gas),
         parent_beacon_block_root: Some(B256::from([0x01; 32])), // Default parent beacon block root
         requests_hash,
     };
-    
+
     // RLP encode the header
     let mut encoded = Vec::new();
     header.encode(&mut encoded);
-    
+
     // Calculate Keccak256 hash
     keccak256(&encoded)
 }
@@ -219,11 +225,10 @@ use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 
-
 // Alloy imports for standard Ethereum types and RLP encoding
+use alloy_consensus;
 use alloy_primitives;
 use alloy_rlp;
-use alloy_consensus;
 
 // Direct alloy consensus usage to match reth's block building logic
 
@@ -341,12 +346,11 @@ where
     let value: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
     match value {
         serde_json::Value::String(s) => {
-            u64::from_str_radix(s.trim_start_matches("0x"), 16)
-                .map_err(serde::de::Error::custom)
+            u64::from_str_radix(s.trim_start_matches("0x"), 16).map_err(serde::de::Error::custom)
         }
-        serde_json::Value::Number(n) => n.as_u64().ok_or_else(|| {
-            serde::de::Error::custom("Invalid number format")
-        }),
+        serde_json::Value::Number(n) => n
+            .as_u64()
+            .ok_or_else(|| serde::de::Error::custom("Invalid number format")),
         _ => Err(serde::de::Error::custom("Expected string or number")),
     }
 }
@@ -545,8 +549,11 @@ impl RethExecutionEngine {
         let mut cmd = Command::new("reth");
         cmd.arg("node")
             .arg("--authrpc.jwtsecret")
-            .arg(std::fs::canonicalize(self.data_dir.join("jwt.hex"))
-                .map_err(|e| RethEngineError::Configuration(format!("Failed to canonicalize JWT path: {e}")))?)
+            .arg(
+                std::fs::canonicalize(self.data_dir.join("jwt.hex")).map_err(|e| {
+                    RethEngineError::Configuration(format!("Failed to canonicalize JWT path: {e}"))
+                })?,
+            )
             .arg("--authrpc.addr")
             .arg("127.0.0.1")
             .arg("--authrpc.port")
@@ -572,17 +579,17 @@ impl RethExecutionEngine {
             .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?;
 
         let pid = child.id();
-        
+
         // 获取 stdout 和 stderr 用于实时日志输出
         let stdout = child.stdout.take().expect("Failed to capture stdout");
         let stderr = child.stderr.take().expect("Failed to capture stderr");
-        
+
         // 创建实时日志输出任务
         let stdout_handle = tokio::spawn(async move {
             use tokio::io::AsyncBufReadExt;
             let reader = tokio::io::BufReader::new(stdout);
             let mut lines = reader.lines();
-            
+
             while let Ok(Some(line)) = lines.next_line().await {
                 tracing::debug!("Reth stdout: {}", line);
             }
@@ -592,22 +599,22 @@ impl RethExecutionEngine {
             use tokio::io::AsyncBufReadExt;
             let reader = tokio::io::BufReader::new(stderr);
             let mut lines = reader.lines();
-            
+
             while let Ok(Some(line)) = lines.next_line().await {
                 tracing::warn!("Reth stderr: {}", line);
             }
         });
-        
+
         // Check if the process is still running after a brief moment
         tokio::time::sleep(Duration::from_millis(500)).await;
-        
+
         if let Ok(Some(exit_status)) = child.try_wait() {
             return Err(RethEngineError::Process(format!(
                 "Reth node exited immediately with status: {:?}",
                 exit_status
             )));
         }
-        
+
         *self.reth_process.write().await = Some(child);
 
         tracing::info!(
@@ -621,10 +628,9 @@ impl RethExecutionEngine {
         tokio::time::sleep(Duration::from_secs(15)).await;
 
         // Initialize RPC client with no proxy for local connections
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .build()
-            .map_err(|e| RethEngineError::Configuration(format!("Failed to create HTTP client: {e}")))?;
+        let client = reqwest::Client::builder().no_proxy().build().map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to create HTTP client: {e}"))
+        })?;
         *self.rpc_client.write().await = Some(client);
 
         // Verify connection
@@ -699,31 +705,33 @@ impl RethExecutionEngine {
     /// Generate JWT token for Engine API authentication
     fn generate_jwt_token(&self) -> Result<String, RethEngineError> {
         use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-        
+
         let jwt_path = self.data_dir.join("jwt.hex");
-        let hex_secret = std::fs::read_to_string(&jwt_path)
-            .map_err(|e| RethEngineError::Configuration(format!("Failed to read JWT secret: {e}")))?;
-        
-        let secret_bytes = hex::decode(hex_secret.trim())
-            .map_err(|e| RethEngineError::Configuration(format!("Invalid JWT secret format: {e}")))?;
-        
+        let hex_secret = std::fs::read_to_string(&jwt_path).map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to read JWT secret: {e}"))
+        })?;
+
+        let secret_bytes = hex::decode(hex_secret.trim()).map_err(|e| {
+            RethEngineError::Configuration(format!("Invalid JWT secret format: {e}"))
+        })?;
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| RethEngineError::Configuration(format!("Time error: {e}")))?
             .as_secs();
-        
+
         let claims = serde_json::json!({
             "iat": now,
             "exp": now + 3600, // Token expires in 1 hour
         });
-        
+
         let token = encode(
             &Header::new(Algorithm::HS256),
             &claims,
             &EncodingKey::from_secret(&secret_bytes),
         )
         .map_err(|e| RethEngineError::Configuration(format!("JWT generation failed: {e}")))?;
-        
+
         Ok(token)
     }
 
@@ -832,7 +840,10 @@ impl RethExecutionEngine {
 
     /// Submit a reth block to the node via Engine API
     async fn submit_block_to_reth(&self, block: &RethBlock) -> Result<(), RethEngineError> {
-        tracing::debug!("Submitting Reth block {} via Engine API", block.header.number);
+        tracing::debug!(
+            "Submitting Reth block {} via Engine API",
+            block.header.number
+        );
 
         // Step 1: Create execution payload from Reth block
         let execution_payload = self.create_execution_payload_from_block(block)?;
@@ -849,7 +860,8 @@ impl RethExecutionEngine {
                         tracing::debug!("Reth accepted the payload as VALID");
                     }
                     "INVALID" => {
-                        let error_msg = result.get("validationError")
+                        let error_msg = result
+                            .get("validationError")
                             .and_then(|e| e.as_str())
                             .unwrap_or("Unknown validation error");
                         return Err(RethEngineError::BlockProcessing(format!(
@@ -889,7 +901,7 @@ impl RethExecutionEngine {
         // Manually construct ExecutionPayloadV3 from block
         let header = &block.header;
         let body = &block.body;
-        
+
         // Create V1 payload
         let v1_payload = ExecutionPayloadV1 {
             parent_hash: header.parent_hash,
@@ -903,33 +915,38 @@ impl RethExecutionEngine {
             gas_used: header.gas_used,
             timestamp: header.timestamp,
             extra_data: header.extra_data.clone(),
-            base_fee_per_gas: header.base_fee_per_gas.map(U256::from).unwrap_or(U256::ZERO),
+            base_fee_per_gas: header
+                .base_fee_per_gas
+                .map(U256::from)
+                .unwrap_or(U256::ZERO),
             block_hash: block.hash_slow(),
-            transactions: body.transactions.iter().map(|tx| {
-                let mut encoded = Vec::new();
-                tx.encode_2718(&mut encoded);
-                Bytes::from(encoded)
-            }).collect(),
+            transactions: body
+                .transactions
+                .iter()
+                .map(|tx| {
+                    let mut encoded = Vec::new();
+                    tx.encode_2718(&mut encoded);
+                    Bytes::from(encoded)
+                })
+                .collect(),
         };
-        
+
         // Create V2 payload with empty withdrawals
         let v2_payload = ExecutionPayloadV2 {
             payload_inner: v1_payload,
             withdrawals: Some(Vec::new()), // Empty withdrawals for now
         };
-        
+
         // Create V3 payload with blob gas fields
         let v3_payload = ExecutionPayloadV3 {
             payload_inner: v2_payload,
-            blob_gas_used: 0, // No blob transactions for now
-            excess_blob_gas: 0, // No blob gas for now
+            blob_gas_used: 0,     // No blob transactions for now
+            excess_blob_gas: 0,   // No blob gas for now
             requests: Vec::new(), // Empty requests for Prague upgrade
         };
 
         Ok(v3_payload)
     }
-
-
 
     /// Create fork choice state from Reth Block
     fn create_fork_choice_state_from_block(
@@ -953,8 +970,9 @@ impl RethExecutionEngine {
         // 使用空的 versioned_hashes 和零值 parent_beacon_block_root
         let versioned_hashes: Vec<B256> = vec![];
         let parent_beacon_block_root = B256::ZERO;
-        
-        self.engine_new_payload_v3(payload, versioned_hashes, parent_beacon_block_root).await
+
+        self.engine_new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
+            .await
     }
 
     /// engine_newPayloadV2 call
@@ -1099,41 +1117,43 @@ impl RethExecutionEngine {
         head_block_hash: B256,
         fee_recipient: Address,
     ) -> Result<B256, RethEngineError> {
-  
         // 1. 设置 fork choice state
         let fork_choice_state = ForkchoiceState {
             head_block_hash,
             safe_block_hash: head_block_hash,
             finalized_block_hash: head_block_hash,
         };
-        let parent_timestamp = self.get_block_timestamp(head_block_hash).await
+        let parent_timestamp = self
+            .get_block_timestamp(head_block_hash)
+            .await
             .unwrap_or_else(|_| {
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_secs()
             });
-        
+
         let timestamp = parent_timestamp + 12; // 标准 12 秒出块间隔
-        
+
         // 获取父区块的 beacon block root（如果可用）
-        let parent_beacon_block_root = self.get_parent_beacon_block_root(head_block_hash).await
+        let parent_beacon_block_root = self
+            .get_parent_beacon_block_root(head_block_hash)
+            .await
             .unwrap_or_else(|_| B256::from([0x01; 32])); // 如果获取失败，使用默认值
-        
+
         // 创建简化的 PayloadAttributes（类似V2）
         let payload_attributes = PayloadAttributesV3 {
             timestamp,
             prev_randao: B256::ZERO,
             suggested_fee_recipient: fee_recipient,
             parent_beacon_block_root: None, // 移除 beacon block root for V2 compatibility
-            withdrawals: None, // 移除 withdrawals 字段，避免 pre-Shanghai 错误
+            withdrawals: None,              // 移除 withdrawals 字段，避免 pre-Shanghai 错误
         };
 
         // 3. Send forkchoiceUpdated to create payload job
-        let fork_choice_response = self.engine_forkchoice_updated_v2(
-            &fork_choice_state, 
-            Some(payload_attributes)
-        ).await?;
+        let fork_choice_response = self
+            .engine_forkchoice_updated_v2(&fork_choice_state, Some(payload_attributes))
+            .await?;
 
         // 4. Extract payload_id from response
         let payload_id = fork_choice_response
@@ -1146,23 +1166,27 @@ impl RethExecutionEngine {
         let payload_response = self.engine_get_payload_v2(payload_id).await?;
         let validated_hash = payload_response.execution_payload.payload_inner.block_hash;
         let payload_v2 = &payload_response.execution_payload;
-        
+
         // 6. Submit payload to Reth
         let new_payload_response = self.engine_new_payload_v2(payload_v2).await?;
-        
+
         // Check newPayloadV2 response
         if let Some(result) = new_payload_response.get("result") {
             if let Some(status) = result.get("status").and_then(|s| s.as_str()) {
                 match status {
-                    "VALID" => {},  // Success, continue
+                    "VALID" => {} // Success, continue
                     "SYNCING" => {
                         tracing::info!("Block accepted but Reth is syncing");
-                    },
+                    }
                     "INVALID" => {
-                        let error = result.get("validationError")
+                        let error = result
+                            .get("validationError")
                             .and_then(|e| e.as_str())
                             .unwrap_or("Unknown validation error");
-                        return Err(RethEngineError::Rpc(format!("newPayloadV2 validation failed: {}", error)));
+                        return Err(RethEngineError::Rpc(format!(
+                            "newPayloadV2 validation failed: {}",
+                            error
+                        )));
                     }
                     _ => {
                         tracing::warn!("Unexpected newPayloadV2 status: {}", status);
@@ -1170,40 +1194,50 @@ impl RethExecutionEngine {
                 }
             }
         }
-        
+
         // 7. Final forkchoice confirmation
         let final_fork_choice_state = ForkchoiceState {
             head_block_hash: validated_hash,
             safe_block_hash: validated_hash,
             finalized_block_hash: head_block_hash,
         };
-        
-        let final_response = self.engine_forkchoice_updated_v3(
-            &final_fork_choice_state, 
-            None
-        ).await?;
-        
+
+        let final_response = self
+            .engine_forkchoice_updated_v3(&final_fork_choice_state, None)
+            .await?;
+
         // Check final confirmation
         if let Some(final_result) = final_response.get("result") {
-            if let Some(final_status) = final_result.get("payloadStatus")
+            if let Some(final_status) = final_result
+                .get("payloadStatus")
                 .and_then(|ps| ps.get("status"))
-                .and_then(|s| s.as_str()) {
+                .and_then(|s| s.as_str())
+            {
                 match final_status {
                     "VALID" => {
-                        tracing::info!("Block produced successfully: 0x{}", hex::encode(validated_hash));
+                        tracing::info!(
+                            "Block produced successfully: 0x{}",
+                            hex::encode(validated_hash)
+                        );
                         return Ok(validated_hash);
-                    },
+                    }
                     "SYNCING" => {
-                        tracing::info!("Block built successfully (Reth syncing): 0x{}", hex::encode(validated_hash));
+                        tracing::info!(
+                            "Block built successfully (Reth syncing): 0x{}",
+                            hex::encode(validated_hash)
+                        );
                         return Ok(validated_hash);
-                    },
+                    }
                     _ => {
-                        return Err(RethEngineError::Rpc(format!("Final forkchoice update failed: {}", final_status)));
+                        return Err(RethEngineError::Rpc(format!(
+                            "Final forkchoice update failed: {}",
+                            final_status
+                        )));
                     }
                 }
             }
         }
-        
+
         // Default success case
         tracing::info!("Block produced: 0x{}", hex::encode(validated_hash));
         Ok(validated_hash)
@@ -1214,7 +1248,8 @@ impl RethExecutionEngine {
         &self,
         fork_choice_state: &ForkchoiceState,
     ) -> Result<serde_json::Value, RethEngineError> {
-        self.engine_forkchoice_updated_v3(fork_choice_state, None).await
+        self.engine_forkchoice_updated_v3(fork_choice_state, None)
+            .await
     }
 
     /// engine_forkchoiceUpdatedV2 with optional PayloadAttributesV3
@@ -1349,11 +1384,15 @@ impl RethExecutionEngine {
         })?;
 
         if let Some(result_data) = result.get("result") {
-            let payload_response: GetPayloadV2Response = serde_json::from_value(result_data.clone())
-                .map_err(|e| RethEngineError::Rpc(format!("Failed to deserialize payload: {e}")))?;
+            let payload_response: GetPayloadV2Response =
+                serde_json::from_value(result_data.clone()).map_err(|e| {
+                    RethEngineError::Rpc(format!("Failed to deserialize payload: {e}"))
+                })?;
             Ok(payload_response)
         } else {
-            Err(RethEngineError::Rpc("No result in get payload response".to_string()))
+            Err(RethEngineError::Rpc(
+                "No result in get payload response".to_string(),
+            ))
         }
     }
 
@@ -1399,11 +1438,15 @@ impl RethExecutionEngine {
         })?;
 
         if let Some(result_data) = result.get("result") {
-            let payload_response: GetPayloadV3Response = serde_json::from_value(result_data.clone())
-                .map_err(|e| RethEngineError::Rpc(format!("Failed to deserialize payload: {e}")))?;
+            let payload_response: GetPayloadV3Response =
+                serde_json::from_value(result_data.clone()).map_err(|e| {
+                    RethEngineError::Rpc(format!("Failed to deserialize payload: {e}"))
+                })?;
             Ok(payload_response)
         } else {
-            Err(RethEngineError::Rpc("No result in get payload response".to_string()))
+            Err(RethEngineError::Rpc(
+                "No result in get payload response".to_string(),
+            ))
         }
     }
 
@@ -1457,7 +1500,10 @@ impl RethExecutionEngine {
     }
 
     /// Get parent beacon block root from Reth via RPC
-    async fn get_parent_beacon_block_root(&self, parent_block_hash: B256) -> Result<B256, RethEngineError> {
+    async fn get_parent_beacon_block_root(
+        &self,
+        parent_block_hash: B256,
+    ) -> Result<B256, RethEngineError> {
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
@@ -1477,8 +1523,9 @@ impl RethExecutionEngine {
             .await
             .map_err(|e| RethEngineError::Rpc(format!("Failed to get beacon block root: {e}")))?;
 
-        let result: serde_json::Value = response.json().await
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to parse beacon block root response: {e}")))?;
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::Rpc(format!("Failed to parse beacon block root response: {e}"))
+        })?;
 
         let block_data = result
             .get("result")
@@ -1489,13 +1536,18 @@ impl RethExecutionEngine {
         }
 
         // 尝试从区块中获取 beacon block root
-        if let Some(beacon_root) = block_data.get("parentBeaconBlockRoot").and_then(|r| r.as_str()) {
+        if let Some(beacon_root) = block_data
+            .get("parentBeaconBlockRoot")
+            .and_then(|r| r.as_str())
+        {
             let root_bytes = hex::decode(beacon_root.trim_start_matches("0x"))
                 .map_err(|e| RethEngineError::Rpc(format!("Invalid beacon root format: {e}")))?;
             if root_bytes.len() == 32 {
                 Ok(B256::from_slice(&root_bytes))
             } else {
-                Err(RethEngineError::Rpc("Invalid beacon root length".to_string()))
+                Err(RethEngineError::Rpc(
+                    "Invalid beacon root length".to_string(),
+                ))
             }
         } else {
             // 如果没有 beacon block root，返回默认值
@@ -1527,8 +1579,9 @@ impl RethExecutionEngine {
             .await
             .map_err(|e| RethEngineError::Rpc(format!("Failed to get block timestamp: {e}")))?;
 
-        let result: serde_json::Value = response.json().await
-            .map_err(|e| RethEngineError::Rpc(format!("Failed to parse timestamp response: {e}")))?;
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            RethEngineError::Rpc(format!("Failed to parse timestamp response: {e}"))
+        })?;
 
         let block_data = result
             .get("result")
@@ -1578,9 +1631,10 @@ impl RethExecutionEngine {
             )));
         }
 
-        let result: serde_json::Value = response.json().await.map_err(|e| {
-            RethEngineError::Rpc(format!("Failed to parse RPC response: {e}"))
-        })?;
+        let result: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| RethEngineError::Rpc(format!("Failed to parse RPC response: {e}")))?;
 
         if let Some(result_value) = result.get("result") {
             if let Some(block_data) = result_value.as_object() {
@@ -1598,7 +1652,9 @@ impl RethExecutionEngine {
             } else if result_value.is_null() {
                 Err(RethEngineError::Rpc("Block not found".to_string()))
             } else {
-                Err(RethEngineError::Rpc("Invalid block data format".to_string()))
+                Err(RethEngineError::Rpc(
+                    "Invalid block data format".to_string(),
+                ))
             }
         } else {
             Err(RethEngineError::Rpc(format!(
@@ -1691,7 +1747,7 @@ impl RethExecutionEngine {
     fn u256_to_bytes(&self, value: &U256) -> Vec<u8> {
         // Convert U256 to big-endian bytes properly
         let bytes = value.to_be_bytes::<32>();
-        
+
         // Remove leading zeros for compact representation
         let start = bytes.iter().position(|&b| b != 0).unwrap_or(31);
         bytes[start..].to_vec()
@@ -1766,8 +1822,11 @@ impl RethExecutionEngine {
         tx: &RethTransaction,
     ) -> Result<TransactionForwardingResult, RethEngineError> {
         let start_time = std::time::Instant::now();
-        
-        tracing::info!("Forwarding transaction to Reth: {:?}", hex::encode(tx.hash().as_slice()));
+
+        tracing::info!(
+            "Forwarding transaction to Reth: {:?}",
+            hex::encode(tx.hash().as_slice())
+        );
 
         // Encode transaction as RLP
         let rlp_encoded = self.rlp_encode_transaction(tx);
@@ -1783,8 +1842,12 @@ impl RethExecutionEngine {
 
         let result = TransactionForwardingResult {
             transaction_hash: tx_hash,
-            status: if receipt.status() { "success".to_string() } else { "failed".to_string() },
-            gas_used: Some(0), // Will be calculated from cumulative gas used
+            status: if receipt.status() {
+                "success".to_string()
+            } else {
+                "failed".to_string()
+            },
+            gas_used: Some(0),     // Will be calculated from cumulative gas used
             block_number: Some(0), // Block context needed
             confirmation_time: Some(start_time.elapsed()),
         };
@@ -1967,7 +2030,7 @@ impl RethExecutionEngine {
 
         let logs_bloom = self.parse_logs_bloom(receipt_json.get("logsBloom"))?;
 
-        Ok(        RethTransactionReceipt {
+        Ok(RethTransactionReceipt {
             status: alloy_consensus::Eip658Value::Eip658(status != 0),
             cumulative_gas_used,
             logs,
@@ -2000,11 +2063,17 @@ impl RethExecutionEngine {
         let block_number = Some(self.parse_hex_u64(log_json.get("blockNumber"))?);
         let transaction_hash = Some(self.parse_hash(log_json.get("transactionHash"))?);
         let transaction_index = Some(self.parse_hex_u64(log_json.get("transactionIndex"))?);
-        let block_hash = log_json.get("blockHash")
+        let block_hash = log_json
+            .get("blockHash")
             .map(|v| self.parse_hash(Some(v)))
             .transpose()?;
         let log_index = Some(self.parse_hex_u64(log_json.get("logIndex"))?);
-        let removed = Some(log_json.get("removed").and_then(|v| v.as_bool()).unwrap_or(false));
+        let removed = Some(
+            log_json
+                .get("removed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+        );
 
         Ok(RethTransactionLog {
             address,
@@ -2037,16 +2106,19 @@ impl RethExecutionEngine {
         tx_hex: &str,
     ) -> Result<ValidationResult, RethEngineError> {
         let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+        let client = client_guard.as_ref().ok_or_else(|| {
+            RethEngineError::TransactionValidation("RPC client not initialized".to_string())
+        })?;
 
         let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
 
         // 1. 直接尝试使用 eth_estimateGas 来验证交易
         // 这是最直接的方法，因为 estimateGas 会执行完整的交易验证
         // 包括检查余额、nonce、签名、gas limit 等
-        tracing::info!("🔍 Calling Reth RPC eth_estimateGas for transaction validation: {}", tx_hex);
+        tracing::info!(
+            "🔍 Calling Reth RPC eth_estimateGas for transaction validation: {}",
+            tx_hex
+        );
         let gas_estimate = match self.estimate_gas(tx_hex).await {
             Ok(gas) => {
                 // 如果 gas 估算成功，说明交易基本有效
@@ -2057,7 +2129,7 @@ impl RethExecutionEngine {
                 // Gas 估算失败，说明交易有问题
                 let error_msg = e.to_string();
                 tracing::warn!("❌ Gas estimation failed: {}", error_msg);
-                
+
                 // 解析具体的错误类型
                 if error_msg.contains("insufficient funds") {
                     return Ok(ValidationResult {
@@ -2067,7 +2139,9 @@ impl RethExecutionEngine {
                         gas_price_suggestion: None,
                         nonce_suggestion: None,
                     });
-                } else if error_msg.contains("nonce too low") || error_msg.contains("nonce too high") {
+                } else if error_msg.contains("nonce too low")
+                    || error_msg.contains("nonce too high")
+                {
                     return Ok(ValidationResult {
                         is_valid: false,
                         error_message: Some("Invalid nonce".to_string()),
@@ -2083,7 +2157,9 @@ impl RethExecutionEngine {
                         gas_price_suggestion: None,
                         nonce_suggestion: None,
                     });
-                } else if error_msg.contains("invalid signature") || error_msg.contains("unauthorized") {
+                } else if error_msg.contains("invalid signature")
+                    || error_msg.contains("unauthorized")
+                {
                     return Ok(ValidationResult {
                         is_valid: false,
                         error_message: Some("Invalid transaction signature".to_string()),
@@ -2094,7 +2170,10 @@ impl RethExecutionEngine {
                 } else {
                     return Ok(ValidationResult {
                         is_valid: false,
-                        error_message: Some(format!("Transaction validation failed: {}", error_msg)),
+                        error_message: Some(format!(
+                            "Transaction validation failed: {}",
+                            error_msg
+                        )),
                         estimated_gas: None,
                         gas_price_suggestion: None,
                         nonce_suggestion: None,
@@ -2110,7 +2189,10 @@ impl RethExecutionEngine {
         // 3. 解析交易以获取发送者地址（用于获取 nonce 建议）
         let sender_address = self.extract_sender_from_transaction(tx_hex).await;
         let nonce_suggestion = if let Ok(sender) = sender_address {
-            tracing::info!("🔍 Calling Reth RPC eth_getTransactionCount for nonce suggestion for address: {}", sender);
+            tracing::info!(
+                "🔍 Calling Reth RPC eth_getTransactionCount for nonce suggestion for address: {}",
+                sender
+            );
             self.get_transaction_count(&sender).await.ok()
         } else {
             None
@@ -2127,11 +2209,14 @@ impl RethExecutionEngine {
     }
 
     /// 从交易中提取发送者地址
-    async fn extract_sender_from_transaction(&self, tx_hex: &str) -> Result<String, RethEngineError> {
+    async fn extract_sender_from_transaction(
+        &self,
+        tx_hex: &str,
+    ) -> Result<String, RethEngineError> {
         let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+        let client = client_guard.as_ref().ok_or_else(|| {
+            RethEngineError::TransactionValidation("RPC client not initialized".to_string())
+        })?;
 
         // 使用 debug_traceCall 或类似方法来获取交易的发送者
         // 作为备用方案，我们可以尝试解析 RLP 编码的交易
@@ -2149,7 +2234,9 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::TransactionValidation(format!("Transaction decode failed: {e}")))?;
+            .map_err(|e| {
+                RethEngineError::TransactionValidation(format!("Transaction decode failed: {e}"))
+            })?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionValidation(format!("Failed to parse decode response: {e}"))
@@ -2163,9 +2250,14 @@ impl RethExecutionEngine {
         }
 
         let tx_data = result.get("result").unwrap();
-        let from = tx_data.get("from")
+        let from = tx_data
+            .get("from")
             .and_then(|f| f.as_str())
-            .ok_or_else(|| RethEngineError::TransactionValidation("Missing from address in transaction".to_string()))?;
+            .ok_or_else(|| {
+                RethEngineError::TransactionValidation(
+                    "Missing from address in transaction".to_string(),
+                )
+            })?;
 
         Ok(from.to_string())
     }
@@ -2186,7 +2278,10 @@ impl RethExecutionEngine {
     }
 
     /// 验证交易格式
-    fn validate_transaction_format(&self, _tx_data: &TransactionData) -> Result<(), RethEngineError> {
+    fn validate_transaction_format(
+        &self,
+        _tx_data: &TransactionData,
+    ) -> Result<(), RethEngineError> {
         // 基本格式验证
         // 在完整实现中，这里应该验证：
         // - 地址格式
@@ -2196,11 +2291,14 @@ impl RethExecutionEngine {
     }
 
     /// 为交易对象估算 gas
-    async fn estimate_gas_for_tx_object(&self, tx_data: &TransactionData) -> Result<u64, RethEngineError> {
+    async fn estimate_gas_for_tx_object(
+        &self,
+        tx_data: &TransactionData,
+    ) -> Result<u64, RethEngineError> {
         let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+        let client = client_guard.as_ref().ok_or_else(|| {
+            RethEngineError::TransactionValidation("RPC client not initialized".to_string())
+        })?;
 
         // 构建 eth_estimateGas 请求的交易对象
         let tx_object = serde_json::json!({
@@ -2226,10 +2324,14 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}")))?;
+            .map_err(|e| {
+                RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}"))
+            })?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
-            RethEngineError::TransactionValidation(format!("Failed to parse gas estimation response: {e}"))
+            RethEngineError::TransactionValidation(format!(
+                "Failed to parse gas estimation response: {e}"
+            ))
         })?;
 
         if let Some(error) = result.get("error") {
@@ -2242,20 +2344,28 @@ impl RethExecutionEngine {
         let gas_hex = result
             .get("result")
             .and_then(|r| r.as_str())
-            .ok_or_else(|| RethEngineError::TransactionValidation("Missing gas estimate in response".to_string()))?;
+            .ok_or_else(|| {
+                RethEngineError::TransactionValidation(
+                    "Missing gas estimate in response".to_string(),
+                )
+            })?;
 
-        let gas = u64::from_str_radix(gas_hex.trim_start_matches("0x"), 16)
-            .map_err(|e| RethEngineError::TransactionValidation(format!("Invalid gas estimate: {e}")))?;
+        let gas = u64::from_str_radix(gas_hex.trim_start_matches("0x"), 16).map_err(|e| {
+            RethEngineError::TransactionValidation(format!("Invalid gas estimate: {e}"))
+        })?;
 
         Ok(gas)
     }
 
     /// 验证发送者余额
-    async fn validate_sender_balance(&self, tx_data: &TransactionData) -> Result<(), RethEngineError> {
+    async fn validate_sender_balance(
+        &self,
+        tx_data: &TransactionData,
+    ) -> Result<(), RethEngineError> {
         let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+        let client = client_guard.as_ref().ok_or_else(|| {
+            RethEngineError::TransactionValidation("RPC client not initialized".to_string())
+        })?;
 
         // 获取账户余额
         let rpc_request = serde_json::json!({
@@ -2272,7 +2382,9 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::TransactionValidation(format!("Balance check failed: {e}")))?;
+            .map_err(|e| {
+                RethEngineError::TransactionValidation(format!("Balance check failed: {e}"))
+            })?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionValidation(format!("Failed to parse balance response: {e}"))
@@ -2288,7 +2400,9 @@ impl RethExecutionEngine {
         let balance_hex = result
             .get("result")
             .and_then(|r| r.as_str())
-            .ok_or_else(|| RethEngineError::TransactionValidation("Missing balance in response".to_string()))?;
+            .ok_or_else(|| {
+                RethEngineError::TransactionValidation("Missing balance in response".to_string())
+            })?;
 
         let balance = u64::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
             .map_err(|e| RethEngineError::TransactionValidation(format!("Invalid balance: {e}")))?;
@@ -2297,7 +2411,7 @@ impl RethExecutionEngine {
         let tx_value = u64::from_str_radix(tx_data.value.trim_start_matches("0x"), 16).unwrap_or(0);
         if balance < tx_value {
             return Err(RethEngineError::TransactionValidation(
-                "Insufficient balance for transaction".to_string()
+                "Insufficient balance for transaction".to_string(),
             ));
         }
 
@@ -2325,7 +2439,9 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::TransactionValidation(format!("Nonce check failed: {e}")))?;
+            .map_err(|e| {
+                RethEngineError::TransactionValidation(format!("Nonce check failed: {e}"))
+            })?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionValidation(format!("Failed to parse nonce response: {e}"))
@@ -2341,7 +2457,9 @@ impl RethExecutionEngine {
         let nonce_hex = result
             .get("result")
             .and_then(|r| r.as_str())
-            .ok_or_else(|| RethEngineError::TransactionValidation("Missing nonce in response".to_string()))?;
+            .ok_or_else(|| {
+                RethEngineError::TransactionValidation("Missing nonce in response".to_string())
+            })?;
 
         let nonce = u64::from_str_radix(nonce_hex.trim_start_matches("0x"), 16)
             .map_err(|e| RethEngineError::TransactionValidation(format!("Invalid nonce: {e}")))?;
@@ -2352,9 +2470,9 @@ impl RethExecutionEngine {
     /// Estimate gas for a raw transaction
     async fn estimate_gas(&self, tx_hex: &str) -> Result<u64, RethEngineError> {
         let client_guard = self.rpc_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
+        let client = client_guard.as_ref().ok_or_else(|| {
+            RethEngineError::TransactionValidation("RPC client not initialized".to_string())
+        })?;
 
         // 对于原始交易数据，我们需要先解码然后构建适当的参数
         // 这里我们直接使用 debug_traceCall 或者构建一个交易对象
@@ -2376,7 +2494,9 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}")))?;
+            .map_err(|e| {
+                RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}"))
+            })?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionValidation(format!(
@@ -2481,7 +2601,9 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-            .map_err(|e| RethEngineError::TransactionPool(format!("Connection check failed: {e}")))?;
+            .map_err(|e| {
+                RethEngineError::TransactionPool(format!("Connection check failed: {e}"))
+            })?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionPool(format!("Failed to parse connection response: {e}"))
@@ -2503,11 +2625,7 @@ impl RethExecutionEngine {
             "params": []
         });
 
-        let pool_response = client
-            .post(&rpc_url)
-            .json(&pool_request)
-            .send()
-            .await;
+        let pool_response = client.post(&rpc_url).json(&pool_request).send().await;
 
         match pool_response {
             Ok(response) => {
@@ -2517,13 +2635,17 @@ impl RethExecutionEngine {
                             let pending_count = pool_data
                                 .get("pending")
                                 .and_then(|v| v.as_str())
-                                .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+                                .map(|s| {
+                                    u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0)
+                                })
                                 .unwrap_or(0);
 
                             let queued_count = pool_data
                                 .get("queued")
                                 .and_then(|v| v.as_str())
-                                .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+                                .map(|s| {
+                                    u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0)
+                                })
                                 .unwrap_or(0);
 
                             return Ok(TransactionPoolStatus {
@@ -2656,7 +2778,7 @@ impl RethExecutionEngine {
         // TODO: Implement proper conversion to native Reth TransactionSigned
         // For now, return an error as this needs to be implemented properly
         Err(RethEngineError::TransactionConversion(
-            "Conversion to native Reth TransactionSigned not yet implemented".to_string()
+            "Conversion to native Reth TransactionSigned not yet implemented".to_string(),
         ))
     }
 
@@ -2668,7 +2790,7 @@ impl RethExecutionEngine {
         // TODO: Implement proper conversion from native Reth TransactionSigned
         // For now, return an error as this needs to be implemented properly
         Err(RethEngineError::TransactionConversion(
-            "Conversion from native Reth TransactionSigned not yet implemented".to_string()
+            "Conversion from native Reth TransactionSigned not yet implemented".to_string(),
         ))
     }
 
@@ -2729,10 +2851,13 @@ impl RethExecutionEngine {
     }
 
     /// Parse logs bloom filter
-    fn parse_logs_bloom(&self, value: Option<&serde_json::Value>) -> Result<Bloom, RethEngineError> {
-        let hex_str = value
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| RethEngineError::TransactionReceipt("Missing logs bloom value".to_string()))?;
+    fn parse_logs_bloom(
+        &self,
+        value: Option<&serde_json::Value>,
+    ) -> Result<Bloom, RethEngineError> {
+        let hex_str = value.and_then(|v| v.as_str()).ok_or_else(|| {
+            RethEngineError::TransactionReceipt("Missing logs bloom value".to_string())
+        })?;
 
         let hex_bytes = hex::decode(hex_str.trim_start_matches("0x")).map_err(|e| {
             RethEngineError::TransactionReceipt(format!("Invalid hex logs bloom: {e}"))
@@ -3043,7 +3168,7 @@ fn get_cpu_usage_standard() -> f64 {
 #[allow(dead_code)]
 pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> RethBlock {
     use alloy_primitives::{Bloom, Bytes};
-    
+
     // Create an empty block with no transactions to match reth's genesis block structure
     let transactions = Vec::new();
 
@@ -3051,13 +3176,29 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
     let header = Header {
         parent_hash: B256::ZERO, // Genesis block parent (all zeros)
         // Standard empty ommers hash for reth (keccak256 of empty RLP list)
-        ommers_hash: B256::from([0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a, 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a, 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13, 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47]),
+        ommers_hash: B256::from([
+            0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a, 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc,
+            0xd4, 0x1a, 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13, 0xf0, 0xa1, 0x42, 0xfd,
+            0x40, 0xd4, 0x93, 0x47,
+        ]),
         beneficiary: Address::ZERO, // Zero address for dev chain
-        state_root: B256::from([0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21]), // Empty state root
+        state_root: B256::from([
+            0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0,
+            0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5,
+            0xe3, 0x63, 0xb4, 0x21,
+        ]), // Empty state root
         // Standard empty transactions root for reth (keccak256 of empty transactions trie)
-        transactions_root: B256::from([0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21]),
+        transactions_root: B256::from([
+            0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0,
+            0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5,
+            0xe3, 0x63, 0xb4, 0x21,
+        ]),
         // Standard empty receipts root for reth (keccak256 of empty receipts trie)
-        receipts_root: B256::from([0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21]),
+        receipts_root: B256::from([
+            0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0,
+            0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5,
+            0xe3, 0x63, 0xb4, 0x21,
+        ]),
         logs_bloom: Bloom::ZERO,
         difficulty: U256::ZERO, // Zero difficulty for PoS
         number: block_number,
@@ -3068,14 +3209,18 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
             .unwrap()
             .as_secs(),
         extra_data: Bytes::new(),
-        mix_hash: B256::ZERO, // Zero for PoS
+        mix_hash: B256::ZERO,                      // Zero for PoS
         nonce: alloy_primitives::FixedBytes::ZERO, // Zero for PoS
-        base_fee_per_gas: Some(1_000_000_000), // 1 gwei
-        withdrawals_root: Some(B256::from([0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21])), // Empty withdrawals root
-        blob_gas_used: Some(0), // Zero blob gas
-        excess_blob_gas: Some(0), // Zero excess blob gas
-        parent_beacon_block_root: None, // Not set for dev chain
-        requests_hash: None, // No requests for dev chain
+        base_fee_per_gas: Some(1_000_000_000),     // 1 gwei
+        withdrawals_root: Some(B256::from([
+            0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0,
+            0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5,
+            0xe3, 0x63, 0xb4, 0x21,
+        ])), // Empty withdrawals root
+        blob_gas_used: Some(0),                    // Zero blob gas
+        excess_blob_gas: Some(0),                  // Zero excess blob gas
+        parent_beacon_block_root: None,            // Not set for dev chain
+        requests_hash: None,                       // No requests for dev chain
     };
 
     Block {
@@ -3087,6 +3232,3 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
         },
     }
 }
-
-
-

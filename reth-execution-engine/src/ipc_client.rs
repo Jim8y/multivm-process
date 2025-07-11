@@ -1,4 +1,4 @@
- //! Secure IPC Client for Reth Execution Engine
+//! Secure IPC Client for Reth Execution Engine
 //!
 //! This module provides secure IPC transport with encryption, message queuing,
 //! connection recovery, and health monitoring for communication with external Reth processes.
@@ -144,20 +144,20 @@ pub struct SecureRethIpcClient {
     stream: Arc<Mutex<Option<IpcStream>>>,
     status: Arc<RwLock<ConnectionStatus>>,
     cipher: Option<ChaCha20Poly1305>,
-    
+
     // Message queuing
     request_queue: Arc<Mutex<VecDeque<PendingRequest>>>,
     pending_requests: Arc<Mutex<HashMap<Uuid, PendingRequest>>>,
-    
+
     // Health monitoring
     metrics: Arc<RwLock<ConnectionMetrics>>,
     last_heartbeat: Arc<RwLock<Option<SystemTime>>>,
     is_healthy: Arc<AtomicBool>,
-    
+
     // Background tasks
     shutdown_sender: Option<oneshot::Sender<()>>,
     request_counter: Arc<AtomicU64>,
-    
+
     // Event channels
     command_sender: mpsc::UnboundedSender<IpcCommand>,
     response_receiver: Arc<Mutex<mpsc::UnboundedReceiver<IpcResponse>>>,
@@ -205,7 +205,10 @@ impl SecureRethIpcClient {
 
     /// Start the IPC client with all background tasks
     pub async fn start(&mut self) -> MultivmResult<()> {
-        info!("Starting secure IPC client for address: {}", self.config.address);
+        info!(
+            "Starting secure IPC client for address: {}",
+            self.config.address
+        );
 
         // Initial connection
         self.connect().await?;
@@ -248,7 +251,8 @@ impl SecureRethIpcClient {
         info!("Connecting to Reth IPC at: {}", self.config.address);
 
         let connect_timeout = Duration::from_millis(self.config.connect_timeout_ms);
-        let stream = timeout(connect_timeout, self.establish_connection()).await
+        let stream = timeout(connect_timeout, self.establish_connection())
+            .await
             .map_err(|_| MultivmError::Ipc {
                 endpoint: self.config.address.clone(),
                 message: "Connection timeout".to_string(),
@@ -284,7 +288,8 @@ impl SecureRethIpcClient {
             // Unix socket
             #[cfg(unix)]
             {
-                let stream = UnixStream::connect(address).await
+                let stream = UnixStream::connect(address)
+                    .await
                     .map_err(|e| MultivmError::Ipc {
                         endpoint: address.clone(),
                         message: format!("Failed to connect to Unix socket: {}", e),
@@ -313,7 +318,8 @@ impl SecureRethIpcClient {
                 format!("127.0.0.1:{}", address)
             };
 
-            let stream = TcpStream::connect(&tcp_address).await
+            let stream = TcpStream::connect(&tcp_address)
+                .await
                 .map_err(|e| MultivmError::Ipc {
                     endpoint: tcp_address.clone(),
                     message: format!("Failed to connect to TCP socket: {}", e),
@@ -383,7 +389,8 @@ impl SecureRethIpcClient {
         }
 
         // Wait for response
-        let response = timeout(request_timeout, response_receiver).await
+        let response = timeout(request_timeout, response_receiver)
+            .await
             .map_err(|_| MultivmError::Ipc {
                 endpoint: self.config.address.clone(),
                 message: "Request timeout".to_string(),
@@ -409,15 +416,19 @@ impl SecureRethIpcClient {
     /// Send a command with automatic retry
     pub async fn send_command_with_retry(&self, command: IpcCommand) -> MultivmResult<IpcResponse> {
         let mut last_error = None;
-        
+
         for attempt in 0..=self.config.max_retries {
             match self.send_command(command.clone()).await {
                 Ok(response) => return Ok(response),
                 Err(e) => {
                     last_error = Some(e);
                     if attempt < self.config.max_retries {
-                        warn!("IPC command failed, retrying ({}/{}): {:?}", 
-                              attempt + 1, self.config.max_retries, command);
+                        warn!(
+                            "IPC command failed, retrying ({}/{}): {:?}",
+                            attempt + 1,
+                            self.config.max_retries,
+                            command
+                        );
                         sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
                     }
                 }
@@ -462,7 +473,10 @@ impl SecureRethIpcClient {
     }
 
     /// Start background tasks for connection management
-    async fn start_background_tasks(&self, shutdown_receiver: oneshot::Receiver<()>) -> MultivmResult<()> {
+    async fn start_background_tasks(
+        &self,
+        shutdown_receiver: oneshot::Receiver<()>,
+    ) -> MultivmResult<()> {
         let stream = Arc::clone(&self.stream);
         let status = Arc::clone(&self.status);
         let config = self.config.clone();
@@ -483,7 +497,7 @@ impl SecureRethIpcClient {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
-            
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -533,14 +547,11 @@ impl SecureRethIpcClient {
 
         if let Some(pending_request) = request {
             // Send the request
-            if let Err(e) = Self::send_encrypted_message(
-                stream,
-                &pending_request.command,
-                cipher,
-                config,
-            ).await {
+            if let Err(e) =
+                Self::send_encrypted_message(stream, &pending_request.command, cipher, config).await
+            {
                 error!("Failed to send encrypted message: {}", e);
-                
+
                 // Send error response
                 let _ = pending_request.response_sender.send(Err(e));
                 return Ok(());
@@ -561,8 +572,8 @@ impl SecureRethIpcClient {
         cipher: &Option<ChaCha20Poly1305>,
         config: &IpcClientConfig,
     ) -> MultivmResult<()> {
-        use multivm_common::{ProcessId, MessageId};
-        
+        use multivm_common::{MessageId, ProcessId};
+
         let message = IpcMessage {
             id: MessageId::new(),
             source: ProcessId::Main,
@@ -582,17 +593,23 @@ impl SecureRethIpcClient {
             // Encrypt the message
             let nonce_bytes: [u8; 12] = thread_rng().gen();
             let nonce = Nonce::from_slice(&nonce_bytes);
-            
-            let ciphertext = cipher.encrypt(nonce, serialized.as_ref()).map_err(|e| MultivmError::Ipc {
-                endpoint: config.address.clone(),
-                message: format!("Failed to encrypt message: {}", e),
-                retry_count: Some(0),
-            })?;
+
+            let ciphertext =
+                cipher
+                    .encrypt(nonce, serialized.as_ref())
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: config.address.clone(),
+                        message: format!("Failed to encrypt message: {}", e),
+                        retry_count: Some(0),
+                    })?;
 
             let encrypted_message = EncryptedMessage {
                 nonce: nonce_bytes,
                 ciphertext,
-                timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 message_id: message.id.as_u64().to_string(),
             };
 
@@ -625,16 +642,22 @@ impl SecureRethIpcClient {
         match stream {
             #[cfg(unix)]
             IpcStream::Unix { writer, .. } => {
-                writer.write_all(&len_bytes).await.map_err(|e| MultivmError::Ipc {
-                    endpoint: config.address.clone(),
-                    message: format!("Failed to write message length: {}", e),
-                    retry_count: Some(0),
-                })?;
-                writer.write_all(data).await.map_err(|e| MultivmError::Ipc {
-                    endpoint: config.address.clone(),
-                    message: format!("Failed to write message data: {}", e),
-                    retry_count: Some(0),
-                })?;
+                writer
+                    .write_all(&len_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: config.address.clone(),
+                        message: format!("Failed to write message length: {}", e),
+                        retry_count: Some(0),
+                    })?;
+                writer
+                    .write_all(data)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: config.address.clone(),
+                        message: format!("Failed to write message data: {}", e),
+                        retry_count: Some(0),
+                    })?;
                 writer.flush().await.map_err(|e| MultivmError::Ipc {
                     endpoint: config.address.clone(),
                     message: format!("Failed to flush writer: {}", e),
@@ -642,16 +665,22 @@ impl SecureRethIpcClient {
                 })?;
             }
             IpcStream::Tcp { writer, .. } => {
-                writer.write_all(&len_bytes).await.map_err(|e| MultivmError::Ipc {
-                    endpoint: config.address.clone(),
-                    message: format!("Failed to write message length: {}", e),
-                    retry_count: Some(0),
-                })?;
-                writer.write_all(data).await.map_err(|e| MultivmError::Ipc {
-                    endpoint: config.address.clone(),
-                    message: format!("Failed to write message data: {}", e),
-                    retry_count: Some(0),
-                })?;
+                writer
+                    .write_all(&len_bytes)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: config.address.clone(),
+                        message: format!("Failed to write message length: {}", e),
+                        retry_count: Some(0),
+                    })?;
+                writer
+                    .write_all(data)
+                    .await
+                    .map_err(|e| MultivmError::Ipc {
+                        endpoint: config.address.clone(),
+                        message: format!("Failed to write message data: {}", e),
+                        retry_count: Some(0),
+                    })?;
                 writer.flush().await.map_err(|e| MultivmError::Ipc {
                     endpoint: config.address.clone(),
                     message: format!("Failed to flush writer: {}", e),
@@ -725,7 +754,10 @@ impl RethIpcClient {
         })
     }
 
-    pub async fn send_heartbeat(&mut self, health_response: IpcResponse) -> Result<(), MultivmError> {
+    pub async fn send_heartbeat(
+        &mut self,
+        health_response: IpcResponse,
+    ) -> Result<(), MultivmError> {
         // This is a simplified implementation for backward compatibility
         Err(MultivmError::Ipc {
             endpoint: "legacy_client".to_string(),

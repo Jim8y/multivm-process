@@ -43,8 +43,8 @@ impl Default for ConsensusBlockGeneratorConfig {
     fn default() -> Self {
         Self {
             block_interval_ms: 3000, // 3 second blocks
-            svm_tx_per_block: 20,     // Keep SVM transactions for cross-VM functionality
-            evm_tx_per_block: 20,     // Now sourced from Reth
+            svm_tx_per_block: 20,    // Keep SVM transactions for cross-VM functionality
+            evm_tx_per_block: 20,    // Now sourced from Reth
             enabled: true,
             reth_rpc_url: "http://127.0.0.1:8545".to_string(),
             reth_rpc_timeout_ms: 30000,
@@ -201,13 +201,19 @@ impl ConsensusBlockGenerator {
         let timestamp_secs = timestamp.duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         // Generate SVM transactions (keep for cross-VM functionality)
-        let svm_transactions = self.generate_svm_transactions(height, timestamp_secs).await?;
+        let svm_transactions = self
+            .generate_svm_transactions(height, timestamp_secs)
+            .await?;
 
         // Get EVM transactions from Reth
-        let (evm_transactions, reth_block_data) = self.collect_evm_transactions_from_reth(height, timestamp_secs).await?;
+        let (evm_transactions, reth_block_data) = self
+            .collect_evm_transactions_from_reth(height, timestamp_secs)
+            .await?;
 
         // Create block header with real Reth data
-        let header = self.create_block_header(height, timestamp, &reth_block_data).await?;
+        let header = self
+            .create_block_header(height, timestamp, &reth_block_data)
+            .await?;
 
         // Create the block
         let mut block = MultiVMBlock::new(
@@ -235,7 +241,11 @@ impl ConsensusBlockGenerator {
     }
 
     /// Generate SVM transactions (keeps existing logic for cross-VM compatibility)
-    async fn generate_svm_transactions(&self, height: u64, timestamp_secs: u64) -> MultivmResult<Vec<SvmTransaction>> {
+    async fn generate_svm_transactions(
+        &self,
+        height: u64,
+        timestamp_secs: u64,
+    ) -> MultivmResult<Vec<SvmTransaction>> {
         let mut svm_transactions = Vec::new();
         for i in 0..self.config.svm_tx_per_block {
             svm_transactions.push(SvmTransaction {
@@ -260,14 +270,19 @@ impl ConsensusBlockGenerator {
     }
 
     /// Collect EVM transactions from Reth process
-    async fn collect_evm_transactions_from_reth(&self, height: u64, _timestamp_secs: u64) -> MultivmResult<(Vec<EvmTransaction>, RethBlockData)> {
+    async fn collect_evm_transactions_from_reth(
+        &self,
+        height: u64,
+        _timestamp_secs: u64,
+    ) -> MultivmResult<(Vec<EvmTransaction>, RethBlockData)> {
         // Get the latest block from Reth
-        let current_reth_block = self.reth_client.get_block_number().await
-            .map_err(|e| multivm_common::MultivmError::Network {
+        let current_reth_block = self.reth_client.get_block_number().await.map_err(|e| {
+            multivm_common::MultivmError::Network {
                 message: format!("Failed to get current block number: {}", e),
                 endpoint: Some("reth".to_string()),
                 retry_after: None,
-            })?;
+            }
+        })?;
 
         // Update our tracking of Reth block number
         {
@@ -275,10 +290,16 @@ impl ConsensusBlockGenerator {
             *last_block = current_reth_block;
         }
 
-        debug!("Collecting EVM transactions from Reth block {}", current_reth_block);
+        debug!(
+            "Collecting EVM transactions from Reth block {}",
+            current_reth_block
+        );
 
         // Get the latest block with full transaction details
-        let reth_block = self.reth_client.get_block_by_number(current_reth_block, true).await
+        let reth_block = self
+            .reth_client
+            .get_block_by_number(current_reth_block, true)
+            .await
             .map_err(|e| multivm_common::MultivmError::Network {
                 message: format!("Failed to get block {}: {}", current_reth_block, e),
                 endpoint: Some("reth".to_string()),
@@ -292,16 +313,23 @@ impl ConsensusBlockGenerator {
 
         // Convert Reth transactions to MultiVM format
         let mut evm_transactions = Vec::new();
-        let tx_limit = self.config.evm_tx_per_block.min(reth_block.transactions.len());
-        
+        let tx_limit = self
+            .config
+            .evm_tx_per_block
+            .min(reth_block.transactions.len());
+
         for (i, tx_data) in reth_block.transactions.iter().take(tx_limit).enumerate() {
-            let evm_tx = self.convert_reth_transaction_to_multivm(tx_data, height, i).await?;
+            let evm_tx = self
+                .convert_reth_transaction_to_multivm(tx_data, height, i)
+                .await?;
             evm_transactions.push(evm_tx);
         }
 
         // If we don't have enough transactions, pad with synthetic ones
         while evm_transactions.len() < self.config.evm_tx_per_block {
-            let synthetic_tx = self.create_synthetic_evm_transaction(height, evm_transactions.len()).await?;
+            let synthetic_tx = self
+                .create_synthetic_evm_transaction(height, evm_transactions.len())
+                .await?;
             evm_transactions.push(synthetic_tx);
         }
 
@@ -321,57 +349,70 @@ impl ConsensusBlockGenerator {
     }
 
     /// Convert Reth transaction to MultiVM format
-    async fn convert_reth_transaction_to_multivm(&self, tx_data: &serde_json::Value, height: u64, index: usize) -> MultivmResult<EvmTransaction> {
-        let hash = tx_data.get("hash")
+    async fn convert_reth_transaction_to_multivm(
+        &self,
+        tx_data: &serde_json::Value,
+        height: u64,
+        index: usize,
+    ) -> MultivmResult<EvmTransaction> {
+        let hash = tx_data
+            .get("hash")
             .and_then(|v| v.as_str())
             .unwrap_or(&format!("unknown_hash_{}", index))
             .to_string();
 
-        let from = tx_data.get("from")
+        let from = tx_data
+            .get("from")
             .and_then(|v| v.as_str())
             .unwrap_or("0x0000000000000000000000000000000000000000")
             .to_string();
 
-        let to = tx_data.get("to")
+        let to = tx_data
+            .get("to")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let value = tx_data.get("value")
+        let value = tx_data
+            .get("value")
             .and_then(|v| v.as_str())
             .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
             .unwrap_or(0);
 
-        let gas_limit = tx_data.get("gas")
+        let gas_limit = tx_data
+            .get("gas")
             .and_then(|v| v.as_str())
             .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
             .unwrap_or(21000);
 
-        let gas_price = tx_data.get("gasPrice")
+        let gas_price = tx_data
+            .get("gasPrice")
             .and_then(|v| v.as_str())
             .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
             .unwrap_or(20000000000);
 
-        let nonce = tx_data.get("nonce")
+        let nonce = tx_data
+            .get("nonce")
             .and_then(|v| v.as_str())
             .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
             .unwrap_or(0);
 
-        let data = tx_data.get("input")
+        let data = tx_data
+            .get("input")
             .and_then(|v| v.as_str())
             .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
             .unwrap_or_default();
 
         // Extract signature components
-        let v = tx_data.get("v")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(27);
+        let v = tx_data.get("v").and_then(|v| v.as_u64()).unwrap_or(27);
 
-        let r = tx_data.get("r")
+        let r = tx_data
+            .get("r")
             .and_then(|v| v.as_str())
             .unwrap_or("0x0")
             .to_string();
 
-        let s = tx_data.get("s")
+        let s = tx_data
+            .get("s")
             .and_then(|v| v.as_str())
             .unwrap_or("0x0")
             .to_string();
@@ -386,11 +427,7 @@ impl ConsensusBlockGenerator {
             gas_price,
             data,
             nonce,
-            signature: EvmSignature {
-                v: v as u8,
-                r,
-                s,
-            },
+            signature: EvmSignature { v: v as u8, r, s },
             metadata: serde_json::json!({
                 "consensus": true,
                 "block": height,
@@ -402,7 +439,11 @@ impl ConsensusBlockGenerator {
     }
 
     /// Create synthetic EVM transaction when not enough real transactions are available
-    async fn create_synthetic_evm_transaction(&self, height: u64, index: usize) -> MultivmResult<EvmTransaction> {
+    async fn create_synthetic_evm_transaction(
+        &self,
+        height: u64,
+        index: usize,
+    ) -> MultivmResult<EvmTransaction> {
         Ok(EvmTransaction {
             id: Uuid::new_v4(),
             hash: format!("synthetic_evm_hash_{}_{}", height, index),
@@ -429,7 +470,12 @@ impl ConsensusBlockGenerator {
     }
 
     /// Create block header with real Reth data
-    async fn create_block_header(&self, height: u64, timestamp: SystemTime, reth_data: &RethBlockData) -> MultivmResult<BlockHeader> {
+    async fn create_block_header(
+        &self,
+        height: u64,
+        timestamp: SystemTime,
+        reth_data: &RethBlockData,
+    ) -> MultivmResult<BlockHeader> {
         let state_root = if self.config.enable_state_root_verification {
             self.verify_and_get_state_root(reth_data).await?
         } else {
@@ -457,14 +503,17 @@ impl ConsensusBlockGenerator {
     async fn verify_and_get_state_root(&self, reth_data: &RethBlockData) -> MultivmResult<String> {
         // Additional verification can be added here
         debug!("Verifying state root for block {}", reth_data.block_number);
-        
+
         // For now, we trust the Reth state root, but we could add additional checks:
         // - Compare with previous block
         // - Verify against transaction receipts
         // - Check against consensus rules
-        
+
         if reth_data.state_root.is_empty() {
-            warn!("Empty state root received from Reth block {}", reth_data.block_number);
+            warn!(
+                "Empty state root received from Reth block {}",
+                reth_data.block_number
+            );
             return Err(multivm_common::MultivmError::Validation {
                 field: "state_root".to_string(),
                 message: "Invalid state root from Reth".to_string(),
@@ -493,14 +542,18 @@ impl ConsensusBlockGenerator {
     /// Synchronize timing between MultiVM consensus and Reth process
     async fn coordinate_block_timing(&self, _height: u64) -> MultivmResult<()> {
         // Get the latest Reth block timestamp
-        let current_reth_block = self.reth_client.get_block_number().await
-            .map_err(|e| multivm_common::MultivmError::Network {
+        let current_reth_block = self.reth_client.get_block_number().await.map_err(|e| {
+            multivm_common::MultivmError::Network {
                 message: format!("Failed to get current block number for timing: {}", e),
                 endpoint: Some("reth".to_string()),
                 retry_after: None,
-            })?;
+            }
+        })?;
 
-        let reth_block = self.reth_client.get_block_by_number(current_reth_block, false).await
+        let reth_block = self
+            .reth_client
+            .get_block_by_number(current_reth_block, false)
+            .await
             .map_err(|e| multivm_common::MultivmError::Network {
                 message: format!("Failed to get block for timing: {}", e),
                 endpoint: Some("reth".to_string()),
@@ -509,16 +562,25 @@ impl ConsensusBlockGenerator {
 
         if let Some(block) = reth_block {
             let reth_timestamp = block.timestamp;
-            let current_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-            
+            let current_timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
             // If Reth is too far ahead, we might want to wait
             if reth_timestamp > current_timestamp + 5 {
-                warn!("Reth timestamp is {} seconds ahead of system time", reth_timestamp - current_timestamp);
+                warn!(
+                    "Reth timestamp is {} seconds ahead of system time",
+                    reth_timestamp - current_timestamp
+                );
             }
-            
+
             // If Reth is too far behind, we might want to speed up
             if current_timestamp > reth_timestamp + 30 {
-                warn!("Reth timestamp is {} seconds behind system time", current_timestamp - reth_timestamp);
+                warn!(
+                    "Reth timestamp is {} seconds behind system time",
+                    current_timestamp - reth_timestamp
+                );
             }
         }
 
