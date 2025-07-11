@@ -22,7 +22,9 @@ pub enum VoteType {
 }
 
 /// Round type for consensus
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct Round(u32);
 
 impl Round {
@@ -93,7 +95,9 @@ impl Display for BlockHeight {
 // }
 
 /// MultiVM Address implementation
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ValidatorAddress(pub String);
 
 // impl Address for ValidatorAddress {}

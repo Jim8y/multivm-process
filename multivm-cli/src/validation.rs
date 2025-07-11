@@ -235,3 +235,168 @@ pub fn validate_config_file_safety(config_path: &Path) -> MultivmResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "validation_tests.rs"]
+mod tests;
+
+/// Validate RPC port number
+pub fn validate_rpc_port(port: u16) -> MultivmResult<u16> {
+    validate_port(port, "RPC")
+}
+
+/// Validate P2P address
+pub fn validate_p2p_address(address: &str) -> MultivmResult<String> {
+    // Parse address into host:port
+    let parts: Vec<&str> = address.split(":").collect();
+    if parts.len() != 2 {
+        return Err(MultivmError::Configuration {
+            component: "p2p_address".to_string(),
+            message: "P2P address must be in format host:port".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    // Validate IP address
+    let host = parts[0];
+    if !host.split(".").all(|octet| octet.parse::<u8>().is_ok()) || host.split(".").count() != 4 {
+        return Err(MultivmError::Configuration {
+            component: "p2p_address".to_string(),
+            message: "Invalid IP address format".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    // Validate port
+    let port = parts[1]
+        .parse::<u16>()
+        .map_err(|_| MultivmError::Configuration {
+            component: "p2p_address".to_string(),
+            message: "Invalid port number".to_string(),
+            validation_errors: None,
+        })?;
+
+    validate_port(port, "P2P")?;
+    Ok(address.to_string())
+}
+
+/// Validate data directory path
+pub fn validate_data_dir(path: &str) -> MultivmResult<String> {
+    if path.is_empty() || path.trim().is_empty() {
+        return Err(MultivmError::Configuration {
+            component: "data_dir".to_string(),
+            message: "Data directory cannot be empty".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    // Check for null bytes
+    if path.contains('\0') {
+        return Err(MultivmError::Configuration {
+            component: "data_dir".to_string(),
+            message: "Data directory path contains invalid characters".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    Ok(path.to_string())
+}
+
+/// Validate RPC URL
+pub fn validate_rpc_url(url: &str) -> MultivmResult<String> {
+    if url.is_empty() {
+        return Err(MultivmError::Configuration {
+            component: "rpc_url".to_string(),
+            message: "RPC URL cannot be empty".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    // Check protocol
+    if !url.starts_with("http://")
+        && !url.starts_with("https://")
+        && !url.starts_with("ws://")
+        && !url.starts_with("wss://")
+    {
+        return Err(MultivmError::Configuration {
+            component: "rpc_url".to_string(),
+            message: "RPC URL must start with http://, https://, ws://, or wss://".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    // Basic URL validation
+    if url.len() < 10 || !url.contains("://") || url.ends_with("://") {
+        return Err(MultivmError::Configuration {
+            component: "rpc_url".to_string(),
+            message: "Invalid RPC URL format".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    Ok(url.to_string())
+}
+
+/// Validate validator key path
+pub fn validate_validator_key_path(path: &str) -> MultivmResult<String> {
+    if path.is_empty() || path.trim().is_empty() {
+        return Err(MultivmError::Configuration {
+            component: "validator_key_path".to_string(),
+            message: "Validator key path cannot be empty".to_string(),
+            validation_errors: None,
+        });
+    }
+
+    Ok(path.to_string())
+}
+
+/// Validate memory limit in MB
+pub fn validate_memory_limit(limit_mb: u64) -> MultivmResult<u64> {
+    match limit_mb {
+        0..=511 => Err(MultivmError::Configuration {
+            component: "memory_limit".to_string(),
+            message: "Memory limit too low (minimum 512MB)".to_string(),
+            validation_errors: None,
+        }),
+        512..=65535 => Ok(limit_mb), // 512MB to 64GB
+        _ => Err(MultivmError::Configuration {
+            component: "memory_limit".to_string(),
+            message: "Memory limit too high (maximum 64GB)".to_string(),
+            validation_errors: None,
+        }),
+    }
+}
+
+/// Validate CPU cores
+pub fn validate_cpu_cores(cores: u32) -> MultivmResult<u32> {
+    match cores {
+        0 => Err(MultivmError::Configuration {
+            component: "cpu_cores".to_string(),
+            message: "CPU cores cannot be 0".to_string(),
+            validation_errors: None,
+        }),
+        1..=64 => Ok(cores),
+        _ => Err(MultivmError::Configuration {
+            component: "cpu_cores".to_string(),
+            message: "CPU cores too high (maximum 64)".to_string(),
+            validation_errors: None,
+        }),
+    }
+}
+
+/// Validate max file descriptors
+pub fn validate_max_file_descriptors(max_fds: u64) -> MultivmResult<u64> {
+    match max_fds {
+        0..=1023 => Err(MultivmError::Configuration {
+            component: "max_file_descriptors".to_string(),
+            message: "Max file descriptors too low (minimum 1024)".to_string(),
+            validation_errors: None,
+        }),
+        1024..=1048576 => Ok(max_fds),
+        _ => Err(MultivmError::Configuration {
+            component: "max_file_descriptors".to_string(),
+            message: "Max file descriptors too high (maximum 1048576)".to_string(),
+            validation_errors: None,
+        }),
+    }
+}

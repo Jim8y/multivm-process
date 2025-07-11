@@ -97,6 +97,19 @@ pub trait AccountMappingStorage: Send + Sync {
         &self,
         account: AccountAddress,
     ) -> AccountMappingResult<MultivmAccountId>;
+
+    /// Store nonce for replay protection
+    async fn store_nonce(&self, address: &AccountAddress, nonce: u64) -> AccountMappingResult<()>;
+
+    /// Get the next expected nonce for an address
+    async fn get_next_nonce(&self, address: &AccountAddress) -> AccountMappingResult<u64>;
+
+    /// Check if a nonce has been used
+    async fn is_nonce_used(
+        &self,
+        address: &AccountAddress,
+        nonce: u64,
+    ) -> AccountMappingResult<bool>;
 }
 
 /// In-memory storage implementation
@@ -104,6 +117,7 @@ pub trait AccountMappingStorage: Send + Sync {
 pub struct MemoryStorage {
     bindings: Arc<RwLock<HashMap<MultivmAccountId, AccountBinding>>>,
     reverse_lookup: Arc<RwLock<HashMap<AccountAddress, MultivmAccountId>>>,
+    nonces: Arc<RwLock<HashMap<AccountAddress, u64>>>,
 }
 
 impl Default for MemoryStorage {
@@ -118,6 +132,7 @@ impl MemoryStorage {
         Self {
             bindings: Arc::new(RwLock::new(HashMap::new())),
             reverse_lookup: Arc::new(RwLock::new(HashMap::new())),
+            nonces: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -226,6 +241,26 @@ impl AccountMappingStorage for MemoryStorage {
         let multivm_id = binding.multivm_account.clone();
         self.store_binding(&binding).await?;
         Ok(multivm_id)
+    }
+
+    async fn store_nonce(&self, address: &AccountAddress, nonce: u64) -> AccountMappingResult<()> {
+        let mut nonces = self.nonces.write().await;
+        nonces.insert(address.clone(), nonce);
+        Ok(())
+    }
+
+    async fn get_next_nonce(&self, address: &AccountAddress) -> AccountMappingResult<u64> {
+        let nonces = self.nonces.read().await;
+        Ok(nonces.get(address).copied().unwrap_or(0) + 1)
+    }
+
+    async fn is_nonce_used(
+        &self,
+        address: &AccountAddress,
+        nonce: u64,
+    ) -> AccountMappingResult<bool> {
+        let nonces = self.nonces.read().await;
+        Ok(nonces.get(address).copied().unwrap_or(0) >= nonce)
     }
 }
 
@@ -336,7 +371,7 @@ impl AccountMappingLayer for MemoryStorage {
             }
             SpecialTransaction::CrossVmTransfer { .. } => {
                 // Cross-VM transfers are handled by the coordinator
-                // This is just a placeholder for the trait implementation
+
                 Ok(())
             }
             _ => {
@@ -555,6 +590,29 @@ impl AccountMappingStorage for FileStorage {
         self.store_binding(&binding).await?;
         Ok(multivm_id)
     }
+
+    async fn store_nonce(
+        &self,
+        _address: &AccountAddress,
+        _nonce: u64,
+    ) -> AccountMappingResult<()> {
+        // TODO: Implement nonce storage for FileStorage
+        Ok(())
+    }
+
+    async fn get_next_nonce(&self, _address: &AccountAddress) -> AccountMappingResult<u64> {
+        // TODO: Implement nonce tracking for FileStorage
+        Ok(1)
+    }
+
+    async fn is_nonce_used(
+        &self,
+        _address: &AccountAddress,
+        _nonce: u64,
+    ) -> AccountMappingResult<bool> {
+        // TODO: Implement nonce checking for FileStorage
+        Ok(false)
+    }
 }
 
 #[async_trait::async_trait]
@@ -664,7 +722,7 @@ impl AccountMappingLayer for FileStorage {
             }
             SpecialTransaction::CrossVmTransfer { .. } => {
                 // Cross-VM transfers are handled by the coordinator
-                // This is just a placeholder for the trait implementation
+
                 Ok(())
             }
             _ => {
@@ -940,6 +998,29 @@ impl AccountMappingStorage for RocksDBStorage {
         self.store_binding(&binding).await?;
         Ok(multivm_id)
     }
+
+    async fn store_nonce(
+        &self,
+        _address: &AccountAddress,
+        _nonce: u64,
+    ) -> AccountMappingResult<()> {
+        // TODO: Implement nonce storage for FileStorage
+        Ok(())
+    }
+
+    async fn get_next_nonce(&self, _address: &AccountAddress) -> AccountMappingResult<u64> {
+        // TODO: Implement nonce tracking for FileStorage
+        Ok(1)
+    }
+
+    async fn is_nonce_used(
+        &self,
+        _address: &AccountAddress,
+        _nonce: u64,
+    ) -> AccountMappingResult<bool> {
+        // TODO: Implement nonce checking for FileStorage
+        Ok(false)
+    }
 }
 
 #[async_trait::async_trait]
@@ -1048,7 +1129,7 @@ impl AccountMappingLayer for RocksDBStorage {
             }
             SpecialTransaction::CrossVmTransfer { .. } => {
                 // Cross-VM transfers are handled by the coordinator
-                // This is just a placeholder for the trait implementation
+
                 Ok(())
             }
             _ => {

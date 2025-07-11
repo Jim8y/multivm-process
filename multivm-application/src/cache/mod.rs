@@ -262,7 +262,7 @@ impl CacheLayer {
     pub async fn flush(&self) -> CacheResult<()> {
         // For write-back strategy, this would flush pending writes
         // For now, just ensure memory cache is persisted if needed
-        if let Some(redis_cache) = &self.redis_cache {
+        if let Some(_redis_cache) = &self.redis_cache {
             // In a real implementation, we would flush any write-back queue
             // For now, just log that flush was called
             tracing::debug!("Cache flush requested");

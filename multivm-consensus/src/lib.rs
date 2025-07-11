@@ -2,6 +2,39 @@
 //!
 //! This crate provides a unified consensus layer for the MultiVM architecture,
 //! supporting multiple consensus algorithms and ensuring cross-VM state consistency.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use multivm_consensus::manager::{MultiVMConsensusManager, ConsensusManagerConfig};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create a consensus manager with configuration
+//! let config = ConsensusManagerConfig::default();
+//! let manager = MultiVMConsensusManager::new(config).await?;
+//!
+//! // The manager starts in a stopped state
+//! assert!(!manager.is_running().await);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Leader Selection
+//!
+//! ```rust
+//! use multivm_consensus::leader_selection::LeaderSelector;
+//! use multivm_consensus::malachite::{ValidatorAddress, Round};
+//!
+//! let validators = vec![
+//!     (ValidatorAddress("validator1".to_string()), 100),
+//!     (ValidatorAddress("validator2".to_string()), 50),
+//! ];
+//! let selector = LeaderSelector::new_weighted(validators);
+//!
+//! // Test leader selection at different heights
+//! let leader = selector.get_leader(1, Round::new(0));
+//! assert!(leader.is_ok());
+//! ```
 
 // Only allow dead code and warnings in debug builds
 #![cfg_attr(
@@ -19,6 +52,7 @@ pub mod block;
 pub mod crypto;
 pub mod error;
 pub mod fork_detection;
+pub mod leader_selection;
 pub mod malachite;
 pub mod manager;
 pub mod messages;
@@ -29,6 +63,8 @@ pub mod state;
 pub mod synchronization;
 pub mod traits;
 pub mod transaction_pool;
+pub mod validator_set;
+pub mod view_change;
 
 // Tests are included in individual modules
 

@@ -22,6 +22,12 @@ impl Default for MessageId {
     }
 }
 
+impl std::fmt::Display for MessageId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Process identifier for different blockchain engines
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProcessId {

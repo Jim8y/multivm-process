@@ -7,7 +7,7 @@ use crate::{IpcMessage, MultivmError, MultivmResult};
 //     Aes256Gcm, Key as AesKey, Nonce as AesNonce,
 // };
 use chacha20poly1305::{
-    aead::{Aead, KeyInit},
+    aead::{Aead, NewAead},
     ChaCha20Poly1305, Key as ChaChaKey, Nonce as ChaChaNonce,
 };
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -340,12 +340,11 @@ impl RateLimiter {
             if now.duration_since(penalty_time) < self.config.penalty_duration {
                 debug!("Process {} still in penalty period", process_id);
                 return Ok(false);
-            } else {
-                // Penalty period over, reset
-                state.last_penalty = None;
-                state.message_count = 0;
-                state.window_start = now;
             }
+            // Penalty period over, reset
+            state.last_penalty = None;
+            state.message_count = 0;
+            state.window_start = now;
         }
 
         // Check if we need a new window

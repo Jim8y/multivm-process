@@ -12,6 +12,7 @@ pub mod ipc_transport;
 pub mod lock_ordering;
 pub mod manager;
 pub mod process;
+pub mod process_with_protocols;
 pub mod resource_monitor;
 pub mod transaction_batcher;
 pub mod zombie_reaper;

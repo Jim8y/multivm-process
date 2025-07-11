@@ -9,8 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
-use tracing::warn;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[cfg(feature = "cache")]
 use redis::{
@@ -105,7 +104,7 @@ impl ProductionRedisCache {
                 })?;
 
             // Create connection manager for connection pooling
-            let connection_manager = match client.get_tokio_connection_manager().await {
+            let connection_manager = match client.get_connection_manager().await {
                 Ok(cm) => Some(cm),
                 Err(e) => {
                     warn!("Failed to create connection manager, will retry: {}", e);
@@ -149,7 +148,7 @@ impl ProductionRedisCache {
                     last_failure: None,
                     last_success: None,
                 })),
-                connection_semaphore: Arc::new(Semaphore::new(1)),
+                connection_semaphore: Arc::new(Semaphore::new(config.max_connections as usize)),
                 reconnect_mutex: Arc::new(Mutex::new(())),
                 stats: Arc::new(CacheStatistics::default()),
                 hot_cache: Arc::new(DashMap::new()),
@@ -600,14 +599,12 @@ impl ProductionRedisCache {
             .reconnect_attempts
             .fetch_add(1, Ordering::Relaxed);
 
-        let conn = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|e| ApplicationError::CacheError {
+        let conn = self.client.get_connection_manager().await.map_err(|e| {
+            ApplicationError::CacheError {
                 operation: "reconnect".to_string(),
                 message: format!("Failed to reconnect: {}", e),
-            })?;
+            }
+        })?;
 
         *conn_guard = Some(conn.clone());
         Ok(conn)

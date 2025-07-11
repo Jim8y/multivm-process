@@ -8,13 +8,29 @@ CONFIG_FILE="${CONFIG_FILE:-/opt/multivm/config/config.toml}"
 DATA_DIR="${DATA_DIR:-/opt/multivm/data}"
 LOG_DIR="${LOG_DIR:-/opt/multivm/logs}"
 
+# Generate secure JWT secret if not provided or if it's a test secret
+if [ -z "$MULTIVM_JWT_SECRET" ] || [ "$MULTIVM_JWT_SECRET" = "test-secret-key-for-development-only-32chars" ]; then
+    echo "Generating secure JWT secret..."
+    MULTIVM_JWT_SECRET=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
+    export MULTIVM_JWT_SECRET
+    echo "Warning: Generated random JWT secret. Save this for persistent deployments."
+fi
+
 # Create directories if they don't exist (handle permissions)
-if [ -w "$DATA_DIR" ]; then
-    mkdir -p "$DATA_DIR/consensus" "$DATA_DIR/p2p" "$DATA_DIR/execution" "$LOG_DIR"
+if [ -w "$(dirname "$DATA_DIR")" ] || [ -w "$DATA_DIR" ]; then
+    mkdir -p "$DATA_DIR/consensus" "$DATA_DIR/p2p" "$DATA_DIR/execution" "$LOG_DIR" 2>/dev/null || true
 else
     echo "Warning: Cannot create directories in $DATA_DIR (permission denied)"
     echo "Using existing directories..."
 fi
+
+# Ensure directories exist for non-root user
+for dir in "$DATA_DIR" "$LOG_DIR" "$DATA_DIR/consensus" "$DATA_DIR/p2p" "$DATA_DIR/execution"; do
+    if [ ! -d "$dir" ]; then
+        echo "Creating directory: $dir"
+        mkdir -p "$dir" 2>/dev/null || echo "Warning: Could not create $dir"
+    fi
+done
 
 echo "========================================="
 echo "Starting MultiVM Node"
@@ -28,9 +44,12 @@ echo "========================================="
 
 # Generate node key if it doesn't exist
 if [ ! -f "$DATA_DIR/node_key.json" ]; then
-    echo "Generating node key..."
-    # Generate a proper ed25519 keypair for the node
-    echo "{\"id\":\"${NODE_ID}\",\"key\":\"$(openssl rand -hex 32)\"}" > "$DATA_DIR/node_key.json"
+    echo "Generating secure node key..."
+    # Generate a cryptographically secure ed25519 keypair for the node
+    # Use /dev/urandom for better entropy
+    NODE_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | xxd -p -c 32)
+    echo "{\"id\":\"${NODE_ID}\",\"key\":\"${NODE_KEY}\"}" > "$DATA_DIR/node_key.json"
+    chmod 600 "$DATA_DIR/node_key.json"  # Restrict permissions
 fi
 
 # Generate node-specific configuration if it doesn't exist

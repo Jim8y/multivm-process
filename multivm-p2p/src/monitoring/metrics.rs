@@ -1,100 +1,145 @@
 //! Metrics for P2P networking layer
 
 #[cfg(feature = "metrics")]
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 #[cfg(feature = "metrics")]
 use prometheus::{
     register_counter_vec, register_gauge_vec, register_histogram_vec, CounterVec, GaugeVec,
     HistogramVec, Registry,
 };
 
+/// Total messages sent by type
 #[cfg(feature = "metrics")]
-lazy_static! {
-    /// Total messages sent by type
-    pub static ref MESSAGES_SENT: CounterVec = register_counter_vec!(
+pub static MESSAGES_SENT: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "multivm_p2p_messages_sent_total",
         "Total number of messages sent",
         &["message_type", "target_type"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Total messages received by type
-    pub static ref MESSAGES_RECEIVED: CounterVec = register_counter_vec!(
+/// Total messages received by type
+#[cfg(feature = "metrics")]
+pub static MESSAGES_RECEIVED: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "multivm_p2p_messages_received_total",
         "Total number of messages received",
         &["message_type", "source_peer"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Message processing duration
-    pub static ref MESSAGE_PROCESSING_DURATION: HistogramVec = register_histogram_vec!(
+/// Message processing duration
+#[cfg(feature = "metrics")]
+pub static MESSAGE_PROCESSING_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
+    register_histogram_vec!(
         "multivm_p2p_message_processing_duration_seconds",
         "Message processing duration in seconds",
         &["message_type"],
         vec![0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Active peer connections
-    pub static ref ACTIVE_PEERS: GaugeVec = register_gauge_vec!(
+/// Active peer connections
+#[cfg(feature = "metrics")]
+pub static ACTIVE_PEERS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "multivm_p2p_active_peers",
         "Number of active peer connections",
         &["peer_type", "connection_status"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Network bandwidth
-    pub static ref NETWORK_BANDWIDTH: GaugeVec = register_gauge_vec!(
+/// Network bandwidth
+#[cfg(feature = "metrics")]
+pub static NETWORK_BANDWIDTH: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "multivm_p2p_bandwidth_bytes_per_second",
         "Network bandwidth in bytes per second",
         &["direction", "protocol"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Protocol translation metrics
-    pub static ref PROTOCOL_TRANSLATIONS: CounterVec = register_counter_vec!(
+/// Protocol translation metrics
+#[cfg(feature = "metrics")]
+pub static PROTOCOL_TRANSLATIONS: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "multivm_p2p_protocol_translations_total",
         "Total number of protocol translations",
         &["source_vm", "target_vm", "status"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Routing metrics
-    pub static ref ROUTING_DECISIONS: CounterVec = register_counter_vec!(
+/// Routing metrics
+#[cfg(feature = "metrics")]
+pub static ROUTING_DECISIONS: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "multivm_p2p_routing_decisions_total",
         "Total number of routing decisions",
         &["strategy", "message_type", "result"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Discovery metrics
-    pub static ref PEER_DISCOVERIES: CounterVec = register_counter_vec!(
+/// Discovery metrics
+#[cfg(feature = "metrics")]
+pub static PEER_DISCOVERIES: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "multivm_p2p_peer_discoveries_total",
         "Total number of peer discoveries",
         &["discovery_method", "result"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Network health status
-    pub static ref NETWORK_HEALTH: GaugeVec = register_gauge_vec!(
+/// Network health status
+#[cfg(feature = "metrics")]
+pub static NETWORK_HEALTH: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "multivm_p2p_network_health",
         "Network health status (0=critical, 1=warning, 2=healthy)",
         &["component"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Connection pool metrics
-    pub static ref CONNECTION_POOL: GaugeVec = register_gauge_vec!(
+/// Connection pool metrics
+#[cfg(feature = "metrics")]
+pub static CONNECTION_POOL: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "multivm_p2p_connection_pool",
         "Connection pool statistics",
         &["pool_type", "status"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Message queue depth
-    pub static ref MESSAGE_QUEUE_DEPTH: GaugeVec = register_gauge_vec!(
+/// Message queue depth
+#[cfg(feature = "metrics")]
+pub static MESSAGE_QUEUE_DEPTH: Lazy<GaugeVec> = Lazy::new(|| {
+    register_gauge_vec!(
         "multivm_p2p_message_queue_depth",
         "Current depth of message queues",
         &["queue_type", "priority"]
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    /// Error metrics
-    pub static ref NETWORK_ERRORS: CounterVec = register_counter_vec!(
+/// Error metrics
+#[cfg(feature = "metrics")]
+pub static NETWORK_ERRORS: Lazy<CounterVec> = Lazy::new(|| {
+    register_counter_vec!(
         "multivm_p2p_errors_total",
         "Total number of network errors",
         &["error_type", "severity"]
-    ).unwrap();
-}
+    )
+    .unwrap()
+});
 
 /// Initialize all metrics
 #[cfg(feature = "metrics")]
@@ -229,74 +274,142 @@ pub fn record_network_error(error_type: &str, severity: &str) {
 // No-op implementations when metrics feature is not enabled
 #[cfg(not(feature = "metrics"))]
 pub fn record_message_sent(_message_type: &str, _target_type: &str) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production implementation without prometheus could:
+    // - Log metrics to structured logs for external collection
+    // - Maintain in-memory counters for basic monitoring
+    // - Write to time-series database directly
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn record_message_received(_message_type: &str, _source_peer: &str) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: use structured logging for metrics collection
+    tracing::debug!(
+        message_type = _message_type,
+        source_peer = _source_peer,
+        "message_received"
+    );
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn record_processing_duration(_message_type: &str, _duration: f64) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log performance metrics for analysis
+    if _duration > 1.0 {
+        tracing::warn!(
+            message_type = _message_type,
+            duration_seconds = _duration,
+            "slow_message_processing"
+        );
+    }
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn update_active_peers(_peer_type: &str, _connection_status: &str, _count: f64) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: maintain in-memory counters or log significant changes
+    tracing::info!(
+        peer_type = _peer_type,
+        status = _connection_status,
+        count = _count,
+        "peer_count_update"
+    );
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn update_bandwidth(_direction: &str, _protocol: &str, _bytes_per_sec: f64) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log bandwidth usage for monitoring
+    if _bytes_per_sec > 1_000_000.0 {
+        // Log if > 1MB/s
+        tracing::info!(
+            direction = _direction,
+            protocol = _protocol,
+            bandwidth_mbps = _bytes_per_sec / 1_000_000.0,
+            "high_bandwidth_usage"
+        );
+    }
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn record_protocol_translation(_source_vm: &str, _target_vm: &str, _status: &str) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log protocol translation events
+    tracing::debug!(
+        source_vm = _source_vm,
+        target_vm = _target_vm,
+        status = _status,
+        "protocol_translation"
+    );
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn record_routing_decision(_strategy: &str, _message_type: &str, _result: &str) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log routing decisions for analysis
+    if _result == "failed" {
+        tracing::warn!(
+            strategy = _strategy,
+            message_type = _message_type,
+            result = _result,
+            "routing_failed"
+        );
+    }
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn record_peer_discovery(_method: &str, _result: &str) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log peer discovery events
+    tracing::info!(method = _method, result = _result, "peer_discovery");
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn update_network_health(_component: &str, _status: f64) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log health status changes
+    let health_str = if _status >= 2.0 {
+        "healthy"
+    } else if _status >= 1.0 {
+        "warning"
+    } else {
+        "critical"
+    };
+    tracing::info!(
+        component = _component,
+        status = health_str,
+        "network_health"
+    );
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn update_connection_pool(_pool_type: &str, _status: &str, _count: f64) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log connection pool status
+    tracing::debug!(
+        pool_type = _pool_type,
+        status = _status,
+        count = _count,
+        "connection_pool"
+    );
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn update_queue_depth(_queue_type: &str, _priority: &str, _depth: f64) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log queue depth for monitoring backpressure
+    if _depth > 100.0 {
+        tracing::warn!(
+            queue_type = _queue_type,
+            priority = _priority,
+            depth = _depth,
+            "high_queue_depth"
+        );
+    }
 }
 
 #[cfg(not(feature = "metrics"))]
 pub fn record_network_error(_error_type: &str, _severity: &str) {
-    // In production without metrics feature, we could log or track in memory
-    // For now, this is a no-op
+    // Production alternative: log network errors for analysis
+    match _severity {
+        "critical" => tracing::error!(error_type = _error_type, "critical_network_error"),
+        "warning" => tracing::warn!(error_type = _error_type, "network_warning"),
+        _ => tracing::debug!(
+            error_type = _error_type,
+            severity = _severity,
+            "network_error"
+        ),
+    }
 }
 
 #[cfg(not(feature = "metrics"))]

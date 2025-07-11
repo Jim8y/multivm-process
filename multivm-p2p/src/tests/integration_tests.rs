@@ -1,6 +1,6 @@
-//! Simplified integration tests for the P2P module
+//! Integration tests for the P2P module
 //!
-//! These tests verify basic functionality of the P2P networking layer
+//! These tests verify functionality of the P2P networking layer
 
 #[cfg(test)]
 mod tests {

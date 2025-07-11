@@ -11,6 +11,9 @@ use tracing::{debug, info, warn};
 use super::config::ConsensusParams;
 use super::types::{ConsensusPhase, Round, ValidatorAddress};
 use crate::error::ConsensusError;
+use crate::leader_selection::LeaderSelector;
+use crate::validator_set::ValidatorSetManager;
+use crate::view_change::ViewChangeManager;
 
 /// Malachite consensus validator
 #[derive(Debug)]
@@ -20,6 +23,18 @@ pub struct MalachiteValidator {
 
     /// Validator state
     state: Arc<RwLock<ValidatorState>>,
+
+    /// Leader selector
+    leader_selector: Arc<RwLock<LeaderSelector>>,
+
+    /// Validator set manager
+    validator_set_manager: Arc<ValidatorSetManager>,
+
+    /// View change manager
+    view_change_manager: Option<Arc<ViewChangeManager>>,
+
+    /// Our validator address
+    our_address: ValidatorAddress,
 }
 
 /// Internal validator state
@@ -91,10 +106,22 @@ impl Default for ValidatorState {
 
 impl MalachiteValidator {
     /// Create a new validator instance
-    pub fn new(config: ConsensusParams) -> Self {
+    pub fn new(config: ConsensusParams, node_id: String) -> Self {
+        let our_address = ValidatorAddress(node_id.clone());
+        let validator_set_manager = Arc::new(ValidatorSetManager::new(1, 100)); // min 1, max 100 validators
+        let leader_selector = Arc::new(RwLock::new(LeaderSelector::new_round_robin(vec![])));
+
         Self {
             config,
             state: Arc::new(RwLock::new(ValidatorState::default())),
+            leader_selector: leader_selector.clone(),
+            validator_set_manager,
+            view_change_manager: Some(Arc::new(ViewChangeManager::new(
+                node_id,
+                leader_selector,
+                Duration::from_millis(5000), // 5 second view change timeout
+            ))),
+            our_address,
         }
     }
 
@@ -238,11 +265,25 @@ impl MalachiteValidator {
             )));
         }
 
+        // Check if we are the leader for this round
+        let leader_selector = self.leader_selector.read().await;
+        let is_leader = leader_selector.is_leader(
+            &self.our_address,
+            state.current_height,
+            state.current_round,
+        )?;
+
+        if !is_leader {
+            return Err(ConsensusError::InvalidProposal(
+                "Not the designated leader for this round".to_string(),
+            ));
+        }
+
         state.proposed_block = Some(block_hash.clone());
         state.current_phase = ConsensusPhase::Prevote;
 
         debug!(
-            "Proposed block {} for round {}",
+            "Proposed block {} for round {} as leader",
             block_hash, state.current_round
         );
         Ok(())
@@ -393,9 +434,26 @@ impl MalachiteValidator {
         None
     }
 
-    /// Handle round timeout - advance to next round
+    /// Handle round timeout - initiate view change
     pub async fn handle_timeout(&mut self) -> Result<(), ConsensusError> {
-        warn!("Round timeout detected, advancing to next round");
+        let state = self.state.read().await;
+        let height = state.current_height;
+        let new_round = state.current_round.increment();
+        drop(state);
+
+        warn!(
+            "Round timeout detected, initiating view change to round {}",
+            new_round
+        );
+
+        // Start view change
+        if let Some(view_change_manager) = &self.view_change_manager {
+            let _message = view_change_manager
+                .start_view_change(height, new_round)
+                .await?;
+            // In production, this message would be broadcast to other validators
+        }
+
         self.advance_round().await
     }
 
@@ -418,6 +476,101 @@ impl MalachiteValidator {
         debug!("Reset consensus state for height {}", height);
         Ok(())
     }
+
+    /// Check if we are the proposer for the current round
+    pub async fn is_current_proposer(&self) -> Result<bool, ConsensusError> {
+        let state = self.state.read().await;
+        let leader_selector = self.leader_selector.read().await;
+
+        leader_selector.is_leader(&self.our_address, state.current_height, state.current_round)
+    }
+
+    /// Get the current proposer for the round
+    pub async fn get_current_proposer(&self) -> Result<ValidatorAddress, ConsensusError> {
+        let state = self.state.read().await;
+        let leader_selector = self.leader_selector.read().await;
+
+        leader_selector.get_leader(state.current_height, state.current_round)
+    }
+
+    /// Update the validator set and leader selector
+    pub async fn update_validator_set(
+        &self,
+        validators: Vec<crate::validator_set::Validator>,
+    ) -> Result<(), ConsensusError> {
+        // Update validator set manager
+        self.validator_set_manager
+            .initialize(validators.clone())
+            .await?;
+
+        // Update leader selector with new validator addresses
+        let addresses: Vec<ValidatorAddress> = validators
+            .iter()
+            .filter(|v| v.is_active)
+            .map(|v| v.address.clone())
+            .collect();
+
+        let mut leader_selector = self.leader_selector.write().await;
+        leader_selector.update_validators(addresses);
+
+        // Update view change manager's required voting power
+        if let Some(view_change_manager) = &self.view_change_manager {
+            let required_power = self.validator_set_manager.get_required_voting_power().await;
+            view_change_manager
+                .set_required_voting_power(required_power)
+                .await;
+        }
+
+        info!("Updated validator set with {} validators", validators.len());
+        Ok(())
+    }
+
+    /// Process a view change message
+    pub async fn process_view_change_message(
+        &self,
+        sender: &ValidatorAddress,
+        height: u64,
+        new_round: Round,
+        signature: Vec<u8>,
+    ) -> Result<bool, ConsensusError> {
+        if let Some(view_change_manager) = &self.view_change_manager {
+            let threshold_reached = view_change_manager
+                .process_view_change(sender, height, new_round, signature)
+                .await?;
+
+            if threshold_reached {
+                // Complete view change and advance to new round
+                let new_leader = view_change_manager.complete_view_change().await?;
+                info!(
+                    "View change complete. New leader: {} for round {}",
+                    new_leader, new_round
+                );
+
+                // Update our state
+                let mut state = self.state.write().await;
+                state.current_round = new_round;
+                state.current_phase = ConsensusPhase::Propose;
+                state.prevotes.clear();
+                state.precommits.clear();
+                state.proposed_block = None;
+                state.round_start_time = Some(Instant::now());
+            }
+
+            Ok(threshold_reached)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Check if the validator is currently running (sync method for engine)
+    pub fn is_validator_running(&self) -> bool {
+        // Check if the validator is active by examining the state
+        if let Ok(state) = self.state.try_read() {
+            state.is_active
+        } else {
+            false
+        }
+    }
 }
 
 #[cfg(test)]
@@ -427,7 +580,7 @@ mod tests {
     #[tokio::test]
     async fn test_validator_lifecycle() {
         let config = ConsensusParams::default();
-        let mut validator = MalachiteValidator::new(config);
+        let mut validator = MalachiteValidator::new(config, "test_validator".to_string());
 
         // Test initialization
         assert!(validator.initialize().await.is_ok());

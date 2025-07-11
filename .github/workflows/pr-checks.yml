@@ -17,14 +17,20 @@ permissions:
 jobs:
   pr-info:
     name: PR Information
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        clean: true
         fetch-depth: 0
     
     - name: Setup SSH authentication
@@ -70,23 +76,27 @@ jobs:
           echo "✅ No obvious breaking changes detected" >> pr-analysis.md
         fi
     
-    - name: Upload PR analysis
-      uses: actions/upload-artifact@v4
-      with:
-        name: pr-analysis-${{ github.event.pull_request.number }}
-        path: pr-analysis.md
-        retention-days: 30
+    - name: Display PR analysis
+      run: |
+        echo "PR Analysis Results:"
+        cat pr-analysis.md
 
   check-conventional-commits:
     name: Check Conventional Commits
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        clean: true
         fetch-depth: 0
     
     - name: Setup SSH authentication
@@ -134,11 +144,16 @@ jobs:
 
   dependency-changes:
     name: Check Dependency Changes
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target base pr || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Setup SSH authentication
       run: |
         mkdir -p ~/.ssh
@@ -197,9 +212,7 @@ jobs:
           fi
         fi
     
-    - name: Upload dependency analysis
-      uses: actions/upload-artifact@v4
-      with:
-        name: dependency-changes-${{ github.event.pull_request.number }}
-        path: dependency-changes.md
-        retention-days: 30
+    - name: Display dependency analysis
+      run: |
+        echo "Dependency Analysis Results:"
+        cat dependency-changes.md

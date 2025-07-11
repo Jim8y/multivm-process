@@ -13,10 +13,10 @@ mod metrics_impl {
     use std::sync::Arc;
     use std::time::Instant;
     use tokio::sync::RwLock;
-    use tracing::warn;
 
     /// Production monitoring system for P2P network
     #[derive(Debug)]
+    #[allow(dead_code)]
     pub struct P2PMonitor {
         /// Prometheus metrics registry
         registry: Arc<Registry>,
@@ -277,7 +277,6 @@ mod metrics_impl {
 
         /// Get metrics as Prometheus formatted string
         pub fn get_metrics_string(&self) -> String {
-            use prometheus::Encoder;
             let encoder = prometheus::TextEncoder::new();
             let metric_families = self.registry.gather();
             encoder
@@ -286,6 +285,7 @@ mod metrics_impl {
         }
 
         /// Send webhook alert
+        #[allow(dead_code)]
         async fn send_webhook_alert(
             &self,
             webhook_url: &str,
@@ -317,12 +317,14 @@ mod metrics_impl {
 
     /// Alert state tracking
     #[derive(Debug, Default)]
+    #[allow(dead_code)]
     pub(super) struct AlertState {
         last_alerts: HashMap<String, Instant>,
     }
 
     /// Performance baselines for anomaly detection
     #[derive(Debug, Default)]
+    #[allow(dead_code)]
     pub(super) struct PerformanceBaselines {
         baseline_cpu: f64,
         baseline_memory: u64,

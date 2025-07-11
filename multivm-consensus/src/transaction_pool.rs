@@ -381,7 +381,7 @@ impl TransactionPool {
         let mut lowest_tx_id = None;
 
         for (tx_id, pool_tx) in &self.by_id {
-            if lowest_priority.is_none() || pool_tx.priority < lowest_priority.unwrap() {
+            if lowest_priority.map_or(true, |prio| pool_tx.priority < prio) {
                 lowest_priority = Some(pool_tx.priority);
                 lowest_tx_id = Some(tx_id.clone());
             }

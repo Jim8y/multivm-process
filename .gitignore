@@ -1,7 +1,8 @@
 # Rust build artifacts
 /target/
 **/target/
-# Cargo.lock is now tracked for reproducible builds
+Cargo.lock
+**/Cargo.lock
 **/*.rs.bk
 *.pdb
 

@@ -1,5 +1,6 @@
 pub mod dashboard;
 pub mod health;
+pub mod health_alerts;
 pub mod health_checks;
 pub mod metrics;
 pub mod production_metrics;

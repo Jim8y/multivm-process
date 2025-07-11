@@ -18,12 +18,19 @@ permissions:
 jobs:
   dependency-audit:
     name: Dependency Audit
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        clean: true
     
     - name: Setup SSH authentication
       uses: ./.github/actions/setup-ssh
@@ -57,21 +64,26 @@ jobs:
         echo "## Outdated Dependencies" >> audit-report.md
         cargo tree --outdated --depth 1 >> audit-report.md || echo "No outdated dependencies found" >> audit-report.md
     
-    - name: Upload audit report
-      uses: actions/upload-artifact@v4
-      with:
-        name: security-audit-report
-        path: audit-report.md
-        retention-days: 30
+    - name: Display audit report
+      run: |
+        echo "Security Audit Report:"
+        cat audit-report.md
 
   license-check:
     name: License Compliance
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        clean: true
     
     - name: Setup SSH authentication
       uses: ./.github/actions/setup-ssh
@@ -99,21 +111,26 @@ jobs:
         echo "### License Summary:" >> license-report.md
         cargo license | sort | uniq -c | sort -nr >> license-report.md
     
-    - name: Upload license report
-      uses: actions/upload-artifact@v4
-      with:
-        name: license-report
-        path: license-report.md
-        retention-days: 30
+    - name: Display license report
+      run: |
+        echo "License Report:"
+        cat license-report.md
 
   dependency-update-check:
     name: Check for Updates
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        clean: true
     
     - name: Setup SSH authentication
       uses: ./.github/actions/setup-ssh
@@ -146,9 +163,7 @@ jobs:
           cat updates.txt >> update-report.md
         fi
     
-    - name: Upload update report
-      uses: actions/upload-artifact@v4
-      with:
-        name: dependency-update-report
-        path: update-report.md
-        retention-days: 30
+    - name: Display update report
+      run: |
+        echo "Dependency Update Report:"
+        cat update-report.md

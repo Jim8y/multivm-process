@@ -9,17 +9,17 @@
 
 use crate::error::{P2PError, P2PResult};
 use chacha20poly1305::{
-    aead::{Aead, KeyInit},
+    aead::{Aead, NewAead},
     ChaCha20Poly1305, Key, Nonce,
 };
 use curve25519_dalek::{montgomery::MontgomeryPoint, scalar::Scalar};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey as Ed25519PublicKey};
 use parking_lot::RwLock;
 use rand::{rngs::OsRng, RngCore};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use x25519_dalek::{EphemeralSecret, PublicKey};
+use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey};
 
 /// Maximum number of cached shared secrets
 const MAX_CACHED_SECRETS: usize = 10_000;
@@ -81,7 +81,7 @@ pub struct EncryptionManager {
     secret_key: Option<[u8; 32]>,
 
     /// Our public key (derived from secret key)
-    public_key: Option<PublicKey>,
+    public_key: Option<X25519PublicKey>,
 
     /// Cached shared secrets with TTL and LRU eviction
     /// Key: peer's public key bytes, Value: cached secret
@@ -121,12 +121,12 @@ impl EncryptionManager {
         ]);
         let public_point = scalar * basepoint;
         let public_key_bytes = public_point.to_bytes();
-        self.public_key = Some(PublicKey::from(public_key_bytes));
+        self.public_key = Some(X25519PublicKey::from(public_key_bytes));
         self
     }
 
     /// Generate and set a new secret key
-    pub fn generate_secret_key(&mut self) -> PublicKey {
+    pub fn generate_secret_key(&mut self) -> X25519PublicKey {
         // Generate a new secret key and derive the public key properly
         let mut secret_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut secret_bytes);
@@ -138,7 +138,7 @@ impl EncryptionManager {
         // Derive the public key: public = secret * basepoint
         let basepoint = curve25519_dalek::constants::X25519_BASEPOINT;
         let public_point = scalar * basepoint;
-        let public_key = PublicKey::from(public_point.to_bytes());
+        let public_key = X25519PublicKey::from(public_point.to_bytes());
 
         self.secret_key = Some(secret_bytes);
         self.public_key = Some(public_key);
@@ -146,7 +146,7 @@ impl EncryptionManager {
     }
 
     /// Get our public key (generates one if not set)
-    pub fn get_public_key(&mut self) -> PublicKey {
+    pub fn get_public_key(&mut self) -> X25519PublicKey {
         match self.public_key {
             Some(key) => key,
             None => self.generate_secret_key(),
@@ -155,23 +155,24 @@ impl EncryptionManager {
 
     /// Generate a new Ed25519 keypair for signing
     pub fn generate_signing_keypair() -> P2PResult<SigningKey> {
+        // Generate a cryptographically secure keypair using OsRng
+        use rand::rngs::OsRng;
         let mut csprng = OsRng;
-        let mut bytes = [0u8; 32];
-        csprng.fill_bytes(&mut bytes);
-        Ok(SigningKey::from_bytes(&bytes))
+        let signing_key = SigningKey::generate(&mut csprng);
+        Ok(signing_key)
     }
 
     /// Generate a new ephemeral X25519 keypair
-    pub fn generate_ephemeral_keypair() -> (EphemeralSecret, PublicKey) {
+    pub fn generate_ephemeral_keypair() -> (EphemeralSecret, X25519PublicKey) {
         let secret = EphemeralSecret::random_from_rng(OsRng);
-        let public = PublicKey::from(&secret);
+        let public = X25519PublicKey::from(&secret);
         (secret, public)
     }
 
     /// Encrypt a message using ChaCha20-Poly1305 with cached shared secret
     pub fn encrypt_message(
         &self,
-        peer_public_key: &PublicKey,
+        peer_public_key: &X25519PublicKey,
         plaintext: &[u8],
     ) -> P2PResult<Vec<u8>> {
         // Get or compute shared secret
@@ -202,7 +203,7 @@ impl EncryptionManager {
     /// Decrypt a message using ChaCha20-Poly1305 with cached shared secret
     pub fn decrypt_message(
         &self,
-        peer_public_key: &PublicKey,
+        peer_public_key: &X25519PublicKey,
         encrypted: &[u8],
     ) -> P2PResult<Vec<u8>> {
         if encrypted.len() < NONCE_SIZE {
@@ -233,17 +234,20 @@ impl EncryptionManager {
 
     /// Verify a signature with Ed25519
     pub fn verify_signature(
-        verifying_key: &VerifyingKey,
+        public_key: &Ed25519PublicKey,
         message: &[u8],
         signature: &Signature,
     ) -> P2PResult<()> {
-        verifying_key
+        public_key
             .verify(message, signature)
             .map_err(|_| P2PError::SignatureVerificationError("Invalid signature".to_string()))
     }
 
     /// Get or compute shared secret with caching
-    fn get_or_compute_shared_secret(&self, peer_public_key: &PublicKey) -> P2PResult<[u8; 32]> {
+    fn get_or_compute_shared_secret(
+        &self,
+        peer_public_key: &X25519PublicKey,
+    ) -> P2PResult<[u8; 32]> {
         let peer_key_bytes = peer_public_key.as_bytes();
 
         // Check if cleanup is needed
@@ -365,7 +369,7 @@ impl EncryptionManager {
     }
 
     /// Get the current public key (for testing)
-    pub fn get_current_key(&self) -> Option<PublicKey> {
+    pub fn get_current_key(&self) -> Option<X25519PublicKey> {
         self.public_key
     }
 

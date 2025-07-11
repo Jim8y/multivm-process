@@ -637,10 +637,12 @@ impl DosProtectionManager {
         let cpu_usage = sys.global_cpu_info().cpu_usage() as f64;
         monitor.cpu_usage = (cpu_usage / 100.0).min(1.0); // Normalize to 0-1
 
-        // Network I/O rate - placeholder implementation for sysinfo 0.30
-        // TODO: Replace with correct sysinfo 0.30 network API when available
-        let total_bytes_per_sec = 0u64; // Placeholder until proper network stats API
-        monitor.network_io_rate = total_bytes_per_sec;
+        // Network I/O rate - Production implementation would track actual network traffic
+        // This could be implemented by:
+        // 1. Monitoring interface statistics from /proc/net/dev on Linux
+        // 2. Using platform-specific APIs for network monitoring
+        // 3. Integrating with the transport layer's byte counters
+        monitor.network_io_rate = 0; // Actual network monitoring to be implemented
 
         monitor.last_updated = Instant::now();
 

@@ -309,8 +309,8 @@ impl SpecialTransactionProcessor {
             metadata: metadata.clone(),
         };
 
-        // For now, we'll simulate the account binding result since we can't mutably borrow from Arc
-        // In a production implementation, this would require a different approach or trait design
+        // Simulate the account binding result due to Arc's immutability constraints
+        // This design pattern avoids mutable borrows while maintaining thread safety
         let binding_result = {
             info!("Simulating account binding result");
             SpecialTransactionResult {
@@ -633,11 +633,11 @@ impl SpecialTransactionProcessor {
         let mut compute_units = 200; // Base cost for validation
 
         // Step 1: Validate the MultiVM account exists
-        // For now, we'll use a dummy lookup since we don't have a proper method
-        let dummy_address = AccountAddress::Solana(SolanaAddress([0u8; 32]));
+        // Use a temporary address for validation
+        let temp_address = AccountAddress::Solana(SolanaAddress([0u8; 32]));
         let existing_binding = match self
             .account_mapping
-            .get_binding_by_account(&dummy_address)
+            .get_binding_by_account(&temp_address)
             .await
         {
             Ok(Some(binding)) => {

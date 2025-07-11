@@ -1,0 +1,289 @@
+version: '3.8'
+
+networks:
+  multivm-simple:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16
+
+services:
+  # Simple mock consensus network
+  mock-node1:
+    image: ubuntu:22.04
+    container_name: multivm-mock-node1
+    hostname: mock-node1
+    networks:
+      multivm-simple:
+        ipv4_address: 172.21.0.11
+    ports:
+      - "8080:8080"   # Mock API
+      - "26656:26656" # Mock P2P
+    environment:
+      - NODE_ID=mock-node1
+      - NODE_TYPE=validator
+      - IS_GENESIS_VALIDATOR=true
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y curl netcat-openbsd &&
+        echo 'Starting Mock MultiVM Node 1...' &&
+        echo 'Genesis Validator - IP: 172.21.0.11' &&
+        
+        # Create a simple health endpoint
+        while true; do
+          echo -e 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"healthy\",\"node\":\"mock-node1\",\"type\":\"validator\",\"genesis\":true}' | nc -l -p 8080 -q 1
+        done &
+        
+        # Create a simple P2P listener
+        while true; do
+          echo 'P2P Node 1 listening on port 26656' | nc -l -p 26656 -q 1
+        done &
+        
+        # Keep container running
+        tail -f /dev/null
+      "
+
+  mock-node2:
+    image: ubuntu:22.04
+    container_name: multivm-mock-node2
+    hostname: mock-node2
+    networks:
+      multivm-simple:
+        ipv4_address: 172.21.0.12
+    ports:
+      - "8180:8080"
+      - "26756:26656"
+    environment:
+      - NODE_ID=mock-node2
+      - NODE_TYPE=validator
+      - PEER_NODES=mock-node1@172.21.0.11:26656
+    depends_on:
+      - mock-node1
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y curl netcat-openbsd &&
+        echo 'Starting Mock MultiVM Node 2...' &&
+        echo 'Validator - IP: 172.21.0.12' &&
+        echo 'Connecting to genesis node: 172.21.0.11' &&
+        
+        # Wait for node1 to be ready
+        sleep 5 &&
+        
+        # Create a simple health endpoint
+        while true; do
+          echo -e 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"healthy\",\"node\":\"mock-node2\",\"type\":\"validator\",\"peers\":[\"172.21.0.11\"]}' | nc -l -p 8080 -q 1
+        done &
+        
+        # Create a simple P2P listener and connect to node1
+        while true; do
+          echo 'P2P Node 2 connecting to Node 1...' | nc 172.21.0.11 26656 || true
+          sleep 10
+        done &
+        
+        while true; do
+          echo 'P2P Node 2 listening on port 26656' | nc -l -p 26656 -q 1
+        done &
+        
+        # Keep container running
+        tail -f /dev/null
+      "
+
+  mock-node3:
+    image: ubuntu:22.04
+    container_name: multivm-mock-node3
+    hostname: mock-node3
+    networks:
+      multivm-simple:
+        ipv4_address: 172.21.0.13
+    ports:
+      - "8280:8080"
+      - "26856:26656"
+    environment:
+      - NODE_ID=mock-node3
+      - NODE_TYPE=validator
+      - PEER_NODES=mock-node1@172.21.0.11:26656,mock-node2@172.21.0.12:26656
+    depends_on:
+      - mock-node1
+      - mock-node2
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y curl netcat-openbsd &&
+        echo 'Starting Mock MultiVM Node 3...' &&
+        echo 'Validator - IP: 172.21.0.13' &&
+        echo 'Connecting to peers: 172.21.0.11, 172.21.0.12' &&
+        
+        # Wait for other nodes to be ready
+        sleep 10 &&
+        
+        # Create a simple health endpoint
+        while true; do
+          echo -e 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"healthy\",\"node\":\"mock-node3\",\"type\":\"validator\",\"peers\":[\"172.21.0.11\",\"172.21.0.12\"]}' | nc -l -p 8080 -q 1
+        done &
+        
+        # Create P2P connections
+        while true; do
+          echo 'P2P Node 3 connecting to Node 1...' | nc 172.21.0.11 26656 || true
+          echo 'P2P Node 3 connecting to Node 2...' | nc 172.21.0.12 26656 || true
+          sleep 15
+        done &
+        
+        while true; do
+          echo 'P2P Node 3 listening on port 26656' | nc -l -p 26656 -q 1
+        done &
+        
+        # Keep container running
+        tail -f /dev/null
+      "
+
+  # Mock consensus coordinator
+  consensus-coordinator:
+    image: ubuntu:22.04
+    container_name: multivm-consensus
+    hostname: consensus
+    networks:
+      multivm-simple:
+        ipv4_address: 172.21.0.100
+    ports:
+      - "9090:9090"   # Consensus API
+    environment:
+      - CONSENSUS_TYPE=raft
+      - BLOCK_TIME=5000ms
+      - VALIDATOR_NODES=172.21.0.11,172.21.0.12,172.21.0.13
+    depends_on:
+      - mock-node1
+      - mock-node2
+      - mock-node3
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y curl netcat-openbsd jq &&
+        echo 'Starting Mock Consensus Coordinator...' &&
+        echo 'Managing consensus for 3 validator nodes' &&
+        
+        # Wait for all nodes to be ready
+        sleep 15 &&
+        
+        # Start mock consensus process
+        block_height=0
+        while true; do
+          block_height=\$$((block_height + 1))
+          echo \"Block \$$block_height: Proposing at \$$(date)\"
+          
+          # Check if all validators are healthy
+          healthy_nodes=0
+          for node_ip in 172.21.0.11 172.21.0.12 172.21.0.13; do
+            if curl -s -f http://\$$node_ip:8080/ | grep -q healthy; then
+              healthy_nodes=\$$((healthy_nodes + 1))
+              echo \"  Node \$$node_ip: Healthy\"
+            else
+              echo \"  Node \$$node_ip: Unhealthy\"
+            fi
+          done
+          
+          if [ \$$healthy_nodes -ge 2 ]; then
+            echo \"  Consensus: Block \$$block_height committed with \$$healthy_nodes/3 validators\"
+          else
+            echo \"  Consensus: Not enough healthy validators (\$$healthy_nodes/3)\"
+          fi
+          
+          # Create consensus API response
+          while read -r line; do
+            if echo \"\$$line\" | grep -q \"GET /status\"; then
+              echo -e 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"block_height\":'\"$$block_height\"',\"validator_count\":3,\"healthy_validators\":'\"$$healthy_nodes\"',\"consensus_status\":\"active\"}' | nc -l -p 9090 -q 1 &
+            fi
+          done < <(nc -l -p 9090) &
+          
+          sleep 5
+        done
+      "
+
+  # Network monitor
+  monitor:
+    image: ubuntu:22.04
+    container_name: multivm-monitor
+    hostname: monitor
+    networks:
+      multivm-simple:
+        ipv4_address: 172.21.0.200
+    ports:
+      - "3100:3000"   # Monitor dashboard
+    depends_on:
+      - mock-node1
+      - mock-node2
+      - mock-node3
+      - consensus-coordinator
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y curl netcat-openbsd jq &&
+        echo 'Starting MultiVM Network Monitor...' &&
+        
+        # Wait for network to be ready
+        sleep 20 &&
+        
+        # Create monitoring dashboard
+        cat > /tmp/dashboard.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>MultiVM Network Monitor</title>
+            <meta http-equiv=\"refresh\" content=\"5\">
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+                .container { max-width: 1200px; margin: 0 auto; }
+                .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }
+                .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+                .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .status-healthy { color: #27ae60; font-weight: bold; }
+                .status-unhealthy { color: #e74c3c; font-weight: bold; }
+                .metric { display: flex; justify-content: space-between; margin: 10px 0; }
+            </style>
+        </head>
+        <body>
+            <div class=\"container\">
+                <div class=\"header\">
+                    <h1>MultiVM Testnet Dashboard</h1>
+                    <p>Real-time monitoring of the multi-node consensus network</p>
+                </div>
+                <div class=\"grid\">
+                    <div class=\"card\">
+                        <h3>Network Overview</h3>
+                        <div class=\"metric\"><span>Total Nodes:</span><span>3</span></div>
+                        <div class=\"metric\"><span>Validator Nodes:</span><span>3</span></div>
+                        <div class=\"metric\"><span>Genesis Node:</span><span>Node 1</span></div>
+                        <div class=\"metric\"><span>Network Type:</span><span>Testnet</span></div>
+                    </div>
+                    <div class=\"card\">
+                        <h3>Consensus Status</h3>
+                        <div class=\"metric\"><span>Algorithm:</span><span>Mock Raft</span></div>
+                        <div class=\"metric\"><span>Block Time:</span><span>5 seconds</span></div>
+                        <div class=\"metric\"><span>Status:</span><span class=\"status-healthy\">Active</span></div>
+                    </div>
+                    <div class=\"card\">
+                        <h3>Node Status</h3>
+                        <div class=\"metric\"><span>Node 1:</span><span class=\"status-healthy\">Healthy</span></div>
+                        <div class=\"metric\"><span>Node 2:</span><span class=\"status-healthy\">Healthy</span></div>
+                        <div class=\"metric\"><span>Node 3:</span><span class=\"status-healthy\">Healthy</span></div>
+                    </div>
+                </div>
+                <div class=\"card\">
+                    <h3>Quick Access</h3>
+                    <p><strong>Node Endpoints:</strong></p>
+                    <ul>
+                        <li><a href=\"http://localhost:8080\" target=\"_blank\">Node 1 API (Genesis)</a></li>
+                        <li><a href=\"http://localhost:8180\" target=\"_blank\">Node 2 API</a></li>
+                        <li><a href=\"http://localhost:8280\" target=\"_blank\">Node 3 API</a></li>
+                        <li><a href=\"http://localhost:9090/status\" target=\"_blank\">Consensus Status</a></li>
+                    </ul>
+                </div>
+            </div>
+        </body>
+        </html>
+        EOF
+        
+        # Serve the dashboard
+        while true; do
+          echo -e 'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n' > /tmp/response
+          cat /tmp/dashboard.html >> /tmp/response
+          cat /tmp/response | nc -l -p 3000 -q 1
+        done
+      "

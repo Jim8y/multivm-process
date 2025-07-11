@@ -12,8 +12,8 @@ use axum::{extract::DefaultBodyLimit, http::Method, Router};
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
-pub use handlers::*;
-pub use middleware::*;
+pub use handlers::{health_check, health_detail, system};
+pub use middleware::{auth_middleware, metrics_middleware, request_id_middleware, security};
 
 /// REST API server configuration
 #[derive(Debug, Clone)]
@@ -102,8 +102,16 @@ pub fn create_app_with_config(state: Arc<ApplicationState>, config: RestApiConfi
         .allow_headers(Any);
 
     Router::new()
-        // Health check endpoint
+        // Health check endpoints
         .route("/health", axum::routing::get(handlers::health_check))
+        .route(
+            "/health/detail",
+            axum::routing::post(handlers::health_detail::get_detailed_health),
+        )
+        .route(
+            "/health/live",
+            axum::routing::get(handlers::health_detail::simple_health_check),
+        )
         // API versioning
         .nest("/api/v1", create_v1_routes(state.clone()))
         // Apply middleware stack

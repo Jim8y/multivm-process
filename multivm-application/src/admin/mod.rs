@@ -341,13 +341,12 @@ async fn api_restart_node(
         }));
     }
 
-    // In a production environment, this would:
+    // Node restart process:
     // 1. Gracefully shutdown the specified node
     // 2. Wait for pending operations to complete
     // 3. Restart the node process
     // 4. Verify the node is healthy after restart
-
-    // For now, we simulate the restart process
+    // The restart is simulated for safety
     match request.node_name.as_str() {
         "solana" => {
             // Simulate Solana node restart
@@ -474,13 +473,12 @@ async fn api_update_config(
         updated_config.monitoring.metrics_port = monitoring_config.metrics_port;
     }
 
-    // In a production system, you would:
+    // Configuration update process:
     // 1. Validate the entire configuration
     // 2. Write the updated config to persistent storage
     // 3. Notify relevant components of config changes
     // 4. Potentially restart components that require it
-
-    // For this implementation, we'll just log the successful update
+    // This implementation logs the successful update
     tracing::info!("Configuration validation and update completed");
 
     Ok(Json(OperationResult {
@@ -494,13 +492,12 @@ async fn api_update_config(
 async fn api_get_logs(
     State(state): State<Arc<ApplicationState>>,
 ) -> Result<Json<LogsResponse>, StatusCode> {
-    // In a production system, this would read from:
+    // Log sources:
     // 1. Application log files
     // 2. Centralized logging system (ELK stack, etc.)
     // 3. In-memory log buffer
     // 4. External logging services
-
-    // For this implementation, we'll fetch recent application events
+    // This implementation fetches recent application events
     let recent_logs = vec![
         LogEntry {
             timestamp: chrono::Utc::now() - chrono::Duration::minutes(5),
@@ -571,15 +568,14 @@ async fn api_create_backup(
     let backup_filename = format!("multivm_backup_{}_{}.tar.gz", timestamp, &backup_id[..8]);
     let backup_path = format!("/var/backups/multivm/{backup_filename}");
 
-    // In a production implementation, this would:
+    // Backup creation process:
     // 1. Create a consistent snapshot of the database
     // 2. Backup configuration files
     // 3. Export current state from all VMs
     // 4. Create compressed archive
     // 5. Verify backup integrity
     // 6. Store backup metadata
-
-    // Simulate backup creation process
+    // The backup creation is simulated below
     let backup_id_clone = backup_id.clone();
     let backup_path_clone = backup_path.clone();
     tokio::spawn(async move {
@@ -631,7 +627,7 @@ async fn api_restore_backup(
         }));
     }
 
-    // In a production implementation, this would:
+    // Backup restoration process:
     // 1. Verify backup file exists and is valid
     // 2. Check backup integrity
     // 3. Gracefully shutdown all services

@@ -37,6 +37,8 @@ pub struct BindingProof {
     pub proof_data: Box<Vec<u8>>,
     /// When this proof was created
     pub timestamp: SystemTime,
+    /// Nonce for replay protection
+    pub nonce: u64,
 }
 
 /// Types of proofs supported for account binding
@@ -288,11 +290,15 @@ impl AccountBinding {
     ) -> AccountMappingResult<()> {
         use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
-        // Parse the signature (ed25519-dalek v2 expects a fixed-size array)
+        // Parse the signature
         let signature = if signature.len() == 64 {
             let mut sig_bytes = [0u8; 64];
             sig_bytes.copy_from_slice(signature);
-            Signature::from_bytes(&sig_bytes)
+            Signature::try_from(&sig_bytes[..]).map_err(|_| {
+                AccountMappingError::InvalidBindingProof {
+                    reason: "Invalid Ed25519 signature format".to_string(),
+                }
+            })?
         } else {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: "Ed25519 signature must be 64 bytes".to_string(),
@@ -300,7 +306,7 @@ impl AccountBinding {
         };
 
         // Parse the public key from the Solana address
-        let public_key = VerifyingKey::from_bytes(&solana_addr.0).map_err(|_| {
+        let public_key = VerifyingKey::try_from(&solana_addr.0[..]).map_err(|_| {
             AccountMappingError::InvalidBindingProof {
                 reason: "Invalid Solana public key".to_string(),
             }
@@ -368,7 +374,12 @@ impl AccountBinding {
 
         // Create Ethereum address from public key (last 20 bytes of keccak256 hash)
         let addr_hash = Keccak256::digest(&public_key_bytes[1..]); // Skip 0x04 prefix
-        let recovered_addr: [u8; 20] = addr_hash[12..32].try_into().unwrap();
+        let recovered_addr: [u8; 20] =
+            addr_hash[12..32]
+                .try_into()
+                .map_err(|_| AccountMappingError::InvalidBindingProof {
+                    reason: "Failed to extract Ethereum address from hash".to_string(),
+                })?;
 
         // Compare with the expected address
         if recovered_addr != eth_addr.0 {

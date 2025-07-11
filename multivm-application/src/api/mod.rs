@@ -5,6 +5,7 @@
 //! to interact with both SVM and EVM execution environments.
 
 pub mod graphql;
+// pub mod openapi; // Temporarily disabled - OpenAPI spec needs updating
 pub mod rest;
 pub mod websocket;
 

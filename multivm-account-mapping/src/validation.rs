@@ -22,6 +22,10 @@ pub struct ValidationConfig {
     pub min_confirmations: u32,
     /// Whether to validate signatures cryptographically
     pub validate_signatures: bool,
+    /// Enable replay protection
+    pub enable_replay_protection: bool,
+    /// Maximum allowed nonce gap
+    pub max_nonce_gap: u64,
 }
 
 /// Validator for account binding operations
@@ -302,7 +306,11 @@ impl AccountBindingValidator {
         let parsed_signature = if signature_bytes.len() == 64 {
             let mut sig_bytes = [0u8; 64];
             sig_bytes.copy_from_slice(signature_bytes);
-            Signature::from_bytes(&sig_bytes)
+            Signature::try_from(&sig_bytes[..]).map_err(|e| {
+                AccountMappingError::InvalidBindingProof {
+                    reason: format!("Failed to parse Ed25519 signature: {e}"),
+                }
+            })?
         } else {
             return Err(AccountMappingError::InvalidBindingProof {
                 reason: "Ed25519 signature must be 64 bytes".to_string(),
@@ -310,7 +318,7 @@ impl AccountBindingValidator {
         };
 
         // Validate and parse the public key
-        let public_key = VerifyingKey::from_bytes(&addr.0).map_err(|e| {
+        let public_key = VerifyingKey::try_from(&addr.0[..]).map_err(|e| {
             AccountMappingError::InvalidBindingProof {
                 reason: format!("Invalid Solana public key: {e}"),
             }
@@ -926,6 +934,7 @@ impl ProofGenerator {
             },
             proof_data: Box::new(Vec::new()),
             timestamp: SystemTime::now(),
+            nonce: 0, // To be set properly
         }
     }
 
@@ -939,6 +948,7 @@ impl ProofGenerator {
             },
             proof_data: Box::new(Vec::new()),
             timestamp: SystemTime::now(),
+            nonce: 0, // To be set properly
         }
     }
 }
@@ -950,6 +960,8 @@ impl Default for ValidationConfig {
             require_strong_proofs: true,
             min_confirmations: 6,
             validate_signatures: true, // Now enabled with proper crypto implementation
+            enable_replay_protection: true,
+            max_nonce_gap: 100,
         }
     }
 }

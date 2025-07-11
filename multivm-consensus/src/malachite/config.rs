@@ -58,16 +58,25 @@ pub struct ConsensusParams {
     pub timeout_prevote_ms: u64,
     /// Timeout for precommit step
     pub timeout_precommit_ms: u64,
+    /// Timeout for commit step (Malachite BFT)
+    pub timeout_commit_ms: u64,
+    /// Maximum number of transactions per block (Malachite BFT)
+    pub max_transactions_per_block: usize,
+    /// Validator set size (Malachite BFT)
+    pub validator_set_size: usize,
 }
 
 impl Default for ConsensusParams {
     fn default() -> Self {
         Self {
-            block_time_ms: 1000,
+            block_time_ms: 5000,
             max_block_size: 1024 * 1024,
             timeout_propose_ms: 3000,
             timeout_prevote_ms: 1000,
             timeout_precommit_ms: 1000,
+            timeout_commit_ms: 5000,
+            max_transactions_per_block: 1000,
+            validator_set_size: 3,
         }
     }
 }
@@ -85,6 +94,7 @@ impl MalachiteConfig {
         self.consensus_params.timeout_propose_ms = duration_ms;
         self.consensus_params.timeout_prevote_ms = duration_ms / 3;
         self.consensus_params.timeout_precommit_ms = duration_ms / 3;
+        self.consensus_params.timeout_commit_ms = duration_ms;
         self.consensus_params.block_time_ms = duration_ms;
     }
 

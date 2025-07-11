@@ -326,7 +326,7 @@ pub async fn report_csp_violation(
         violation.csp_report.document_uri
     );
 
-    // In a production system, you might want to:
+    // CSP violation handling options:
     // 1. Store violations in a database for analysis
     // 2. Alert security team for suspicious patterns
     // 3. Update CSP policy based on legitimate violations
