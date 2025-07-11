@@ -1766,13 +1766,8 @@ impl RethExecutionEngine {
         tx: &RethTransaction,
     ) -> Result<TransactionForwardingResult, RethEngineError> {
         let start_time = std::time::Instant::now();
-<<<<<<< HEAD
         
         tracing::info!("Forwarding transaction to Reth: {:?}", hex::encode(tx.hash().as_slice()));
-=======
-
-        tracing::info!("Forwarding transaction to Reth: {:?}", hex::encode(tx.hash));
->>>>>>> upstream/main
 
         // Encode transaction as RLP
         let rlp_encoded = self.rlp_encode_transaction(tx);
@@ -1788,19 +1783,9 @@ impl RethExecutionEngine {
 
         let result = TransactionForwardingResult {
             transaction_hash: tx_hash,
-<<<<<<< HEAD
             status: if receipt.status() { "success".to_string() } else { "failed".to_string() },
             gas_used: Some(0), // Will be calculated from cumulative gas used
             block_number: Some(0), // Block context needed
-=======
-            status: if receipt.status == 1 {
-                "success".to_string()
-            } else {
-                "failed".to_string()
-            },
-            gas_used: Some(receipt.gas_used),
-            block_number: Some(receipt.block_number),
->>>>>>> upstream/main
             confirmation_time: Some(start_time.elapsed()),
         };
 
@@ -2012,7 +1997,6 @@ impl RethExecutionEngine {
             .unwrap_or_default();
         let data = Bytes::from(data_vec);
 
-<<<<<<< HEAD
         let block_number = Some(self.parse_hex_u64(log_json.get("blockNumber"))?);
         let transaction_hash = Some(self.parse_hash(log_json.get("transactionHash"))?);
         let transaction_index = Some(self.parse_hex_u64(log_json.get("transactionIndex"))?);
@@ -2021,18 +2005,8 @@ impl RethExecutionEngine {
             .transpose()?;
         let log_index = Some(self.parse_hex_u64(log_json.get("logIndex"))?);
         let removed = Some(log_json.get("removed").and_then(|v| v.as_bool()).unwrap_or(false));
-=======
-        let block_number = self.parse_hex_u64(log_json.get("blockNumber"))?;
-        let transaction_hash = self.parse_hash(log_json.get("transactionHash"))?;
-        let transaction_index = self.parse_hex_u64(log_json.get("transactionIndex"))?;
-        let log_index = self.parse_hex_u64(log_json.get("logIndex"))?;
-        let removed = log_json
-            .get("removed")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
->>>>>>> upstream/main
 
-        Ok(        RethTransactionLog {
+        Ok(RethTransactionLog {
             address,
             data: alloy_primitives::LogData::new_unchecked(topics, data),
         })
@@ -2062,17 +2036,10 @@ impl RethExecutionEngine {
         &self,
         tx_hex: &str,
     ) -> Result<ValidationResult, RethEngineError> {
-<<<<<<< HEAD
         let client_guard = self.rpc_client.read().await;
         let client = client_guard
             .as_ref()
             .ok_or_else(|| RethEngineError::TransactionValidation("RPC client not initialized".to_string()))?;
-=======
-        let _client_guard = self.rpc_client.read().await;
-        let _client = _client_guard.as_ref().ok_or_else(|| {
-            RethEngineError::TransactionValidation("RPC client not initialized".to_string())
-        })?;
->>>>>>> upstream/main
 
         let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
 
@@ -2358,7 +2325,6 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-<<<<<<< HEAD
             .map_err(|e| RethEngineError::TransactionValidation(format!("Nonce check failed: {e}")))?;
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
@@ -2411,11 +2377,6 @@ impl RethExecutionEngine {
             .send()
             .await
             .map_err(|e| RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}")))?;
-=======
-            .map_err(|e| {
-                RethEngineError::TransactionValidation(format!("Gas estimation failed: {e}"))
-            })?;
->>>>>>> upstream/main
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionValidation(format!(
@@ -2520,13 +2481,7 @@ impl RethExecutionEngine {
             .json(&rpc_request)
             .send()
             .await
-<<<<<<< HEAD
             .map_err(|e| RethEngineError::TransactionPool(format!("Connection check failed: {e}")))?;
-=======
-            .map_err(|e| {
-                RethEngineError::TransactionPool(format!("Pool status request failed: {e}"))
-            })?;
->>>>>>> upstream/main
 
         let result: serde_json::Value = response.json().await.map_err(|e| {
             RethEngineError::TransactionPool(format!("Failed to parse connection response: {e}"))
@@ -2534,7 +2489,6 @@ impl RethExecutionEngine {
 
         if let Some(error) = result.get("error") {
             return Err(RethEngineError::TransactionPool(format!(
-<<<<<<< HEAD
                 "Connection error: {}",
                 error
             )));
@@ -2548,15 +2502,6 @@ impl RethExecutionEngine {
             "method": "txpool_status",
             "params": []
         });
-=======
-                "Pool status error: {error}"
-            )));
-        }
-
-        let pool_data = result.get("result").ok_or_else(|| {
-            RethEngineError::TransactionPool("Missing pool status in response".to_string())
-        })?;
->>>>>>> upstream/main
 
         let pool_response = client
             .post(&rpc_url)
@@ -2708,42 +2653,11 @@ impl RethExecutionEngine {
                 ))
             })?;
 
-<<<<<<< HEAD
         // TODO: Implement proper conversion to native Reth TransactionSigned
         // For now, return an error as this needs to be implemented properly
         Err(RethEngineError::TransactionConversion(
             "Conversion to native Reth TransactionSigned not yet implemented".to_string()
         ))
-=======
-        // Generate transaction hash (simplified)
-        let mut hash = [0u8; 32];
-        use sha3::{Digest, Keccak256};
-        let mut hasher = Keccak256::new();
-        hasher.update(multivm_tx.from.as_bytes());
-        hasher.update(multivm_tx.value.as_bytes());
-        hasher.update(&data);
-        hash.copy_from_slice(&hasher.finalize());
-
-        // Create dummy signature (in a real implementation, this would be provided or computed)
-        let signature = TransactionSignature {
-            v: 27,
-            r: U256::from(1),
-            s: U256::from(1),
-        };
-
-        Ok(Transaction {
-            hash,
-            nonce: multivm_tx.nonce.unwrap_or(0),
-            gas_price,
-            gas_limit: multivm_tx.gas_limit.unwrap_or(21000),
-            to: to_address,
-            value,
-            data,
-            signature,
-            max_fee_per_gas,
-            max_priority_fee_per_gas,
-        })
->>>>>>> upstream/main
     }
 
     /// Convert Reth transaction to MultiVM transaction
@@ -2751,59 +2665,11 @@ impl RethExecutionEngine {
         &self,
         reth_tx: &RethTransaction,
     ) -> Result<MultivmTransaction, RethEngineError> {
-<<<<<<< HEAD
         // TODO: Implement proper conversion from native Reth TransactionSigned
         // For now, return an error as this needs to be implemented properly
         Err(RethEngineError::TransactionConversion(
             "Conversion from native Reth TransactionSigned not yet implemented".to_string()
         ))
-=======
-        // Determine VM type (for now, assume EVM)
-        let vm_type = VmType::Evm;
-
-        // Convert addresses to hex strings
-        let from = format!("0x{}", hex::encode([0u8; 20])); // From address not stored in Transaction
-        let to = reth_tx.to.map(|addr| format!("0x{}", hex::encode(addr)));
-
-        // Convert value to hex string
-        let value = reth_tx.value.to_hex();
-
-        // Convert data to hex string
-        let data = format!("0x{}", hex::encode(&reth_tx.data));
-
-        // Convert gas price to hex string
-        let gas_price = reth_tx.gas_price.map(|gp| format!("0x{gp:x}"));
-
-        // Convert EIP-1559 fields
-        let max_fee_per_gas = reth_tx.max_fee_per_gas.map(|fee| format!("0x{fee:x}"));
-        let max_priority_fee_per_gas = reth_tx
-            .max_priority_fee_per_gas
-            .map(|fee| format!("0x{fee:x}"));
-
-        // Determine transaction type
-        let transaction_type = if reth_tx.max_fee_per_gas.is_some() {
-            Some(2) // EIP-1559
-        } else if reth_tx.gas_price.is_some() {
-            Some(0) // Legacy
-        } else {
-            None
-        };
-
-        Ok(MultivmTransaction {
-            vm_type,
-            from,
-            to,
-            value,
-            data,
-            gas_price,
-            gas_limit: Some(reth_tx.gas_limit),
-            nonce: Some(reth_tx.nonce),
-            chain_id: Some(self.chain_id),
-            max_fee_per_gas,
-            max_priority_fee_per_gas,
-            transaction_type,
-        })
->>>>>>> upstream/main
     }
 
     // =======================
@@ -2863,20 +2729,10 @@ impl RethExecutionEngine {
     }
 
     /// Parse logs bloom filter
-<<<<<<< HEAD
     fn parse_logs_bloom(&self, value: Option<&serde_json::Value>) -> Result<Bloom, RethEngineError> {
         let hex_str = value
             .and_then(|v| v.as_str())
             .ok_or_else(|| RethEngineError::TransactionReceipt("Missing logs bloom value".to_string()))?;
-=======
-    fn parse_logs_bloom(
-        &self,
-        value: Option<&serde_json::Value>,
-    ) -> Result<[u8; 256], RethEngineError> {
-        let hex_str = value.and_then(|v| v.as_str()).ok_or_else(|| {
-            RethEngineError::TransactionReceipt("Missing logs bloom value".to_string())
-        })?;
->>>>>>> upstream/main
 
         let hex_bytes = hex::decode(hex_str.trim_start_matches("0x")).map_err(|e| {
             RethEngineError::TransactionReceipt(format!("Invalid hex logs bloom: {e}"))

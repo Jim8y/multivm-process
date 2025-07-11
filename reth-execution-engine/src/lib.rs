@@ -35,6 +35,9 @@ pub use real_engine::RealRethEngine;
 // Re-export Alloy/Reth native types for proper hash calculation
 pub use alloy_primitives::{B256, U256, Address, Bytes, Bloom, FixedBytes};
 
+// Re-export commonly used engine types
+pub use engine::{RethBlock, RethExecutionEngine, RethExecutionResult};
+
 
 
 // Test modules

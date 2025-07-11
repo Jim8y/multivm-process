@@ -7,7 +7,7 @@ use crate::execution_engines::EthereumEngineConfig;
 use multivm_common::{
     EngineState, ExecutionEngine, HealthStatus, MultivmResult, ProcessingMetrics,
 };
-use reth_execution_engine::engine::{Block as RethBlock, RethExecutionEngine, RethExecutionResult};
+use reth_execution_engine::{RethBlock, RethExecutionEngine, RethExecutionResult};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
