@@ -1,0 +1,48 @@
+[package]
+name = "multivm-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core
+multivm-core = { path = "../core" }
+
+# Consensus storage trait
+consensus = { path = "../consensus" }
+
+# Storage backends
+rocksdb.workspace = true
+sled.workspace = true
+
+# Async
+tokio.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+bytes.workspace = true
+
+# Utils
+tracing.workspace = true
+parking_lot.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+crc32fast = "1.4"
+
+# Encryption
+aes-gcm = "0.10"
+sha2 = "0.10"
+rand = "0.8"
+base64 = "0.22"
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+proptest.workspace = true

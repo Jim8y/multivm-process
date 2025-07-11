@@ -1,0 +1,30 @@
+[package]
+name = "multivm-runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+multivm-core = { path = "../core" }
+tokio = { version = "1.40", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+thiserror = "1.0"
+anyhow = "1.0"
+hyper = { version = "1.0", features = ["full"] }
+http-body-util = "0.1"
+bytes = "1.5"
+nix = { version = "0.29", features = ["process", "signal", "fs"] }
+procfs = "0.16"
+futures = "0.3"
+rand = "0.8"
+tempfile = "3.10"
+which = "6.0"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

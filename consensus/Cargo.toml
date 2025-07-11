@@ -1,0 +1,36 @@
+[package]
+name = "consensus"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+multivm-core = { path = "../core" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+rand = { workspace = true }
+crossbeam-channel = { workspace = true }
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+criterion = "0.5"
+proptest = "1.5"
+tokio-test = "0.4"
+multivm-network = { path = "../network" }
+multivm-storage = { path = "../storage" }
+bincode = { workspace = true }
+
+[[bench]]
+name = "consensus_benchmark"
+harness = false

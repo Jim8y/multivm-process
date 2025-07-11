@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package multivm;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Node service for cluster management
+service NodeService {
+    // Join a cluster
+    rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
+    
+    // Leave cluster
+    rpc LeaveCluster(google.protobuf.Empty) returns (google.protobuf.Empty);
+    
+    // Get node status
+    rpc GetNodeStatus(google.protobuf.Empty) returns (NodeStatus);
+    
+    // Heartbeat
+    rpc Heartbeat(HeartbeatRequest) returns (google.protobuf.Empty);
+}
+
+// VM service for virtual machine management
+service VmService {
+    // Create a new VM
+    rpc CreateVm(CreateVmRequest) returns (CreateVmResponse);
+    
+    // Start a VM
+    rpc StartVm(VmIdRequest) returns (google.protobuf.Empty);
+    
+    // Stop a VM
+    rpc StopVm(StopVmRequest) returns (google.protobuf.Empty);
+    
+    // Delete a VM
+    rpc DeleteVm(VmIdRequest) returns (google.protobuf.Empty);
+    
+    // Get VM info
+    rpc GetVm(VmIdRequest) returns (VmInfo);
+    
+    // List VMs
+    rpc ListVms(ListVmsRequest) returns (ListVmsResponse);
+    
+    // Migrate VM
+    rpc MigrateVm(MigrateVmRequest) returns (google.protobuf.Empty);
+}
+
+// Messages
+message JoinClusterRequest {
+    string node_id = 1;
+    string address = 2;
+    NodeCapabilities capabilities = 3;
+}
+
+message JoinClusterResponse {
+    repeated ClusterNode nodes = 1;
+}
+
+message NodeCapabilities {
+    uint32 cpu_cores = 1;
+    uint64 memory_mb = 2;
+    uint64 disk_gb = 3;
+    uint64 network_mbps = 4;
+}
+
+message ClusterNode {
+    string node_id = 1;
+    string address = 2;
+    bool is_leader = 3;
+    google.protobuf.Timestamp last_seen = 4;
+}
+
+message NodeStatus {
+    string node_id = 1;
+    string state = 2;
+    ResourceUsage resource_usage = 3;
+    repeated string vm_ids = 4;
+}
+
+message HeartbeatRequest {
+    string node_id = 1;
+    ResourceUsage resource_usage = 2;
+}
+
+message ResourceUsage {
+    float cpu_percent = 1;
+    uint64 memory_mb = 2;
+    float disk_io_mbps = 3;
+    float network_mbps = 4;
+}
+
+message CreateVmRequest {
+    string name = 1;
+    ResourceRequirements resources = 2;
+    map<string, string> labels = 3;
+}
+
+message CreateVmResponse {
+    string vm_id = 1;
+}
+
+message ResourceRequirements {
+    float cpu_cores = 1;
+    uint64 memory_mb = 2;
+    uint64 disk_gb = 3;
+    optional uint64 network_mbps = 4;
+}
+
+message VmIdRequest {
+    string vm_id = 1;
+}
+
+message StopVmRequest {
+    string vm_id = 1;
+    bool force = 2;
+}
+
+message VmInfo {
+    string vm_id = 1;
+    string name = 2;
+    string state = 3;
+    string node_id = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp updated_at = 6;
+    ResourceRequirements resources = 7;
+    map<string, string> labels = 8;
+}
+
+message ListVmsRequest {
+    map<string, string> label_selector = 1;
+    string node_id = 2;
+}
+
+message ListVmsResponse {
+    repeated VmInfo vms = 1;
+}
+
+message MigrateVmRequest {
+    string vm_id = 1;
+    string target_node_id = 2;
+    bool live = 3;
+}

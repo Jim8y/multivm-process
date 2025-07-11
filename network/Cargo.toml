@@ -1,0 +1,50 @@
+[package]
+name = "multivm-network"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core
+multivm-core = { path = "../core" }
+
+# Consensus transport trait
+consensus = { path = "../consensus" }
+
+# Async
+tokio.workspace = true
+tokio-util.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+
+# TLS
+rustls.workspace = true
+tokio-rustls.workspace = true
+rustls-pemfile = "2.0"
+webpki-roots = "0.26"
+rcgen = "0.13"
+
+# Serialization
+serde.workspace = true
+bincode.workspace = true
+bytes.workspace = true
+
+# Utils
+tracing.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true
+uuid.workspace = true
+
+# Security/Crypto
+aes-gcm = "0.10"
+sha2 = "0.10"
+rand = "0.8"
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
