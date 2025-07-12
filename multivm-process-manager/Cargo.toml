@@ -12,6 +12,7 @@ description = "Process management service for the MultiVM platform"
 multivm-common = { path = "../multivm-common" }
 multivm-account-mapping = { path = "../multivm-account-mapping" }
 multivm-consensus = { path = "../multivm-consensus" }
+reth-execution-engine = { path = "../reth-execution-engine" }
 
 # Core async runtime
 tokio = { workspace = true }
@@ -52,6 +53,10 @@ uuid = { workspace = true }
 
 # Concurrency utilities
 parking_lot = { workspace = true }
+
+# Reth/Alloy types for Engine API
+alloy-primitives = "1.2"
+alloy-consensus = "1.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -31,3 +31,9 @@ pub mod real_engine_utils;
 // Feature-specific exports
 #[cfg(feature = "real-node")]
 pub use real_engine::RealRethEngine;
+
+// Re-export Alloy/Reth native types for proper hash calculation
+pub use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256, U256};
+
+// Re-export commonly used engine types
+pub use engine::{RethBlock, RethExecutionEngine, RethExecutionResult};

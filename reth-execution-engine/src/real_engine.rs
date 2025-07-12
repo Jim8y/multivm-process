@@ -4,7 +4,9 @@
 //! It replaces the mock implementation with actual Reth node communication for
 //! production-grade EVM transaction execution and state management.
 
-use crate::engine::{Block, RethEngineError, RethExecutionResult};
+use crate::engine::{RethBlock, RethEngineError, RethExecutionResult};
+use alloy_consensus;
+use alloy_rlp;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -583,7 +585,7 @@ impl RealRethEngine {
     /// Process a block using the real Reth node
     pub async fn process_block_real(
         &mut self,
-        block: Block,
+        block: RethBlock,
     ) -> Result<RethExecutionResult, RethEngineError> {
         let start_time = Instant::now();
         let block_number = block.number;
@@ -628,7 +630,7 @@ impl RealRethEngine {
     }
 
     /// Submit block to Reth via Engine API with proper error handling
-    async fn submit_block_via_engine_api(&self, block: &Block) -> Result<(), RethEngineError> {
+    async fn submit_block_via_engine_api(&self, block: &RethBlock) -> Result<(), RethEngineError> {
         debug!("Submitting block {} via Engine API", block.number);
 
         // Create execution payload
@@ -657,14 +659,15 @@ impl RealRethEngine {
     }
 
     /// Create execution payload V3 (latest Engine API version)
-    fn create_execution_payload_v3(&self, block: &Block) -> Result<Value, RethEngineError> {
+    fn create_execution_payload_v3(&self, block: &RethBlock) -> Result<Value, RethEngineError> {
         let transactions: Vec<String> = block
             .body
             .transactions
             .iter()
             .map(|tx| {
-                let rlp_encoded = self.rlp_encode_transaction(tx);
-                format!("0x{}", hex::encode(rlp_encoded))
+                // Use TxEnvelope's built-in encoding
+                let encoded = alloy_rlp::encode(tx).to_vec();
+                format!("0x{}", hex::encode(encoded))
             })
             .collect();
 
@@ -848,7 +851,7 @@ impl RealRethEngine {
     }
 
     /// Create fork choice state from block
-    fn create_fork_choice_state(&self, block: &Block) -> Result<Value, RethEngineError> {
+    fn create_fork_choice_state(&self, block: &RethBlock) -> Result<Value, RethEngineError> {
         let fork_choice_state = json!({
             "headBlockHash": format!("0x{}", hex::encode(block.hash_slow())),
             "safeBlockHash": format!("0x{}", hex::encode(block.header.parent_hash)),
