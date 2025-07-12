@@ -1,10 +1,14 @@
-use crate::config::{SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig};
+use crate::config::{
+    SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig, DEFAULT_TICK_IPC_PATH,
+};
 use crate::engine_helper::compute_block_hash;
 use crate::error::SolanaEngineError;
+use agave_validator::bridge::ipc::IpcClient;
+use clap::arg;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::signature::Signature;
 use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
 use std::time::Instant;
@@ -35,6 +39,7 @@ pub type SolanaTransaction = Transaction;
 
 /// Solana execution engine that connects to actual Solana validators
 pub struct SolanaEngine {
+    pub(crate) internal_tick: Arc<RwLock<Option<IpcClient>>>,
     pub(crate) internal_client: Arc<RwLock<Option<RpcClient>>>,
 
     /// State tracking
@@ -87,9 +92,14 @@ impl SolanaEngine {
             "Solana Private Validator WebSocket port: {}",
             solana_config.ws_port
         );
+        info!(
+            "Solana Private Validator IPC socket path: {}",
+            solana_config.tick_ipc_path
+        );
 
         Ok(Self {
             solana_process: Arc::new(RwLock::new(None)),
+            internal_tick: Arc::new(RwLock::new(None)),
             internal_client: Arc::new(RwLock::new(None)),
             current_slot: Arc::new(RwLock::new(0)),
             slots_processed: Arc::new(RwLock::new(0)),
@@ -108,6 +118,10 @@ impl SolanaEngine {
 
         // Start the Solana validator process
         self.start_solana_solana_process().await?;
+
+        // Start Tick IPC client
+        self.init_internal_tick(self.solana_config.tick_ipc_path.clone())
+            .await?;
 
         // Initialize RPC clients
         self.init_rpc_clients().await?;
@@ -152,7 +166,9 @@ impl SolanaEngine {
             // Timing configuration
             .arg("--ticks-per-slot")
             .arg(self.solana_config.ticks_per_slot.to_string())
-            .arg("--deterministic");
+            .arg("--deterministic")
+            .arg("--tick-ipc-path")
+            .arg(&self.solana_config.tick_ipc_path);
 
         if self.solana_config.reset {
             cmd.arg("--reset");
@@ -161,6 +177,9 @@ impl SolanaEngine {
         cmd.stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .kill_on_drop(true);
+        // cmd.stdout(std::process::Stdio::inherit())
+        //     .stderr(std::process::Stdio::inherit())
+        //     .kill_on_drop(true);
 
         debug!("Solana Private Validator command: {:?}", cmd);
         info!(
@@ -237,6 +256,13 @@ impl SolanaEngine {
                 paths.iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>().join(", ")
             ),
         ))
+    }
+
+    async fn init_internal_tick(&self, socket_path: String) -> Result<(), SolanaEngineError> {
+        let tick_client = IpcClient::new(socket_path);
+        *self.internal_tick.write().await = Some(tick_client);
+        info!("Solana ticker initialized successfully");
+        Ok(())
     }
 
     /// Initialize RPC clients
@@ -418,14 +444,10 @@ impl SolanaEngine {
             transaction.signatures
         );
 
-        // Submit transaction to the Solana Private Validator
-        let signature = client
-            .send_and_confirm_transaction(transaction)
-            .await
-            .map_err(|e| {
-                error!("Failed to submit transaction: {}", e);
-                SolanaEngineError::Transaction(format!("Transaction submission failed: {e}"))
-            })?;
+        // Submit transaction to the Solana Private Validator with tick integration
+        let signature = self
+            .send_and_confirm_transaction(client, transaction)
+            .await?;
 
         info!("Successfully submitted transaction: {}", signature);
         Ok(signature)
@@ -527,7 +549,7 @@ impl SolanaEngine {
 
         // Submit each transaction in sequence
         for (index, transaction) in transactions.iter().enumerate() {
-            match client.send_and_confirm_transaction(transaction).await {
+            match self.send_and_confirm_transaction(client, transaction).await {
                 Ok(signature) => {
                     info!(
                         "Transaction {} submitted successfully with signature: {}",
@@ -594,5 +616,105 @@ impl SolanaEngine {
         );
 
         Ok(block)
+    }
+
+    pub(crate) async fn tick(&self) -> Result<(), SolanaEngineError> {
+        let tick_client_guard = self.internal_tick.read().await;
+        let tick_client = tick_client_guard.as_ref().ok_or_else(|| {
+            SolanaEngineError::Configuration("Tick client not initialized".to_string())
+        })?;
+
+        tick_client
+            .tick()
+            .map_err(|e| SolanaEngineError::Configuration(format!("Failed to send tick: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Send and confirm transaction with tick integration
+    ///
+    /// This function replaces the standard client.send_and_confirm_transaction() with:
+    /// 1. Call tick before sending transaction
+    /// 2. Send transaction to get signature
+    /// 3. Call tick again after sending
+    /// 4. Poll until commitment level is processed
+    /// 5. Return the signature
+    pub(crate) async fn send_and_confirm_transaction(
+        &self,
+        client: &RpcClient,
+        transaction: &Transaction,
+    ) -> Result<Signature, SolanaEngineError> {
+        debug!(
+            "Sending and confirming transaction with tick integration: {:?}",
+            transaction.signatures
+        );
+
+        // Step 1: Call tick before sending transaction
+        self.tick().await?;
+
+        // Step 2: Send transaction to get signature
+        let signature = client.send_transaction(transaction).await.map_err(|e| {
+            error!("Failed to send transaction: {}", e);
+            SolanaEngineError::Transaction(format!("Transaction send failed: {e}"))
+        })?;
+
+        debug!("Transaction sent with signature: {}", signature);
+
+        // Step 3: Call tick again after sending
+        self.tick().await?;
+        self.tick().await?;
+        self.tick().await?;
+
+        // Step 4: Poll until commitment level is processed
+        let max_retries = 60; // Maximum number of polling attempts
+        let poll_interval = Duration::from_millis(100); // Poll every 100ms
+
+        for attempt in 1..=max_retries {
+            debug!(
+                "Polling transaction status, attempt {}/{}",
+                attempt, max_retries
+            );
+
+            match client
+                .get_signature_status_with_commitment(
+                    &signature,
+                    CommitmentConfig {
+                        commitment: CommitmentLevel::Processed,
+                    },
+                )
+                .await
+            {
+                Ok(Some(status)) => match status {
+                    Ok(_) => {
+                        debug!(
+                            "Transaction {} confirmed with processed commitment",
+                            signature
+                        );
+                        return Ok(signature);
+                    }
+                    Err(e) => {
+                        error!("Transaction {} failed: {}", signature, e);
+                        return Err(SolanaEngineError::Transaction(format!(
+                            "Transaction failed: {e}"
+                        )));
+                    }
+                },
+                Ok(None) => {
+                    debug!("Transaction {} not yet processed, retrying...", signature);
+                }
+                Err(e) => {
+                    warn!("Error checking transaction status: {}, retrying...", e);
+                }
+            }
+
+            // Wait before next poll
+            tokio::time::sleep(poll_interval).await;
+        }
+
+        // If we reach here, we've exceeded max retries
+        Err(SolanaEngineError::Transaction(format!(
+            "Transaction {} confirmation timeout after {} attempts",
+            signature, max_retries
+        )))
     }
 }

@@ -1,6 +1,5 @@
-// Multivm validator binary - placeholder for future implementation
+use agave_validator::multivm_validator;
 
 fn main() {
-    eprintln!("Multivm validator not yet implemented");
-    std::process::exit(1);
+    multivm_validator::run_multivm_validator();
 }

@@ -2,6 +2,9 @@ use solana_sdk::commitment_config::CommitmentLevel;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// Default path for Solana private validator IPC socket
+pub const DEFAULT_TICK_IPC_PATH: &str = "/tmp/solana-private-validator.sock";
+
 /// Configuration for Solana execution engine
 #[derive(Debug, Clone)]
 pub struct SolanaEngineConfig {
@@ -52,6 +55,8 @@ pub struct SolanaConfig {
     pub deterministic: bool,
     /// Reset the validator state on startup
     pub reset: bool,
+    /// Path to the tick IPC socket
+    pub tick_ipc_path: String,
 }
 
 impl Default for SolanaConfig {
@@ -71,6 +76,7 @@ impl Default for SolanaConfig {
             ticks_per_slot: 2,
             deterministic: true,
             reset: true,
+            tick_ipc_path: DEFAULT_TICK_IPC_PATH.to_string(),
         }
     }
 }
@@ -143,6 +149,12 @@ impl SolanaConfigBuilder {
         self
     }
 
+    /// Set the tick IPC path
+    pub fn tick_ipc_path<S: Into<String>>(mut self, path: S) -> Self {
+        self.config.tick_ipc_path = path.into();
+        self
+    }
+
     /// Build the SolanaConfig
     pub fn build(self) -> SolanaConfig {
         self.config
@@ -174,7 +186,7 @@ impl Default for SolanaConnectionConfig {
             request_timeout: Duration::from_secs(30),
             health_check_interval: Duration::from_secs(10),
             connection_pool_size: 10,
-            commitment_level: CommitmentLevel::Confirmed,
+            commitment_level: CommitmentLevel::Processed,
         }
     }
 }
@@ -285,11 +297,13 @@ mod tests {
         assert_eq!(config.ticks_per_slot, 2);
         assert!(config.deterministic);
         assert!(config.reset);
+        assert_eq!(config.tick_ipc_path, DEFAULT_TICK_IPC_PATH);
     }
 
     #[test]
     fn test_solana_config_builder() {
         let custom_ledger_path = PathBuf::from("/tmp/custom_ledger");
+        let custom_ipc_path = "/tmp/custom-validator.sock";
 
         let config = SolanaConfig::builder()
             .gossip_port(2048)
@@ -298,6 +312,7 @@ mod tests {
             .ticks_per_slot(4)
             .deterministic(false)
             .reset(false)
+            .tick_ipc_path(custom_ipc_path)
             .build();
 
         assert_eq!(config.gossip_port, 2048);
@@ -306,6 +321,7 @@ mod tests {
         assert_eq!(config.ticks_per_slot, 4);
         assert!(!config.deterministic);
         assert!(!config.reset);
+        assert_eq!(config.tick_ipc_path, custom_ipc_path);
     }
 
     #[test]
