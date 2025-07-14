@@ -429,6 +429,14 @@ start_reth() {
     local reth_cmd="reth node"
     reth_cmd="$reth_cmd --datadir \"$RETH_DATA_DIR\""
     reth_cmd="$reth_cmd --chain \"$chain_arg\""
+    
+    # Use MultiVM-specific configuration if available
+    local multivm_config="$PROJECT_ROOT/testnet/configs/reth-multivm.toml"
+    if [ -f "$multivm_config" ]; then
+        reth_cmd="$reth_cmd --config \"$multivm_config\""
+        log_info "Using MultiVM-specific Reth configuration: $multivm_config"
+    fi
+    
     reth_cmd="$reth_cmd --http"
     reth_cmd="$reth_cmd --http.addr 0.0.0.0"
     reth_cmd="$reth_cmd --http.port $RETH_HTTP_PORT"
@@ -438,6 +446,13 @@ start_reth() {
     reth_cmd="$reth_cmd --authrpc.port $RETH_ENGINE_PORT"
     reth_cmd="$reth_cmd --authrpc.jwtsecret \"$JWT_SECRET_PATH\""
     reth_cmd="$reth_cmd --full"
+    
+    # Disable P2P discovery and consensus (MultiVM handles consensus)
+    reth_cmd="$reth_cmd --disable-discovery"
+    reth_cmd="$reth_cmd --disable-dns-discovery"
+    reth_cmd="$reth_cmd --disable-discv4-discovery"
+    reth_cmd="$reth_cmd --max-outbound-peers 0"
+    reth_cmd="$reth_cmd --max-inbound-peers 0"
     
     # Only add --dev flag for dev chain
     if [ "$chain_arg" = "dev" ]; then

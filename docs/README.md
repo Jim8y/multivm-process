@@ -6,6 +6,7 @@ This directory contains comprehensive documentation for the MultiVM project.
 
 ### Core Documentation
 - [`RETH_INTEGRATION_GUIDE.md`](RETH_INTEGRATION_GUIDE.md) - Complete Reth execution engine integration guide
+- [`RETH_P2P_CONSENSUS_DISABLED.md`](RETH_P2P_CONSENSUS_DISABLED.md) - P2P and consensus isolation configuration
 - [`DEPLOYMENT.md`](DEPLOYMENT.md) - Production deployment instructions
 - [`CONSENSUS.md`](CONSENSUS.md) - Consensus layer documentation
 - [`CONFIGURATION.md`](CONFIGURATION.md) - Configuration reference
