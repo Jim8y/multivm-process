@@ -1,0 +1,258 @@
+# MultiVM Reth Node Configuration
+# This configuration file defines how the Reth execution engine
+# integrates with the MultiVM distributed blockchain system
+
+[node]
+# Node identification
+name = "multivm-reth-node"
+description = "Reth execution engine for MultiVM blockchain"
+
+# Network settings
+chain_id = 1337
+network_id = 1337
+
+[reth]
+# Reth binary configuration
+binary_path = "reth"
+data_dir = "./reth-data"
+log_level = "info"
+
+# Chain configuration
+chain = "dev"  # Options: mainnet, sepolia, holesky, dev
+full_node = true
+dev_mode = true  # Enable development mode with pre-funded accounts
+
+# Database settings
+[reth.database]
+# Use RocksDB for production
+engine = "rocksdb"
+cache_size_mb = 1024
+max_open_files = 10000
+
+[rpc]
+# HTTP JSON-RPC configuration
+enabled = true
+host = "0.0.0.0"
+port = 8545
+cors_origins = ["*"]
+api_modules = ["eth", "net", "web3", "debug", "trace", "admin"]
+
+# Request limits
+max_connections = 100
+max_request_size_bytes = 15728640  # 15MB
+max_response_size_bytes = 15728640  # 15MB
+request_timeout_seconds = 30
+
+[engine_api]
+# Engine API configuration for consensus integration
+enabled = true
+host = "0.0.0.0"
+port = 8551
+
+# JWT authentication
+jwt_secret_path = "./reth-data/jwt.hex"
+jwt_expiry_seconds = 300  # 5 minutes
+
+[multivm]
+# MultiVM-specific configuration
+coordinator_host = "127.0.0.1"
+coordinator_port = 8080
+
+# IPC communication
+ipc_enabled = true
+ipc_path = "/tmp/multivm-reth.sock"
+ipc_timeout_seconds = 30
+
+# Cross-VM transaction settings
+max_cross_vm_transactions_per_block = 100
+cross_vm_transaction_timeout_seconds = 60
+
+[multivm.authentication]
+# JWT-based authentication between MultiVM processes
+jwt_shared_secret_path = "./reth-data/jwt.hex"
+token_expiry_seconds = 300
+require_authentication = true
+
+[multivm.coordination]
+# Block production coordination
+block_time_ms = 3000  # 3 second blocks to match MultiVM consensus
+max_transactions_per_block = 1000
+transaction_pool_size = 10000
+
+# Health check configuration
+health_check_interval_seconds = 10
+health_check_timeout_seconds = 5
+
+[multivm.metrics]
+# Metrics and monitoring
+enabled = true
+host = "127.0.0.1"
+port = 9090
+metrics_path = "/metrics"
+
+# Performance metrics
+track_transaction_processing_time = true
+track_block_processing_time = true
+track_cross_vm_operations = true
+
+[security]
+# Security configuration
+enable_admin_api = false  # Disable admin API in production
+allow_unsafe_methods = false
+enable_personal_api = false
+
+# Rate limiting
+[security.rate_limiting]
+enabled = true
+requests_per_minute = 1000
+burst_size = 100
+
+# IP whitelisting (empty = allow all)
+allowed_ips = []
+
+[logging]
+# Logging configuration
+level = "info"  # Options: error, warn, info, debug, trace
+format = "json"  # Options: json, plain
+output_file = "./reth-data/logs/reth.log"
+max_file_size_mb = 100
+max_files = 10
+log_rotation = true
+
+# Component-specific logging levels
+[logging.components]
+reth = "info"
+engine_api = "debug"
+multivm_integration = "debug"
+consensus = "info"
+transaction_pool = "info"
+
+[development]
+# Development-specific settings (only used in dev mode)
+enable_dev_apis = true
+pre_funded_accounts = [
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",  # Account 1
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",  # Account 2
+    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"   # Account 3
+]
+
+# Mining configuration for development
+[development.mining]
+enabled = true
+etherbase = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"  # First dev account
+gas_limit = 30000000
+gas_price = 20000000000  # 20 gwei
+
+[monitoring]
+# Health monitoring configuration
+enabled = true
+
+[monitoring.health_checks]
+# Individual health check configurations
+reth_process = { enabled = true, timeout_seconds = 5, interval_seconds = 10 }
+rpc_endpoint = { enabled = true, timeout_seconds = 3, interval_seconds = 15 }
+engine_api = { enabled = true, timeout_seconds = 3, interval_seconds = 15 }
+database = { enabled = true, timeout_seconds = 10, interval_seconds = 30 }
+ipc_socket = { enabled = true, timeout_seconds = 2, interval_seconds = 20 }
+
+# Alerting thresholds
+[monitoring.alerts]
+memory_usage_threshold_percent = 90
+cpu_usage_threshold_percent = 95
+disk_usage_threshold_percent = 85
+transaction_pool_size_threshold = 9000
+block_processing_time_threshold_ms = 2000
+
+# Recovery actions
+[monitoring.recovery]
+auto_restart_on_failure = true
+max_restart_attempts = 3
+restart_cooldown_seconds = 60
+
+[performance]
+# Performance tuning
+transaction_pool_workers = 4
+block_processing_workers = 2
+network_workers = 8
+
+# Memory configuration
+[performance.memory]
+transaction_cache_size = 10000
+block_cache_size = 1000
+state_cache_size_mb = 512
+
+# Network performance
+[performance.network]
+max_peers = 50
+connection_timeout_seconds = 10
+handshake_timeout_seconds = 5
+ping_interval_seconds = 30
+
+[integration]
+# Integration testing configuration
+test_mode = false
+mock_engine_api = false
+simulate_network_delays = false
+
+[integration.test_accounts]
+# Test accounts for integration testing
+funded_accounts = [
+    {
+        private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        balance = "100000000000000000000"  # 100 ETH
+    },
+    {
+        private_key = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        balance = "100000000000000000000"  # 100 ETH
+    }
+]
+
+# Environment-specific overrides
+[environments.production]
+[environments.production.reth]
+dev_mode = false
+chain = "mainnet"
+log_level = "warn"
+
+[environments.production.security]
+enable_admin_api = false
+allow_unsafe_methods = false
+
+[environments.production.rpc]
+cors_origins = ["https://multivm.example.com"]
+max_connections = 1000
+
+[environments.staging]
+[environments.staging.reth]
+dev_mode = false
+chain = "sepolia"
+log_level = "info"
+
+[environments.staging.rpc]
+cors_origins = ["https://staging.multivm.example.com", "http://localhost:3000"]
+
+[environments.development]
+[environments.development.reth]
+dev_mode = true
+chain = "dev"
+log_level = "debug"
+
+[environments.development.security]
+enable_admin_api = true
+allow_unsafe_methods = true
+
+[environments.development.rpc]
+cors_origins = ["*"]
+
+# Example commands for different environments:
+#
+# Development:
+# ./scripts/setup-reth-node.sh setup --dev --config configs/reth-multivm.toml
+#
+# Staging:
+# ./scripts/setup-reth-node.sh setup --config configs/reth-multivm.toml --env staging
+#
+# Production:
+# ./scripts/setup-reth-node.sh setup --config configs/reth-multivm.toml --env production --no-discovery

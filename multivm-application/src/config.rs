@@ -422,8 +422,10 @@ impl ApplicationConfig {
                     enabled: true,
                     data_dir: format!("{}/ethereum", unified_config.system.data_dir.display()),
                     rpc_port: 8545,
-                    chain_id: 1337,
-                    mock_mode: true, // Enable mock mode for testnet
+                    chain_id: 1337, // Use dev chain ID
+                    mock_mode: std::env::var("MULTIVM_ETHEREUM_MOCK_MODE")
+                        .map(|v| v.to_lowercase() == "true")
+                        .unwrap_or(false), // Default to real execution, use env var to override
                     auto_start: true,
                 },
                 solana: crate::execution_engines::SolanaEngineConfig {
@@ -431,7 +433,9 @@ impl ApplicationConfig {
                     data_dir: format!("{}/solana", unified_config.system.data_dir.display()),
                     rpc_port: 8899,
                     cluster: "localnet".to_string(),
-                    mock_mode: true, // Enable mock mode for testnet
+                    mock_mode: std::env::var("MULTIVM_SOLANA_MOCK_MODE")
+                        .map(|v| v.to_lowercase() == "true")
+                        .unwrap_or(true), // Keep Solana in mock mode by default
                     auto_start: true,
                 },
                 global: crate::execution_engines::GlobalExecutionConfig {

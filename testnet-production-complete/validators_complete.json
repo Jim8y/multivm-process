@@ -1,0 +1,177 @@
+[
+  {
+    "validator_id": 1,
+    "name": "validator-1",
+    "ethereum": {
+      "private_key": "f5e2c791dd314025e6f90280ad3a5f8dfbb2c79e52e584c2c4e82bd4b207aec4",
+      "address": "0xbad43e401b75a5aeba33835d3481f92b271231c4"
+    },
+    "consensus": {
+      "private_key": "3eb778013fe49b4d95ef771dac4d4e33162b6a56894d8b9cd843768099d268fd",
+      "public_key": "c7c4fd31e3456d8e236259549847226b08efd74e3b9a3ad3a119f7cc93380729",
+      "public_key_b64": "MCowBQYDK2VwAyEAx8T9MeNFbY4jYllUmEciawjv1047mjrToRn3zJM4Byk=",
+      "tendermint_address": "9015af1691d635fa2dc420cd9c32d62c572114b5"
+    },
+    "solana": {
+      "private_key": "30f9565fcf9507b6e70965a417360a9c3c82144949e506edb84e2da109271767",
+      "address": "245e336201c40caae9d72329960a41061ad8b07c3b61c65a9e96101aeaf95b52"
+    },
+    "multivm": {
+      "account_id": "a24538746ddfc55d2551f3b51f5556ef5a8e1c2200c14ad3c788ce19f1e7bd75",
+      "primary_binding": "0xbad43e401b75a5aeba33835d3481f92b271231c4",
+      "bound_accounts": [
+        "0xbad43e401b75a5aeba33835d3481f92b271231c4"
+      ]
+    }
+  },
+  {
+    "validator_id": 2,
+    "name": "validator-2",
+    "ethereum": {
+      "private_key": "eff10a9bfaada0fbfd7ac106aa27e68f51958afe1b507845e3e99cc74a014822",
+      "address": "0xd9bd2d158197500c05d9f5fd6e54429e39bcff16"
+    },
+    "consensus": {
+      "private_key": "e33fa83d6a1b7133b57f5c45fca9f30aa1902498d5846c8effa6366bf43e0468",
+      "public_key": "9f71f10d230a5aa1b7582c17822a384ceacbafe2226e11569ac93678b89a29a6",
+      "public_key_b64": "MCowBQYDK2VwAyEAn3HxDSMKWqG3WCwXgio4TOrLr+IibhFWmsk2eLiaKaY=",
+      "tendermint_address": "2162f9edd311b4faed4fcc7aa1a49901826276fc"
+    },
+    "solana": {
+      "private_key": "c3ea92eebe7a1317dff613bd7abe293baba44c8a57e4e73fe99a3849a773099e",
+      "address": "8680f7a23ad0166a9caef505bede84c433b6097f35bb0a3c66d83f55fc2bc360"
+    },
+    "multivm": {
+      "account_id": "5753a5226ed3db56df4a83c1eb24fe8ca96978536b32aff77ac9ca464b06ea95",
+      "primary_binding": "0xd9bd2d158197500c05d9f5fd6e54429e39bcff16",
+      "bound_accounts": [
+        "0xd9bd2d158197500c05d9f5fd6e54429e39bcff16"
+      ]
+    }
+  },
+  {
+    "validator_id": 3,
+    "name": "validator-3",
+    "ethereum": {
+      "private_key": "bf6353902c69dc552a907b5525677b5a7eae4a7142027550e0194689621b96a6",
+      "address": "0xdbc75afeb7892fd54877079f39602366fd3490a9"
+    },
+    "consensus": {
+      "private_key": "f79f1a346897602fef4897fd9c0cebe8df3a131867524d7d5b409ed150ca2cef",
+      "public_key": "db8e22e1d56bed21570a9fe31dc9377d883cd521e497e096f9c737d0fc1d8ddb",
+      "public_key_b64": "MCowBQYDK2VwAyEA244i4dVr7SFXCp/jHck3fYg81SHkl+CW+cc30Pwdjds=",
+      "tendermint_address": "e6f32c21eb3027959650e2c3402c509d1a488667"
+    },
+    "solana": {
+      "private_key": "19f2d4c155411f5dcd3f66bc0b09bebaa4041f827267488c10848523efa93590",
+      "address": "8fae5d19c2c8caf98b7400e49886c54ac8bb8856c5ba9ba914a72a64bd2db4ff"
+    },
+    "multivm": {
+      "account_id": "8328f091a653f389e8d6d62527ebc468ae77f9661ea8aa8433d516774ae6093c",
+      "primary_binding": "0xdbc75afeb7892fd54877079f39602366fd3490a9",
+      "bound_accounts": [
+        "0xdbc75afeb7892fd54877079f39602366fd3490a9"
+      ]
+    }
+  },
+  {
+    "validator_id": 4,
+    "name": "validator-4",
+    "ethereum": {
+      "private_key": "1277dd9864606604c4e17160a08b6beb7de86f4841cf5e69586fead59bf01633",
+      "address": "0xfda0011aa977ae29b97ef3d53ceecc852886d54d"
+    },
+    "consensus": {
+      "private_key": "b1d7322c99c33080c24efaa6023fbb5c7894d0d2636b573be65f44ada09587a3",
+      "public_key": "92fc38de6f09573d52171802f5932d1828509cf5b9db019be728b74fba561c57",
+      "public_key_b64": "MCowBQYDK2VwAyEAkvw43m8JVz1SFxgC9ZMtGChQnPW52wGb5yi3T7pWHFc=",
+      "tendermint_address": "e5567b1ebf1cf0aaf67611f5563123b589977d30"
+    },
+    "solana": {
+      "private_key": "dbb015b23824b33da046a2c7b2f93cb3dfd7087ae53cbbe6cf438e09882b7901",
+      "address": "701dbd4a6df7b384746fc08bca20ec3ab8a0b018ade0cf7b479ddd530d0aabae"
+    },
+    "multivm": {
+      "account_id": "2307dfa74b50d1ec8f7cab3023b6223645b885d04a8018f638ee608504f2ac69",
+      "primary_binding": "0xfda0011aa977ae29b97ef3d53ceecc852886d54d",
+      "bound_accounts": [
+        "0xfda0011aa977ae29b97ef3d53ceecc852886d54d"
+      ]
+    }
+  },
+  {
+    "validator_id": 5,
+    "name": "validator-5",
+    "ethereum": {
+      "private_key": "1f7f50722b1f09b02e9f10e9d6906c663c3e5460a01e8a9c6ced76c556289f3f",
+      "address": "0xa400dfda339ace504a92df76dcbe775b5d4dfa10"
+    },
+    "consensus": {
+      "private_key": "31eef0103e60838f0f91e90f1c1d56d4d0c437eedc0393cc3a92f3c0b30a690c",
+      "public_key": "698a20f58ca2586795ce182c04067376f0ffc2e18ae7e135a0a116ff34390bc8",
+      "public_key_b64": "MCowBQYDK2VwAyEAaYog9YyiWGeVzhgsBAZzdvD/wuGK5+E1oKEW/zQ5C8g=",
+      "tendermint_address": "27bb8e4334f161cc7dcc530e35004fdeb35a322c"
+    },
+    "solana": {
+      "private_key": "a20c3bbea124ecb150fe17d5c9d0332268991bd88628f9cf301c27209abbe775",
+      "address": "5195fac92211ebcb9f5ce4512cf13e3ed56d380428349899c042f641b1a9d64b"
+    },
+    "multivm": {
+      "account_id": "b1a146f4af725e837c94200690ebd1a5638dea911f85d2057c9afcb390d27442",
+      "primary_binding": "0xa400dfda339ace504a92df76dcbe775b5d4dfa10",
+      "bound_accounts": [
+        "0xa400dfda339ace504a92df76dcbe775b5d4dfa10"
+      ]
+    }
+  },
+  {
+    "validator_id": 6,
+    "name": "validator-6",
+    "ethereum": {
+      "private_key": "db9840d032b44f5ef500d18e096dff7cf401ee88c972ddeb517591c3f61ed334",
+      "address": "0x3d5bcc755407a22baa663a0cca472874961971a0"
+    },
+    "consensus": {
+      "private_key": "766365ece6fcb97104455193195c1e36209f4c6fe30414ae4bc740ff5d1f84cf",
+      "public_key": "f66a6526a4a2c1f17b243f3a7c4e47314dd90d65ee976ad921aea31aac75e6b6",
+      "public_key_b64": "MCowBQYDK2VwAyEA9mplJqSiwfF7JD86fE5HMU3ZDWXul2rZIa6jGqx15rY=",
+      "tendermint_address": "4aee78b7e07a50c2c6feca7e199bec925cc259b8"
+    },
+    "solana": {
+      "private_key": "0e1e8767be734bca7204dd4182b174d90ae15461ca84d758e5b150d8a022227e",
+      "address": "93ea9d649e630eb07bc5eac1b1e1f3604091807f787b4d5943964fca8e431d96"
+    },
+    "multivm": {
+      "account_id": "e0aecd7619cfca440d892489523030c72caa51b7fe48beb9dbeebae362582a74",
+      "primary_binding": "0x3d5bcc755407a22baa663a0cca472874961971a0",
+      "bound_accounts": [
+        "0x3d5bcc755407a22baa663a0cca472874961971a0"
+      ]
+    }
+  },
+  {
+    "validator_id": 7,
+    "name": "validator-7",
+    "ethereum": {
+      "private_key": "4129a6c8ac0897c801a61da0fbdaa25ae694687c24f648bb02e82713b285213d",
+      "address": "0x20dc3415cb5af3e799070f4a94f3d6fed094988e"
+    },
+    "consensus": {
+      "private_key": "31b7d2c4dba20f7286d351472b94b75d81cb54229937ac0489d16a4004a6e6fa",
+      "public_key": "73b864215e0b2cc75acac3c80f1ede87cd7d673622a13c39f4085c3f50b164b8",
+      "public_key_b64": "MCowBQYDK2VwAyEAc7hkIV4LLMdaysPIDx7eh819ZzYioTw59AhcP1CxZLg=",
+      "tendermint_address": "8256fcf28819f5555d40809f505d2007f150f55e"
+    },
+    "solana": {
+      "private_key": "6064b53d568a1a381fe5830a6ab3f94ff881f701e697c671171150ec440b3ee9",
+      "address": "a29e1b6782534e952e704c7d406d49a8850efdf32e551ac805e9f8dce3d930a4"
+    },
+    "multivm": {
+      "account_id": "8a5274645665a145849ae3eed0f4338db00c8c658f489c862c17b84ea5aec6d3",
+      "primary_binding": "0x20dc3415cb5af3e799070f4a94f3d6fed094988e",
+      "bound_accounts": [
+        "0x20dc3415cb5af3e799070f4a94f3d6fed094988e"
+      ]
+    }
+  }
+]

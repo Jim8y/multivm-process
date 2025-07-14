@@ -16,6 +16,11 @@ use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
+// Additional imports for JWT and process management
+use rand;
+use hex;
+use hmac;
+
 /// Real Reth execution engine that connects to actual Reth nodes
 pub struct RealRethEngine {
     /// Configuration
@@ -135,48 +140,103 @@ impl RealRethEngine {
         Ok(())
     }
 
-    /// Start the Reth node process with simplified configuration
+    /// Start the Reth node process using the setup script infrastructure
     async fn start_reth_process(&self) -> Result<(), RethEngineError> {
-        info!("Starting Reth node process");
+        info!("Starting Reth node process using MultiVM setup script");
+
+        // Check if setup script exists
+        let script_path = self.get_project_root().join("scripts/setup-reth-node.sh");
+        if !script_path.exists() {
+            warn!("Setup script not found at {:?}, falling back to direct Reth execution", script_path);
+            return self.start_reth_process_direct().await;
+        }
+
+        // Use the setup script to start Reth with proper configuration
+        info!("Using setup script: {:?}", script_path);
+        
+        // Set environment variables for the setup script
+        let mut cmd = Command::new(&script_path);
+        cmd.arg("start")
+            .env("RETH_DATA_DIR", &self.data_dir)
+            .env("RETH_HTTP_PORT", self.rpc_port.to_string())
+            .env("RETH_ENGINE_PORT", self.engine_port.to_string())
+            .env("RETH_CHAIN_ID", self.chain_id.to_string())
+            .env("JWT_SECRET_PATH", self.data_dir.join("jwt.hex"))
+            .env("RUST_LOG", "info")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        debug!("Setup script command: {:?}", cmd);
+
+        let output = cmd.output().await
+            .map_err(|e| RethEngineError::Process(format!("Failed to execute setup script: {e}")))?
+        ;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            error!("Setup script failed with exit code: {:?}", output.status.code());
+            error!("stdout: {}", stdout);
+            error!("stderr: {}", stderr);
+            
+            // Fallback to direct execution if setup script fails
+            warn!("Setup script failed, falling back to direct Reth execution");
+            return self.start_reth_process_direct().await;
+        }
+
+        info!("Reth node started successfully via setup script");
+        info!("Reth HTTP RPC: http://127.0.0.1:{}", self.rpc_port);
+        info!("Reth Engine API: http://127.0.0.1:{}", self.engine_port);
+
+        // Wait for Reth to initialize and verify it's running
+        self.wait_for_reth_startup().await?;
+
+        Ok(())
+    }
+
+    /// Fallback method to start Reth process directly
+    async fn start_reth_process_direct(&self) -> Result<(), RethEngineError> {
+        info!("Starting Reth node process directly");
 
         let mut cmd = Command::new("reth");
         cmd.arg("node")
             // Data directory
             .arg("--datadir")
             .arg(&self.data_dir)
+            // Chain configuration
+            .arg("--chain")
+            .arg("dev")
             // Engine API configuration
-            .arg("--authrpc.jwtsecret")
-            .arg(self.data_dir.join("jwt.hex"))
             .arg("--authrpc.addr")
-            .arg("127.0.0.1")
+            .arg("0.0.0.0")
             .arg("--authrpc.port")
             .arg(self.engine_port.to_string())
+            .arg("--authrpc.jwtsecret")
+            .arg(self.data_dir.join("jwt.hex"))
             // HTTP RPC configuration
             .arg("--http")
             .arg("--http.addr")
-            .arg("127.0.0.1")
+            .arg("0.0.0.0")
             .arg("--http.port")
             .arg(self.rpc_port.to_string())
-            // Disable P2P networking for MultiVM
-            .arg("--disable-discovery")
-            .arg("--max-inbound-peers")
-            .arg("0")
-            .arg("--max-outbound-peers")
-            .arg("0")
-            .arg("--port")
-            .arg("0")
-            // Disable IPC
-            .arg("--ipcdisable")
-            // Use development mode to avoid genesis hash conflicts
+            .arg("--http.api")
+            .arg("eth,net,web3,debug,trace")
+            .arg("--http.corsdomain")
+            .arg("*")
+            // Development mode with full node
+            .arg("--full")
             .arg("--dev")
             // Process management
-            .kill_on_drop(true);
+            .kill_on_drop(true)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
 
         debug!("Reth command: {:?}", cmd);
 
         let child = cmd
             .spawn()
-            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?;
+            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?
+        ;
 
         let pid = child.id();
         *self.reth_process.write().await = Some(child);
@@ -186,9 +246,122 @@ impl RealRethEngine {
         info!("Reth Engine API: http://127.0.0.1:{}", self.engine_port);
 
         // Wait for Reth to initialize
-        tokio::time::sleep(Duration::from_secs(20)).await;
+        self.wait_for_reth_startup().await?;
 
         Ok(())
+    }
+
+    /// Wait for Reth to start up and become responsive
+    async fn wait_for_reth_startup(&self) -> Result<(), RethEngineError> {
+        info!("Waiting for Reth to become responsive...");
+        
+        let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
+        let max_attempts = 30;
+        let delay = Duration::from_secs(2);
+        
+        for attempt in 1..=max_attempts {
+            tokio::time::sleep(delay).await;
+            
+            // Test RPC connectivity
+            if let Ok(client) = reqwest::Client::new().post(&rpc_url)
+                .header("Content-Type", "application/json")
+                .json(&json!({
+                    "jsonrpc": "2.0",
+                    "method": "eth_blockNumber",
+                    "params": [],
+                    "id": 1
+                }))
+                .timeout(Duration::from_secs(5))
+                .send()
+                .await
+            {
+                if client.status().is_success() {
+                    info!("Reth RPC is responsive after {} attempts", attempt);
+                    
+                    // Also test Engine API if JWT is available
+                    if let Some(jwt_secret) = self.jwt_secret.read().await.as_ref() {
+                        if let Ok(jwt_token) = self.create_jwt_token(jwt_secret) {
+                            let engine_url = format!("http://127.0.0.1:{}", self.engine_port);
+                            if let Ok(engine_response) = reqwest::Client::new().post(&engine_url)
+                                .header("Content-Type", "application/json")
+                                .header("Authorization", format!("Bearer {}", jwt_token))
+                                .json(&json!({
+                                    "jsonrpc": "2.0",
+                                    "method": "engine_exchangeCapabilities",
+                                    "params": [[]],
+                                    "id": 1
+                                }))
+                                .timeout(Duration::from_secs(5))
+                                .send()
+                                .await
+                            {
+                                if engine_response.status().is_success() {
+                                    info!("Reth Engine API is also responsive");
+                                } else {
+                                    warn!("Engine API not yet responsive, continuing...");
+                                }
+                            }
+                        }
+                    }
+                    
+                    return Ok(());
+                }
+            }
+            
+            if attempt % 5 == 0 {
+                info!("Still waiting for Reth... attempt {}/{}", attempt, max_attempts);
+            }
+        }
+        
+        Err(RethEngineError::Process(
+            format!("Reth failed to become responsive after {} attempts", max_attempts)
+        ))
+    }
+
+    /// Get the project root directory
+    fn get_project_root(&self) -> PathBuf {
+        // Try to find the project root by looking for Cargo.toml
+        let mut current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        
+        loop {
+            if current.join("Cargo.toml").exists() {
+                // Check if this is the workspace root by looking for multivm-* directories
+                if current.join("reth-execution-engine").exists() {
+                    return current;
+                }
+            }
+            
+            if let Some(parent) = current.parent() {
+                current = parent.to_path_buf();
+            } else {
+                // Fallback to current directory
+                return std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            }
+        }
+    }
+
+    /// Check if Reth process is running
+    pub async fn is_reth_running(&self) -> bool {
+        let process_guard = self.reth_process.read().await;
+        if let Some(child) = process_guard.as_ref() {
+            // We can't use try_wait() on a shared reference, so we'll check if the process ID exists
+            if let Some(pid) = child.id() {
+                // On Unix, we can check if the process is still running via /proc
+                #[cfg(unix)]
+                {
+                    std::path::Path::new(&format!("/proc/{}", pid)).exists()
+                }
+                #[cfg(not(unix))]
+                {
+                    // Fallback: assume it's running if we have a PID
+                    true
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     /// Initialize HTTP clients with connection pooling and timeouts
@@ -485,7 +658,7 @@ impl RealRethEngine {
     }
 
     /// Shutdown with timeout (following Solana pattern)
-    pub async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), RethEngineError> {
+    pub async fn shutdown(&self, timeout: Option<Duration>) -> Result<(), RethEngineError> {
         let timeout = timeout.unwrap_or(Duration::from_secs(30));
 
         info!(
@@ -523,6 +696,9 @@ impl RealRethEngine {
         // Start a new process
         self.start_reth_process().await?;
 
+        // Reinitialize clients
+        self.init_http_clients().await?;
+        
         // Re-verify connections
         self.verify_connections().await?;
 
@@ -530,8 +706,8 @@ impl RealRethEngine {
         Ok(())
     }
 
-    /// Check if the Reth process is running
-    pub async fn is_reth_process_running(&self) -> bool {
+    /// Check if the Reth process is running (internal method)
+    async fn is_reth_process_running_internal(&self) -> bool {
         let mut process_guard = self.reth_process.write().await;
         if let Some(child) = process_guard.as_mut() {
             match child.try_wait() {
@@ -555,7 +731,7 @@ impl RealRethEngine {
         let current_block = *self.current_block.read().await;
         let blocks_processed = *self.blocks_processed.read().await;
         let is_running = *self.is_running.read().await;
-        let process_running = self.is_reth_process_running().await;
+        let process_running = self.is_reth_running().await;
         let process_pid = self.get_reth_process_pid().await;
 
         let status = json!({

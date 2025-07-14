@@ -104,3 +104,39 @@ coverage/
 
 # Claude settings
 .claude/
+
+# Cleanup backup directories
+cleanup-backup-*
+
+# Transaction logs
+transaction-log.json
+multivm-transactions.json
+real-transactions.json
+
+# Python cache
+__pycache__/
+*.pyc
+venv/
+
+# Temporary files
+*.tmp
+*.log
+
+# Test and development directories
+test-*/
+test-data/
+testnet-7-nodes/
+testnet-production/
+reth-data/
+tx-generator/
+
+# Database files
+*.db
+*.lck
+*.dat
+consensus_state.db/
+static_files/
+
+# Docker intermediate files
+Dockerfile.*
+docker-compose.testnet-*.yml

@@ -34,8 +34,8 @@ RUN cp Cargo.toml Cargo.toml.bak && \
         -e '/^\[profile\.release\.package\.agave-validator\]/,/^$/d' Cargo.toml.bak > Cargo.toml && \
     echo "Updated Cargo.toml to exclude problematic dependencies"
 
-# Build the CLI which includes the application
-RUN cargo build --release --bin multivm-cli
+# Build the node which includes the application
+RUN cargo build --release --bin multivm-node
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -55,7 +55,7 @@ RUN mkdir -p /opt/multivm/{bin,config,data,logs} && \
     chown -R multivm:multivm /opt/multivm
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/multivm-cli /opt/multivm/bin/multivm
+COPY --from=builder /app/target/release/multivm-node /opt/multivm/bin/multivm
 
 # Copy configuration templates
 COPY docker/config/ /opt/multivm/config/
@@ -80,5 +80,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command
-ENTRYPOINT ["/bin/bash"]
-CMD ["/opt/multivm/bin/start.sh"]
+ENTRYPOINT ["/opt/multivm/bin/multivm"]
+CMD ["--help"]

@@ -57,7 +57,7 @@ pub struct IpcClientConfig {
 impl Default for IpcClientConfig {
     fn default() -> Self {
         Self {
-            address: "/tmp/reth.ipc".to_string(),
+            address: "/tmp/multivm-reth.sock".to_string(), // Match setup script default
             connect_timeout_ms: 5000,
             request_timeout_ms: 30000,
             max_retries: 3,

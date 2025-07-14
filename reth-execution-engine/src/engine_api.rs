@@ -62,6 +62,10 @@ pub struct EngineApiClient {
     retry_config: RetryConfig,
     metrics: EngineApiMetrics,
     connection_semaphore: Arc<Semaphore>,
+    /// JWT token cache to avoid regenerating tokens frequently
+    jwt_token_cache: Arc<RwLock<Option<(String, Instant)>>>,
+    /// JWT token expiry duration (default 60 seconds)
+    jwt_expiry_duration: Duration,
 }
 
 /// Engine API payload status
@@ -180,6 +184,8 @@ impl EngineApiClient {
             retry_config,
             metrics: EngineApiMetrics::default(),
             connection_semaphore: Arc::new(Semaphore::new(max_concurrent_requests)),
+            jwt_token_cache: Arc::new(RwLock::new(None)),
+            jwt_expiry_duration: Duration::from_secs(60),
         })
     }
 
@@ -864,8 +870,42 @@ impl EngineApiClient {
         })
     }
 
-    /// Create JWT token for Engine API authentication
+    /// Create JWT token for Engine API authentication with caching
     fn create_jwt_token(&self, secret: &str) -> Result<String, RethEngineError> {
+        // Check if we have a valid cached token
+        if let Some(cached_token) = self.get_cached_jwt_token() {
+            return Ok(cached_token);
+        }
+
+        // Generate new token and cache it
+        let token = self.generate_fresh_jwt_token(secret)?;
+        self.cache_jwt_token(token.clone());
+        Ok(token)
+    }
+
+    /// Check for cached JWT token that's still valid
+    fn get_cached_jwt_token(&self) -> Option<String> {
+        if let Ok(cache) = self.jwt_token_cache.try_read() {
+            if let Some((token, created_at)) = cache.as_ref() {
+                // Check if token is still valid (with 30 second buffer before expiry)
+                let age = created_at.elapsed();
+                if age < self.jwt_expiry_duration.saturating_sub(Duration::from_secs(30)) {
+                    return Some(token.clone());
+                }
+            }
+        }
+        None
+    }
+
+    /// Cache a JWT token with timestamp
+    fn cache_jwt_token(&self, token: String) {
+        if let Ok(mut cache) = self.jwt_token_cache.try_write() {
+            *cache = Some((token, Instant::now()));
+        }
+    }
+
+    /// Generate a fresh JWT token for Engine API authentication
+    fn generate_fresh_jwt_token(&self, secret: &str) -> Result<String, RethEngineError> {
         use sha2::Sha256;
 
         // Create JWT header
