@@ -130,12 +130,23 @@ testnet-production/
 reth-data/
 tx-generator/
 
+# Testnet runtime data (keep configs, ignore runtime files)
+testnet/node*/reth/db/
+testnet/node*/reth/static_files/
+testnet/node*/multivm/consensus_state.db/
+testnet/reth/db/
+testnet/reth/static_files/
+
 # Database files
 *.db
 *.lck
 *.dat
 consensus_state.db/
 static_files/
+
+# Build artifacts
+target/
+venv/
 
 # Docker intermediate files
 Dockerfile.*
