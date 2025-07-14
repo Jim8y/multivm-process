@@ -140,6 +140,8 @@ echo "• Reth is running as an isolated execution engine"
 echo "• MultiVM handles all consensus and P2P networking"
 echo "• Engine API is protected with JWT authentication"
 echo "• JSON-RPC API is available for dApp integration"
+echo "• IPC is disabled (--ipcdisable)"
+echo "• P2P port is disabled (--port 0)"
 
 # Check for MultiVM-specific config
 multivm_config="$PROJECT_ROOT/testnet/configs/reth-multivm.toml"

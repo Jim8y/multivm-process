@@ -447,12 +447,13 @@ start_reth() {
     reth_cmd="$reth_cmd --authrpc.jwtsecret \"$JWT_SECRET_PATH\""
     reth_cmd="$reth_cmd --full"
     
-    # Disable P2P discovery and consensus (MultiVM handles consensus)
+    # Disable P2P networking for MultiVM (MultiVM handles consensus and networking)
     reth_cmd="$reth_cmd --disable-discovery"
-    reth_cmd="$reth_cmd --disable-dns-discovery"
-    reth_cmd="$reth_cmd --disable-discv4-discovery"
-    reth_cmd="$reth_cmd --max-outbound-peers 0"
     reth_cmd="$reth_cmd --max-inbound-peers 0"
+    reth_cmd="$reth_cmd --max-outbound-peers 0"
+    reth_cmd="$reth_cmd --port 0"
+    # Disable IPC
+    reth_cmd="$reth_cmd --ipcdisable"
     
     # Only add --dev flag for dev chain
     if [ "$chain_arg" = "dev" ]; then

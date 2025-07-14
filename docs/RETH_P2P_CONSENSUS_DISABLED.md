@@ -22,14 +22,14 @@ In the MultiVM integration, Reth's built-in P2P networking and consensus mechani
 The following flags are added to the Reth startup command:
 
 ```bash
-# Disable all discovery mechanisms
---disable-discovery
---disable-dns-discovery  
---disable-discv4-discovery
+# Disable P2P networking for MultiVM
+--disable-discovery        # Disable peer discovery
+--max-inbound-peers 0      # No inbound peer connections
+--max-outbound-peers 0     # No outbound peer connections  
+--port 0                   # Disable P2P listening port
 
-# Disable peer connections
---max-outbound-peers 0
---max-inbound-peers 0
+# Disable IPC
+--ipcdisable              # Disable IPC socket
 ```
 
 ### Configuration File (`testnet/configs/reth-multivm.toml`)
@@ -54,6 +54,8 @@ max_concurrent_outbound_dials = 0
 - ❌ Block consensus and validation
 - ❌ Block propagation to external peers
 - ❌ Sync from external networks
+- ❌ IPC socket communication
+- ❌ P2P listening port
 
 ## Network Architecture
 

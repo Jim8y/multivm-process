@@ -59,6 +59,8 @@ block_interval = 5
 [prune.segments.receipts_log_filter]
 
 # P2P Configuration - DISABLED for MultiVM integration
+# Note: Command line args take precedence:
+# --disable-discovery --max-inbound-peers 0 --max-outbound-peers 0 --port 0 --ipcdisable
 [peers]
 refill_slots_interval = "5s"
 trusted_nodes = []
