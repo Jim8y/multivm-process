@@ -56,6 +56,9 @@ uuid = { workspace = true }
 # Concurrency utilities
 parking_lot = { workspace = true }
 
+# Redis for distributed locking
+redis = { workspace = true }
+
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = { workspace = true }
