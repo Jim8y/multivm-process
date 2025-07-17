@@ -5,7 +5,7 @@ use multivm_account_mapping::{
     binding_message::{BindingAction, BindingMessage},
     binding_policy::{BindingPolicy, EnhancedBindingProof, RecoveryConfig, SecurityMetadata},
     enhanced_mapping::EnhancedAccountMapper,
-    events::{EventEmitter, LoggingEventListener},
+    events::LoggingEventListener,
     mapping::BindingProof,
     storage::MemoryStorage,
 };
@@ -29,7 +29,7 @@ async fn main() {
         min_guardians: 2,
         recovery_threshold: 2,
         recovery_timelock: Duration::from_secs(3600),
-        max_guardians: 5,
+        enable_backup_key: false,
     };
 
     // Create enhanced mapper
@@ -78,17 +78,22 @@ async fn main() {
         1,
     );
 
-    println!("   Message hash: {}", hex::encode(binding_message.hash()));
-    println!(
-        "   EIP-712 hash: {}",
-        hex::encode(binding_message.eip712_hash())
-    );
+    // TODO: Implement hash and eip712_hash methods on BindingMessage
+    // println!("   Message hash: {}", hex::encode(binding_message.hash()));
+    // println!(
+    //     "   EIP-712 hash: {}",
+    //     hex::encode(binding_message.eip712_hash())
+    // );
 
     // Create proof (in real scenario, this would be a signature)
     let proof = EnhancedBindingProof {
         proof: BindingProof {
-            proof_type: multivm_account_mapping::mapping::ProofType::Signature,
-            proof_data: vec![0xde, 0xad, 0xbe, 0xef],
+            account: eth_account.clone(),
+            proof_type: multivm_account_mapping::mapping::ProofType::Signature {
+                message: Box::new(vec![0x01, 0x02, 0x03]),
+                signature: Box::new(vec![0xde, 0xad, 0xbe, 0xef]),
+            },
+            proof_data: Box::new(vec![0xde, 0xad, 0xbe, 0xef]),
             nonce: 1,
             timestamp: SystemTime::now(),
         },
@@ -125,14 +130,25 @@ async fn main() {
 
     let guardian_proof = EnhancedBindingProof {
         proof: BindingProof {
-            proof_type: multivm_account_mapping::mapping::ProofType::Signature,
-            proof_data: vec![0xca, 0xfe],
+            account: eth_account.clone(),
+            proof_type: multivm_account_mapping::mapping::ProofType::Signature {
+                message: Box::new(vec![0x04, 0x05, 0x06]),
+                signature: Box::new(vec![0xca, 0xfe]),
+            },
+            proof_data: Box::new(vec![0xca, 0xfe]),
             nonce: 2,
             timestamp: SystemTime::now(),
         },
         secondary_auth: None,
         risk_score: 0,
-        security_metadata: SecurityMetadata::default(),
+        security_metadata: SecurityMetadata {
+            ip_address: None,
+            user_agent: None,
+            geolocation: None,
+            activity_score: 0,
+            suspicious_activity_count: 0,
+            is_verified: false,
+        },
     };
 
     match mapper
@@ -162,14 +178,25 @@ async fn main() {
                 msg,
                 EnhancedBindingProof {
                     proof: BindingProof {
-                        proof_type: multivm_account_mapping::mapping::ProofType::Signature,
-                        proof_data: vec![i as u8],
+                        account: eth_account.clone(),
+                        proof_type: multivm_account_mapping::mapping::ProofType::Signature {
+                            message: Box::new(vec![0x07, 0x08, 0x09]),
+                            signature: Box::new(vec![i as u8]),
+                        },
+                        proof_data: Box::new(vec![i as u8]),
                         nonce: i,
                         timestamp: SystemTime::now(),
                     },
                     secondary_auth: None,
                     risk_score: 0,
-                    security_metadata: SecurityMetadata::default(),
+                    security_metadata: SecurityMetadata {
+                        ip_address: None,
+                        user_agent: None,
+                        geolocation: None,
+                        activity_score: 0,
+                        suspicious_activity_count: 0,
+                        is_verified: false,
+                    },
                 },
             )
             .await;
@@ -205,14 +232,25 @@ async fn main() {
             expired_msg,
             EnhancedBindingProof {
                 proof: BindingProof {
-                    proof_type: multivm_account_mapping::mapping::ProofType::Signature,
-                    proof_data: vec![],
+                    account: eth_account.clone(),
+                    proof_type: multivm_account_mapping::mapping::ProofType::Signature {
+                        message: Box::new(vec![0x0d, 0x0e, 0x0f]),
+                        signature: Box::new(vec![]),
+                    },
+                    proof_data: Box::new(vec![]),
                     nonce: 10,
                     timestamp: SystemTime::now(),
                 },
                 secondary_auth: None,
                 risk_score: 0,
-                security_metadata: SecurityMetadata::default(),
+                security_metadata: SecurityMetadata {
+                    ip_address: None,
+                    user_agent: None,
+                    geolocation: None,
+                    activity_score: 0,
+                    suspicious_activity_count: 0,
+                    is_verified: false,
+                },
             },
         )
         .await
