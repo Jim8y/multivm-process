@@ -1,0 +1,40 @@
+name: Test Self-Hosted Runner
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+permissions:
+  contents: read
+
+jobs:
+  test-runner:
+    name: Test Runner Connectivity
+    runs-on: self-hosted
+    timeout-minutes: 5
+    
+    steps:
+    - name: Test runner environment
+      run: |
+        echo "Runner is working!"
+        echo "OS: $(uname -a)"
+        echo "User: $(whoami)"
+        echo "Working directory: $(pwd)"
+        echo "Available disk space:"
+        df -h
+        echo "Memory usage:"
+        free -h || echo "free command not available"
+        echo "Current time: $(date)"
+    
+    - name: Test basic commands
+      run: |
+        echo "Testing basic commands..."
+        ls -la
+        which git || echo "git not found"
+        which cargo || echo "cargo not found" 
+        which rustc || echo "rustc not found"
+    
+    - name: Test network connectivity
+      run: |
+        echo "Testing network connectivity..."
+        ping -c 3 github.com || echo "Cannot ping github.com"
+        curl -s https://api.github.com/user || echo "Cannot reach GitHub API"
