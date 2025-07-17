@@ -19,8 +19,8 @@ env:
   # Speed up builds
   CARGO_INCREMENTAL: 1
   RUST_LOG: off
-  # Use faster linker when available
-  RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+  # Use faster linker when available (removed to avoid dependency on lld)
+  # RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
   # Optimize cargo operations
   CARGO_NET_RETRY: 10
   CARGO_NET_TIMEOUT: 60
@@ -77,27 +77,31 @@ jobs:
       uses: ./.github/actions/setup-dependencies
     
     - name: Install build optimizations
+      continue-on-error: true
+      timeout-minutes: 5
       run: |
-        # Check if we're on a system with apt (Ubuntu/Debian)
-        if command -v apt-get >/dev/null 2>&1; then
-          sudo apt-get update
-          sudo apt-get install -y lld clang
-        # Check if we're on a system with yum (RHEL/CentOS)
-        elif command -v yum >/dev/null 2>&1; then
-          sudo yum install -y lld clang
-        # Check if we're on a system with dnf (Fedora)
-        elif command -v dnf >/dev/null 2>&1; then
-          sudo dnf install -y lld clang
-        # Check if we're on macOS
-        elif command -v brew >/dev/null 2>&1; then
-          brew install llvm
+        echo "Attempting to install build optimizations..."
+        # First check if lld and clang are already installed
+        if command -v lld >/dev/null 2>&1 && command -v clang >/dev/null 2>&1; then
+          echo "Build optimizations already installed"
+          exit 0
+        fi
+        
+        # Only attempt installation if we have sudo without password
+        if sudo -n true 2>/dev/null; then
+          # Check if we're on a system with apt (Ubuntu/Debian)
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo -n apt-get update -qq
+            sudo -n apt-get install -y -qq lld clang
+          # Check if we're on a system with yum (RHEL/CentOS)
+          elif command -v yum >/dev/null 2>&1; then
+            sudo -n yum install -y -q lld clang
+          # Check if we're on a system with dnf (Fedora)
+          elif command -v dnf >/dev/null 2>&1; then
+            sudo -n dnf install -y -q lld clang
+          fi
         else
-          echo "Warning: Could not install build optimizations - package manager not recognized"
-          echo "Available package managers:"
-          command -v apt-get >/dev/null 2>&1 && echo "  - apt-get (found)"
-          command -v yum >/dev/null 2>&1 && echo "  - yum (found)"
-          command -v dnf >/dev/null 2>&1 && echo "  - dnf (found)"
-          command -v brew >/dev/null 2>&1 && echo "  - brew (found)"
+          echo "Skipping build optimizations - sudo requires password or not available"
         fi
     
     - name: Setup Rust toolchain
