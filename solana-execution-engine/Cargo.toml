@@ -8,7 +8,7 @@ license = "Apache-2.0"
 
 [features]
 default = ["sdk", "solana-engine"]
-solana-engine = ["solana-sdk", "solana-client", "solana-transaction-status", "agave-validator", "solana-loader-v2-interface", "solana-program", "solana-clock"]
+solana-engine = ["solana-sdk", "solana-client", "solana-transaction-status", "agave-validator", "solana-loader-v2-interface", "solana-program", "solana-clock", "solana-runtime-transaction"]
 sdk = []
 
 [[bin]]
@@ -35,6 +35,7 @@ multivm-common = { path = "../multivm-common" }
 solana-sdk = { version = "=2.2.2", optional = true }
 solana-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
 solana-rpc-client = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
+solana-runtime-transaction = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
 solana-transaction-status = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
 agave-validator = { git = "ssh://git@github.com/vm-multiverse/multivm-agave.git", branch = "master", optional = true }
 solana-loader-v2-interface = { version = "=2.2.1", features = [
@@ -68,6 +69,7 @@ sha2 = "0.10"
 
 # Concurrency utilities
 once_cell = "1.19"
+lazy_static = "1.4"
 
 # CLI parsing
 clap = { version = "4.4", features = ["derive", "env"] }
@@ -89,6 +91,7 @@ jsonrpc-core = "18.0"
 rand = "0.8"
 hmac = "0.12"
 indicatif = "0.17"
+indexmap = "2.0"
 
 [dev-dependencies]
 tempfile = "3.8"

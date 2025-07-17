@@ -3,6 +3,7 @@ use crate::config::{
 };
 use crate::engine_helper::compute_block_hash;
 use crate::error::SolanaEngineError;
+use crate::mempool::SolanaMempool;
 use agave_validator::bridge::ipc::IpcClient;
 use clap::arg;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -16,6 +17,11 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+
+// 全局 mempool 实例
+lazy_static::lazy_static! {
+    pub static ref GLOBAL_MEMPOOL: Arc<RwLock<SolanaMempool>> = Arc::new(RwLock::new(SolanaMempool::new()));
+}
 
 /// Solana block data type for execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -482,6 +488,7 @@ impl SolanaEngine {
 
         Ok(())
     }
+
     /// Create a block by submitting multiple signed transactions to the validator via RPC
     ///
     /// This method takes a mutable slice of signed Solana transactions and submits them
@@ -716,5 +723,52 @@ impl SolanaEngine {
             "Transaction {} confirmation timeout after {} attempts",
             signature, max_retries
         )))
+    }
+
+    /// 获取全局 mempool 的引用
+    pub fn get_mempool(&self) -> std::sync::Arc<tokio::sync::RwLock<crate::mempool::SolanaMempool>> {
+        GLOBAL_MEMPOOL.clone()
+    }
+
+    /// 获取 mempool 统计信息
+    pub async fn get_mempool_stats(&self) -> crate::mempool::MempoolStats {
+        GLOBAL_MEMPOOL.read().await.stats()
+    }
+
+    /// 清空 mempool
+    pub async fn clear_mempool(&self) {
+        GLOBAL_MEMPOOL.write().await.clear();
+    }
+
+    /// 检查 mempool 中是否包含指定签名的交易
+    pub async fn mempool_contains(&self, signature: &Signature) -> bool {
+        GLOBAL_MEMPOOL.read().await.contains(signature)
+    }
+
+    /// 从 mempool 获取前 n 个交易
+    pub async fn get_mempool_front(&self, count: usize) -> Vec<crate::mempool::MempoolEntry> {
+        GLOBAL_MEMPOOL
+            .read()
+            .await
+            .get_front(count)
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// 从 mempool 移除指定签名的交易
+    pub async fn remove_from_mempool(
+        &self,
+        signature: &Signature,
+    ) -> Option<crate::mempool::MempoolEntry> {
+        GLOBAL_MEMPOOL.write().await.remove(signature)
+    }
+
+    /// 批量从 mempool 移除交易
+    pub async fn remove_batch_from_mempool(
+        &self,
+        signatures: &[Signature],
+    ) -> Vec<crate::mempool::MempoolEntry> {
+        GLOBAL_MEMPOOL.write().await.remove_batch(signatures)
     }
 }
