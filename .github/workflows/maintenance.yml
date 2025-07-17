@@ -63,7 +63,9 @@ jobs:
       run: |
         echo "" >> audit-report.md
         echo "## Outdated Dependencies" >> audit-report.md
-        cargo tree --outdated --depth 1 >> audit-report.md || echo "No outdated dependencies found" >> audit-report.md
+        # Install cargo-outdated if not available
+        cargo install --quiet cargo-outdated || true
+        cargo outdated --depth 1 >> audit-report.md || echo "No outdated dependencies found" >> audit-report.md
     
     - name: Display audit report
       run: |
