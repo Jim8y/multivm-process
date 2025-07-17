@@ -189,7 +189,7 @@ impl DistributedLockManager for RedisLockManager {
                 &lock_id,
                 redis_crate::SetOptions::default()
                     .conditional_set(redis_crate::ExistenceCheck::NX)
-                    .with_expiration(redis_crate::SetExpiry::PX(ttl_ms)),
+                    .with_expiration(redis_crate::SetExpiry::PX(ttl_ms as usize)),
             )
             .await
             .map_err(|e| AccountMappingError::Internal {
