@@ -14,16 +14,22 @@ env:
 jobs:
   test:
     name: Run Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     strategy:
       matrix:
         rust: [stable]
     
     steps:
+    - name: Clean workspace (self-hosted runners)
+      run: |
+        rm -rf target || true
+        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
+    
     - uses: actions/checkout@v3
       with:
         submodules: recursive
+        clean: true
     
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
