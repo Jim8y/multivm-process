@@ -28,6 +28,7 @@ mod tests {
     #[tokio::test]
     async fn test_solana_engine_core_functions() -> Result<(), SolanaEngineError> {
         setup_logging();
+
         let mut engine = create_and_initialize_engine()
             .await
             .expect("Failed to create and initialize engine");

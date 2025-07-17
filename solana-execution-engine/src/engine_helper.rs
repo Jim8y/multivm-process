@@ -46,10 +46,16 @@ impl SolanaEngine {
         // Get the latest blockhash
         let recent_blockhash = client.get_latest_blockhash().await?;
 
+        self.tick().await?;
+
         // Request airdrop with the blockhash
         let signature = client
             .request_airdrop_with_blockhash(to_pubkey, lamports, &recent_blockhash)
             .await?;
+
+        self.tick().await?;
+        self.tick().await?;
+        self.tick().await?;
 
         // Confirm the transaction
         client
@@ -101,7 +107,9 @@ impl SolanaEngine {
         transaction.sign(&[from_keypair], recent_blockhash);
 
         // Send and confirm transaction
-        let signature = client.send_and_confirm_transaction(&transaction).await?;
+        let signature = self
+            .send_and_confirm_transaction(client, &transaction)
+            .await?;
 
         info!("Transfer confirmed with signature: {}", signature);
         Ok(signature)

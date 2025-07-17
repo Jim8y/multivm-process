@@ -1,16 +1,9 @@
-#[cfg(feature = "solana-engine")]
 use solana_sdk::commitment_config::CommitmentLevel;
 use std::path::PathBuf;
 use std::time::Duration;
 
-// Mock type for when solana-engine feature is not enabled
-#[cfg(not(feature = "solana-engine"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommitmentLevel {
-    Processed,
-    Confirmed,
-    Finalized,
-}
+/// Default path for Solana private validator IPC socket
+pub const DEFAULT_TICK_IPC_PATH: &str = "/tmp/solana-private-validator.sock";
 
 /// Configuration for Solana execution engine
 #[derive(Debug, Clone)]
@@ -62,6 +55,8 @@ pub struct SolanaConfig {
     pub deterministic: bool,
     /// Reset the validator state on startup
     pub reset: bool,
+    /// Path to the tick IPC socket
+    pub tick_ipc_path: String,
 }
 
 impl Default for SolanaConfig {
@@ -81,6 +76,7 @@ impl Default for SolanaConfig {
             ticks_per_slot: 2,
             deterministic: true,
             reset: true,
+            tick_ipc_path: DEFAULT_TICK_IPC_PATH.to_string(),
         }
     }
 }
@@ -153,6 +149,12 @@ impl SolanaConfigBuilder {
         self
     }
 
+    /// Set the tick IPC path
+    pub fn tick_ipc_path<S: Into<String>>(mut self, path: S) -> Self {
+        self.config.tick_ipc_path = path.into();
+        self
+    }
+
     /// Build the SolanaConfig
     pub fn build(self) -> SolanaConfig {
         self.config
@@ -173,9 +175,6 @@ pub struct SolanaConnectionConfig {
     /// Size of the connection pool
     pub connection_pool_size: u32,
     /// Commitment level for transactions
-    #[cfg(feature = "solana-engine")]
-    pub commitment_level: CommitmentLevel,
-    #[cfg(not(feature = "solana-engine"))]
     pub commitment_level: CommitmentLevel,
 }
 
@@ -187,10 +186,7 @@ impl Default for SolanaConnectionConfig {
             request_timeout: Duration::from_secs(30),
             health_check_interval: Duration::from_secs(10),
             connection_pool_size: 10,
-            #[cfg(feature = "solana-engine")]
-            commitment_level: CommitmentLevel::Confirmed,
-            #[cfg(not(feature = "solana-engine"))]
-            commitment_level: CommitmentLevel::Confirmed,
+            commitment_level: CommitmentLevel::Processed,
         }
     }
 }
@@ -203,8 +199,7 @@ impl SolanaConnectionConfig {
         request_timeout: Duration,
         health_check_interval: Duration,
         connection_pool_size: u32,
-        #[cfg(feature = "solana-engine")] commitment_level: CommitmentLevel,
-        #[cfg(not(feature = "solana-engine"))] commitment_level: CommitmentLevel,
+        commitment_level: CommitmentLevel,
     ) -> Self {
         Self {
             max_retries,
@@ -302,11 +297,13 @@ mod tests {
         assert_eq!(config.ticks_per_slot, 2);
         assert!(config.deterministic);
         assert!(config.reset);
+        assert_eq!(config.tick_ipc_path, DEFAULT_TICK_IPC_PATH);
     }
 
     #[test]
     fn test_solana_config_builder() {
         let custom_ledger_path = PathBuf::from("/tmp/custom_ledger");
+        let custom_ipc_path = "/tmp/custom-validator.sock";
 
         let config = SolanaConfig::builder()
             .gossip_port(2048)
@@ -315,6 +312,7 @@ mod tests {
             .ticks_per_slot(4)
             .deterministic(false)
             .reset(false)
+            .tick_ipc_path(custom_ipc_path)
             .build();
 
         assert_eq!(config.gossip_port, 2048);
@@ -323,6 +321,7 @@ mod tests {
         assert_eq!(config.ticks_per_slot, 4);
         assert!(!config.deterministic);
         assert!(!config.reset);
+        assert_eq!(config.tick_ipc_path, custom_ipc_path);
     }
 
     #[test]
