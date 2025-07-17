@@ -148,9 +148,10 @@ impl RedisLockManager {
     pub async fn new(redis_url: &str, key_prefix: String) -> AccountMappingResult<Self> {
         use redis_crate::AsyncCommands;
 
-        let client = redis_crate::Client::open(redis_url).map_err(|e| AccountMappingError::Internal {
-            message: format!("Failed to create Redis client: {}", e),
-        })?;
+        let client =
+            redis_crate::Client::open(redis_url).map_err(|e| AccountMappingError::Internal {
+                message: format!("Failed to create Redis client: {}", e),
+            })?;
 
         let connection =
             client

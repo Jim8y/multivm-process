@@ -726,7 +726,9 @@ impl SolanaEngine {
     }
 
     /// 获取全局 mempool 的引用
-    pub fn get_mempool(&self) -> std::sync::Arc<tokio::sync::RwLock<crate::mempool::SolanaMempool>> {
+    pub fn get_mempool(
+        &self,
+    ) -> std::sync::Arc<tokio::sync::RwLock<crate::mempool::SolanaMempool>> {
         GLOBAL_MEMPOOL.clone()
     }
 

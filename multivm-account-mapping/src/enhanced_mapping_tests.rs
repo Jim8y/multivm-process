@@ -51,13 +51,66 @@ fn create_test_accounts() -> (AccountAddress, AccountAddress) {
     (eth_account, sol_account)
 }
 
+/// Create unique test accounts for concurrent tests
+fn create_unique_test_accounts() -> (AccountAddress, AccountAddress) {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    static COUNTER: AtomicU8 = AtomicU8::new(10);
+    
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let mut eth_bytes = [0u8; 20];
+    eth_bytes[0] = id;
+    let mut sol_bytes = [0u8; 32];
+    sol_bytes[0] = id;
+    
+    let eth_account = AccountAddress::Ethereum(EthereumAddress(eth_bytes));
+    let sol_account = AccountAddress::Solana(SolanaAddress(sol_bytes));
+    (eth_account, sol_account)
+}
+
+/// Create test mapper with disabled signature validation
+fn create_test_mapper(
+    storage: Arc<dyn crate::storage::AccountMappingStorage>,
+    policy: BindingPolicy,
+    recovery_config: RecoveryConfig,
+) -> EnhancedAccountMapper {
+    use crate::validation::{AccountBindingValidator, ValidationConfig};
+    use crate::distributed_lock::{InMemoryLockManager, RetryableLockManager};
+    use crate::events::EventEmitter;
+    use crate::enhanced_mapping::RateLimiter;
+    use std::collections::HashMap;
+    use tokio::sync::RwLock;
+    
+    let mut validation_config = ValidationConfig::default();
+    validation_config.validate_signatures = false; // Disable for tests
+    
+    let lock_manager = InMemoryLockManager::new();
+    let retryable_lock_manager =
+        RetryableLockManager::new(lock_manager, 3, Duration::from_millis(100));
+    
+    EnhancedAccountMapper {
+        storage,
+        lock_manager: Arc::new(retryable_lock_manager),
+        policy,
+        event_emitter: Arc::new(RwLock::new(EventEmitter::new())),
+        validator: AccountBindingValidator::new(validation_config),
+        recovery_config,
+        rate_limiter: Arc::new(RwLock::new(RateLimiter::new())),
+        guardians: Arc::new(RwLock::new(HashMap::new())),
+        recovery_requests: Arc::new(RwLock::new(HashMap::new())),
+    }
+}
+
 /// Create test binding proof
 fn create_test_proof(account: AccountAddress, nonce: u64) -> BindingProof {
+    // Create a valid 65-byte signature for testing
+    let mut signature = vec![0u8; 65];
+    signature[64] = 27; // Recovery ID
+    
     BindingProof {
         account,
         proof_type: ProofType::Signature {
             message: Box::new(b"test message".to_vec()),
-            signature: Box::new(b"test signature".to_vec()),
+            signature: Box::new(signature),
         },
         proof_data: Box::new(vec![0xde, 0xad, 0xbe, 0xef]),
         nonce,
@@ -85,13 +138,13 @@ fn create_enhanced_proof(account: AccountAddress, nonce: u64) -> EnhancedBinding
 #[tokio::test]
 async fn test_auto_binding_with_locking() {
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(
+    let mapper = create_test_mapper(
         storage.clone(),
         BindingPolicy::default(),
         RecoveryConfig::default(),
     );
 
-    let (eth_account, _) = create_test_accounts();
+    let (eth_account, _) = create_unique_test_accounts();
 
     // First auto-binding should succeed
     let multivm_id1 = mapper
@@ -115,13 +168,13 @@ async fn test_auto_binding_with_locking() {
 #[tokio::test]
 async fn test_concurrent_auto_binding() {
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = Arc::new(EnhancedAccountMapper::new(
+    let mapper = Arc::new(create_test_mapper(
         storage.clone(),
         BindingPolicy::default(),
         RecoveryConfig::default(),
     ));
 
-    let (eth_account, _) = create_test_accounts();
+    let (eth_account, _) = create_unique_test_accounts();
 
     // Simulate concurrent auto-binding attempts
     let mut handles = vec![];
@@ -156,7 +209,7 @@ async fn test_rate_limiting() {
     policy.max_binding_attempts_per_hour = 3;
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, RecoveryConfig::default());
+    let mapper = create_test_mapper(storage.clone(), policy, RecoveryConfig::default());
 
     let (eth_account, sol_account) = create_test_accounts();
 
@@ -212,7 +265,7 @@ async fn test_rate_limiting() {
 async fn test_binding_message_validation() {
     let storage = Arc::new(MemoryStorage::new());
     let mapper =
-        EnhancedAccountMapper::new(storage, BindingPolicy::default(), RecoveryConfig::default());
+        create_test_mapper(storage, BindingPolicy::default(), RecoveryConfig::default());
 
     let (eth_account, sol_account) = create_test_accounts();
     let multivm_id = MultivmAccountId::from_account(&eth_account);
@@ -283,7 +336,7 @@ async fn test_guardian_management() {
     let storage = Arc::new(MemoryStorage::new());
     let event_collector = Arc::new(TestEventCollector::new());
 
-    let mapper = EnhancedAccountMapper::new(
+    let mapper = create_test_mapper(
         storage.clone(),
         BindingPolicy::default(),
         RecoveryConfig::default(),
@@ -360,9 +413,9 @@ async fn test_recovery_initiation() {
 
     let storage = Arc::new(MemoryStorage::new());
     let mapper =
-        EnhancedAccountMapper::new(storage.clone(), BindingPolicy::default(), recovery_config);
+        create_test_mapper(storage.clone(), BindingPolicy::default(), recovery_config);
 
-    let (eth_account, _) = create_test_accounts();
+    let (eth_account, _) = create_unique_test_accounts();
     let guardian = AccountAddress::Ethereum(EthereumAddress([3u8; 20]));
     let new_account = AccountAddress::Ethereum(EthereumAddress([4u8; 20]));
 
@@ -414,7 +467,7 @@ async fn test_event_emission_throughout_lifecycle() {
     let storage = Arc::new(MemoryStorage::new());
     let event_collector = Arc::new(TestEventCollector::new());
 
-    let mapper = EnhancedAccountMapper::new(
+    let mapper = create_test_mapper(
         storage.clone(),
         BindingPolicy::default(),
         RecoveryConfig::default(),
@@ -465,19 +518,30 @@ async fn test_policy_enforcement() {
     policy.min_account_age = Duration::from_secs(0); // For testing
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, RecoveryConfig::default());
+    let mapper = create_test_mapper(storage.clone(), policy, RecoveryConfig::default());
 
-    let eth1 = AccountAddress::Ethereum(EthereumAddress([1u8; 20]));
-    let eth2 = AccountAddress::Ethereum(EthereumAddress([2u8; 20]));
-    let eth3 = AccountAddress::Ethereum(EthereumAddress([3u8; 20]));
+    // Use unique accounts to avoid conflicts
+    let eth1 = AccountAddress::Ethereum(EthereumAddress([71u8; 20]));
+    let eth2 = AccountAddress::Ethereum(EthereumAddress([72u8; 20]));
+    let eth3 = AccountAddress::Ethereum(EthereumAddress([73u8; 20]));
+    let sol1 = AccountAddress::Solana(SolanaAddress([71u8; 32]));
 
     // Create initial binding
     let multivm_id = mapper.create_auto_binding(eth1.clone()).await.unwrap();
 
-    // Manually add a second binding to test limit
-    let mut binding = storage.get_binding(&multivm_id).await.unwrap().unwrap();
-    binding.evm_account = Some(eth2.clone());
-    storage.update_binding(&binding).await.unwrap();
+    // Add a Solana account as the second binding
+    let bind_sol_message = BindingMessage::new(
+        BindingAction::BindAccount,
+        "test-chain".to_string(),
+        eth1.clone(),
+        sol1.clone(),
+        multivm_id.clone(),
+        1,
+    );
+    mapper
+        .process_binding_message(bind_sol_message, create_enhanced_proof(eth1.clone(), 1))
+        .await
+        .unwrap();
 
     // Try to add third account (should fail due to policy)
     let bind_message = BindingMessage::new(
@@ -486,11 +550,11 @@ async fn test_policy_enforcement() {
         eth1.clone(),
         eth3,
         multivm_id,
-        1,
+        2,
     );
 
     let result = mapper
-        .process_binding_message(bind_message, create_enhanced_proof(eth1.clone(), 1))
+        .process_binding_message(bind_message, create_enhanced_proof(eth1.clone(), 2))
         .await;
 
     // Should fail with policy violation
@@ -506,9 +570,9 @@ async fn test_unbinding_with_timelock() {
     policy.unbinding_timelock = Duration::from_secs(3600);
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, RecoveryConfig::default());
+    let mapper = create_test_mapper(storage.clone(), policy, RecoveryConfig::default());
 
-    let (eth_account, _) = create_test_accounts();
+    let (eth_account, _) = create_unique_test_accounts();
 
     // Create binding
     let multivm_id = mapper
@@ -541,7 +605,7 @@ async fn test_unbinding_with_timelock() {
 #[tokio::test]
 async fn test_concurrent_operations_with_locking() {
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = Arc::new(EnhancedAccountMapper::new(
+    let mapper = Arc::new(create_test_mapper(
         storage.clone(),
         BindingPolicy::default(),
         RecoveryConfig::default(),

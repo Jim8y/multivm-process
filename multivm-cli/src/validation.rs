@@ -123,6 +123,7 @@ pub fn validate_port(port: u16, purpose: &str) -> MultivmResult<u16> {
 }
 
 /// Validate block generation interval
+#[allow(dead_code)]
 pub fn validate_block_interval(interval_ms: u64) -> MultivmResult<u64> {
     match interval_ms {
         0 => Err(MultivmError::Configuration {

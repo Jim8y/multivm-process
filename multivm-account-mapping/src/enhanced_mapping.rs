@@ -600,7 +600,8 @@ mod tests {
             RecoveryConfig::default(),
         );
 
-        let account = AccountAddress::Ethereum(crate::address::EthereumAddress([1u8; 20]));
+        // Use unique account to avoid lock contention with other tests
+        let account = AccountAddress::Ethereum(crate::address::EthereumAddress([99u8; 20]));
         let multivm_id = mapper.create_auto_binding(account.clone()).await.unwrap();
 
         // Should be idempotent
@@ -611,7 +612,7 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiting() {
         let mut limiter = RateLimiter::new();
-        let account = AccountAddress::Ethereum(crate::address::EthereumAddress([1u8; 20]));
+        let account = AccountAddress::Ethereum(crate::address::EthereumAddress([98u8; 20]));
 
         // Should allow up to limit
         for _ in 0..10 {
