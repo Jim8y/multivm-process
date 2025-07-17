@@ -139,16 +139,16 @@ impl DistributedLockManager for InMemoryLockManager {
 /// Redis-based distributed lock manager (production)
 #[cfg(feature = "redis")]
 pub struct RedisLockManager {
-    client: redis::aio::ConnectionManager,
+    client: redis_crate::aio::ConnectionManager,
     key_prefix: String,
 }
 
 #[cfg(feature = "redis")]
 impl RedisLockManager {
     pub async fn new(redis_url: &str, key_prefix: String) -> AccountMappingResult<Self> {
-        use redis::AsyncCommands;
+        use redis_crate::AsyncCommands;
 
-        let client = redis::Client::open(redis_url).map_err(|e| AccountMappingError::Internal {
+        let client = redis_crate::Client::open(redis_url).map_err(|e| AccountMappingError::Internal {
             message: format!("Failed to create Redis client: {}", e),
         })?;
 
@@ -175,7 +175,7 @@ impl RedisLockManager {
 #[async_trait::async_trait]
 impl DistributedLockManager for RedisLockManager {
     async fn acquire_lock(&self, key: &str, ttl: Duration) -> AccountMappingResult<LockGuard> {
-        use redis::AsyncCommands;
+        use redis_crate::AsyncCommands;
 
         let lock_key = self.make_key(key);
         let lock_id = format!("{}-{}", uuid::Uuid::new_v4(), key);
@@ -187,9 +187,9 @@ impl DistributedLockManager for RedisLockManager {
             .set_options(
                 &lock_key,
                 &lock_id,
-                redis::SetOptions::default()
-                    .conditional_set(redis::ExistenceCheck::NX)
-                    .with_expiration(redis::SetExpiry::PX(ttl_ms)),
+                redis_crate::SetOptions::default()
+                    .conditional_set(redis_crate::ExistenceCheck::NX)
+                    .with_expiration(redis_crate::SetExpiry::PX(ttl_ms)),
             )
             .await
             .map_err(|e| AccountMappingError::Internal {
@@ -212,7 +212,7 @@ impl DistributedLockManager for RedisLockManager {
     }
 
     async fn release_lock(&self, lock: LockGuard) -> AccountMappingResult<()> {
-        use redis::AsyncCommands;
+        use redis_crate::AsyncCommands;
 
         let lock_key = self.make_key(&lock.key);
         let mut conn = self.client.clone();
@@ -226,7 +226,7 @@ impl DistributedLockManager for RedisLockManager {
             end
         "#;
 
-        let result: i32 = redis::Script::new(script)
+        let result: i32 = redis_crate::Script::new(script)
             .key(&lock_key)
             .arg(&lock.lock_id)
             .invoke_async(&mut conn)
@@ -244,7 +244,7 @@ impl DistributedLockManager for RedisLockManager {
     }
 
     async fn is_locked(&self, key: &str) -> AccountMappingResult<bool> {
-        use redis::AsyncCommands;
+        use redis_crate::AsyncCommands;
 
         let lock_key = self.make_key(key);
         let mut conn = self.client.clone();
