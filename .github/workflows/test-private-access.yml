@@ -20,7 +20,7 @@ permissions:
 jobs:
   test-ssh-access:
     name: Test SSH Access
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     
     steps:

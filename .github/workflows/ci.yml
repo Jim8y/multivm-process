@@ -36,36 +36,12 @@ jobs:
   # Complete build job (no testing)
   build:
     name: Build Complete Workspace
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     
     steps:
-    - name: Clean workspace (self-hosted runners)
-      run: |
-        # Clean any previous build artifacts for self-hosted runners
-        if [ -d "target" ]; then
-          echo "Cleaning previous build artifacts..."
-          rm -rf target
-        fi
-        
-        # Clean any leftover SSH keys or config
-        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
-        
-        # Clean cargo cache if it's too large (>5GB)
-        if [ -d ~/.cargo ]; then
-          CARGO_SIZE=$(du -s ~/.cargo 2>/dev/null | cut -f1)
-          if [ "$CARGO_SIZE" -gt 5242880 ]; then  # 5GB in KB
-            echo "Cargo cache is large ($(($CARGO_SIZE / 1024 / 1024))GB), cleaning..."
-            rm -rf ~/.cargo/registry/cache/*
-            rm -rf ~/.cargo/git/db/*
-          fi
-        fi
-    
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        # Clean checkout for self-hosted runners
-        clean: true
     
     - name: Setup SSH authentication
       uses: ./.github/actions/setup-ssh
@@ -216,21 +192,13 @@ jobs:
   # Security audit
   security-audit:
     name: Security Audit
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     timeout-minutes: 60
     
     steps:
-    - name: Clean workspace (self-hosted runners)
-      run: |
-        # Clean any previous build artifacts
-        rm -rf target || true
-        rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub || true
-    
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        clean: true
     
     - name: Setup SSH authentication
       uses: ./.github/actions/setup-ssh

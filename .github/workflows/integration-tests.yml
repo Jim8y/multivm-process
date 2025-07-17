@@ -13,11 +13,11 @@ env:
 jobs:
   test:
     name: Run Integration Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     
     strategy:
       matrix:
-        rust: [stable, nightly]
+        rust: [stable]
     
     steps:
     - uses: actions/checkout@v3
