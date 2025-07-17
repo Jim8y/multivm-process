@@ -13,7 +13,7 @@ env:
 jobs:
   test:
     name: Run Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     strategy:
       matrix:
