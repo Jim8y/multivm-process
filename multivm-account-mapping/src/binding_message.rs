@@ -79,29 +79,29 @@ impl BindingMessage {
     pub fn to_sign_bytes(&self) -> Vec<u8> {
         // Create a deterministic byte representation
         let mut bytes = Vec::new();
-        
+
         // Add structured data prefix (similar to EIP-712)
         bytes.extend_from_slice(b"\x19\x01");
-        
+
         // Add domain separator
         bytes.extend_from_slice(&self.domain_separator());
-        
+
         // Add message hash
         bytes.extend_from_slice(&self.message_hash());
-        
+
         bytes
     }
 
     /// Create domain separator for the message
     fn domain_separator(&self) -> [u8; 32] {
         use blake3::Hasher;
-        
+
         let mut hasher = Hasher::new();
         hasher.update(b"MultiVM Account Binding");
         hasher.update(b"1"); // Version
         hasher.update(self.chain_id.as_bytes());
         hasher.update(b"multivm-account-binding");
-        
+
         let hash = hasher.finalize();
         let mut result = [0u8; 32];
         result.copy_from_slice(hash.as_bytes());
@@ -111,27 +111,27 @@ impl BindingMessage {
     /// Create message hash
     fn message_hash(&self) -> [u8; 32] {
         use blake3::Hasher;
-        
+
         let mut hasher = Hasher::new();
-        
+
         // Hash action
         hasher.update(&self.action_to_bytes());
-        
+
         // Hash addresses
         hasher.update(&self.source.to_bytes());
         hasher.update(&self.target.to_bytes());
         hasher.update(self.multivm_id.as_bytes());
-        
+
         // Hash numeric values
         hasher.update(&self.nonce.to_le_bytes());
         hasher.update(&self.timestamp.to_le_bytes());
-        
+
         if let Some(expires) = self.expires_at {
             hasher.update(&expires.to_le_bytes());
         }
-        
+
         hasher.update(&[self.version]);
-        
+
         let hash = hasher.finalize();
         let mut result = [0u8; 32];
         result.copy_from_slice(hash.as_bytes());
@@ -273,21 +273,31 @@ impl BindingMessageBuilder {
     }
 
     pub fn build(self) -> AccountMappingResult<BindingMessage> {
-        let action = self.action.ok_or(crate::error::AccountMappingError::InvalidInput {
-            reason: "Action is required".to_string(),
-        })?;
-        let chain_id = self.chain_id.ok_or(crate::error::AccountMappingError::InvalidInput {
-            reason: "Chain ID is required".to_string(),
-        })?;
-        let source = self.source.ok_or(crate::error::AccountMappingError::InvalidInput {
-            reason: "Source account is required".to_string(),
-        })?;
-        let target = self.target.ok_or(crate::error::AccountMappingError::InvalidInput {
-            reason: "Target account is required".to_string(),
-        })?;
-        let multivm_id = self.multivm_id.ok_or(crate::error::AccountMappingError::InvalidInput {
-            reason: "MultiVM ID is required".to_string(),
-        })?;
+        let action = self
+            .action
+            .ok_or(crate::error::AccountMappingError::InvalidInput {
+                reason: "Action is required".to_string(),
+            })?;
+        let chain_id = self
+            .chain_id
+            .ok_or(crate::error::AccountMappingError::InvalidInput {
+                reason: "Chain ID is required".to_string(),
+            })?;
+        let source = self
+            .source
+            .ok_or(crate::error::AccountMappingError::InvalidInput {
+                reason: "Source account is required".to_string(),
+            })?;
+        let target = self
+            .target
+            .ok_or(crate::error::AccountMappingError::InvalidInput {
+                reason: "Target account is required".to_string(),
+            })?;
+        let multivm_id =
+            self.multivm_id
+                .ok_or(crate::error::AccountMappingError::InvalidInput {
+                    reason: "MultiVM ID is required".to_string(),
+                })?;
         let nonce = self.nonce.unwrap_or(0);
 
         let mut message = BindingMessage::new(action, chain_id, source, target, multivm_id, nonce);

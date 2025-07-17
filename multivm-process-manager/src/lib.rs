@@ -33,11 +33,11 @@ mod process_tests;
 mod resource_monitor_tests;
 
 // Re-export key types
+pub use block_router::BlockRouter;
+pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};
 pub use coordinator::{CoordinatorConfig, MultivmCoordinator};
 pub use health::HealthMonitor;
 pub use manager::MultivmProcessManager;
-pub use block_router::BlockRouter;
-pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};
 pub use process::ProcessHandle;
 pub use zombie_reaper::{ZombieReaper, ZombieReaperConfig, ZombieReaperStats};
 

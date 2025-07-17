@@ -16,12 +16,12 @@ pub use multivm_common::{
 };
 
 // Core engine modules (always available)
+pub mod config_integration;
 pub mod engine;
 pub mod engine_api;
 pub mod ipc_client;
 pub mod rpc_client;
 pub mod rpc_server;
-pub mod config_integration;
 
 // Real reth integration modules (only when real-node feature is enabled)
 #[cfg(feature = "real-node")]
@@ -40,4 +40,4 @@ pub use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256, U256};
 pub use engine::{RethBlock, RethExecutionEngine, RethExecutionResult};
 
 // Re-export configuration types
-pub use config_integration::{RethMultiVMConfig, load_configuration};
+pub use config_integration::{load_configuration, RethMultiVMConfig};

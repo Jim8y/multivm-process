@@ -230,8 +230,11 @@ impl MalachiteValidator {
         // BFT Rule: preserve locked and valid values across rounds for safety
         debug!(
             "Advanced from round {} to round {} at height {} (locked: {:?}, valid: {:?})",
-            old_round, state.current_round, state.current_height,
-            state.locked_value, state.valid_value
+            old_round,
+            state.current_round,
+            state.current_height,
+            state.locked_value,
+            state.valid_value
         );
         Ok(())
     }
@@ -331,7 +334,9 @@ impl MalachiteValidator {
         }
 
         // BFT Rule: only accept prevotes for current round
-        if state.current_phase != ConsensusPhase::Prevote && state.current_phase != ConsensusPhase::Propose {
+        if state.current_phase != ConsensusPhase::Prevote
+            && state.current_phase != ConsensusPhase::Propose
+        {
             debug!("Ignoring prevote in phase {:?}", state.current_phase);
             return Ok(());
         }
@@ -348,11 +353,11 @@ impl MalachiteValidator {
                 "Achieved +2/3 prevotes for block {}, moving to precommit phase",
                 majority_value
             );
-            
+
             // BFT Rule: update valid value and round
             state.valid_value = Some(majority_value.clone());
             state.valid_round = Some(state.current_round);
-            
+
             state.current_phase = ConsensusPhase::Precommit;
         }
 
@@ -388,16 +393,17 @@ impl MalachiteValidator {
         );
 
         // Check if we have +2/3 precommits for any value
-        if let Some(majority_value) = self.get_majority_value(&state.precommits, &state.validators) {
+        if let Some(majority_value) = self.get_majority_value(&state.precommits, &state.validators)
+        {
             info!(
                 "Achieved +2/3 precommits for block {}, ready to commit",
                 majority_value
             );
-            
+
             // BFT Rule: lock on this value and round
             state.locked_value = Some(majority_value.clone());
             state.locked_round = Some(state.current_round);
-            
+
             state.current_phase = ConsensusPhase::Commit;
         }
 
@@ -510,12 +516,12 @@ impl MalachiteValidator {
             let view_change_message = view_change_manager
                 .start_view_change(height, new_round)
                 .await?;
-            
+
             info!(
                 "Broadcasting view change message for height {} round {} (locked: {:?}, valid: {:?})",
                 height, new_round, locked_value, valid_value
             );
-            
+
             // In production, this message would be broadcast to other validators
             // The message would include our locked/valid values for BFT safety
         }
@@ -601,7 +607,7 @@ impl MalachiteValidator {
         signature: Vec<u8>,
     ) -> Result<bool, ConsensusError> {
         let current_state = self.state.read().await;
-        
+
         // BFT Rule: ignore view change messages for old heights
         if height < current_state.current_height {
             debug!(
@@ -610,16 +616,18 @@ impl MalachiteValidator {
             );
             return Ok(false);
         }
-        
+
         // BFT Rule: ignore view change messages for old rounds at same height
-        if height == current_state.current_height && new_round.as_u32() <= current_state.current_round.as_u32() {
+        if height == current_state.current_height
+            && new_round.as_u32() <= current_state.current_round.as_u32()
+        {
             debug!(
                 "Ignoring view change for old/current round {} (current: {})",
                 new_round, current_state.current_round
             );
             return Ok(false);
         }
-        
+
         drop(current_state);
 
         if let Some(view_change_manager) = &self.view_change_manager {
@@ -638,14 +646,14 @@ impl MalachiteValidator {
                 // BFT Rule: update our state while preserving locked/valid values for safety
                 let mut state = self.state.write().await;
                 let old_round = state.current_round;
-                
+
                 state.current_round = new_round;
                 state.current_phase = ConsensusPhase::Propose;
                 state.prevotes.clear();
                 state.precommits.clear();
                 state.proposed_block = None;
                 state.round_start_time = Some(Instant::now());
-                
+
                 // BFT Rule: only clear locked/valid values if advancing to new height
                 if height > state.current_height {
                     state.current_height = height;
@@ -654,7 +662,7 @@ impl MalachiteValidator {
                     state.valid_value = None;
                     state.valid_round = None;
                 }
-                
+
                 info!(
                     "Advanced from round {} to round {} via view change (locked: {:?}, valid: {:?})",
                     old_round, new_round, state.locked_value, state.valid_value

@@ -55,9 +55,9 @@ impl ProcessHandle {
         ipc_config: &IpcConfig,
     ) -> MultivmResult<Self> {
         // Use real solana-test-validator or fall back to mock for testing
-        let binary_path = get_real_solana_binary_path()
-            .or_else(|_| get_engine_binary_path("mock-solana"))?;
-        
+        let binary_path =
+            get_real_solana_binary_path().or_else(|_| get_engine_binary_path("mock-solana"))?;
+
         // Create data directory
         let data_dir = PathBuf::from(&config.rpc_url.replace("http://localhost:", "/tmp/solana_"));
         std::fs::create_dir_all(&data_dir).map_err(|e| MultivmError::Configuration {
@@ -135,11 +135,15 @@ impl ProcessHandle {
         ipc_config: &IpcConfig,
     ) -> MultivmResult<Self> {
         // Use real reth binary or fall back to mock for testing
-        let binary_path = get_real_reth_binary_path()
-            .or_else(|_| get_engine_binary_path("mock-reth"))?;
-        
+        let binary_path =
+            get_real_reth_binary_path().or_else(|_| get_engine_binary_path("mock-reth"))?;
+
         // Create data directory
-        let data_dir = PathBuf::from(&config.rpc_url.replace("http://localhost:", "/tmp/ethereum_"));
+        let data_dir = PathBuf::from(
+            &config
+                .rpc_url
+                .replace("http://localhost:", "/tmp/ethereum_"),
+        );
         std::fs::create_dir_all(&data_dir).map_err(|e| MultivmError::Configuration {
             component: "ethereum-engine".to_string(),
             message: format!("Failed to create data directory: {e}"),
@@ -150,10 +154,12 @@ impl ProcessHandle {
         let jwt_secret_path = data_dir.join("jwt.hex");
         if !jwt_secret_path.exists() {
             let jwt_secret = generate_jwt_secret();
-            std::fs::write(&jwt_secret_path, jwt_secret).map_err(|e| MultivmError::Configuration {
-                component: "ethereum-engine".to_string(),
-                message: format!("Failed to write JWT secret: {e}"),
-                validation_errors: None,
+            std::fs::write(&jwt_secret_path, jwt_secret).map_err(|e| {
+                MultivmError::Configuration {
+                    component: "ethereum-engine".to_string(),
+                    message: format!("Failed to write JWT secret: {e}"),
+                    validation_errors: None,
+                }
             })?;
         }
 
@@ -889,13 +895,13 @@ fn get_real_reth_binary_path() -> MultivmResult<PathBuf> {
     // Try common installation paths for Reth
     let possible_paths = vec![
         "/usr/local/bin/reth",
-        "/usr/bin/reth", 
+        "/usr/bin/reth",
         "/opt/reth/bin/reth",
         "./target/release/reth",
         "../reth/target/release/reth",
         "reth", // Try PATH
     ];
-    
+
     for path in possible_paths {
         let path_buf = PathBuf::from(path);
         if path_buf.exists() || (path == "reth" && which::which("reth").is_ok()) {
@@ -903,7 +909,7 @@ fn get_real_reth_binary_path() -> MultivmResult<PathBuf> {
             return Ok(path_buf);
         }
     }
-    
+
     Err(MultivmError::Configuration {
         component: "reth-binary".to_string(),
         message: "Reth binary not found. Please install Reth or set RETH_BINARY_PATH environment variable.".to_string(),
@@ -921,7 +927,7 @@ fn get_real_solana_binary_path() -> MultivmResult<PathBuf> {
         "./solana-test-validator",
         "solana-test-validator", // Try PATH
     ];
-    
+
     for path in possible_paths {
         let expanded_path = if path.starts_with("~/") {
             if let Some(home) = std::env::var_os("HOME") {
@@ -932,16 +938,22 @@ fn get_real_solana_binary_path() -> MultivmResult<PathBuf> {
         } else {
             PathBuf::from(path)
         };
-        
-        if expanded_path.exists() || (path == "solana-test-validator" && which::which("solana-test-validator").is_ok()) {
-            info!("Found Solana test validator binary at: {}", expanded_path.display());
+
+        if expanded_path.exists()
+            || (path == "solana-test-validator" && which::which("solana-test-validator").is_ok())
+        {
+            info!(
+                "Found Solana test validator binary at: {}",
+                expanded_path.display()
+            );
             return Ok(expanded_path);
         }
     }
-    
+
     Err(MultivmError::Configuration {
         component: "solana-binary".to_string(),
-        message: "Solana test validator binary not found. Please install Solana CLI tools.".to_string(),
+        message: "Solana test validator binary not found. Please install Solana CLI tools."
+            .to_string(),
         validation_errors: None,
     })
 }

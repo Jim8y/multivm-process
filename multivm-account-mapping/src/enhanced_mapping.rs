@@ -3,7 +3,9 @@
 use crate::{
     address::{AccountAddress, MultivmAccountId},
     binding_message::{BindingAction, BindingMessage},
-    binding_policy::{BindingPolicy, EnhancedBindingProof, Guardian, RecoveryConfig, RecoveryRequest},
+    binding_policy::{
+        BindingPolicy, EnhancedBindingProof, Guardian, RecoveryConfig, RecoveryRequest,
+    },
     distributed_lock::{DistributedLockManager, InMemoryLockManager, RetryableLockManager},
     error::{AccountMappingError, AccountMappingResult},
     events::{AccountBindingEvent, EventEmitter},
@@ -46,20 +48,15 @@ impl EnhancedAccountMapper {
         recovery_config: RecoveryConfig,
     ) -> Self {
         let lock_manager = InMemoryLockManager::new();
-        let retryable_lock_manager = RetryableLockManager::new(
-            lock_manager,
-            3,
-            Duration::from_millis(100),
-        );
+        let retryable_lock_manager =
+            RetryableLockManager::new(lock_manager, 3, Duration::from_millis(100));
 
         Self {
             storage,
             lock_manager: Arc::new(retryable_lock_manager),
             policy,
             event_emitter: Arc::new(RwLock::new(EventEmitter::new())),
-            validator: AccountBindingValidator::new(
-                crate::validation::ValidationConfig::default()
-            ),
+            validator: AccountBindingValidator::new(crate::validation::ValidationConfig::default()),
             recovery_config,
             rate_limiter: Arc::new(RwLock::new(RateLimiter::new())),
             guardians: Arc::new(RwLock::new(HashMap::new())),
@@ -90,21 +87,11 @@ impl EnhancedAccountMapper {
         self.check_rate_limit(&message.source).await?;
 
         match message.action {
-            BindingAction::BindAccount => {
-                self.process_bind_account(message, proof).await
-            }
-            BindingAction::UnbindAccount => {
-                self.process_unbind_account(message, proof).await
-            }
-            BindingAction::InitiateRecovery => {
-                self.process_initiate_recovery(message, proof).await
-            }
-            BindingAction::AddGuardian => {
-                self.process_add_guardian(message, proof).await
-            }
-            BindingAction::RemoveGuardian => {
-                self.process_remove_guardian(message, proof).await
-            }
+            BindingAction::BindAccount => self.process_bind_account(message, proof).await,
+            BindingAction::UnbindAccount => self.process_unbind_account(message, proof).await,
+            BindingAction::InitiateRecovery => self.process_initiate_recovery(message, proof).await,
+            BindingAction::AddGuardian => self.process_add_guardian(message, proof).await,
+            BindingAction::RemoveGuardian => self.process_remove_guardian(message, proof).await,
             _ => Err(AccountMappingError::UnsupportedOperation {
                 operation: format!("{:?}", message.action),
             }),
@@ -118,50 +105,53 @@ impl EnhancedAccountMapper {
         proof: EnhancedBindingProof,
     ) -> AccountMappingResult<()> {
         let lock_key = format!("bind:{}", message.multivm_id);
-        
-        let _lock = self.lock_manager.acquire_lock(&lock_key, Duration::from_secs(30)).await?;
-        
+
+        let _lock = self
+            .lock_manager
+            .acquire_lock(&lock_key, Duration::from_secs(30))
+            .await?;
+
         {
-                    // Validate proof
-                    self.validator.validate_proof(&proof.proof)?;
+            // Validate proof
+            self.validator.validate_proof(&proof.proof)?;
 
-                    // Check policy
-                    let binding = self.storage.get_binding(&message.multivm_id).await?;
-                    let bound_accounts = if let Some(ref b) = binding {
-                        b.get_all_accounts().len()
-                    } else {
-                        0
-                    };
+            // Check policy
+            let binding = self.storage.get_binding(&message.multivm_id).await?;
+            let bound_accounts = if let Some(ref b) = binding {
+                b.get_all_accounts().len()
+            } else {
+                0
+            };
 
-                    self.policy.validate_binding(
-                        bound_accounts,
-                        binding.as_ref().map(|b| b.created_at),
-                        SystemTime::now() - Duration::from_secs(86400), // Example account age
-                        0, // Recent attempts would be tracked separately
-                    )?;
+            self.policy.validate_binding(
+                bound_accounts,
+                binding.as_ref().map(|b| b.created_at),
+                SystemTime::now() - Duration::from_secs(86400), // Example account age
+                0, // Recent attempts would be tracked separately
+            )?;
 
-                    // Perform the binding
-                    if let Some(mut binding) = binding {
-                        binding.add_cross_binding(message.target.clone(), proof.proof)?;
-                        self.storage.update_binding(&binding).await?;
-                    } else {
-                        // This shouldn't happen with proper auto-binding
-                        return Err(AccountMappingError::InvalidBinding {
-                            reason: "MultiVM account does not exist".to_string(),
-                        });
-                    }
+            // Perform the binding
+            if let Some(mut binding) = binding {
+                binding.add_cross_binding(message.target.clone(), proof.proof)?;
+                self.storage.update_binding(&binding).await?;
+            } else {
+                // This shouldn't happen with proper auto-binding
+                return Err(AccountMappingError::InvalidBinding {
+                    reason: "MultiVM account does not exist".to_string(),
+                });
+            }
 
-                    // Emit event
-                    let event = AccountBindingEvent::CrossBindingAdded {
-                        source: message.source,
-                        target: message.target,
-                        multivm_id: message.multivm_id,
-                        proof_type: "signature".to_string(),
-                        timestamp: SystemTime::now(),
-                    };
-                    self.event_emitter.write().await.emit(event).await;
+            // Emit event
+            let event = AccountBindingEvent::CrossBindingAdded {
+                source: message.source,
+                target: message.target,
+                multivm_id: message.multivm_id,
+                proof_type: "signature".to_string(),
+                timestamp: SystemTime::now(),
+            };
+            self.event_emitter.write().await.emit(event).await;
 
-                    Ok(())
+            Ok(())
         }
     }
 
@@ -174,14 +164,20 @@ impl EnhancedAccountMapper {
         // Check if unbinding is allowed
         if self.policy.unbinding_timelock > Duration::from_secs(0) {
             // In production, this would check a timelock registry
-            warn!("Unbinding requires timelock of {:?}", self.policy.unbinding_timelock);
+            warn!(
+                "Unbinding requires timelock of {:?}",
+                self.policy.unbinding_timelock
+            );
         }
 
         // Validate authorization
         self.validator.validate_proof(&proof.proof)?;
 
         // Perform unbinding
-        let binding = self.storage.get_binding(&message.multivm_id).await?
+        let binding = self
+            .storage
+            .get_binding(&message.multivm_id)
+            .await?
             .ok_or_else(|| AccountMappingError::AccountNotFound {
                 address: message.multivm_id.to_string(),
             })?;
@@ -201,7 +197,10 @@ impl EnhancedAccountMapper {
 
         // Remove the account binding
         // Note: In production, this would create an unbinding request with timelock
-        info!("Unbinding request created for account: {:?}", message.target);
+        info!(
+            "Unbinding request created for account: {:?}",
+            message.target
+        );
 
         // Emit event
         let event = AccountBindingEvent::BindingRemoved {
@@ -232,12 +231,14 @@ impl EnhancedAccountMapper {
 
         // Check if requester is a guardian
         let guardians = self.guardians.read().await;
-        let account_guardians = guardians.get(&message.multivm_id)
-            .ok_or_else(|| AccountMappingError::RecoveryNotAllowed {
+        let account_guardians = guardians.get(&message.multivm_id).ok_or_else(|| {
+            AccountMappingError::RecoveryNotAllowed {
                 reason: "No guardians configured".to_string(),
-            })?;
+            }
+        })?;
 
-        let is_guardian = account_guardians.iter()
+        let is_guardian = account_guardians
+            .iter()
             .any(|g| g.address == message.source);
 
         if !is_guardian {
@@ -247,7 +248,9 @@ impl EnhancedAccountMapper {
         }
 
         // Create recovery request
-        let request_id = blake3::hash(message.to_sign_bytes().as_slice()).as_bytes().clone();
+        let request_id = blake3::hash(message.to_sign_bytes().as_slice())
+            .as_bytes()
+            .clone();
         let recovery_request = RecoveryRequest {
             multivm_account: message.multivm_id.clone(),
             new_account: message.target.clone(),
@@ -284,13 +287,16 @@ impl EnhancedAccountMapper {
         self.validator.validate_proof(&proof.proof)?;
 
         // Check if source owns the MultiVM account
-        let binding = self.storage.get_binding(&message.multivm_id).await?
+        let binding = self
+            .storage
+            .get_binding(&message.multivm_id)
+            .await?
             .ok_or_else(|| AccountMappingError::AccountNotFound {
                 address: message.multivm_id.to_string(),
             })?;
 
-        let authorized = binding.svm_account.as_ref() == Some(&message.source) ||
-                        binding.evm_account.as_ref() == Some(&message.source);
+        let authorized = binding.svm_account.as_ref() == Some(&message.source)
+            || binding.evm_account.as_ref() == Some(&message.source);
 
         if !authorized {
             return Err(AccountMappingError::InvalidBindingProof {
@@ -307,7 +313,8 @@ impl EnhancedAccountMapper {
         };
 
         let mut guardians = self.guardians.write().await;
-        guardians.entry(message.multivm_id.clone())
+        guardians
+            .entry(message.multivm_id.clone())
             .or_insert_with(Vec::new)
             .push(guardian);
 
@@ -331,13 +338,16 @@ impl EnhancedAccountMapper {
         // Similar to add_guardian but removes instead
         self.validator.validate_proof(&proof.proof)?;
 
-        let binding = self.storage.get_binding(&message.multivm_id).await?
+        let binding = self
+            .storage
+            .get_binding(&message.multivm_id)
+            .await?
             .ok_or_else(|| AccountMappingError::AccountNotFound {
                 address: message.multivm_id.to_string(),
             })?;
 
-        let authorized = binding.svm_account.as_ref() == Some(&message.source) ||
-                        binding.evm_account.as_ref() == Some(&message.source);
+        let authorized = binding.svm_account.as_ref() == Some(&message.source)
+            || binding.evm_account.as_ref() == Some(&message.source);
 
         if !authorized {
             return Err(AccountMappingError::InvalidBindingProof {
@@ -363,7 +373,7 @@ impl EnhancedAccountMapper {
     /// Check rate limiting
     async fn check_rate_limit(&self, account: &AccountAddress) -> AccountMappingResult<()> {
         let mut limiter = self.rate_limiter.write().await;
-        
+
         if !limiter.check_and_update(account, self.policy.max_binding_attempts_per_hour) {
             let event = AccountBindingEvent::RateLimitExceeded {
                 account: account.clone(),
@@ -389,8 +399,11 @@ impl EnhancedAccountMapper {
         let multivm_id = MultivmAccountId::from_account(&account);
         let lock_key = format!("auto_bind:{}", multivm_id);
 
-        let _lock = self.lock_manager.acquire_lock(&lock_key, Duration::from_secs(10)).await?;
-        
+        let _lock = self
+            .lock_manager
+            .acquire_lock(&lock_key, Duration::from_secs(10))
+            .await?;
+
         {
             // Check if already exists
             if let Ok(Some(_)) = self.storage.get_binding(&multivm_id).await {
@@ -431,8 +444,11 @@ impl RateLimiter {
         let now = SystemTime::now();
         let one_hour_ago = now - Duration::from_secs(3600);
 
-        let attempts = self.attempts.entry(account.clone()).or_insert_with(Vec::new);
-        
+        let attempts = self
+            .attempts
+            .entry(account.clone())
+            .or_insert_with(Vec::new);
+
         // Clean old attempts
         attempts.retain(|&time| time > one_hour_ago);
 
@@ -468,10 +484,7 @@ impl AccountMappingLayer for EnhancedAccountMapper {
         }
     }
 
-    async fn create_binding(
-        &self,
-        binding: AccountBinding,
-    ) -> AccountMappingResult<()> {
+    async fn create_binding(&self, binding: AccountBinding) -> AccountMappingResult<()> {
         self.storage.store_binding(&binding).await
     }
 
@@ -487,8 +500,8 @@ impl AccountMappingLayer for EnhancedAccountMapper {
             // Store the updated binding
             self.storage.update_binding(&binding).await
         } else {
-            Err(AccountMappingError::AccountNotFound { 
-                address: multivm_id.to_string() 
+            Err(AccountMappingError::AccountNotFound {
+                address: multivm_id.to_string(),
             })
         }
     }
@@ -501,13 +514,14 @@ impl AccountMappingLayer for EnhancedAccountMapper {
     }
 
     async fn has_binding(&self, account: &AccountAddress) -> AccountMappingResult<bool> {
-        Ok(self.storage.get_binding_by_account(account).await?.is_some())
+        Ok(self
+            .storage
+            .get_binding_by_account(account)
+            .await?
+            .is_some())
     }
 
-    async fn remove_binding(
-        &self,
-        multivm_id: &MultivmAccountId,
-    ) -> AccountMappingResult<()> {
+    async fn remove_binding(&self, multivm_id: &MultivmAccountId) -> AccountMappingResult<()> {
         self.storage.delete_binding(multivm_id).await
     }
 
@@ -537,7 +551,9 @@ impl AccountMappingLayer for EnhancedAccountMapper {
                 proof,
                 ..
             } => {
-                let multivm_id = self.resolve_multivm_account(&source_account).await?
+                let multivm_id = self
+                    .resolve_multivm_account(&source_account)
+                    .await?
                     .unwrap_or_else(|| MultivmAccountId::from_account(&source_account));
 
                 let message = BindingMessage::new(

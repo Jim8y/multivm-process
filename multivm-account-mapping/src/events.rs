@@ -233,7 +233,7 @@ pub struct MetricsEventListener {
 impl EventListener for MetricsEventListener {
     async fn handle_event(&self, event: AccountBindingEvent) {
         debug!("Recording metrics for event: {}", event.event_type());
-        
+
         // In a real implementation, this would update Prometheus metrics
         match &event {
             AccountBindingEvent::AutoBindingCreated { .. } => {
@@ -281,7 +281,8 @@ impl EventListener for WebhookEventListener {
             "data": event,
         });
 
-        match self.client
+        match self
+            .client
             .post(&self.webhook_url)
             .json(&payload)
             .send()
@@ -289,10 +290,7 @@ impl EventListener for WebhookEventListener {
         {
             Ok(response) => {
                 if !response.status().is_success() {
-                    tracing::error!(
-                        "Webhook failed with status: {}",
-                        response.status()
-                    );
+                    tracing::error!("Webhook failed with status: {}", response.status());
                 }
             }
             Err(e) => {
@@ -319,7 +317,7 @@ impl EventStore {
     pub async fn store(&self, event: AccountBindingEvent) {
         let mut events = self.events.write().await;
         events.push(event);
-        
+
         // Keep only the most recent events
         if events.len() > self.max_events {
             let drain_count = events.len() - self.max_events;
@@ -327,12 +325,9 @@ impl EventStore {
         }
     }
 
-    pub async fn get_events(
-        &self,
-        filter: Option<EventFilter>,
-    ) -> Vec<AccountBindingEvent> {
+    pub async fn get_events(&self, filter: Option<EventFilter>) -> Vec<AccountBindingEvent> {
         let events = self.events.read().await;
-        
+
         if let Some(filter) = filter {
             events
                 .iter()
@@ -370,7 +365,7 @@ impl EventFilter {
                 AccountBindingEvent::SuspiciousActivity { multivm_id, .. } => Some(multivm_id),
                 _ => None,
             };
-            
+
             if let Some(event_id) = event_id {
                 if event_id != id {
                     return false;
@@ -392,7 +387,7 @@ impl EventFilter {
                 EventSeverity::Warning => 1,
                 EventSeverity::Critical => 2,
             };
-            
+
             if severity_value(event.severity()) < severity_value(min_severity) {
                 return false;
             }
@@ -454,7 +449,7 @@ mod tests {
     #[tokio::test]
     async fn test_event_store() {
         let store = EventStore::new(10);
-        
+
         for i in 0..15 {
             let event = AccountBindingEvent::AutoBindingCreated {
                 account: AccountAddress::Solana(SolanaAddress([i as u8; 32])),

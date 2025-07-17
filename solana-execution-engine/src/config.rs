@@ -203,10 +203,8 @@ impl SolanaConnectionConfig {
         request_timeout: Duration,
         health_check_interval: Duration,
         connection_pool_size: u32,
-        #[cfg(feature = "solana-engine")]
-        commitment_level: CommitmentLevel,
-        #[cfg(not(feature = "solana-engine"))]
-        commitment_level: CommitmentLevel,
+        #[cfg(feature = "solana-engine")] commitment_level: CommitmentLevel,
+        #[cfg(not(feature = "solana-engine"))] commitment_level: CommitmentLevel,
     ) -> Self {
         Self {
             max_retries,

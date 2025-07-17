@@ -3,7 +3,9 @@
 use crate::{
     address::{AccountAddress, EthereumAddress, MultivmAccountId, SolanaAddress},
     binding_message::{BindingAction, BindingMessage},
-    binding_policy::{BindingPolicy, EnhancedBindingProof, Guardian, RecoveryConfig, SecurityMetadata},
+    binding_policy::{
+        BindingPolicy, EnhancedBindingProof, Guardian, RecoveryConfig, SecurityMetadata,
+    },
     enhanced_mapping::EnhancedAccountMapper,
     error::AccountMappingError,
     events::{AccountBindingEvent, EventListener},
@@ -92,10 +94,16 @@ async fn test_auto_binding_with_locking() {
     let (eth_account, _) = create_test_accounts();
 
     // First auto-binding should succeed
-    let multivm_id1 = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id1 = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Second auto-binding should return the same ID (idempotent)
-    let multivm_id2 = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id2 = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
     assert_eq!(multivm_id1, multivm_id2);
 
     // Verify binding was created
@@ -148,16 +156,15 @@ async fn test_rate_limiting() {
     policy.max_binding_attempts_per_hour = 3;
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(
-        storage.clone(),
-        policy,
-        RecoveryConfig::default(),
-    );
+    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, RecoveryConfig::default());
 
     let (eth_account, sol_account) = create_test_accounts();
-    
+
     // Create auto-binding first
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Create binding messages
     let mut messages = vec![];
@@ -174,11 +181,13 @@ async fn test_rate_limiting() {
 
     // First 3 attempts should succeed (assuming they pass other validations)
     for i in 0..3 {
-        let result = mapper.process_binding_message(
-            messages[i].clone(),
-            create_enhanced_proof(eth_account.clone(), i as u64),
-        ).await;
-        
+        let result = mapper
+            .process_binding_message(
+                messages[i].clone(),
+                create_enhanced_proof(eth_account.clone(), i as u64),
+            )
+            .await;
+
         // May fail for other reasons, but not rate limiting
         if let Err(AccountMappingError::RateLimitExceeded { .. }) = result {
             panic!("Should not hit rate limit on attempt {}", i + 1);
@@ -186,13 +195,15 @@ async fn test_rate_limiting() {
     }
 
     // 4th attempt should fail with rate limit
-    let result = mapper.process_binding_message(
-        messages[3].clone(),
-        create_enhanced_proof(eth_account.clone(), 3),
-    ).await;
-    
+    let result = mapper
+        .process_binding_message(
+            messages[3].clone(),
+            create_enhanced_proof(eth_account.clone(), 3),
+        )
+        .await;
+
     match result {
-        Err(AccountMappingError::RateLimitExceeded { .. }) => {},
+        Err(AccountMappingError::RateLimitExceeded { .. }) => {}
         _ => panic!("Expected rate limit error"),
     }
 }
@@ -200,11 +211,8 @@ async fn test_rate_limiting() {
 #[tokio::test]
 async fn test_binding_message_validation() {
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(
-        storage,
-        BindingPolicy::default(),
-        RecoveryConfig::default(),
-    );
+    let mapper =
+        EnhancedAccountMapper::new(storage, BindingPolicy::default(), RecoveryConfig::default());
 
     let (eth_account, sol_account) = create_test_accounts();
     let multivm_id = MultivmAccountId::from_account(&eth_account);
@@ -222,13 +230,16 @@ async fn test_binding_message_validation() {
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs() - 3600
+            .as_secs()
+            - 3600,
     );
 
-    let result = mapper.process_binding_message(
-        expired_message,
-        create_enhanced_proof(eth_account.clone(), 1),
-    ).await;
+    let result = mapper
+        .process_binding_message(
+            expired_message,
+            create_enhanced_proof(eth_account.clone(), 1),
+        )
+        .await;
 
     match result {
         Err(AccountMappingError::InvalidBindingProof { reason }) => {
@@ -249,12 +260,15 @@ async fn test_binding_message_validation() {
     future_message.timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
-        .as_secs() + 3600;
+        .as_secs()
+        + 3600;
 
-    let result = mapper.process_binding_message(
-        future_message,
-        create_enhanced_proof(sol_account.clone(), 2),
-    ).await;
+    let result = mapper
+        .process_binding_message(
+            future_message,
+            create_enhanced_proof(sol_account.clone(), 2),
+        )
+        .await;
 
     match result {
         Err(AccountMappingError::InvalidBindingProof { reason }) => {
@@ -268,7 +282,7 @@ async fn test_binding_message_validation() {
 async fn test_guardian_management() {
     let storage = Arc::new(MemoryStorage::new());
     let event_collector = Arc::new(TestEventCollector::new());
-    
+
     let mapper = EnhancedAccountMapper::new(
         storage.clone(),
         BindingPolicy::default(),
@@ -276,13 +290,20 @@ async fn test_guardian_management() {
     );
 
     // Add event collector
-    mapper.event_emitter.write().await.add_listener(event_collector.clone());
+    mapper
+        .event_emitter
+        .write()
+        .await
+        .add_listener(event_collector.clone());
 
     let (eth_account, sol_account) = create_test_accounts();
     let guardian = AccountAddress::Ethereum(EthereumAddress([3u8; 20]));
-    
+
     // Create auto-binding
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Add guardian
     let add_message = BindingMessage::new(
@@ -294,17 +315,16 @@ async fn test_guardian_management() {
         1,
     );
 
-    mapper.process_binding_message(
-        add_message,
-        create_enhanced_proof(eth_account.clone(), 1),
-    ).await.unwrap();
+    mapper
+        .process_binding_message(add_message, create_enhanced_proof(eth_account.clone(), 1))
+        .await
+        .unwrap();
 
     // Verify guardian was added via events
     let events = event_collector.get_events().await;
-    assert!(events.iter().any(|e| matches!(
-        e,
-        AccountBindingEvent::GuardianAdded { .. }
-    )));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, AccountBindingEvent::GuardianAdded { .. })));
 
     // Remove guardian
     event_collector.clear().await;
@@ -317,17 +337,19 @@ async fn test_guardian_management() {
         2,
     );
 
-    mapper.process_binding_message(
-        remove_message,
-        create_enhanced_proof(sol_account.clone(), 2),
-    ).await.unwrap();
+    mapper
+        .process_binding_message(
+            remove_message,
+            create_enhanced_proof(sol_account.clone(), 2),
+        )
+        .await
+        .unwrap();
 
     // Verify guardian was removed
     let events = event_collector.get_events().await;
-    assert!(events.iter().any(|e| matches!(
-        e,
-        AccountBindingEvent::GuardianRemoved { .. }
-    )));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, AccountBindingEvent::GuardianRemoved { .. })));
 }
 
 #[tokio::test]
@@ -337,21 +359,24 @@ async fn test_recovery_initiation() {
     recovery_config.recovery_timelock = Duration::from_secs(3600);
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(
-        storage.clone(),
-        BindingPolicy::default(),
-        recovery_config,
-    );
+    let mapper =
+        EnhancedAccountMapper::new(storage.clone(), BindingPolicy::default(), recovery_config);
 
     let (eth_account, _) = create_test_accounts();
     let guardian = AccountAddress::Ethereum(EthereumAddress([3u8; 20]));
     let new_account = AccountAddress::Ethereum(EthereumAddress([4u8; 20]));
-    
+
     // Create binding and add guardian
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Manually add guardian for testing
-    mapper.guardians.write().await
+    mapper
+        .guardians
+        .write()
+        .await
         .entry(multivm_id.clone())
         .or_insert_with(Vec::new)
         .push(Guardian {
@@ -371,10 +396,13 @@ async fn test_recovery_initiation() {
         1,
     );
 
-    mapper.process_binding_message(
-        recovery_message,
-        create_enhanced_proof(eth_account.clone(), 1),
-    ).await.unwrap();
+    mapper
+        .process_binding_message(
+            recovery_message,
+            create_enhanced_proof(eth_account.clone(), 1),
+        )
+        .await
+        .unwrap();
 
     // Verify recovery request was created
     let requests = mapper.recovery_requests.read().await;
@@ -385,19 +413,26 @@ async fn test_recovery_initiation() {
 async fn test_event_emission_throughout_lifecycle() {
     let storage = Arc::new(MemoryStorage::new());
     let event_collector = Arc::new(TestEventCollector::new());
-    
+
     let mapper = EnhancedAccountMapper::new(
         storage.clone(),
         BindingPolicy::default(),
         RecoveryConfig::default(),
     );
 
-    mapper.event_emitter.write().await.add_listener(event_collector.clone());
+    mapper
+        .event_emitter
+        .write()
+        .await
+        .add_listener(event_collector.clone());
 
     let (eth_account, sol_account) = create_test_accounts();
 
     // Auto-binding
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Cross-binding (will fail without proper setup, but we check for events)
     let bind_message = BindingMessage::new(
@@ -409,19 +444,17 @@ async fn test_event_emission_throughout_lifecycle() {
         1,
     );
 
-    let _ = mapper.process_binding_message(
-        bind_message,
-        create_enhanced_proof(eth_account.clone(), 1),
-    ).await;
+    let _ = mapper
+        .process_binding_message(bind_message, create_enhanced_proof(eth_account.clone(), 1))
+        .await;
 
     // Check events
     let events = event_collector.get_events().await;
-    
+
     // Should have at least auto-binding event
-    assert!(events.iter().any(|e| matches!(
-        e,
-        AccountBindingEvent::AutoBindingCreated { .. }
-    )));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, AccountBindingEvent::AutoBindingCreated { .. })));
 }
 
 #[tokio::test]
@@ -432,11 +465,7 @@ async fn test_policy_enforcement() {
     policy.min_account_age = Duration::from_secs(0); // For testing
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(
-        storage.clone(),
-        policy,
-        RecoveryConfig::default(),
-    );
+    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, RecoveryConfig::default());
 
     let eth1 = AccountAddress::Ethereum(EthereumAddress([1u8; 20]));
     let eth2 = AccountAddress::Ethereum(EthereumAddress([2u8; 20]));
@@ -460,14 +489,13 @@ async fn test_policy_enforcement() {
         1,
     );
 
-    let result = mapper.process_binding_message(
-        bind_message,
-        create_enhanced_proof(eth1.clone(), 1),
-    ).await;
+    let result = mapper
+        .process_binding_message(bind_message, create_enhanced_proof(eth1.clone(), 1))
+        .await;
 
     // Should fail with policy violation
     match result {
-        Err(AccountMappingError::PolicyViolation { .. }) => {},
+        Err(AccountMappingError::PolicyViolation { .. }) => {}
         _ => panic!("Expected policy violation"),
     }
 }
@@ -478,16 +506,15 @@ async fn test_unbinding_with_timelock() {
     policy.unbinding_timelock = Duration::from_secs(3600);
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper = EnhancedAccountMapper::new(
-        storage.clone(),
-        policy,
-        RecoveryConfig::default(),
-    );
+    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, RecoveryConfig::default());
 
     let (eth_account, _) = create_test_accounts();
-    
+
     // Create binding
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Try to unbind
     let unbind_message = BindingMessage::new(
@@ -500,10 +527,12 @@ async fn test_unbinding_with_timelock() {
     );
 
     // This should process but not immediately unbind due to timelock
-    let result = mapper.process_binding_message(
-        unbind_message,
-        create_enhanced_proof(eth_account.clone(), 1),
-    ).await;
+    let result = mapper
+        .process_binding_message(
+            unbind_message,
+            create_enhanced_proof(eth_account.clone(), 1),
+        )
+        .await;
 
     // In production, this would create an unbinding request with timelock
     assert!(result.is_ok());
@@ -519,9 +548,12 @@ async fn test_concurrent_operations_with_locking() {
     ));
 
     let (eth_account, sol_account) = create_test_accounts();
-    
+
     // Create initial binding
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await.unwrap();
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
+        .unwrap();
 
     // Simulate concurrent binding attempts
     let mut handles = vec![];
@@ -536,7 +568,7 @@ async fn test_concurrent_operations_with_locking() {
             i,
         );
         let proof = create_enhanced_proof(eth_account.clone(), i);
-        
+
         handles.push(tokio::spawn(async move {
             mapper_clone.process_binding_message(message, proof).await
         }));
@@ -544,7 +576,7 @@ async fn test_concurrent_operations_with_locking() {
 
     // Collect results
     let results: Vec<_> = futures::future::join_all(handles).await;
-    
+
     // At least one should succeed or fail with appropriate errors
     // No panics or deadlocks should occur
     assert_eq!(results.len(), 5);

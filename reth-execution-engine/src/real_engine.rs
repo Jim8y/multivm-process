@@ -17,9 +17,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 // Additional imports for JWT and process management
-use rand;
 use hex;
 use hmac;
+use rand;
 
 /// Real Reth execution engine that connects to actual Reth nodes
 pub struct RealRethEngine {
@@ -147,13 +147,16 @@ impl RealRethEngine {
         // Check if setup script exists
         let script_path = self.get_project_root().join("scripts/setup-reth-node.sh");
         if !script_path.exists() {
-            warn!("Setup script not found at {:?}, falling back to direct Reth execution", script_path);
+            warn!(
+                "Setup script not found at {:?}, falling back to direct Reth execution",
+                script_path
+            );
             return self.start_reth_process_direct().await;
         }
 
         // Use the setup script to start Reth with proper configuration
         info!("Using setup script: {:?}", script_path);
-        
+
         // Set environment variables for the setup script
         let mut cmd = Command::new(&script_path);
         cmd.arg("start")
@@ -168,17 +171,20 @@ impl RealRethEngine {
 
         debug!("Setup script command: {:?}", cmd);
 
-        let output = cmd.output().await
-            .map_err(|e| RethEngineError::Process(format!("Failed to execute setup script: {e}")))?
-        ;
+        let output = cmd.output().await.map_err(|e| {
+            RethEngineError::Process(format!("Failed to execute setup script: {e}"))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            error!("Setup script failed with exit code: {:?}", output.status.code());
+            error!(
+                "Setup script failed with exit code: {:?}",
+                output.status.code()
+            );
             error!("stdout: {}", stdout);
             error!("stderr: {}", stderr);
-            
+
             // Fallback to direct execution if setup script fails
             warn!("Setup script failed, falling back to direct Reth execution");
             return self.start_reth_process_direct().await;
@@ -235,8 +241,7 @@ impl RealRethEngine {
 
         let child = cmd
             .spawn()
-            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?
-        ;
+            .map_err(|e| RethEngineError::Process(format!("Failed to start Reth node: {e}")))?;
 
         let pid = child.id();
         *self.reth_process.write().await = Some(child);
@@ -254,16 +259,17 @@ impl RealRethEngine {
     /// Wait for Reth to start up and become responsive
     async fn wait_for_reth_startup(&self) -> Result<(), RethEngineError> {
         info!("Waiting for Reth to become responsive...");
-        
+
         let rpc_url = format!("http://127.0.0.1:{}", self.rpc_port);
         let max_attempts = 30;
         let delay = Duration::from_secs(2);
-        
+
         for attempt in 1..=max_attempts {
             tokio::time::sleep(delay).await;
-            
+
             // Test RPC connectivity
-            if let Ok(client) = reqwest::Client::new().post(&rpc_url)
+            if let Ok(client) = reqwest::Client::new()
+                .post(&rpc_url)
                 .header("Content-Type", "application/json")
                 .json(&json!({
                     "jsonrpc": "2.0",
@@ -277,12 +283,13 @@ impl RealRethEngine {
             {
                 if client.status().is_success() {
                     info!("Reth RPC is responsive after {} attempts", attempt);
-                    
+
                     // Also test Engine API if JWT is available
                     if let Some(jwt_secret) = self.jwt_secret.read().await.as_ref() {
                         if let Ok(jwt_token) = self.create_jwt_token(jwt_secret) {
                             let engine_url = format!("http://127.0.0.1:{}", self.engine_port);
-                            if let Ok(engine_response) = reqwest::Client::new().post(&engine_url)
+                            if let Ok(engine_response) = reqwest::Client::new()
+                                .post(&engine_url)
                                 .header("Content-Type", "application/json")
                                 .header("Authorization", format!("Bearer {}", jwt_token))
                                 .json(&json!({
@@ -303,26 +310,30 @@ impl RealRethEngine {
                             }
                         }
                     }
-                    
+
                     return Ok(());
                 }
             }
-            
+
             if attempt % 5 == 0 {
-                info!("Still waiting for Reth... attempt {}/{}", attempt, max_attempts);
+                info!(
+                    "Still waiting for Reth... attempt {}/{}",
+                    attempt, max_attempts
+                );
             }
         }
-        
-        Err(RethEngineError::Process(
-            format!("Reth failed to become responsive after {} attempts", max_attempts)
-        ))
+
+        Err(RethEngineError::Process(format!(
+            "Reth failed to become responsive after {} attempts",
+            max_attempts
+        )))
     }
 
     /// Get the project root directory
     fn get_project_root(&self) -> PathBuf {
         // Try to find the project root by looking for Cargo.toml
         let mut current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        
+
         loop {
             if current.join("Cargo.toml").exists() {
                 // Check if this is the workspace root by looking for multivm-* directories
@@ -330,7 +341,7 @@ impl RealRethEngine {
                     return current;
                 }
             }
-            
+
             if let Some(parent) = current.parent() {
                 current = parent.to_path_buf();
             } else {
@@ -698,7 +709,7 @@ impl RealRethEngine {
 
         // Reinitialize clients
         self.init_http_clients().await?;
-        
+
         // Re-verify connections
         self.verify_connections().await?;
 

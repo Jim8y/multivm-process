@@ -218,8 +218,12 @@ impl BlockRouter {
                                 mapping_data["source_account"].as_str().ok_or_else(|| {
                                     MultivmError::InvalidState {
                                         message: "Missing source_account".to_string(),
-                                        current_state: Some("account_mapping_transaction".to_string()),
-                                        expected_state: Some("source_account_field_present".to_string()),
+                                        current_state: Some(
+                                            "account_mapping_transaction".to_string(),
+                                        ),
+                                        expected_state: Some(
+                                            "source_account_field_present".to_string(),
+                                        ),
                                     }
                                 })?;
 
@@ -238,8 +242,12 @@ impl BlockRouter {
                                 mapping_data["target_account"].as_str().ok_or_else(|| {
                                     MultivmError::InvalidState {
                                         message: "Missing target_account".to_string(),
-                                        current_state: Some("account_mapping_transaction".to_string()),
-                                        expected_state: Some("target_account_field_present".to_string()),
+                                        current_state: Some(
+                                            "account_mapping_transaction".to_string(),
+                                        ),
+                                        expected_state: Some(
+                                            "target_account_field_present".to_string(),
+                                        ),
                                     }
                                 })?;
 
@@ -262,7 +270,9 @@ impl BlockRouter {
                                     MultivmError::InvalidState {
                                         message: "Missing proof account".to_string(),
                                         current_state: Some("binding_proof".to_string()),
-                                        expected_state: Some("proof_account_field_present".to_string()),
+                                        expected_state: Some(
+                                            "proof_account_field_present".to_string(),
+                                        ),
                                     }
                                 })?;
                             let proof_message =
@@ -270,7 +280,9 @@ impl BlockRouter {
                                     MultivmError::InvalidState {
                                         message: "Missing proof message".to_string(),
                                         current_state: Some("binding_proof".to_string()),
-                                        expected_state: Some("proof_message_field_present".to_string()),
+                                        expected_state: Some(
+                                            "proof_message_field_present".to_string(),
+                                        ),
                                     }
                                 })?;
                             let proof_signature =
@@ -278,28 +290,35 @@ impl BlockRouter {
                                     MultivmError::InvalidState {
                                         message: "Missing proof signature".to_string(),
                                         current_state: Some("binding_proof".to_string()),
-                                        expected_state: Some("proof_signature_field_present".to_string()),
+                                        expected_state: Some(
+                                            "proof_signature_field_present".to_string(),
+                                        ),
                                     }
                                 })?;
 
                             let proof_account = AccountAddress::from_string(proof_account_str)
-                                .map_err(|e| {
-                                    MultivmError::InvalidState {
-                                        message: format!("Invalid proof account: {}", e),
-                                        current_state: Some(proof_account_str.to_string()),
-                                        expected_state: Some("valid_proof_account_address".to_string()),
-                                    }
+                                .map_err(|e| MultivmError::InvalidState {
+                                    message: format!("Invalid proof account: {}", e),
+                                    current_state: Some(proof_account_str.to_string()),
+                                    expected_state: Some("valid_proof_account_address".to_string()),
                                 })?;
 
                             BindingProof {
                                 account: proof_account,
                                 proof_type: ProofType::Signature {
-                                    message: Box::new(hex::decode(proof_message)
-                                        .unwrap_or_else(|_| proof_message.as_bytes().to_vec())),
-                                    signature: Box::new(hex::decode(proof_signature)
-                                        .unwrap_or_else(|_| proof_signature.as_bytes().to_vec())),
+                                    message: Box::new(
+                                        hex::decode(proof_message)
+                                            .unwrap_or_else(|_| proof_message.as_bytes().to_vec()),
+                                    ),
+                                    signature: Box::new(
+                                        hex::decode(proof_signature).unwrap_or_else(|_| {
+                                            proof_signature.as_bytes().to_vec()
+                                        }),
+                                    ),
                                 },
-                                proof_data: Box::new(serde_json::to_vec(proof_data).unwrap_or_default()),
+                                proof_data: Box::new(
+                                    serde_json::to_vec(proof_data).unwrap_or_default(),
+                                ),
                                 timestamp: std::time::SystemTime::now(),
                                 nonce: 0, // TODO: Use proper nonce from transaction
                             }
@@ -312,24 +331,20 @@ impl BlockRouter {
                         from: MultivmAccountId::from_seed(
                             mapping_data["from"]
                                 .as_str()
-                                .ok_or_else(|| {
-                                    MultivmError::InvalidState {
-                                        message: "Missing from".to_string(),
-                                        current_state: Some("cross_vm_transfer".to_string()),
-                                        expected_state: Some("from_field_present".to_string()),
-                                    }
+                                .ok_or_else(|| MultivmError::InvalidState {
+                                    message: "Missing from".to_string(),
+                                    current_state: Some("cross_vm_transfer".to_string()),
+                                    expected_state: Some("from_field_present".to_string()),
                                 })?
                                 .as_bytes(),
                         ),
                         to: MultivmAccountId::from_seed(
                             mapping_data["to"]
                                 .as_str()
-                                .ok_or_else(|| {
-                                    MultivmError::InvalidState {
-                                        message: "Missing to".to_string(),
-                                        current_state: Some("cross_vm_transfer".to_string()),
-                                        expected_state: Some("to_field_present".to_string()),
-                                    }
+                                .ok_or_else(|| MultivmError::InvalidState {
+                                    message: "Missing to".to_string(),
+                                    current_state: Some("cross_vm_transfer".to_string()),
+                                    expected_state: Some("to_field_present".to_string()),
                                 })?
                                 .as_bytes(),
                         ),
@@ -347,7 +362,9 @@ impl BlockRouter {
                                     MultivmError::InvalidState {
                                         message: "Missing asset_type".to_string(),
                                         current_state: Some("cross_vm_transfer".to_string()),
-                                        expected_state: Some("asset_type_field_present".to_string()),
+                                        expected_state: Some(
+                                            "asset_type_field_present".to_string(),
+                                        ),
                                     }
                                 })?;
                             match asset_type_str {
@@ -373,10 +390,12 @@ impl BlockRouter {
         special_tx: &MultivmSpecialTransaction,
     ) -> MultivmResult<Option<CrossVmOperations>> {
         if special_tx.tx_type == "cross_vm_operation" {
-            let operations: CrossVmOperations = serde_json::from_slice(&special_tx.data)
-                .map_err(|e| MultivmError::Serialization {
-                    message: format!("Failed to deserialize cross VM operations: {}", e),
-                    data_type: Some("cross_vm_operations".to_string()),
+            let operations: CrossVmOperations =
+                serde_json::from_slice(&special_tx.data).map_err(|e| {
+                    MultivmError::Serialization {
+                        message: format!("Failed to deserialize cross VM operations: {}", e),
+                        data_type: Some("cross_vm_operations".to_string()),
+                    }
                 })?;
             Ok(Some(operations))
         } else {
@@ -565,8 +584,8 @@ impl BlockRouter {
         let handles = self.process_handles.read().await;
         if let Some(solana_handle) = handles.get(&ProcessId::Solana) {
             for tx in transactions {
-                let block_data = bincode::serialize(&tx)
-                    .map_err(|e| MultivmError::Serialization {
+                let block_data =
+                    bincode::serialize(&tx).map_err(|e| MultivmError::Serialization {
                         message: format!("Failed to serialize SVM transaction for routing: {}", e),
                         data_type: Some("svm_transaction".to_string()),
                     })?;
@@ -613,8 +632,8 @@ impl BlockRouter {
         let handles = self.process_handles.read().await;
         if let Some(reth_handle) = handles.get(&ProcessId::Ethereum) {
             for tx in transactions {
-                let block_data = bincode::serialize(&tx)
-                    .map_err(|e| MultivmError::Serialization {
+                let block_data =
+                    bincode::serialize(&tx).map_err(|e| MultivmError::Serialization {
                         message: format!("Failed to serialize EVM transaction for routing: {}", e),
                         data_type: Some("evm_transaction".to_string()),
                     })?;
@@ -1498,8 +1517,14 @@ impl BlockRouter {
                                     "Dependency violation: {} (pos {}) depends on {} (pos {})",
                                     tx_id, tx_position, dep_id, dep_position
                                 ),
-                                current_state: Some(format!("tx {} at position {}", tx_id, tx_position)),
-                                expected_state: Some(format!("dependency {} should be before position {}", dep_id, tx_position)),
+                                current_state: Some(format!(
+                                    "tx {} at position {}",
+                                    tx_id, tx_position
+                                )),
+                                expected_state: Some(format!(
+                                    "dependency {} should be before position {}",
+                                    dep_id, tx_position
+                                )),
                             });
                         }
                     }

@@ -33,14 +33,13 @@ async fn main() {
     };
 
     // Create enhanced mapper
-    let mut mapper = EnhancedAccountMapper::new(
-        storage.clone(),
-        policy,
-        recovery_config,
-    );
+    let mut mapper = EnhancedAccountMapper::new(storage.clone(), policy, recovery_config);
 
     // Add event listener
-    mapper.event_emitter.write().await
+    mapper
+        .event_emitter
+        .write()
+        .await
         .add_listener(Arc::new(LoggingEventListener));
 
     println!("Enhanced Account Mapping Example");
@@ -52,14 +51,21 @@ async fn main() {
 
     // 1. Automatic Binding with Locking
     println!("1. Creating automatic binding with distributed locking...");
-    let multivm_id = mapper.create_auto_binding(eth_account.clone()).await
+    let multivm_id = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
         .expect("Failed to create auto binding");
     println!("   ✓ Created MultiVM account: {}", multivm_id);
 
     // Test idempotency
-    let multivm_id2 = mapper.create_auto_binding(eth_account.clone()).await
+    let multivm_id2 = mapper
+        .create_auto_binding(eth_account.clone())
+        .await
         .expect("Failed to create auto binding");
-    println!("   ✓ Idempotent check passed: {}", multivm_id == multivm_id2);
+    println!(
+        "   ✓ Idempotent check passed: {}",
+        multivm_id == multivm_id2
+    );
 
     // 2. Cross-VM Binding with Message Format
     println!("\n2. Testing standardized binding message format...");
@@ -73,7 +79,10 @@ async fn main() {
     );
 
     println!("   Message hash: {}", hex::encode(binding_message.hash()));
-    println!("   EIP-712 hash: {}", hex::encode(binding_message.eip712_hash()));
+    println!(
+        "   EIP-712 hash: {}",
+        hex::encode(binding_message.eip712_hash())
+    );
 
     // Create proof (in real scenario, this would be a signature)
     let proof = EnhancedBindingProof {
@@ -104,7 +113,7 @@ async fn main() {
     // 3. Guardian Management
     println!("\n3. Testing guardian management...");
     let guardian = AccountAddress::Ethereum(EthereumAddress([0x03; 20]));
-    
+
     let add_guardian_msg = BindingMessage::new(
         BindingAction::AddGuardian,
         "multivm-testnet".to_string(),
@@ -126,7 +135,10 @@ async fn main() {
         security_metadata: SecurityMetadata::default(),
     };
 
-    match mapper.process_binding_message(add_guardian_msg, guardian_proof).await {
+    match mapper
+        .process_binding_message(add_guardian_msg, guardian_proof)
+        .await
+    {
         Ok(_) => println!("   ✓ Guardian added"),
         Err(e) => println!("   ✗ Expected error (no valid signature): {}", e),
     }
@@ -134,7 +146,7 @@ async fn main() {
     // 4. Rate Limiting
     println!("\n4. Testing rate limiting...");
     println!("   Simulating multiple binding attempts...");
-    
+
     for i in 3..8 {
         let msg = BindingMessage::new(
             BindingAction::BindAccount,
@@ -145,20 +157,22 @@ async fn main() {
             i,
         );
 
-        let result = mapper.process_binding_message(
-            msg,
-            EnhancedBindingProof {
-                proof: BindingProof {
-                    proof_type: multivm_account_mapping::mapping::ProofType::Signature,
-                    proof_data: vec![i as u8],
-                    nonce: i,
-                    timestamp: SystemTime::now(),
+        let result = mapper
+            .process_binding_message(
+                msg,
+                EnhancedBindingProof {
+                    proof: BindingProof {
+                        proof_type: multivm_account_mapping::mapping::ProofType::Signature,
+                        proof_data: vec![i as u8],
+                        nonce: i,
+                        timestamp: SystemTime::now(),
+                    },
+                    secondary_auth: None,
+                    risk_score: 0,
+                    security_metadata: SecurityMetadata::default(),
                 },
-                secondary_auth: None,
-                risk_score: 0,
-                security_metadata: SecurityMetadata::default(),
-            },
-        ).await;
+            )
+            .await;
 
         match result {
             Ok(_) => println!("   Attempt {}: Success", i - 2),
@@ -168,7 +182,7 @@ async fn main() {
 
     // 5. Message Validation
     println!("\n5. Testing message validation...");
-    
+
     // Test expired message
     let mut expired_msg = BindingMessage::new(
         BindingAction::BindAccount,
@@ -182,23 +196,27 @@ async fn main() {
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs() - 3600
+            .as_secs()
+            - 3600,
     );
 
-    match mapper.process_binding_message(
-        expired_msg,
-        EnhancedBindingProof {
-            proof: BindingProof {
-                proof_type: multivm_account_mapping::mapping::ProofType::Signature,
-                proof_data: vec![],
-                nonce: 10,
-                timestamp: SystemTime::now(),
+    match mapper
+        .process_binding_message(
+            expired_msg,
+            EnhancedBindingProof {
+                proof: BindingProof {
+                    proof_type: multivm_account_mapping::mapping::ProofType::Signature,
+                    proof_data: vec![],
+                    nonce: 10,
+                    timestamp: SystemTime::now(),
+                },
+                secondary_auth: None,
+                risk_score: 0,
+                security_metadata: SecurityMetadata::default(),
             },
-            secondary_auth: None,
-            risk_score: 0,
-            security_metadata: SecurityMetadata::default(),
-        },
-    ).await {
+        )
+        .await
+    {
         Ok(_) => println!("   ✗ Expired message should have failed"),
         Err(e) => println!("   ✓ Expired message rejected: {}", e),
     }

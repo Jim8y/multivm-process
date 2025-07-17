@@ -889,7 +889,11 @@ impl EngineApiClient {
             if let Some((token, created_at)) = cache.as_ref() {
                 // Check if token is still valid (with 30 second buffer before expiry)
                 let age = created_at.elapsed();
-                if age < self.jwt_expiry_duration.saturating_sub(Duration::from_secs(30)) {
+                if age
+                    < self
+                        .jwt_expiry_duration
+                        .saturating_sub(Duration::from_secs(30))
+                {
                     return Some(token.clone());
                 }
             }

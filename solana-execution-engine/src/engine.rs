@@ -3,8 +3,8 @@ use crate::engine_helper::compute_block_hash;
 use crate::error::SolanaEngineError;
 use indicatif::{ProgressBar, ProgressStyle};
 use multivm_common::{
-    BlockchainType, EngineState, ExecutionEngine, HealthStatus, ProcessingMetrics,
-    types::rpc::RpcConfig,
+    types::rpc::RpcConfig, BlockchainType, EngineState, ExecutionEngine, HealthStatus,
+    ProcessingMetrics,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -452,7 +452,11 @@ impl SolanaEngine {
 
         #[cfg(not(feature = "solana-engine"))]
         {
-            info!("Mock mode: Would submit {} transactions for slot {}", block.transactions.len(), block.slot);
+            info!(
+                "Mock mode: Would submit {} transactions for slot {}",
+                block.transactions.len(),
+                block.slot
+            );
         }
 
         Ok(())
@@ -671,23 +675,21 @@ impl SolanaEngine {
             "http://{}:{}",
             self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port
         );
-        
+
         let mut server = crate::engine_rpc_server::SolanaEngineRpcServer::new(
             self.solana_engine_config.rpc_server_host.clone(),
             self.solana_engine_config.rpc_server_port,
             internal_rpc_url,
         );
-        
+
         server.start().await.map_err(|e| {
             SolanaEngineError::Rpc(format!("Failed to start RPC proxy server: {}", e))
         })?;
-        
+
         *self.rpc_proxy_server.write().await = Some(server);
-        
+
         Ok(())
     }
-
-
 }
 
 /// Solana execution result
@@ -721,24 +723,27 @@ impl ExecutionEngine for SolanaEngine {
         block: Self::BlockType,
     ) -> Result<Self::ExecutionResult, Self::Error> {
         let start_time = Instant::now();
-        
+
         // Replay the block
         let success = self.replay_block(block.clone()).await?;
-        
+
         if !success {
             return Err(SolanaEngineError::Process(
-                "Block replay failed".to_string()
+                "Block replay failed".to_string(),
             ));
         }
-        
+
         let processing_duration_ms = start_time.elapsed().as_millis() as u64;
-        
+
         // Extract signatures from transactions
-        let signatures: Vec<String> = block.transactions.iter()
+        let signatures: Vec<String> = block
+            .transactions
+            .iter()
             .map(|tx| {
                 #[cfg(feature = "solana-engine")]
                 {
-                    tx.signatures.first()
+                    tx.signatures
+                        .first()
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| "no_signature".to_string())
                 }
@@ -749,7 +754,7 @@ impl ExecutionEngine for SolanaEngine {
                 }
             })
             .collect();
-        
+
         Ok(SolanaExecutionResult {
             slot: block.slot,
             block_hash: block.block_hash,
@@ -763,7 +768,7 @@ impl ExecutionEngine for SolanaEngine {
 
     async fn get_health(&self) -> Result<HealthStatus, Self::Error> {
         let is_running = *self.is_running.read().await;
-        
+
         // Check if RPC client is healthy
         let rpc_healthy = {
             #[cfg(feature = "solana-engine")]
@@ -780,7 +785,7 @@ impl ExecutionEngine for SolanaEngine {
                 self.internal_client.read().await.is_some()
             }
         };
-        
+
         // Check if Solana process is running
         let process_healthy = if let Some(_child) = self.solana_process.read().await.as_ref() {
             // Try to get process status without waiting
@@ -788,7 +793,7 @@ impl ExecutionEngine for SolanaEngine {
         } else {
             false
         };
-        
+
         let overall_status = if is_running && rpc_healthy && process_healthy {
             "healthy"
         } else if is_running && (rpc_healthy || process_healthy) {
@@ -796,7 +801,7 @@ impl ExecutionEngine for SolanaEngine {
         } else {
             "unhealthy"
         };
-        
+
         if overall_status == "healthy" {
             Ok(HealthStatus::Healthy)
         } else if overall_status == "degraded" {
@@ -810,7 +815,7 @@ impl ExecutionEngine for SolanaEngine {
         let _is_running = *self.is_running.read().await;
         let current_slot = *self.current_slot.read().await;
         let _slots_processed = *self.slots_processed.read().await;
-        
+
         Ok(EngineState {
             process_id: multivm_common::types::ProcessId::Solana,
             blockchain_type: BlockchainType::Solana,
@@ -818,7 +823,10 @@ impl ExecutionEngine for SolanaEngine {
             state_root: vec![0u8; 32], // Simplified - would get actual state root
             is_syncing: false,
             peer_count: 0, // Our isolated Solana doesn't have peers
-            rpc_endpoints: vec![format!("http://{}:{}", self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port)],
+            rpc_endpoints: vec![format!(
+                "http://{}:{}",
+                self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port
+            )],
             data_directory: self.solana_config.ledger_path.to_string_lossy().to_string(),
             chain_id: 1, // Simplified chain ID for Solana
         })
@@ -827,15 +835,19 @@ impl ExecutionEngine for SolanaEngine {
     async fn start_rpc_server(&self, config: RpcConfig) -> Result<(), Self::Error> {
         // RPC server is already started in initialize()
         // This could be enhanced to support dynamic configuration
-        info!("RPC server already running on port {}", self.solana_engine_config.rpc_server_port);
+        info!(
+            "RPC server already running on port {}",
+            self.solana_engine_config.rpc_server_port
+        );
         Ok(())
     }
 
     async fn stop_rpc_server(&self) -> Result<(), Self::Error> {
         if let Some(mut server) = self.rpc_proxy_server.write().await.take() {
-            server.stop().await.map_err(|e| {
-                SolanaEngineError::Rpc(format!("Failed to stop RPC server: {}", e))
-            })?;
+            server
+                .stop()
+                .await
+                .map_err(|e| SolanaEngineError::Rpc(format!("Failed to stop RPC server: {}", e)))?;
         }
         Ok(())
     }
@@ -857,29 +869,29 @@ impl ExecutionEngine for SolanaEngine {
     async fn is_ready(&self) -> bool {
         let is_running = *self.is_running.read().await;
         let has_client = self.internal_client.read().await.is_some();
-        
+
         is_running && has_client
     }
 
     async fn get_metrics(&self) -> Result<ProcessingMetrics, Self::Error> {
         let slots_processed = *self.slots_processed.read().await;
         let current_slot = *self.current_slot.read().await;
-        
+
         Ok(ProcessingMetrics {
             cpu_time: Duration::from_secs(0), // Would need to track actual CPU time
-            memory_usage_bytes: 0, // Would need system metrics
-            disk_reads: 0, // Would need to track disk I/O
-            disk_writes: 0, // Would need to track disk I/O
-            network_bytes: 0, // Would need to track network I/O
-            compute_units_used: 0, // Would need to track CUs from transactions
-            transaction_count: 0, // Would need to track this
-            account_updates: 0, // Would need to track this
+            memory_usage_bytes: 0,            // Would need system metrics
+            disk_reads: 0,                    // Would need to track disk I/O
+            disk_writes: 0,                   // Would need to track disk I/O
+            network_bytes: 0,                 // Would need to track network I/O
+            compute_units_used: 0,            // Would need to track CUs from transactions
+            transaction_count: 0,             // Would need to track this
+            account_updates: 0,               // Would need to track this
             total_requests: slots_processed,
             successful_requests: slots_processed,
             failed_requests: 0,
             average_response_time_ms: 400.0, // Solana's ~400ms slot time
-            peak_memory_usage_mb: 0, // Would need system metrics
-            cpu_usage_percent: 0.0, // Would need system metrics
+            peak_memory_usage_mb: 0,         // Would need system metrics
+            cpu_usage_percent: 0.0,          // Would need system metrics
         })
     }
 
@@ -891,7 +903,10 @@ impl ExecutionEngine for SolanaEngine {
         // For now, just update the current slot
         // In a real implementation, this would need to reset the entire state
         *self.current_slot.write().await = block_id;
-        warn!("Reset to block {} - full state reset not implemented", block_id);
+        warn!(
+            "Reset to block {} - full state reset not implemented",
+            block_id
+        );
         Ok(())
     }
 }

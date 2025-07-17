@@ -166,7 +166,7 @@ impl Default for RethMultiVMConfig {
                     "trace".to_string(),
                 ],
                 max_connections: 100,
-                max_request_size_bytes: 15728640, // 15MB
+                max_request_size_bytes: 15728640,  // 15MB
                 max_response_size_bytes: 15728640, // 15MB
                 request_timeout_seconds: 30,
             },
@@ -235,8 +235,9 @@ impl RethMultiVMConfig {
     pub fn load_from_file(path: &PathBuf) -> Result<Self, RethEngineError> {
         info!("Loading MultiVM Reth configuration from: {:?}", path);
 
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| RethEngineError::Configuration(format!("Failed to read config file: {e}")))?;
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to read config file: {e}"))
+        })?;
 
         let config: RethMultiVMConfig = toml::from_str(&content)
             .map_err(|e| RethEngineError::Configuration(format!("Failed to parse config: {e}")))?;
@@ -261,17 +262,20 @@ impl RethMultiVMConfig {
         }
 
         if let Ok(rpc_port) = std::env::var("RETH_HTTP_PORT") {
-            config.rpc.port = rpc_port.parse()
+            config.rpc.port = rpc_port
+                .parse()
                 .map_err(|e| RethEngineError::Configuration(format!("Invalid RPC port: {e}")))?;
         }
 
         if let Ok(engine_port) = std::env::var("RETH_ENGINE_PORT") {
-            config.engine_api.port = engine_port.parse()
+            config.engine_api.port = engine_port
+                .parse()
                 .map_err(|e| RethEngineError::Configuration(format!("Invalid Engine port: {e}")))?;
         }
 
         if let Ok(chain_id) = std::env::var("RETH_CHAIN_ID") {
-            let chain_id_num: u64 = chain_id.parse()
+            let chain_id_num: u64 = chain_id
+                .parse()
                 .map_err(|e| RethEngineError::Configuration(format!("Invalid chain ID: {e}")))?;
             config.node.chain_id = chain_id_num;
             config.node.network_id = chain_id_num;
@@ -287,7 +291,8 @@ impl RethMultiVMConfig {
         }
 
         if let Ok(jwt_expiry) = std::env::var("JWT_EXPIRY_SECONDS") {
-            let expiry: u64 = jwt_expiry.parse()
+            let expiry: u64 = jwt_expiry
+                .parse()
                 .map_err(|e| RethEngineError::Configuration(format!("Invalid JWT expiry: {e}")))?;
             config.engine_api.jwt_expiry_seconds = expiry;
             config.multivm.authentication.token_expiry_seconds = expiry;
@@ -296,10 +301,11 @@ impl RethMultiVMConfig {
         // Set chain name based on chain ID
         config.reth.chain = match config.node.chain_id {
             1 => "mainnet",
-            11155111 => "sepolia", 
+            11155111 => "sepolia",
             17000 => "holesky",
             _ => "dev",
-        }.to_string();
+        }
+        .to_string();
 
         info!("Configuration loaded from environment variables");
         config.validate()?;
@@ -310,17 +316,20 @@ impl RethMultiVMConfig {
     pub fn save_to_file(&self, path: &PathBuf) -> Result<(), RethEngineError> {
         info!("Saving configuration to: {:?}", path);
 
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| RethEngineError::Configuration(format!("Failed to serialize config: {e}")))?;
+        let content = toml::to_string_pretty(self).map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to serialize config: {e}"))
+        })?;
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| RethEngineError::Configuration(format!("Failed to create config directory: {e}")))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                RethEngineError::Configuration(format!("Failed to create config directory: {e}"))
+            })?;
         }
 
-        std::fs::write(path, content)
-            .map_err(|e| RethEngineError::Configuration(format!("Failed to write config file: {e}")))?;
+        std::fs::write(path, content).map_err(|e| {
+            RethEngineError::Configuration(format!("Failed to write config file: {e}"))
+        })?;
 
         info!("Configuration saved successfully");
         Ok(())
@@ -331,32 +340,34 @@ impl RethMultiVMConfig {
         // Validate ports
         if self.rpc.port == self.engine_api.port {
             return Err(RethEngineError::Configuration(
-                "RPC and Engine API ports must be different".to_string()
+                "RPC and Engine API ports must be different".to_string(),
             ));
         }
 
         // Validate paths
         let data_dir = PathBuf::from(&self.reth.data_dir);
         let jwt_path = PathBuf::from(&self.engine_api.jwt_secret_path);
-        
+
         // JWT path should be under data directory (security best practice)
         if jwt_path.parent() != Some(&data_dir) {
             warn!("JWT secret path is not under data directory - this may be a security risk");
         }
 
         // Validate timeouts
-        if self.multivm.coordination.health_check_timeout_seconds > 
-           self.multivm.coordination.health_check_interval_seconds {
+        if self.multivm.coordination.health_check_timeout_seconds
+            > self.multivm.coordination.health_check_interval_seconds
+        {
             return Err(RethEngineError::Configuration(
-                "Health check timeout cannot be greater than interval".to_string()
+                "Health check timeout cannot be greater than interval".to_string(),
             ));
         }
 
         // Validate transaction limits
-        if self.multivm.max_cross_vm_transactions_per_block > 
-           self.multivm.coordination.max_transactions_per_block {
+        if self.multivm.max_cross_vm_transactions_per_block
+            > self.multivm.coordination.max_transactions_per_block
+        {
             return Err(RethEngineError::Configuration(
-                "Cross-VM transaction limit cannot exceed total transaction limit".to_string()
+                "Cross-VM transaction limit cannot exceed total transaction limit".to_string(),
             ));
         }
 
@@ -370,7 +381,9 @@ impl RethMultiVMConfig {
             max_retries: 3,
             retry_delay: Duration::from_millis(1000),
             request_timeout: Duration::from_secs(self.rpc.request_timeout_seconds),
-            health_check_interval: Duration::from_secs(self.multivm.coordination.health_check_interval_seconds),
+            health_check_interval: Duration::from_secs(
+                self.multivm.coordination.health_check_interval_seconds,
+            ),
             connection_pool_size: self.rpc.max_connections,
         }
     }
@@ -397,19 +410,29 @@ impl RethMultiVMConfig {
             self.rpc.port,
             self.node.chain_id,
             self.to_connection_config(),
-        ).await
+        )
+        .await
     }
 
     /// Print configuration summary
     pub fn print_summary(&self) {
         info!("=== MultiVM Reth Configuration Summary ===");
-        info!("Node: {} (Chain ID: {})", self.node.name, self.node.chain_id);
+        info!(
+            "Node: {} (Chain ID: {})",
+            self.node.name, self.node.chain_id
+        );
         info!("Data Directory: {}", self.reth.data_dir);
         info!("RPC: {}:{}", self.rpc.host, self.rpc.port);
-        info!("Engine API: {}:{}", self.engine_api.host, self.engine_api.port);
+        info!(
+            "Engine API: {}:{}",
+            self.engine_api.host, self.engine_api.port
+        );
         info!("JWT Secret: {}", self.engine_api.jwt_secret_path);
         info!("IPC Socket: {}", self.multivm.ipc_path);
-        info!("Chain: {} (dev_mode: {})", self.reth.chain, self.reth.dev_mode);
+        info!(
+            "Chain: {} (dev_mode: {})",
+            self.reth.chain, self.reth.dev_mode
+        );
         info!("==========================================");
     }
 }
@@ -466,10 +489,12 @@ mod tests {
     fn test_config_file_round_trip() {
         let config = RethMultiVMConfig::default();
         let temp_file = NamedTempFile::new().unwrap();
-        
-        config.save_to_file(&temp_file.path().to_path_buf()).unwrap();
+
+        config
+            .save_to_file(&temp_file.path().to_path_buf())
+            .unwrap();
         let loaded = RethMultiVMConfig::load_from_file(&temp_file.path().to_path_buf()).unwrap();
-        
+
         assert_eq!(config.node.chain_id, loaded.node.chain_id);
         assert_eq!(config.rpc.port, loaded.rpc.port);
     }
@@ -477,11 +502,11 @@ mod tests {
     #[test]
     fn test_validation_errors() {
         let mut config = RethMultiVMConfig::default();
-        
+
         // Test port conflict
         config.engine_api.port = config.rpc.port;
         assert!(config.validate().is_err());
-        
+
         // Reset and test timeout validation
         config.engine_api.port = 8551;
         config.multivm.coordination.health_check_timeout_seconds = 100;
@@ -494,12 +519,12 @@ mod tests {
         std::env::set_var("RETH_DATA_DIR", "/tmp/test-reth");
         std::env::set_var("RETH_HTTP_PORT", "8546");
         std::env::set_var("RETH_CHAIN_ID", "1337");
-        
+
         let config = RethMultiVMConfig::load_from_env().unwrap();
         assert_eq!(config.reth.data_dir, "/tmp/test-reth");
         assert_eq!(config.rpc.port, 8546);
         assert_eq!(config.node.chain_id, 1337);
-        
+
         // Cleanup
         std::env::remove_var("RETH_DATA_DIR");
         std::env::remove_var("RETH_HTTP_PORT");

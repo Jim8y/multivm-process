@@ -695,14 +695,22 @@ impl MultiVMConsensusManager {
     ) -> ConsensusResult<()> {
         info!(
             "Received consensus message from {} for round {} view {} ({} bytes)",
-            peer_id, round, view, consensus_data.len()
+            peer_id,
+            round,
+            view,
+            consensus_data.len()
         );
 
         // Enhanced message validation with size limits
-        if consensus_data.len() > 1024 * 1024 {  // 1MB limit
-            warn!("Rejecting oversized message from {}: {} bytes", peer_id, consensus_data.len());
+        if consensus_data.len() > 1024 * 1024 {
+            // 1MB limit
+            warn!(
+                "Rejecting oversized message from {}: {} bytes",
+                peer_id,
+                consensus_data.len()
+            );
             return Err(ConsensusError::InvalidMessage(
-                "Message too large".to_string()
+                "Message too large".to_string(),
             ));
         }
 
@@ -716,7 +724,10 @@ impl MultiVMConsensusManager {
         };
 
         // Validate basic message structure
-        if !self.validate_message_structure(&consensus_payload, &peer_id).await? {
+        if !self
+            .validate_message_structure(&consensus_payload, &peer_id)
+            .await?
+        {
             return Err(ConsensusError::InvalidMessage(
                 "Message structure validation failed".to_string(),
             ));
@@ -757,13 +768,16 @@ impl MultiVMConsensusManager {
                         .await
                 }
                 "heartbeat" => {
-                    self.handle_heartbeat_message(&consensus_payload, &peer_id).await
+                    self.handle_heartbeat_message(&consensus_payload, &peer_id)
+                        .await
                 }
                 "timeout" => {
-                    self.handle_timeout_message(&consensus_payload, round, view, &peer_id).await
+                    self.handle_timeout_message(&consensus_payload, round, view, &peer_id)
+                        .await
                 }
                 "query" => {
-                    self.handle_query_message(&consensus_payload, &peer_id).await
+                    self.handle_query_message(&consensus_payload, &peer_id)
+                        .await
                 }
                 _ => {
                     warn!("Unknown consensus message type: {}", msg_type);
@@ -836,7 +850,10 @@ impl MultiVMConsensusManager {
             })?;
 
         // Enhanced vote validation with Byzantine checks
-        if !self.validate_vote_comprehensive(&vote, validator_id, round, view).await? {
+        if !self
+            .validate_vote_comprehensive(&vote, validator_id, round, view)
+            .await?
+        {
             warn!("Invalid vote from validator {}", validator_id);
             return Err(ConsensusError::ValidationFailed(
                 "Vote validation failed".to_string(),
@@ -865,7 +882,10 @@ impl MultiVMConsensusManager {
             .to_string();
 
         if !block_hash.is_empty() && !self.validate_block_hash(&block_hash).await {
-            warn!("Invalid block hash in vote from {}: {}", validator_id, block_hash);
+            warn!(
+                "Invalid block hash in vote from {}: {}",
+                validator_id, block_hash
+            );
             return Err(ConsensusError::InvalidMessage(
                 "Invalid block hash".to_string(),
             ));
@@ -879,7 +899,10 @@ impl MultiVMConsensusManager {
             vote_type,
             voter: validator_id.to_string(),
             justification: self.extract_vote_justification(&vote),
-            metadata: vote.get("metadata").unwrap_or(&serde_json::json!({})).clone(),
+            metadata: vote
+                .get("metadata")
+                .unwrap_or(&serde_json::json!({}))
+                .clone(),
         };
 
         let consensus_msg = ConsensusMessage::new(peer_id, ConsensusMessagePayload::Vote(vote_msg));
@@ -941,7 +964,10 @@ impl MultiVMConsensusManager {
         }
 
         if payload.get("timestamp").is_none() {
-            warn!("Message from {} missing required 'timestamp' field", peer_id);
+            warn!(
+                "Message from {} missing required 'timestamp' field",
+                peer_id
+            );
             return Ok(false);
         }
 
@@ -951,9 +977,12 @@ impl MultiVMConsensusManager {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
-            
+
             if timestamp < now.saturating_sub(300) || timestamp > now + 300 {
-                warn!("Message from {} has invalid timestamp: {}", peer_id, timestamp);
+                warn!(
+                    "Message from {} has invalid timestamp: {}",
+                    peer_id, timestamp
+                );
                 return Ok(false);
             }
         }
@@ -961,7 +990,10 @@ impl MultiVMConsensusManager {
         // Validate message version
         if let Some(version) = payload.get("version").and_then(|v| v.as_u64()) {
             if version > 1 {
-                warn!("Message from {} has unsupported version: {}", peer_id, version);
+                warn!(
+                    "Message from {} has unsupported version: {}",
+                    peer_id, version
+                );
                 return Ok(false);
             }
         }
@@ -996,13 +1028,19 @@ impl MultiVMConsensusManager {
 
         // Validate vote timing (not too old or too new)
         if !self.is_vote_timely(round, view).await? {
-            warn!("Vote from {} is not timely for round {} view {}", validator_id, round, view);
+            warn!(
+                "Vote from {} is not timely for round {} view {}",
+                validator_id, round, view
+            );
             return Ok(false);
         }
 
         // Validate vote signature
         if let Some(signature) = vote.get("signature") {
-            if !self.verify_vote_signature(vote, signature, validator_id).await? {
+            if !self
+                .verify_vote_signature(vote, signature, validator_id)
+                .await?
+            {
                 warn!("Invalid signature in vote from {}", validator_id);
                 return Ok(false);
             }
@@ -1023,11 +1061,15 @@ impl MultiVMConsensusManager {
     }
 
     /// Extract vote justification from vote message
-    fn extract_vote_justification(&self, vote: &serde_json::Value) -> Option<crate::messages::VoteJustification> {
+    fn extract_vote_justification(
+        &self,
+        vote: &serde_json::Value,
+    ) -> Option<crate::messages::VoteJustification> {
         vote.get("justification").and_then(|j| {
             Some(crate::messages::VoteJustification {
                 reason: j.get("reason")?.as_str()?.to_string(),
-                evidence: j.get("evidence")
+                evidence: j
+                    .get("evidence")
                     .and_then(|e| e.as_str())
                     .map(|s| s.as_bytes().to_vec())
                     .unwrap_or_default(),
@@ -1044,7 +1086,12 @@ impl MultiVMConsensusManager {
     }
 
     /// Check if validator has already voted for this round/view
-    async fn has_validator_voted(&self, validator_id: &str, round: u64, view: u64) -> ConsensusResult<bool> {
+    async fn has_validator_voted(
+        &self,
+        validator_id: &str,
+        round: u64,
+        view: u64,
+    ) -> ConsensusResult<bool> {
         // Query vote history - for now return false
         Ok(false)
     }
@@ -1087,9 +1134,10 @@ impl MultiVMConsensusManager {
         // Extract heartbeat information
         let height = payload.get("height").and_then(|h| h.as_u64()).unwrap_or(0);
         let view = payload.get("view").and_then(|v| v.as_u64()).unwrap_or(0);
-        
+
         // Update peer status
-        self.update_peer_status(peer_id, height, view as u32).await?;
+        self.update_peer_status(peer_id, height, view as u32)
+            .await?;
 
         // Send heartbeat response if needed
         if self.should_respond_to_heartbeat(peer_id).await? {
@@ -1107,14 +1155,23 @@ impl MultiVMConsensusManager {
         view: u64,
         peer_id: &str,
     ) -> ConsensusResult<()> {
-        info!("Processing timeout message from peer {} for round {} view {}", peer_id, round, view);
+        info!(
+            "Processing timeout message from peer {} for round {} view {}",
+            peer_id, round, view
+        );
 
         // Extract timeout information
         let timeout_type = payload.get("timeout_type").and_then(|t| t.as_str());
-        let duration = payload.get("duration_ms").and_then(|d| d.as_u64()).unwrap_or(0);
+        let duration = payload
+            .get("duration_ms")
+            .and_then(|d| d.as_u64())
+            .unwrap_or(0);
 
         // Validate timeout message
-        if !self.validate_timeout_message(timeout_type, round, view, peer_id).await? {
+        if !self
+            .validate_timeout_message(timeout_type, round, view, peer_id)
+            .await?
+        {
             warn!("Invalid timeout message from {}", peer_id);
             return Ok(());
         }
@@ -1124,7 +1181,10 @@ impl MultiVMConsensusManager {
             Some("proposal") => self.handle_proposal_timeout(round, view, peer_id).await?,
             Some("vote") => self.handle_vote_timeout(round, view, peer_id).await?,
             Some("commit") => self.handle_commit_timeout(round, view, peer_id).await?,
-            Some("view_change") => self.handle_view_change_timeout(round, view, peer_id).await?,
+            Some("view_change") => {
+                self.handle_view_change_timeout(round, view, peer_id)
+                    .await?
+            }
             _ => {
                 warn!("Unknown timeout type from {}: {:?}", peer_id, timeout_type);
             }
@@ -1147,7 +1207,8 @@ impl MultiVMConsensusManager {
 
         if let (Some(query_type), Some(request_id)) = (query_type, request_id) {
             let response = self.process_query(query_type, payload).await?;
-            self.send_query_response(peer_id, request_id, response).await?;
+            self.send_query_response(peer_id, request_id, response)
+                .await?;
         } else {
             warn!("Invalid query message from {}", peer_id);
         }
@@ -1701,29 +1762,37 @@ impl MultiVMConsensusManager {
         message: ConsensusMessage,
     ) -> ConsensusResult<()> {
         // Forward message to Malachite consensus engine with enhanced handling
-        debug!("Forwarding message to Malachite consensus: {:?}", message.message_type());
+        debug!(
+            "Forwarding message to Malachite consensus: {:?}",
+            message.message_type()
+        );
 
         // Process message based on type with proper validation
         match message.payload {
             ConsensusMessagePayload::Proposal(proposal) => {
                 // Enhanced proposal processing with BFT validation
-                self.process_proposal_with_validation(proposal, &message.sender).await
+                self.process_proposal_with_validation(proposal, &message.sender)
+                    .await
             }
             ConsensusMessagePayload::Vote(vote) => {
                 // Enhanced vote processing with Byzantine fault tolerance
-                self.process_vote_with_validation(vote, &message.sender).await
+                self.process_vote_with_validation(vote, &message.sender)
+                    .await
             }
             ConsensusMessagePayload::ViewChange(view_change) => {
                 // Enhanced view change processing
-                self.process_view_change_with_validation(view_change, &message.sender).await
+                self.process_view_change_with_validation(view_change, &message.sender)
+                    .await
             }
             ConsensusMessagePayload::Heartbeat(heartbeat) => {
                 // Process heartbeat for liveness detection
-                self.process_heartbeat_message(heartbeat, &message.sender).await
+                self.process_heartbeat_message(heartbeat, &message.sender)
+                    .await
             }
             ConsensusMessagePayload::StateSync(state_sync) => {
                 // Process state synchronization message
-                self.process_state_sync_message(state_sync, &message.sender).await
+                self.process_state_sync_message(state_sync, &message.sender)
+                    .await
             }
             ConsensusMessagePayload::Timeout(timeout) => {
                 // Process timeout message for consensus progression
@@ -1735,11 +1804,13 @@ impl MultiVMConsensusManager {
             }
             ConsensusMessagePayload::Response(response) => {
                 // Process response message
-                self.process_response_message(response, &message.sender).await
+                self.process_response_message(response, &message.sender)
+                    .await
             }
             ConsensusMessagePayload::BlockFinalized { height, block_hash } => {
                 // Process block finalization message
-                self.process_block_finalization(height, block_hash, &message.sender).await
+                self.process_block_finalization(height, block_hash, &message.sender)
+                    .await
             }
         }
     }
@@ -1758,19 +1829,25 @@ impl MultiVMConsensusManager {
         // Enhanced proposal validation
         if !self.validate_proposal_structure(&proposal, sender).await? {
             warn!("Invalid proposal structure from {}", sender);
-            return Err(ConsensusError::InvalidMessage("Invalid proposal structure".to_string()));
+            return Err(ConsensusError::InvalidMessage(
+                "Invalid proposal structure".to_string(),
+            ));
         }
 
         // Check if sender is the expected proposer
         if !self.is_expected_proposer(&proposal, sender).await? {
             warn!("Proposal from {} is not from expected proposer", sender);
-            return Err(ConsensusError::InvalidMessage("Unauthorized proposer".to_string()));
+            return Err(ConsensusError::InvalidMessage(
+                "Unauthorized proposer".to_string(),
+            ));
         }
 
         // Validate block content
         if !self.validate_block_content(&proposal.block).await? {
             warn!("Invalid block content in proposal from {}", sender);
-            return Err(ConsensusError::InvalidBlock("Block validation failed".to_string()));
+            return Err(ConsensusError::InvalidBlock(
+                "Block validation failed".to_string(),
+            ));
         }
 
         // Forward to consensus engine
@@ -1783,9 +1860,15 @@ impl MultiVMConsensusManager {
         };
 
         // Validate block through consensus engine
-        if !self.consensus_engine.validate_block(&malachite_block).await? {
+        if !self
+            .consensus_engine
+            .validate_block(&malachite_block)
+            .await?
+        {
             warn!("Block validation failed in consensus engine");
-            return Err(ConsensusError::InvalidBlock("Consensus validation failed".to_string()));
+            return Err(ConsensusError::InvalidBlock(
+                "Consensus validation failed".to_string(),
+            ));
         }
 
         // Generate and broadcast vote if we agree with the proposal
@@ -1806,13 +1889,17 @@ impl MultiVMConsensusManager {
         // Enhanced vote validation
         if !self.validate_vote_structure(&vote, sender).await? {
             warn!("Invalid vote structure from {}", sender);
-            return Err(ConsensusError::InvalidMessage("Invalid vote structure".to_string()));
+            return Err(ConsensusError::InvalidMessage(
+                "Invalid vote structure".to_string(),
+            ));
         }
 
         // Check for Byzantine faults (double voting)
         if self.detect_double_voting(&vote, sender).await? {
             warn!("Double voting detected from {}", sender);
-            return Err(ConsensusError::ValidationFailed("Double voting detected".to_string()));
+            return Err(ConsensusError::ValidationFailed(
+                "Double voting detected".to_string(),
+            ));
         }
 
         // Forward to consensus engine based on vote type
@@ -1828,12 +1915,21 @@ impl MultiVMConsensusManager {
         };
 
         // Process vote through consensus engine
-        let phase_changed = self.consensus_engine
-            .process_vote(validator_addr, round, vote_type, Some(vote.block_hash.clone()))
+        let phase_changed = self
+            .consensus_engine
+            .process_vote(
+                validator_addr,
+                round,
+                vote_type,
+                Some(vote.block_hash.clone()),
+            )
             .await?;
 
         if phase_changed {
-            info!("Consensus phase changed after processing vote from {}", sender);
+            info!(
+                "Consensus phase changed after processing vote from {}",
+                sender
+            );
         }
 
         Ok(())
@@ -1851,28 +1947,43 @@ impl MultiVMConsensusManager {
         );
 
         // Enhanced view change validation
-        if !self.validate_view_change_structure(&view_change, sender).await? {
+        if !self
+            .validate_view_change_structure(&view_change, sender)
+            .await?
+        {
             warn!("Invalid view change structure from {}", sender);
-            return Err(ConsensusError::InvalidMessage("Invalid view change structure".to_string()));
+            return Err(ConsensusError::InvalidMessage(
+                "Invalid view change structure".to_string(),
+            ));
         }
 
         // Check view change justification
-        if !self.validate_view_change_justification(&view_change.justification, sender).await? {
+        if !self
+            .validate_view_change_justification(&view_change.justification, sender)
+            .await?
+        {
             warn!("Invalid view change justification from {}", sender);
-            return Err(ConsensusError::ValidationFailed("Invalid view change justification".to_string()));
+            return Err(ConsensusError::ValidationFailed(
+                "Invalid view change justification".to_string(),
+            ));
         }
 
         // Forward to consensus engine
-        let validator_addr = crate::malachite::types::ValidatorAddress(view_change.requesting_node.clone());
+        let validator_addr =
+            crate::malachite::types::ValidatorAddress(view_change.requesting_node.clone());
         let new_round = crate::malachite::types::Round::new(view_change.new_view);
         let signature = view_change.justification.evidence.clone();
 
-        let view_change_complete = self.consensus_engine
+        let view_change_complete = self
+            .consensus_engine
             .process_view_change(&validator_addr, view_change.height, new_round, signature)
             .await?;
 
         if view_change_complete {
-            info!("View change completed for height {} new_view {}", view_change.height, view_change.new_view);
+            info!(
+                "View change completed for height {} new_view {}",
+                view_change.height, view_change.new_view
+            );
         }
 
         Ok(())
@@ -1884,14 +1995,21 @@ impl MultiVMConsensusManager {
         heartbeat: crate::messages::HeartbeatMessage,
         sender: &str,
     ) -> ConsensusResult<()> {
-        debug!("Processing heartbeat from {} for height {} view {}", sender, heartbeat.height, heartbeat.view);
+        debug!(
+            "Processing heartbeat from {} for height {} view {}",
+            sender, heartbeat.height, heartbeat.view
+        );
 
         // Update peer liveness information
-        self.update_peer_liveness(sender, heartbeat.height, heartbeat.view).await?;
+        self.update_peer_liveness(sender, heartbeat.height, heartbeat.view)
+            .await?;
 
         // Check if we need to update our view of the network
         if heartbeat.height > self.consensus_engine.get_current_height().await? {
-            info!("Peer {} is at higher height {}, may need to sync", sender, heartbeat.height);
+            info!(
+                "Peer {} is at higher height {}, may need to sync",
+                sender, heartbeat.height
+            );
             self.maybe_initiate_sync(sender, heartbeat.height).await?;
         }
 
@@ -1907,11 +2025,23 @@ impl MultiVMConsensusManager {
         debug!("Processing state sync message from {}", sender);
 
         match state_sync {
-            crate::messages::StateSyncMessage::StateRequest { height, chunk_index, vm_type } => {
-                self.handle_state_request(sender, height, chunk_index, vm_type).await
+            crate::messages::StateSyncMessage::StateRequest {
+                height,
+                chunk_index,
+                vm_type,
+            } => {
+                self.handle_state_request(sender, height, chunk_index, vm_type)
+                    .await
             }
-            crate::messages::StateSyncMessage::StateResponse { height, chunk_index, chunk_data, vm_type, proof } => {
-                self.handle_state_response(sender, height, chunk_index, chunk_data, vm_type, proof).await
+            crate::messages::StateSyncMessage::StateResponse {
+                height,
+                chunk_index,
+                chunk_data,
+                vm_type,
+                proof,
+            } => {
+                self.handle_state_response(sender, height, chunk_index, chunk_data, vm_type, proof)
+                    .await
             }
             crate::messages::StateSyncMessage::SyncComplete { height, state_root } => {
                 self.handle_sync_complete(sender, height, state_root).await
@@ -1931,22 +2061,28 @@ impl MultiVMConsensusManager {
         timeout: crate::messages::TimeoutMessage,
         sender: &str,
     ) -> ConsensusResult<()> {
-        info!("Processing timeout message from {} for height {} round {} type {:?}", 
-              sender, timeout.height, timeout.round, timeout.timeout_type);
+        info!(
+            "Processing timeout message from {} for height {} round {} type {:?}",
+            sender, timeout.height, timeout.round, timeout.timeout_type
+        );
 
         // Handle different timeout types
         match timeout.timeout_type {
             crate::messages::TimeoutType::Proposal => {
-                self.handle_proposal_timeout(timeout.round as u64, timeout.height, sender).await
+                self.handle_proposal_timeout(timeout.round as u64, timeout.height, sender)
+                    .await
             }
             crate::messages::TimeoutType::Vote => {
-                self.handle_vote_timeout(timeout.round as u64, timeout.height, sender).await
+                self.handle_vote_timeout(timeout.round as u64, timeout.height, sender)
+                    .await
             }
             crate::messages::TimeoutType::Commit => {
-                self.handle_commit_timeout(timeout.round as u64, timeout.height, sender).await
+                self.handle_commit_timeout(timeout.round as u64, timeout.height, sender)
+                    .await
             }
             crate::messages::TimeoutType::ViewChange => {
-                self.handle_view_change_timeout(timeout.round as u64, timeout.height, sender).await
+                self.handle_view_change_timeout(timeout.round as u64, timeout.height, sender)
+                    .await
             }
         }
     }
@@ -1957,7 +2093,10 @@ impl MultiVMConsensusManager {
         query: crate::messages::QueryMessage,
         sender: &str,
     ) -> ConsensusResult<()> {
-        debug!("Processing query from {} type {:?}", sender, query.query_type);
+        debug!(
+            "Processing query from {} type {:?}",
+            sender, query.query_type
+        );
 
         let response = match query.query_type {
             crate::messages::QueryType::GetHeight => {
@@ -1967,7 +2106,8 @@ impl MultiVMConsensusManager {
             crate::messages::QueryType::GetBlock(height) => {
                 let block = self.consensus_engine.get_block_by_height(height).await?;
                 crate::messages::ResponsePayload::Block(block.map(|b| {
-                    serde_json::from_slice(&b.data).unwrap_or_else(|_| crate::block::MultiVMBlock::default())
+                    serde_json::from_slice(&b.data)
+                        .unwrap_or_else(|_| crate::block::MultiVMBlock::default())
                 }))
             }
             crate::messages::QueryType::GetStats => {
@@ -1998,12 +2138,14 @@ impl MultiVMConsensusManager {
                 crate::messages::ResponsePayload::Peers(peers)
             }
             crate::messages::QueryType::Custom(custom_query) => {
-                self.handle_custom_query(&custom_query, &query.parameters).await?
+                self.handle_custom_query(&custom_query, &query.parameters)
+                    .await?
             }
         };
 
         // Send response
-        self.send_query_response_message(sender, &query.request_id, response).await
+        self.send_query_response_message(sender, &query.request_id, response)
+            .await
     }
 
     /// Process response message
@@ -2012,7 +2154,10 @@ impl MultiVMConsensusManager {
         response: crate::messages::ResponseMessage,
         sender: &str,
     ) -> ConsensusResult<()> {
-        debug!("Processing response from {} for request {}", sender, response.request_id);
+        debug!(
+            "Processing response from {} for request {}",
+            sender, response.request_id
+        );
 
         // Handle the response based on the original request
         self.handle_query_response(sender, response).await
@@ -2025,10 +2170,14 @@ impl MultiVMConsensusManager {
         block_hash: String,
         sender: &str,
     ) -> ConsensusResult<()> {
-        info!("Processing block finalization from {} for height {} hash {}", sender, height, block_hash);
+        info!(
+            "Processing block finalization from {} for height {} hash {}",
+            sender, height, block_hash
+        );
 
         // Update our view of finalized blocks
-        self.update_finalized_block(height, block_hash, sender).await
+        self.update_finalized_block(height, block_hash, sender)
+            .await
     }
 
     async fn process_proposal(
@@ -2648,15 +2797,23 @@ impl MultiVMConsensusManager {
     }
 
     /// Update peer status in the network
-    async fn update_peer_status(&mut self, peer_id: &str, height: u64, view: u32) -> ConsensusResult<()> {
-        debug!("Updating peer {} status: height={}, view={}", peer_id, height, view);
-        
+    async fn update_peer_status(
+        &mut self,
+        peer_id: &str,
+        height: u64,
+        view: u32,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Updating peer {} status: height={}, view={}",
+            peer_id, height, view
+        );
+
         let mut validators = self.known_validators.write().await;
         if let Some(peer_info) = validators.get_mut(peer_id) {
             // Update peer status (P2P peer info doesn't have height/view, so we update last_seen)
             peer_info.last_seen = chrono::Utc::now();
             peer_info.status = multivm_p2p::protocol::messages::PeerStatus::Connected;
-            
+
             // Check if peer is significantly behind and needs sync
             let current_height = self.consensus_engine.get_current_height().await?;
             if height + 10 < current_height {
@@ -2664,7 +2821,7 @@ impl MultiVMConsensusManager {
                 self.maybe_initiate_sync(peer_id, height).await?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -2675,17 +2832,21 @@ impl MultiVMConsensusManager {
     }
 
     /// Get peer information by peer ID
-    async fn get_peer_info(&self, peer_id: &str) -> ConsensusResult<multivm_p2p::protocol::messages::PeerInfo> {
+    async fn get_peer_info(
+        &self,
+        peer_id: &str,
+    ) -> ConsensusResult<multivm_p2p::protocol::messages::PeerInfo> {
         let validators = self.known_validators.read().await;
-        validators.get(peer_id).cloned().ok_or_else(|| {
-            ConsensusError::ValidatorNotFound(peer_id.to_string())
-        })
+        validators
+            .get(peer_id)
+            .cloned()
+            .ok_or_else(|| ConsensusError::ValidatorNotFound(peer_id.to_string()))
     }
 
     /// Send heartbeat response
     async fn send_heartbeat_response(&self, peer_id: &str) -> ConsensusResult<()> {
         debug!("Sending heartbeat response to peer {}", peer_id);
-        
+
         if let Some(network) = &self.p2p_network {
             let stats = self.consensus_engine.get_consensus_stats().await?;
             let heartbeat_msg = crate::messages::HeartbeatMessage {
@@ -2710,10 +2871,12 @@ impl MultiVMConsensusManager {
 
             // Send heartbeat response to specific peer
             if let Ok(peer_info) = self.get_peer_info(peer_id).await {
-                let _ = self.send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id).await;
+                let _ = self
+                    .send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id)
+                    .await;
             }
         }
-        
+
         Ok(())
     }
 
@@ -2742,51 +2905,88 @@ impl MultiVMConsensusManager {
     }
 
     /// Handle proposal timeout
-    async fn handle_proposal_timeout(&mut self, round: u64, view: u64, peer_id: &str) -> ConsensusResult<()> {
-        info!("Handling proposal timeout for round {} view {} from {}", round, view, peer_id);
-        
+    async fn handle_proposal_timeout(
+        &mut self,
+        round: u64,
+        view: u64,
+        peer_id: &str,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Handling proposal timeout for round {} view {} from {}",
+            round, view, peer_id
+        );
+
         // Trigger view change if we're also experiencing timeout
         if self.is_current_round_timeout(round, view).await? {
-            self.initiate_view_change(round, view, "proposal_timeout").await?;
+            self.initiate_view_change(round, view, "proposal_timeout")
+                .await?;
         }
-        
+
         Ok(())
     }
 
     /// Handle vote timeout
-    async fn handle_vote_timeout(&mut self, round: u64, view: u64, peer_id: &str) -> ConsensusResult<()> {
-        info!("Handling vote timeout for round {} view {} from {}", round, view, peer_id);
-        
+    async fn handle_vote_timeout(
+        &mut self,
+        round: u64,
+        view: u64,
+        peer_id: &str,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Handling vote timeout for round {} view {} from {}",
+            round, view, peer_id
+        );
+
         // Check if we need to advance to next round
         if self.should_advance_round(round, view).await? {
             self.advance_to_next_round(round, view).await?;
         }
-        
+
         Ok(())
     }
 
     /// Handle commit timeout
-    async fn handle_commit_timeout(&mut self, round: u64, view: u64, peer_id: &str) -> ConsensusResult<()> {
-        info!("Handling commit timeout for round {} view {} from {}", round, view, peer_id);
-        
+    async fn handle_commit_timeout(
+        &mut self,
+        round: u64,
+        view: u64,
+        peer_id: &str,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Handling commit timeout for round {} view {} from {}",
+            round, view, peer_id
+        );
+
         // Resend commit messages if needed
         self.resend_commit_messages(round, view).await?;
-        
+
         Ok(())
     }
 
     /// Handle view change timeout
-    async fn handle_view_change_timeout(&mut self, round: u64, view: u64, peer_id: &str) -> ConsensusResult<()> {
-        info!("Handling view change timeout for round {} view {} from {}", round, view, peer_id);
-        
+    async fn handle_view_change_timeout(
+        &mut self,
+        round: u64,
+        view: u64,
+        peer_id: &str,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Handling view change timeout for round {} view {} from {}",
+            round, view, peer_id
+        );
+
         // Accelerate view change process
         self.accelerate_view_change(round, view).await?;
-        
+
         Ok(())
     }
 
     /// Process query and return response
-    async fn process_query(&self, query_type: &str, payload: &serde_json::Value) -> ConsensusResult<serde_json::Value> {
+    async fn process_query(
+        &self,
+        query_type: &str,
+        payload: &serde_json::Value,
+    ) -> ConsensusResult<serde_json::Value> {
         match query_type {
             "get_height" => {
                 let stats = self.consensus_engine.get_consensus_stats().await?;
@@ -2838,8 +3038,11 @@ impl MultiVMConsensusManager {
         request_id: &str,
         response: serde_json::Value,
     ) -> ConsensusResult<()> {
-        debug!("Sending query response to peer {} for request {}", peer_id, request_id);
-        
+        debug!(
+            "Sending query response to peer {} for request {}",
+            peer_id, request_id
+        );
+
         // Create response message
         let response_msg = serde_json::json!({
             "type": "response",
@@ -2854,7 +3057,7 @@ impl MultiVMConsensusManager {
 
         // In production, this would send the response through the network layer
         info!("Query response prepared for peer {}", peer_id);
-        
+
         Ok(())
     }
 
@@ -2866,9 +3069,17 @@ impl MultiVMConsensusManager {
     }
 
     /// Initiate view change
-    async fn initiate_view_change(&mut self, round: u64, view: u64, reason: &str) -> ConsensusResult<()> {
-        info!("Initiating view change for round {} view {}: {}", round, view, reason);
-        
+    async fn initiate_view_change(
+        &mut self,
+        round: u64,
+        view: u64,
+        reason: &str,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Initiating view change for round {} view {}: {}",
+            round, view, reason
+        );
+
         // Create view change message
         let view_change_msg = crate::messages::ViewChangeMessage {
             height: view,
@@ -2890,20 +3101,20 @@ impl MultiVMConsensusManager {
             },
             requesting_node: self.node_id.clone(),
         };
-        
+
         let consensus_msg = crate::messages::ConsensusMessage::new(
             self.node_id.clone(),
             crate::messages::ConsensusMessagePayload::ViewChange(view_change_msg),
         );
-        
+
         // Broadcast view change message to all validators
         self.broadcast_consensus_message(consensus_msg).await?;
-        
+
         // Trigger view change in consensus engine
         if let Some(validator) = self.consensus_engine.validator_mut() {
             validator.handle_timeout().await?;
         }
-        
+
         Ok(())
     }
 
@@ -2911,12 +3122,12 @@ impl MultiVMConsensusManager {
     async fn should_advance_round(&self, round: u64, view: u64) -> ConsensusResult<bool> {
         // Check current consensus state
         let stats = self.consensus_engine.get_consensus_stats().await?;
-        
+
         // Check if we're in the correct height and round
         if stats.current_height != view || stats.current_round != round as u32 {
             return Ok(false);
         }
-        
+
         // Check if timeout has occurred
         if let Some(validator) = self.consensus_engine.validator() {
             if validator.is_round_timeout().await {
@@ -2924,63 +3135,69 @@ impl MultiVMConsensusManager {
                 return Ok(true);
             }
         }
-        
+
         // Check if we have insufficient votes to progress
         let vote_count = self.get_vote_count_for_round(round).await?;
         let required_votes = self.calculate_required_votes().await?;
-        
+
         if vote_count < required_votes {
             debug!(
                 "Insufficient votes for round {}: {} < {}",
                 round, vote_count, required_votes
             );
-            
+
             // Check if enough time has passed to give up on this round
             // (This is a simplification - in production would check actual timeout)
             return Ok(true);
         }
-        
+
         Ok(false)
     }
 
     /// Advance to next round
     async fn advance_to_next_round(&mut self, round: u64, view: u64) -> ConsensusResult<()> {
         info!("Advancing to next round after {} view {}", round, view);
-        
+
         // Trigger round advancement in consensus engine
         if let Some(validator) = self.consensus_engine.validator_mut() {
             // Advance the round
             validator.advance_round().await?;
-            
+
             // Get new round info
             let new_round = validator.current_round().await;
             let is_proposer = validator.is_current_proposer().await?;
-            
-            info!("Advanced to round {} (proposer: {})", new_round, is_proposer);
-            
+
+            info!(
+                "Advanced to round {} (proposer: {})",
+                new_round, is_proposer
+            );
+
             // If we're the new proposer, trigger block proposal
             if is_proposer {
                 self.stats.total_messages_sent += 1;
-                
+
                 // Schedule automatic block proposal
                 if self.config.enable_auto_proposal {
                     let _ = self.try_propose_block().await;
                 }
             }
         }
-        
+
         Ok(())
     }
 
     /// Resend commit messages
     async fn resend_commit_messages(&self, round: u64, view: u64) -> ConsensusResult<()> {
-        debug!("Resending commit messages for round {} view {}", round, view);
-        
+        debug!(
+            "Resending commit messages for round {} view {}",
+            round, view
+        );
+
         // Check if we have a commit for this round
         if let Some(validator) = self.consensus_engine.validator() {
             if let Some(commit_hash) = validator.can_commit().await {
                 info!("Resending commit message for block {}", commit_hash);
-                
+
                 // Create commit vote message
                 let vote_msg = crate::messages::VoteMessage {
                     height: view,
@@ -2995,24 +3212,24 @@ impl MultiVMConsensusManager {
                     }),
                     metadata: serde_json::json!({}),
                 };
-                
+
                 let consensus_msg = crate::messages::ConsensusMessage::new(
                     self.node_id.clone(),
                     crate::messages::ConsensusMessagePayload::Vote(vote_msg),
                 );
-                
+
                 // Broadcast commit message to ensure all validators receive it
                 self.broadcast_consensus_message(consensus_msg).await?;
             }
         }
-        
+
         Ok(())
     }
 
     /// Accelerate view change process
     async fn accelerate_view_change(&mut self, round: u64, view: u64) -> ConsensusResult<()> {
         info!("Accelerating view change for round {} view {}", round, view);
-        
+
         // Speed up view change by reducing timeouts
         if let Some(validator) = self.consensus_engine.validator_mut() {
             // Update config with shorter timeouts for faster view change
@@ -3021,14 +3238,15 @@ impl MultiVMConsensusManager {
             config.timeout_prevote_ms = config.timeout_prevote_ms / 2;
             config.timeout_precommit_ms = config.timeout_precommit_ms / 2;
             validator.update_config(config);
-            
+
             // Force immediate timeout handling
             validator.handle_timeout().await?;
         }
-        
+
         // Send another view change message to accelerate consensus
-        self.initiate_view_change(round + 1, view, "accelerated").await?;
-        
+        self.initiate_view_change(round + 1, view, "accelerated")
+            .await?;
+
         Ok(())
     }
 
@@ -3045,97 +3263,128 @@ impl MultiVMConsensusManager {
     }
 
     /// Additional validation and processing methods for enhanced message handling
-    
+
     /// Validate proposal structure
-    async fn validate_proposal_structure(&self, proposal: &crate::messages::ProposalMessage, sender: &str) -> ConsensusResult<bool> {
+    async fn validate_proposal_structure(
+        &self,
+        proposal: &crate::messages::ProposalMessage,
+        sender: &str,
+    ) -> ConsensusResult<bool> {
         // Validate basic structure
         if proposal.height == 0 {
             warn!("Invalid proposal height from {}", sender);
             return Ok(false);
         }
-        
+
         if proposal.proposer.is_empty() {
             warn!("Empty proposer in proposal from {}", sender);
             return Ok(false);
         }
-        
+
         Ok(true)
     }
 
     /// Check if sender is expected proposer
-    async fn is_expected_proposer(&self, proposal: &crate::messages::ProposalMessage, sender: &str) -> ConsensusResult<bool> {
+    async fn is_expected_proposer(
+        &self,
+        proposal: &crate::messages::ProposalMessage,
+        sender: &str,
+    ) -> ConsensusResult<bool> {
         // In production, would check leader selection algorithm
         Ok(proposal.proposer == sender)
     }
 
     /// Validate block content
-    async fn validate_block_content(&self, block: &crate::block::MultiVMBlock) -> ConsensusResult<bool> {
+    async fn validate_block_content(
+        &self,
+        block: &crate::block::MultiVMBlock,
+    ) -> ConsensusResult<bool> {
         // Validate block structure
-        block.validate_structure().map_err(|e| {
-            ConsensusError::InvalidBlock(format!("Block validation failed: {}", e))
-        })?;
-        
+        block
+            .validate_structure()
+            .map_err(|e| ConsensusError::InvalidBlock(format!("Block validation failed: {}", e)))?;
+
         Ok(true)
     }
 
     /// Generate vote for proposal
-    async fn generate_vote_for_proposal(&mut self, proposal: crate::messages::ProposalMessage, sender: &str) -> ConsensusResult<()> {
+    async fn generate_vote_for_proposal(
+        &mut self,
+        proposal: crate::messages::ProposalMessage,
+        sender: &str,
+    ) -> ConsensusResult<()> {
         // Generate prevote for the proposal
         let block_data = serde_json::to_vec(&proposal.block).map_err(|e| {
             ConsensusError::SerializationError(format!("Failed to serialize block: {}", e))
         })?;
         let block_hash = blake3::hash(&block_data).to_hex().to_string();
-        
+
         // Record our vote
-        self.record_vote(self.node_id.clone(), proposal.round as u64, block_hash).await?;
-        
-        info!("Generated vote for proposal from {} at height {}", sender, proposal.height);
+        self.record_vote(self.node_id.clone(), proposal.round as u64, block_hash)
+            .await?;
+
+        info!(
+            "Generated vote for proposal from {} at height {}",
+            sender, proposal.height
+        );
         Ok(())
     }
 
     /// Validate vote structure
-    async fn validate_vote_structure(&self, vote: &crate::messages::VoteMessage, sender: &str) -> ConsensusResult<bool> {
+    async fn validate_vote_structure(
+        &self,
+        vote: &crate::messages::VoteMessage,
+        sender: &str,
+    ) -> ConsensusResult<bool> {
         if vote.voter.is_empty() {
             warn!("Empty voter in vote from {}", sender);
             return Ok(false);
         }
-        
+
         if vote.height == 0 {
             warn!("Invalid vote height from {}", sender);
             return Ok(false);
         }
-        
+
         Ok(true)
     }
 
     /// Detect double voting (Byzantine fault)
-    async fn detect_double_voting(&self, vote: &crate::messages::VoteMessage, sender: &str) -> ConsensusResult<bool> {
+    async fn detect_double_voting(
+        &self,
+        vote: &crate::messages::VoteMessage,
+        sender: &str,
+    ) -> ConsensusResult<bool> {
         // Check vote history for double voting
         // This is a simplified implementation - in production would maintain a full vote history
-        
+
         // For now, we'll trust the consensus engine's internal checks
         // The Malachite validator already tracks votes and prevents double voting
-        
+
         debug!(
             "Checking for double voting from {} for height {} round {}",
             sender, vote.height, vote.round
         );
-        
+
         // In a full implementation, we would:
         // 1. Maintain a vote history map: (validator, height, round, vote_type) -> block_hash
         // 2. Check if this validator has already voted for a different block at this height/round
         // 3. If yes, this is a double vote - evidence of Byzantine behavior
-        
+
         Ok(false) // Simplified - rely on Malachite's internal checks
     }
 
     /// Validate view change structure
-    async fn validate_view_change_structure(&self, view_change: &crate::messages::ViewChangeMessage, sender: &str) -> ConsensusResult<bool> {
+    async fn validate_view_change_structure(
+        &self,
+        view_change: &crate::messages::ViewChangeMessage,
+        sender: &str,
+    ) -> ConsensusResult<bool> {
         if view_change.new_view <= view_change.old_view {
             warn!("Invalid view change progression from {}", sender);
             return Ok(false);
         }
-        
+
         Ok(true)
     }
 
@@ -3143,26 +3392,33 @@ impl MultiVMConsensusManager {
     async fn calculate_required_votes(&self) -> ConsensusResult<usize> {
         let validators = self.known_validators.read().await;
         let total_validators = validators.len();
-        
+
         if total_validators == 0 {
             return Ok(1); // Default to 1 for single-node operation
         }
-        
+
         // BFT requirement: 2f + 1 where f = (n-1)/3
         let byzantine_faults = (total_validators - 1) / 3;
         let required_votes = 2 * byzantine_faults + 1;
-        
+
         Ok(required_votes)
     }
 
     /// Validate view change justification
-    async fn validate_view_change_justification(&self, justification: &crate::messages::ViewChangeJustification, sender: &str) -> ConsensusResult<bool> {
+    async fn validate_view_change_justification(
+        &self,
+        justification: &crate::messages::ViewChangeJustification,
+        sender: &str,
+    ) -> ConsensusResult<bool> {
         // Validate evidence is present
         if justification.evidence.is_empty() {
-            warn!("Empty evidence in view change justification from {}", sender);
+            warn!(
+                "Empty evidence in view change justification from {}",
+                sender
+            );
             return Ok(false);
         }
-        
+
         // Validate supporting votes
         let required_votes = self.calculate_required_votes().await?;
         if justification.supporting_votes.len() < required_votes {
@@ -3174,7 +3430,7 @@ impl MultiVMConsensusManager {
             );
             return Ok(false);
         }
-        
+
         // Validate each supporting vote
         for vote in &justification.supporting_votes {
             // Check vote signature (simplified)
@@ -3182,14 +3438,17 @@ impl MultiVMConsensusManager {
                 warn!("Invalid signature in view change vote from {}", vote.voter);
                 return Ok(false);
             }
-            
+
             // Check view progression
             if vote.new_view <= vote.old_view {
-                warn!("Invalid view progression in view change vote from {}", vote.voter);
+                warn!(
+                    "Invalid view progression in view change vote from {}",
+                    vote.voter
+                );
                 return Ok(false);
             }
         }
-        
+
         // Validate timeout info if present
         if let Some(timeout_info) = &justification.timeout_info {
             if timeout_info.duration_ms == 0 {
@@ -3197,57 +3456,86 @@ impl MultiVMConsensusManager {
                 return Ok(false);
             }
         }
-        
+
         Ok(true)
     }
 
     /// Update peer liveness
-    async fn update_peer_liveness(&mut self, peer_id: &str, height: u64, view: u32) -> ConsensusResult<()> {
-        debug!("Updating liveness for peer {} at height {} view {}", peer_id, height, view);
+    async fn update_peer_liveness(
+        &mut self,
+        peer_id: &str,
+        height: u64,
+        view: u32,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Updating liveness for peer {} at height {} view {}",
+            peer_id, height, view
+        );
         // Update peer status in network layer
         Ok(())
     }
 
     /// Maybe initiate sync if behind
-    async fn maybe_initiate_sync(&mut self, peer_id: &str, peer_height: u64) -> ConsensusResult<()> {
+    async fn maybe_initiate_sync(
+        &mut self,
+        peer_id: &str,
+        peer_height: u64,
+    ) -> ConsensusResult<()> {
         let current_height = self.consensus_engine.get_current_height().await?;
         if peer_height > current_height + 1 {
-            info!("Initiating sync with peer {} at height {}", peer_id, peer_height);
-            
+            info!(
+                "Initiating sync with peer {} at height {}",
+                peer_id, peer_height
+            );
+
             // Request state sync from the peer
             let sync_msg = crate::messages::StateSyncMessage::StateRequest {
                 height: peer_height,
                 chunk_index: 0,
                 vm_type: None, // Request all VM types
             };
-            
+
             let consensus_msg = crate::messages::ConsensusMessage::new(
                 self.node_id.clone(),
                 crate::messages::ConsensusMessagePayload::StateSync(sync_msg),
             );
-            
+
             // Send state sync request to peer
             if let Ok(peer_info) = self.get_peer_info(peer_id).await {
-                let _ = self.send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id).await;
+                let _ = self
+                    .send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id)
+                    .await;
             }
         }
         Ok(())
     }
 
     /// Handle state request
-    async fn handle_state_request(&mut self, peer_id: &str, height: u64, chunk_index: u32, vm_type: Option<crate::messages::VmType>) -> ConsensusResult<()> {
-        debug!("Handling state request from {} for height {} chunk {}", peer_id, height, chunk_index);
-        
+    async fn handle_state_request(
+        &mut self,
+        peer_id: &str,
+        height: u64,
+        chunk_index: u32,
+        vm_type: Option<crate::messages::VmType>,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Handling state request from {} for height {} chunk {}",
+            peer_id, height, chunk_index
+        );
+
         let current_height = self.consensus_engine.get_current_height().await?;
         if height > current_height {
-            warn!("Peer {} requested state for height {} but we're only at {}", peer_id, height, current_height);
+            warn!(
+                "Peer {} requested state for height {} but we're only at {}",
+                peer_id, height, current_height
+            );
             return Ok(());
         }
-        
+
         // Get state data from state coordinator
         let state_manager = self.state_coordinator.read().await;
         let requested_vm_type = vm_type.unwrap_or(crate::messages::VmType::MultiVM);
-        
+
         // Generate state chunk data (simplified - would normally be chunked)
         let state_data = match requested_vm_type {
             crate::messages::VmType::SVM => {
@@ -3263,14 +3551,14 @@ impl MultiVMConsensusManager {
                 format!("{{\"height\": {}, \"chunk\": {}}}", height, chunk_index).into_bytes()
             }
         };
-        
+
         // Create state proof (simplified)
         let state_proof = crate::messages::StateProof {
             proof_data: b"proof_placeholder".to_vec(),
             root_hash: format!("0x{:064x}", height),
             proof_type: "merkle".to_string(),
         };
-        
+
         // Send state response
         let sync_msg = crate::messages::StateSyncMessage::StateResponse {
             height,
@@ -3279,28 +3567,35 @@ impl MultiVMConsensusManager {
             vm_type: requested_vm_type,
             proof: state_proof,
         };
-        
+
         let consensus_msg = crate::messages::ConsensusMessage::new(
             self.node_id.clone(),
             crate::messages::ConsensusMessagePayload::StateSync(sync_msg),
         );
-        
+
         // Send response to peer
         if let Ok(peer_info) = self.get_peer_info(peer_id).await {
-            let _ = self.send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id).await;
+            let _ = self
+                .send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id)
+                .await;
         }
-        
+
         Ok(())
     }
 
     /// Validate state proof
-    async fn validate_state_proof(&self, proof: &crate::messages::StateProof, chunk_data: &[u8], height: u64) -> ConsensusResult<bool> {
+    async fn validate_state_proof(
+        &self,
+        proof: &crate::messages::StateProof,
+        chunk_data: &[u8],
+        height: u64,
+    ) -> ConsensusResult<bool> {
         // Simplified state proof validation
         // In production, this would verify merkle proofs, signatures, etc.
         if proof.proof_data.is_empty() {
             return Ok(false);
         }
-        
+
         // Check if proof type is supported
         match proof.proof_type.as_str() {
             "merkle" => {
@@ -3316,67 +3611,112 @@ impl MultiVMConsensusManager {
     }
 
     /// Handle state response
-    async fn handle_state_response(&mut self, peer_id: &str, height: u64, chunk_index: u32, chunk_data: Vec<u8>, vm_type: crate::messages::VmType, proof: crate::messages::StateProof) -> ConsensusResult<()> {
-        debug!("Handling state response from {} for height {} chunk {} ({} bytes)", peer_id, height, chunk_index, chunk_data.len());
-        
+    async fn handle_state_response(
+        &mut self,
+        peer_id: &str,
+        height: u64,
+        chunk_index: u32,
+        chunk_data: Vec<u8>,
+        vm_type: crate::messages::VmType,
+        proof: crate::messages::StateProof,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Handling state response from {} for height {} chunk {} ({} bytes)",
+            peer_id,
+            height,
+            chunk_index,
+            chunk_data.len()
+        );
+
         // Validate proof first
-        if !self.validate_state_proof(&proof, &chunk_data, height).await? {
-            warn!("Invalid state proof from peer {} for height {}", peer_id, height);
+        if !self
+            .validate_state_proof(&proof, &chunk_data, height)
+            .await?
+        {
+            warn!(
+                "Invalid state proof from peer {} for height {}",
+                peer_id, height
+            );
             return Ok(());
         }
-        
+
         // Apply state data to local state coordinator
         {
             let state_manager = self.state_coordinator.write().await;
-            
+
             match vm_type {
                 crate::messages::VmType::SVM => {
                     // Apply SVM state chunk (simplified)
-                    debug!("Applied SVM state chunk {} for height {} ({} bytes)", chunk_index, height, chunk_data.len());
+                    debug!(
+                        "Applied SVM state chunk {} for height {} ({} bytes)",
+                        chunk_index,
+                        height,
+                        chunk_data.len()
+                    );
                 }
                 crate::messages::VmType::EVM => {
                     // Apply EVM state chunk (simplified)
-                    debug!("Applied EVM state chunk {} for height {} ({} bytes)", chunk_index, height, chunk_data.len());
+                    debug!(
+                        "Applied EVM state chunk {} for height {} ({} bytes)",
+                        chunk_index,
+                        height,
+                        chunk_data.len()
+                    );
                 }
                 crate::messages::VmType::MultiVM => {
                     // Apply combined state
-                    debug!("Applied multivm state chunk {} for height {}", chunk_index, height);
+                    debug!(
+                        "Applied multivm state chunk {} for height {}",
+                        chunk_index, height
+                    );
                 }
             }
         }
-        
+
         // Check if we need more chunks or if sync is complete
         let current_height = self.consensus_engine.get_current_height().await?;
         if height > current_height {
             // Request next chunk if this wasn't the last one
-            if chunk_index < 10 { // Simplified chunking logic
+            if chunk_index < 10 {
+                // Simplified chunking logic
                 let sync_msg = crate::messages::StateSyncMessage::StateRequest {
                     height,
                     chunk_index: chunk_index + 1,
                     vm_type: Some(vm_type),
                 };
-                
+
                 let consensus_msg = crate::messages::ConsensusMessage::new(
                     self.node_id.clone(),
                     crate::messages::ConsensusMessagePayload::StateSync(sync_msg),
                 );
-                
+
                 // Request next chunk
                 if let Ok(peer_info) = self.get_peer_info(peer_id).await {
-                    let _ = self.send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id).await;
+                    let _ = self
+                        .send_consensus_message_to_validator(consensus_msg, &peer_info.peer_id)
+                        .await;
                 }
             } else {
                 // Sync complete
-                self.handle_sync_complete(peer_id, height, proof.root_hash).await?;
+                self.handle_sync_complete(peer_id, height, proof.root_hash)
+                    .await?;
             }
         }
-        
+
         Ok(())
     }
 
     /// Handle sync complete
-    async fn handle_sync_complete(&mut self, peer_id: &str, height: u64, state_root: String) -> ConsensusResult<()> {
-        info!("Sync complete from {} for height {} root {}", peer_id, height, state_root);
+    async fn handle_sync_complete(
+        &mut self,
+        peer_id: &str,
+        height: u64,
+        state_root: String,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Sync complete from {} for height {} root {}",
+            peer_id, height, state_root
+        );
         // Would finalize sync process
         Ok(())
     }
@@ -3389,8 +3729,16 @@ impl MultiVMConsensusManager {
     }
 
     /// Handle snapshot response
-    async fn handle_snapshot_response(&mut self, peer_id: &str, snapshots: Vec<crate::messages::SnapshotInfo>) -> ConsensusResult<()> {
-        debug!("Handling snapshot response from {} with {} snapshots", peer_id, snapshots.len());
+    async fn handle_snapshot_response(
+        &mut self,
+        peer_id: &str,
+        snapshots: Vec<crate::messages::SnapshotInfo>,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Handling snapshot response from {} with {} snapshots",
+            peer_id,
+            snapshots.len()
+        );
         // Would process available snapshots
         Ok(())
     }
@@ -3402,7 +3750,11 @@ impl MultiVMConsensusManager {
     }
 
     /// Handle custom query
-    async fn handle_custom_query(&self, query: &str, parameters: &serde_json::Value) -> ConsensusResult<crate::messages::ResponsePayload> {
+    async fn handle_custom_query(
+        &self,
+        query: &str,
+        parameters: &serde_json::Value,
+    ) -> ConsensusResult<crate::messages::ResponsePayload> {
         debug!("Handling custom query: {}", query);
         Ok(crate::messages::ResponsePayload::Json(serde_json::json!({
             "query": query,
@@ -3411,22 +3763,45 @@ impl MultiVMConsensusManager {
     }
 
     /// Send query response message
-    async fn send_query_response_message(&self, peer_id: &str, request_id: &uuid::Uuid, payload: crate::messages::ResponsePayload) -> ConsensusResult<()> {
-        debug!("Sending query response to {} for request {}", peer_id, request_id);
+    async fn send_query_response_message(
+        &self,
+        peer_id: &str,
+        request_id: &uuid::Uuid,
+        payload: crate::messages::ResponsePayload,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Sending query response to {} for request {}",
+            peer_id, request_id
+        );
         // Would send actual response message
         Ok(())
     }
 
     /// Handle query response
-    async fn handle_query_response(&mut self, sender: &str, response: crate::messages::ResponseMessage) -> ConsensusResult<()> {
-        debug!("Handling query response from {} for request {}", sender, response.request_id);
+    async fn handle_query_response(
+        &mut self,
+        sender: &str,
+        response: crate::messages::ResponseMessage,
+    ) -> ConsensusResult<()> {
+        debug!(
+            "Handling query response from {} for request {}",
+            sender, response.request_id
+        );
         // Would process response based on original request
         Ok(())
     }
 
     /// Update finalized block
-    async fn update_finalized_block(&mut self, height: u64, block_hash: String, sender: &str) -> ConsensusResult<()> {
-        info!("Updating finalized block at height {} hash {} from {}", height, block_hash, sender);
+    async fn update_finalized_block(
+        &mut self,
+        height: u64,
+        block_hash: String,
+        sender: &str,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Updating finalized block at height {} hash {} from {}",
+            height, block_hash, sender
+        );
         // Would update local finalized block state
         Ok(())
     }

@@ -141,13 +141,18 @@ pub enum SecondaryAuth {
     /// Time-based one-time password
     Totp { code: String },
     /// Hardware key signature
-    HardwareKey { signature: Vec<u8>, device_id: String },
+    HardwareKey {
+        signature: Vec<u8>,
+        device_id: String,
+    },
     /// Email verification code
     EmailCode { code: String, email_hash: String },
     /// SMS verification code
     SmsCode { code: String, phone_hash: String },
     /// Multi-signature from other bound accounts
-    MultiSig { signatures: Vec<(crate::address::AccountAddress, Vec<u8>)> },
+    MultiSig {
+        signatures: Vec<(crate::address::AccountAddress, Vec<u8>)>,
+    },
 }
 
 /// Security metadata for risk assessment
@@ -216,7 +221,7 @@ impl Default for RecoveryConfig {
         Self {
             enable_social_recovery: true,
             min_guardians: 3,
-            recovery_threshold: 66, // 66% of guardians
+            recovery_threshold: 66,                         // 66% of guardians
             recovery_timelock: Duration::from_secs(259200), // 3 days
             enable_backup_key: true,
         }
@@ -267,7 +272,7 @@ mod tests {
     #[test]
     fn test_policy_validation() {
         let policy = BindingPolicy::default();
-        
+
         // Should pass with valid conditions
         let result = policy.validate_binding(
             5,
@@ -297,7 +302,7 @@ mod tests {
             suspicious_activity_count: 0,
             is_verified: true,
         };
-        
+
         let score = metadata.calculate_risk_score();
         assert!(score < 50); // Should be low risk
     }

@@ -10,11 +10,7 @@ use tokio::sync::RwLock;
 #[async_trait::async_trait]
 pub trait DistributedLockManager: Send + Sync {
     /// Acquire a lock for a given key
-    async fn acquire_lock(
-        &self,
-        key: &str,
-        ttl: Duration,
-    ) -> AccountMappingResult<LockGuard>;
+    async fn acquire_lock(&self, key: &str, ttl: Duration) -> AccountMappingResult<LockGuard>;
 
     /// Release a lock
     async fn release_lock(&self, lock: LockGuard) -> AccountMappingResult<()>;
@@ -77,16 +73,12 @@ impl InMemoryLockManager {
 
 #[async_trait::async_trait]
 impl DistributedLockManager for InMemoryLockManager {
-    async fn acquire_lock(
-        &self,
-        key: &str,
-        ttl: Duration,
-    ) -> AccountMappingResult<LockGuard> {
+    async fn acquire_lock(&self, key: &str, ttl: Duration) -> AccountMappingResult<LockGuard> {
         // Clean up expired locks first
         self.cleanup_expired().await;
 
         let mut locks = self.locks.write().await;
-        
+
         // Check if lock already exists and is valid
         if let Some(existing) = locks.get(key) {
             if let Ok(elapsed) = existing.acquired_at.elapsed() {
@@ -102,13 +94,13 @@ impl DistributedLockManager for InMemoryLockManager {
         // Create new lock
         let lock_id = format!("{}-{}", uuid::Uuid::new_v4(), key);
         let acquired_at = SystemTime::now();
-        
+
         let entry = LockEntry {
             lock_id: lock_id.clone(),
             acquired_at,
             ttl,
         };
-        
+
         locks.insert(key.to_string(), entry);
 
         Ok(LockGuard {
@@ -121,7 +113,7 @@ impl DistributedLockManager for InMemoryLockManager {
 
     async fn release_lock(&self, lock: LockGuard) -> AccountMappingResult<()> {
         let mut locks = self.locks.write().await;
-        
+
         if let Some(existing) = locks.get(&lock.key) {
             if existing.lock_id == lock.lock_id {
                 locks.remove(&lock.key);
@@ -155,16 +147,18 @@ pub struct RedisLockManager {
 impl RedisLockManager {
     pub async fn new(redis_url: &str, key_prefix: String) -> AccountMappingResult<Self> {
         use redis::AsyncCommands;
-        
-        let client = redis::Client::open(redis_url)
-            .map_err(|e| AccountMappingError::Internal {
-                message: format!("Failed to create Redis client: {}", e),
-            })?;
-        
-        let connection = client.get_connection_manager().await
-            .map_err(|e| AccountMappingError::Internal {
-                message: format!("Failed to connect to Redis: {}", e),
-            })?;
+
+        let client = redis::Client::open(redis_url).map_err(|e| AccountMappingError::Internal {
+            message: format!("Failed to create Redis client: {}", e),
+        })?;
+
+        let connection =
+            client
+                .get_connection_manager()
+                .await
+                .map_err(|e| AccountMappingError::Internal {
+                    message: format!("Failed to connect to Redis: {}", e),
+                })?;
 
         Ok(Self {
             client: connection,
@@ -180,17 +174,13 @@ impl RedisLockManager {
 #[cfg(feature = "redis")]
 #[async_trait::async_trait]
 impl DistributedLockManager for RedisLockManager {
-    async fn acquire_lock(
-        &self,
-        key: &str,
-        ttl: Duration,
-    ) -> AccountMappingResult<LockGuard> {
+    async fn acquire_lock(&self, key: &str, ttl: Duration) -> AccountMappingResult<LockGuard> {
         use redis::AsyncCommands;
-        
+
         let lock_key = self.make_key(key);
         let lock_id = format!("{}-{}", uuid::Uuid::new_v4(), key);
         let ttl_ms = ttl.as_millis() as u64;
-        
+
         // Try to acquire lock with SET NX EX
         let mut conn = self.client.clone();
         let result: bool = conn
@@ -223,10 +213,10 @@ impl DistributedLockManager for RedisLockManager {
 
     async fn release_lock(&self, lock: LockGuard) -> AccountMappingResult<()> {
         use redis::AsyncCommands;
-        
+
         let lock_key = self.make_key(&lock.key);
         let mut conn = self.client.clone();
-        
+
         // Use Lua script to ensure atomic check-and-delete
         let script = r#"
             if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -235,7 +225,7 @@ impl DistributedLockManager for RedisLockManager {
                 return 0
             end
         "#;
-        
+
         let result: i32 = redis::Script::new(script)
             .key(&lock_key)
             .arg(&lock.lock_id)
@@ -255,16 +245,16 @@ impl DistributedLockManager for RedisLockManager {
 
     async fn is_locked(&self, key: &str) -> AccountMappingResult<bool> {
         use redis::AsyncCommands;
-        
+
         let lock_key = self.make_key(key);
         let mut conn = self.client.clone();
-        
-        let exists: bool = conn
-            .exists(&lock_key)
-            .await
-            .map_err(|e| AccountMappingError::Internal {
-                message: format!("Redis exists check failed: {}", e),
-            })?;
+
+        let exists: bool =
+            conn.exists(&lock_key)
+                .await
+                .map_err(|e| AccountMappingError::Internal {
+                    message: format!("Redis exists check failed: {}", e),
+                })?;
 
         Ok(exists)
     }
@@ -286,17 +276,12 @@ impl<T: DistributedLockManager> RetryableLockManager<T> {
         }
     }
 
-    pub async fn with_lock<F, R>(
-        &self,
-        key: &str,
-        ttl: Duration,
-        f: F,
-    ) -> AccountMappingResult<R>
+    pub async fn with_lock<F, R>(&self, key: &str, ttl: Duration, f: F) -> AccountMappingResult<R>
     where
         F: FnOnce() -> AccountMappingResult<R>,
     {
         let mut retries = 0;
-        
+
         loop {
             match self.inner.acquire_lock(key, ttl).await {
                 Ok(lock) => {
@@ -316,13 +301,9 @@ impl<T: DistributedLockManager> RetryableLockManager<T> {
 
 #[async_trait::async_trait]
 impl<T: DistributedLockManager> DistributedLockManager for RetryableLockManager<T> {
-    async fn acquire_lock(
-        &self,
-        key: &str,
-        ttl: Duration,
-    ) -> AccountMappingResult<LockGuard> {
+    async fn acquire_lock(&self, key: &str, ttl: Duration) -> AccountMappingResult<LockGuard> {
         let mut retries = 0;
-        
+
         loop {
             match self.inner.acquire_lock(key, ttl).await {
                 Ok(lock) => return Ok(lock),
@@ -351,53 +332,53 @@ mod tests {
     #[tokio::test]
     async fn test_in_memory_lock() {
         let manager = InMemoryLockManager::new();
-        
+
         // Acquire lock
         let lock = manager
             .acquire_lock("test-key", Duration::from_secs(60))
             .await
             .unwrap();
-        
+
         assert!(lock.is_valid());
-        
+
         // Try to acquire same lock (should fail)
         let result = manager
             .acquire_lock("test-key", Duration::from_secs(60))
             .await;
-        
+
         assert!(result.is_err());
-        
+
         // Release lock
         manager.release_lock(lock).await.unwrap();
-        
+
         // Now we should be able to acquire it again
         let lock2 = manager
             .acquire_lock("test-key", Duration::from_secs(60))
             .await
             .unwrap();
-        
+
         manager.release_lock(lock2).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_lock_expiration() {
         let manager = InMemoryLockManager::new();
-        
+
         // Acquire lock with short TTL
         let _lock = manager
             .acquire_lock("test-key", Duration::from_millis(100))
             .await
             .unwrap();
-        
+
         // Wait for expiration
         tokio::time::sleep(Duration::from_millis(200)).await;
-        
+
         // Should be able to acquire lock again
         let lock2 = manager
             .acquire_lock("test-key", Duration::from_secs(60))
             .await
             .unwrap();
-        
+
         manager.release_lock(lock2).await.unwrap();
     }
 }

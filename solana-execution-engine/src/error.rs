@@ -49,7 +49,6 @@ impl From<MultivmError> for SolanaEngineError {
     }
 }
 
-
 // Add conversion from solana_client::client_error::ClientError to SolanaEngineError
 #[cfg(feature = "solana-engine")]
 impl From<solana_client::client_error::ClientError> for SolanaEngineError {

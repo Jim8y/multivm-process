@@ -10,9 +10,9 @@ use crate::lock_ordering::{
 use multivm_common::{
     error::MultivmError,
     traits::ProcessManager as ProcessManagerTrait,
-    types::{BlockchainType, HealthInfo, HealthStatus, ProcessId, RpcResponse, RpcError},
+    types::{BlockchainType, HealthInfo, HealthStatus, ProcessId, RpcError, RpcResponse},
     types_rpc::RpcConfig,
-    IpcCommand, IpcResponse, MultivmConfig, MultivmResult, SystemEvent, EngineState,
+    EngineState, IpcCommand, IpcResponse, MultivmConfig, MultivmResult, SystemEvent,
 };
 
 /// Events emitted by the process manager
@@ -681,46 +681,50 @@ impl MultivmProcessManager {
     /// Route a MultiVM block to appropriate execution engines
     pub async fn route_block(&self, block: multivm_consensus::MultiVMBlock) -> MultivmResult<()> {
         info!("Routing MultiVM block at height {}", block.header.height);
-        
+
         // Decompose the block using the block router
         let routing_result = self.inner.block_router.decompose_block(block).await?;
-        
+
         // Process SVM transactions
         if !routing_result.svm_transactions.is_empty() {
             if let Some(solana_handle) = self.inner.processes.read().await.get(&ProcessId::Solana) {
                 for svm_tx in routing_result.svm_transactions {
-                    self.send_transaction_to_solana(solana_handle, svm_tx).await?;
+                    self.send_transaction_to_solana(solana_handle, svm_tx)
+                        .await?;
                 }
             } else {
                 warn!("No Solana process available for SVM transactions");
             }
         }
-        
+
         // Process EVM transactions
         if !routing_result.evm_transactions.is_empty() {
-            if let Some(ethereum_handle) = self.inner.processes.read().await.get(&ProcessId::Ethereum) {
+            if let Some(ethereum_handle) =
+                self.inner.processes.read().await.get(&ProcessId::Ethereum)
+            {
                 for evm_tx in routing_result.evm_transactions {
-                    self.send_transaction_to_ethereum(ethereum_handle, evm_tx).await?;
+                    self.send_transaction_to_ethereum(ethereum_handle, evm_tx)
+                        .await?;
                 }
             } else {
                 warn!("No Ethereum process available for EVM transactions");
             }
         }
-        
+
         // Process special transactions (account binding, cross-VM operations)
         if !routing_result.special_transactions.is_empty() {
             for special_tx in routing_result.special_transactions {
                 self.handle_special_transaction(special_tx).await?;
             }
         }
-        
+
         info!(
-            "Block routing completed: {} SVM, {} EVM, {} special transactions", 
+            "Block routing completed: {} SVM, {} EVM, {} special transactions",
             routing_result.routing_metadata.svm_count,
             routing_result.routing_metadata.evm_count,
             routing_result.routing_metadata.special_count
         );
-        
+
         Ok(())
     }
 
@@ -761,17 +765,17 @@ impl MultivmProcessManagerInner {
     /// Run the IPC server loop
     async fn run_ipc_server(&self) -> MultivmResult<()> {
         info!("Starting IPC server for process management");
-        
+
         // Create a channel for IPC commands
         let (_tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<IpcCommand>();
-        
+
         // Start IPC message handling loop
         while let Some(command) = rx.recv().await {
             if let Err(e) = self.handle_ipc_command(command).await {
                 error!("Error handling IPC command: {}", e);
             }
         }
-        
+
         info!("IPC server shutdown");
         Ok(())
     }
@@ -779,9 +783,13 @@ impl MultivmProcessManagerInner {
     /// Handle incoming IPC commands
     async fn handle_ipc_command(&self, command: IpcCommand) -> MultivmResult<IpcResponse> {
         debug!("Handling IPC command: {:?}", command);
-        
+
         match command {
-            IpcCommand::ProcessBlock { block_data_bytes, blockchain_type, expect_response } => {
+            IpcCommand::ProcessBlock {
+                block_data_bytes,
+                blockchain_type,
+                expect_response,
+            } => {
                 // Route the block to appropriate execution engines
                 match bincode::deserialize::<multivm_consensus::MultiVMBlock>(&block_data_bytes) {
                     Ok(block) => {
@@ -793,13 +801,11 @@ impl MultivmProcessManagerInner {
                             success: true,
                         })
                     }
-                    Err(e) => {
-                        Ok(IpcResponse::Error {
-                            code: -32700,
-                            message: format!("Failed to deserialize block: {}", e),
-                            details: None,
-                        })
-                    }
+                    Err(e) => Ok(IpcResponse::Error {
+                        code: -32700,
+                        message: format!("Failed to deserialize block: {}", e),
+                        details: None,
+                    }),
                 }
             }
             IpcCommand::GetHealth => {
@@ -844,10 +850,13 @@ impl MultivmProcessManagerInner {
                             data: None,
                         }),
                         id: call.id,
-                    }
+                    },
                 })
             }
-            IpcCommand::RequestNextBlock { current_block, blockchain_type } => {
+            IpcCommand::RequestNextBlock {
+                current_block,
+                blockchain_type,
+            } => {
                 Ok(IpcResponse::NextBlock {
                     block_data_bytes: Some(Box::new(vec![])), // TODO: Implement block fetching
                     blockchain_type: Some(blockchain_type),
@@ -870,7 +879,6 @@ impl MultivmProcessManagerInner {
             }
         }
     }
-
 }
 
 /// System health status
