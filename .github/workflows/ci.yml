@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [ opened, synchronize ]
 
 # Cancel old workflow runs when a new commit is pushed
 concurrency:
