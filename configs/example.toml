@@ -1,0 +1,256 @@
+# MultiVM Example Configuration
+# This file demonstrates all available configuration options
+
+# System-wide settings
+[system]
+# Chain ID for the MultiVM network
+chain_id = 1337
+
+# Base data directory for all components
+data_dir = "./data"
+
+# Logging configuration
+log_level = "info"  # Options: trace, debug, info, warn, error
+log_format = "pretty"  # Options: pretty, json
+enable_file_logging = true
+log_directory = "./logs"
+
+# Metrics and monitoring
+enable_metrics = true
+metrics_port = 9090
+
+# Resource limits
+[system.resource_limits]
+max_memory_mb = 8192
+max_file_descriptors = 65535
+max_cpu_percent = 80.0
+
+# Consensus configuration
+[consensus]
+# Consensus algorithm (currently only malachite supported)
+type = "malachite"
+
+# Block production settings
+block_time_ms = 1000  # Target block time in milliseconds
+max_block_size_bytes = 10485760  # 10MB
+max_transactions_per_block = 1000
+
+# BFT consensus parameters
+validator_threshold = 0.67  # 2/3+ majority required
+view_timeout_ms = 5000  # Timeout before view change
+sync_timeout_ms = 30000  # Timeout for state sync
+
+# Validator configuration
+[consensus.validator]
+# Path to validator key file (Ed25519)
+key_file = "./validator.json"
+
+# Voting power (for weighted voting)
+voting_power = 100
+
+# Enable/disable block production
+enable_block_production = true
+
+# Blockchain client configurations
+[blockchain.ethereum]
+# Enable Ethereum/EVM support
+enabled = true
+
+# Ethereum chain ID (separate from MultiVM chain ID)
+chain_id = 1
+
+# RPC endpoint for the Reth process
+rpc_url = "http://localhost:8545"
+
+# Engine API endpoint (for consensus communication)
+engine_api_url = "http://localhost:8551"
+
+# JWT secret for Engine API authentication
+jwt_secret_path = "./jwt.hex"
+
+# Gas configuration
+default_gas_price = 25000000000  # 25 Gwei
+max_gas_per_block = 30000000  # 30M gas
+
+# State sync settings
+enable_state_sync = true
+state_sync_interval_blocks = 100
+
+[blockchain.solana]
+# Enable Solana/SVM support
+enabled = false
+
+# Solana RPC endpoint
+rpc_url = "http://localhost:8899"
+
+# Commitment level
+commitment = "confirmed"  # Options: processed, confirmed, finalized
+
+# Transaction settings
+max_tps = 50000
+lamports_per_signature = 5000
+
+# P2P networking configuration
+[p2p]
+# Listen addresses (multiaddr format)
+listen_addresses = [
+    "/ip4/0.0.0.0/tcp/9000",
+    "/ip6/::/tcp/9000"
+]
+
+# External address for NAT traversal
+external_addresses = []
+
+# Bootstrap nodes (multiaddr + peer ID)
+bootstrap_nodes = [
+    # "/ip4/192.168.1.100/tcp/9000/p2p/12D3KooWExample..."
+]
+
+# Network behavior
+enable_mdns = true  # Local peer discovery
+enable_dht = true   # Distributed hash table
+enable_gossipsub = true  # Pub/sub messaging
+enable_autonat = true  # NAT detection
+
+# Connection limits
+max_inbound_connections = 100
+max_outbound_connections = 100
+connection_idle_timeout_secs = 300
+
+# API server configuration
+[api]
+# REST API
+rest_enabled = true
+rest_host = "0.0.0.0"
+rest_port = 8080
+rest_cors_origins = ["*"]
+
+# GraphQL API
+graphql_enabled = true
+graphql_host = "0.0.0.0"
+graphql_port = 8081
+graphql_playground = true  # Enable GraphQL playground UI
+
+# WebSocket API
+ws_enabled = true
+ws_host = "0.0.0.0"
+ws_port = 8082
+ws_max_connections = 1000
+
+# JSON-RPC API (Ethereum compatible)
+rpc_enabled = true
+rpc_host = "0.0.0.0"
+rpc_port = 8545
+rpc_max_batch_size = 100
+
+# API rate limiting
+enable_rate_limiting = true
+rate_limit_requests_per_minute = 1000
+
+# Authentication (optional)
+enable_auth = false
+auth_token_secret = ""  # Set if enable_auth is true
+
+# Storage configuration
+[storage]
+# Database backend
+db_engine = "rocksdb"  # Options: rocksdb, leveldb
+
+# Database paths
+consensus_db_path = "./data/consensus"
+account_mapping_db_path = "./data/accounts"
+transaction_pool_db_path = "./data/txpool"
+
+# Cache settings
+cache_size_mb = 1024
+bloom_filter_bits = 10
+
+# Compaction settings
+enable_auto_compaction = true
+compaction_interval_secs = 3600
+
+# IPC (Inter-Process Communication) configuration
+[ipc]
+# IPC transport type
+[ipc.transport]
+# Unix socket configuration (Linux/macOS)
+type = "unix_socket"
+path = "/tmp/multivm.sock"
+
+# OR TCP socket configuration (cross-platform)
+# type = "tcp_socket"
+# host = "127.0.0.1"
+# port = 9100
+
+# IPC security
+enable_encryption = true
+enable_authentication = true
+
+# Message settings
+max_message_size_bytes = 10485760  # 10MB
+request_timeout_ms = 30000
+
+# Process manager configuration
+[process_manager]
+# Process startup settings
+startup_timeout_secs = 60
+shutdown_timeout_secs = 30
+
+# Health monitoring
+health_check_interval_secs = 30
+max_restart_attempts = 5
+restart_delay_secs = 10
+
+# Resource isolation
+enable_cgroups = false  # Linux only
+enable_seccomp = false  # Linux only
+
+# Account mapping configuration
+[account_mapping]
+# Binding requirements
+require_signature_proof = true
+max_bindings_per_account = 10
+
+# Special transaction fees
+binding_fee_gwei = 1000000  # 0.001 ETH
+
+# Monitoring and alerting
+[monitoring]
+# Prometheus metrics
+enable_prometheus = true
+prometheus_port = 9090
+
+# Health check endpoint
+health_check_port = 8090
+
+# Alerting thresholds
+alert_block_delay_secs = 60
+alert_peer_count_min = 2
+alert_disk_usage_percent = 90
+
+# Security settings
+[security]
+# TLS configuration
+enable_tls = false
+tls_cert_path = "./certs/server.crt"
+tls_key_path = "./certs/server.key"
+tls_ca_path = "./certs/ca.crt"
+
+# Firewall settings
+enable_ip_whitelist = false
+ip_whitelist = ["127.0.0.1", "::1"]
+
+# DDoS protection
+enable_ddos_protection = true
+max_requests_per_ip_per_minute = 100
+
+# Development settings (disable in production)
+[dev]
+# Dangerous settings for development only
+skip_genesis_validation = false
+enable_debug_endpoints = false
+enable_unsafe_rpc = false
+
+# Test mode settings
+mock_execution_engines = false
+deterministic_randomness = false

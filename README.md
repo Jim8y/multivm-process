@@ -1,241 +1,235 @@
-# MultiVM Process
+# MultiVM Blockchain Platform
 
-A production-ready multi-blockchain execution platform supporting EVM and SVM with Malachite BFT consensus.
+A production-ready multi-blockchain execution platform that unifies EVM and SVM transaction execution under a single Malachite BFT consensus layer.
 
 ## 🚀 Overview
 
-MultiVM is a blockchain platform that:
-- **Multi-VM Support**: Executes transactions on Ethereum (EVM) via Reth integration
-- **Malachite BFT Consensus**: Byzantine Fault Tolerant consensus with Ed25519 signatures
-- **Account System**: SHA256-based account mapping for cross-chain identity
-- **Production APIs**: REST, GraphQL, WebSocket, and Ethereum RPC interfaces
-- **Real-Time Monitoring**: Comprehensive blockchain explorer and metrics
-
-## 📋 Current Status
-
-✅ **Production Ready**:
-- Full Malachite BFT consensus implementation
-- Reth integration via Engine API with JWT authentication
-- 7-node production testnet configuration
-- Real-time blockchain explorer
-- Automated validator funding and transaction generation
+MultiVM is a revolutionary blockchain architecture that:
+- **Separates Consensus from Execution**: MultiVM handles consensus, networking, and account management while delegating execution to specialized engines
+- **Multi-VM Support**: Executes both EVM transactions (via Reth) and SVM transactions (via Solana) 
+- **Unified Account System**: SHA256-based cross-chain account mapping with A↔M↔B binding pattern
+- **Byzantine Fault Tolerant**: Production-grade Malachite BFT consensus with view changes and safety guarantees
+- **Process Isolation**: Execution engines run as isolated processes with restricted networking
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    MultiVM Process                          │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │              Core Components                            ││
-│  │    ┌─────────────┬─────────────┬─────────────────────┐  ││
-│  │    │   APIs      │  Consensus  │  Account System     │  ││
-│  │    │ REST/RPC/WS │ Malachite   │  SHA256 Mapping    │  ││
-│  │    └─────────────┴─────────────┴─────────────────────┘  ││
-│  └─────────────────────────────────────────────────────────┘│
-│                            │                                 │
-│                     Engine API (JWT)                         │
-│                            │                                 │
-└────────────────────────────┼─────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Reth Execution Engine                    │
-│                   (Ethereum State & EVM)                    │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       MultiVM Core Process                       │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ • Malachite BFT Consensus (2/3+ majority, view changes)     ││
+│  │ • P2P Networking (libp2p with gossipsub)                    ││
+│  │ • Account Mapping (SHA256-based cross-chain identity)       ││
+│  │ • Request Relay & RPC Wrapping                              ││
+│  │ • Block Routing & Transaction Decomposition                 ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                     ▼ IPC Communication ▼                        │
+└──────────────────────┬──────────────┬───────────────────────────┘
+                       │              │
+    ┌──────────────────▼───┐    ┌────▼──────────────────┐
+    │  Reth Process        │    │  Solana Process       │
+    │  • EVM Execution     │    │  • SVM Execution      │
+    │  • Ethereum State    │    │  • Solana State       │
+    │  • No P2P (isolated) │    │  • No P2P (isolated)  │
+    └──────────────────────┘    └───────────────────────┘
 ```
+
+### Key Architectural Principles
+
+1. **Execution Isolation**: Reth and Solana run as separate processes, banned from P2P networking
+2. **Consensus Unification**: All transactions go through MultiVM's Malachite BFT consensus
+3. **State Sovereignty**: Each execution engine maintains its own state independently
+4. **Account Abstraction**: Users have one MultiVM account that can control addresses on both chains
 
 ## 🚦 Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose
-- Python 3.8+ (for scripts)
-- 8GB+ RAM recommended
+- Rust 1.75+ 
+- Docker & Docker Compose
+- Git
 
-### 1. Clone Repository
+### Installation
 
 ```bash
-git clone <repository>
+# Clone the repository
+git clone https://github.com/your-org/multivm-process
 cd multivm-process
+
+# Build the project
+cargo build --release
+
+# Run tests
+cargo test
 ```
 
-### 2. Start Production Testnet
+### Running a Local Testnet
 
 ```bash
-# Start the 7-node production testnet
-cd testnet-production-complete
-docker compose up -d
+# Start a 3-node testnet
+docker-compose -f docker-compose.yml up
 
-# Verify all services are running
-docker compose ps
+# Or use the production 7-node configuration
+docker-compose -f docker-compose.production.yml up
 ```
 
-### 3. Access Services
-
-- **Blockchain Explorer**: http://localhost:3000
-- **RPC Endpoints**: http://localhost:8545-8551
-- **MultiVM APIs**: http://localhost:8080-8086
-
-### 4. Fund Validators & Send Transactions
+### Sending Transactions
 
 ```bash
-# Setup Python environment
-python3 -m venv venv
-source venv/bin/activate
-pip install web3 eth-account
+# Send an EVM transaction
+curl -X POST http://localhost:8545 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0x..."],"id":1}'
 
-# Fund validators automatically
-python3 auto-fund-validators.py
-
-# Send real transactions
-python3 send-real-transactions-final.py
+# Send an SVM transaction (when Solana is enabled)
+curl -X POST http://localhost:8899 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"sendTransaction","params":["..."],"id":1}'
 ```
 
-## 📡 API Reference
+## 📁 Project Structure
 
-### Ethereum RPC
-
-Standard Ethereum JSON-RPC available at `http://localhost:8545-8551`
-
-```bash
-# Get balance
-curl -X POST -H "Content-Type: application/json" \
-  --data '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0xADDRESS","latest"],"id":1}' \
-  http://localhost:8545
-
-# Get block
-curl -X POST -H "Content-Type: application/json" \
-  --data '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["latest",true],"id":1}' \
-  http://localhost:8545
 ```
-
-### MultiVM APIs
-
-- **REST**: `http://localhost:8080-8086/api/v1/`
-- **GraphQL**: `http://localhost:8080-8086/graphql`
-- **WebSocket**: `ws://localhost:8080-8086/ws`
-
-### Blockchain Explorer
-
-Real-time monitoring at http://localhost:3000 with:
-- Network overview and node health
-- Block and transaction history
-- Account balances
-- WebSocket live updates
+multivm-process/
+├── multivm-consensus/        # Malachite BFT consensus implementation
+├── multivm-p2p/             # P2P networking layer
+├── multivm-process-manager/  # Process lifecycle and IPC management
+├── multivm-account-mapping/  # Cross-chain account binding
+├── multivm-common/          # Shared types and utilities
+├── reth-execution-engine/   # Reth integration wrapper
+├── solana-execution-engine/ # Solana integration wrapper
+├── multivm-cli/            # Command-line interface
+├── multivm-application/    # REST/GraphQL API server
+└── docs/                   # Documentation
+```
 
 ## 🔧 Configuration
 
-### Network Parameters
+### Network Configuration
 
-- **Chain ID**: 1337
-- **Block Time**: 3 seconds
-- **Consensus**: Malachite BFT with Ed25519
-- **Gas Price**: 25 Gwei default
+Create a `config.toml` file:
 
-### Account System
+```toml
+[system]
+chain_id = 1337
+data_dir = "./data"
+log_level = "info"
 
-- **Node Operators**: Ethereum accounts (primary identity)
-- **Consensus Keys**: Ed25519 (separate from account)
-- **MultiVM Account**: `SHA256(ethereum_address)`
-- **Cross-Chain**: Users can bind Solana accounts to same MultiVM ID
+[consensus]
+type = "malachite"
+block_time_ms = 1000
+view_timeout_ms = 5000
 
-## 📚 Production Scripts
+[blockchain.ethereum]
+enabled = true
+rpc_url = "http://localhost:8545"
+chain_id = 1
 
-### Core Scripts
+[blockchain.solana]
+enabled = false  # Coming soon
+rpc_url = "http://localhost:8899"
+```
 
-| Script | Purpose |
-|--------|---------|
-| `generate-validator-accounts.py` | Generate validator credentials |
-| `auto-fund-validators.py` | Automated validator funding |
-| `send-real-transactions-final.py` | Send real signed transactions |
-| `fund-accounts.py` | Check account balances |
+### Validator Setup
 
-### Setup Scripts
+```bash
+# Generate validator keys
+./multivm-cli validator generate --output validator.json
 
-| Script | Purpose |
-|--------|---------|
-| `setup-production-testnet.sh` | Initialize testnet |
-| `complete-funding-setup.sh` | Complete funding automation |
-| `fund-validators-complete.sh` | Funding with fallbacks |
-| `run-complete-setup.sh` | Master automation script |
+# Start validator node
+./multivm-cli node start --config config.toml --validator validator.json
+```
 
 ## 🛠️ Development
 
-### Building from Source
+### Building Components
 
 ```bash
-# Build MultiVM
-cargo build --release
+# Build specific component
+cargo build -p multivm-consensus
 
-# Build Docker images
-docker build -t multivm:latest .
-docker build -t multivm-explorer:latest multivm-explorer/
+# Build with all features
+cargo build --all-features
+
+# Build without default features
+cargo build --no-default-features
 ```
 
 ### Running Tests
 
 ```bash
-# Rust tests
+# Unit tests
 cargo test
 
 # Integration tests
-./scripts/test-multivm-reth-integration.sh
+cargo test --test integration_tests
+
+# Specific component tests
+cargo test -p multivm-consensus
+```
+
+### Code Quality
+
+```bash
+# Format code
+cargo fmt
+
+# Run linter
+cargo clippy -- -D warnings
+
+# Check dependencies
+cargo audit
 ```
 
 ## 📊 Monitoring
 
-### Logs
+### Health Endpoints
 
-```bash
-# MultiVM node logs
-docker logs multivm-node1 --follow
-
-# Reth execution logs
-docker logs reth-node1 --follow
-
-# Explorer logs
-docker logs multivm-explorer --follow
-```
+- MultiVM Health: `http://localhost:8080/health`
+- Consensus Status: `http://localhost:8080/consensus/status`
+- Execution Engine Status: `http://localhost:8080/engines/status`
 
 ### Metrics
 
-- Node health: `http://localhost:8080-8086/health`
-- Blockchain stats: `http://localhost:3000/api/status`
+Prometheus metrics available at `http://localhost:9090/metrics`:
+- `multivm_consensus_height` - Current consensus height
+- `multivm_consensus_round` - Current consensus round
+- `multivm_transactions_total` - Total transactions processed
+- `multivm_block_time` - Block production time
 
 ## 🔐 Security
 
-- JWT authentication for Engine API
-- Ed25519 signatures for consensus
-- No hardcoded private keys in production
-- Secure validator key generation
+- **JWT Authentication**: Engine API uses JWT tokens for authentication
+- **Ed25519 Signatures**: All consensus messages are signed
+- **Process Isolation**: Execution engines run with restricted permissions
+- **No Hardcoded Keys**: All keys must be provided via configuration
 
-## 📄 Documentation
+## 📚 Documentation
 
-- [API Reference](API_REFERENCE.md) - Detailed API documentation
-- [Contributing](CONTRIBUTING.md) - Development guidelines
-- [Security](SECURITY.md) - Security policies
-- [Production Deployment](PRODUCTION_DEPLOYMENT.md) - Deployment guide
-
-## ⚠️ Troubleshooting
-
-### Common Issues
-
-1. **Validator funding fails**
-   - Ensure testnet is running: `docker compose ps`
-   - Check Python environment: `source venv/bin/activate`
-
-2. **Transactions not confirming**
-   - Verify gas price is sufficient (25+ Gwei)
-   - Check node synchronization status
-
-3. **Explorer not updating**
-   - Verify WebSocket connection
-   - Check browser console for errors
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Consensus Protocol](docs/CONSENSUS.md)
+- [Account System](docs/ACCOUNTS.md)
+- [API Reference](docs/API.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 
 ## 🤝 Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Process
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Malachite BFT](https://github.com/informalsystems/malachite) for the consensus engine
+- [Reth](https://github.com/paradigmxyz/reth) for Ethereum execution
+- [Solana](https://github.com/solana-labs/solana) for SVM execution

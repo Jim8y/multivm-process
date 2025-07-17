@@ -1,345 +1,256 @@
 # Contributing to MultiVM
 
-Thank you for your interest in contributing to the MultiVM project! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to MultiVM! This document provides guidelines and instructions for contributing to the project.
 
-## 🚀 Getting Started
+## Code of Conduct
 
-### Prerequisites
+By participating in this project, you agree to abide by our Code of Conduct:
+- Be respectful and inclusive
+- Welcome newcomers and help them get started
+- Focus on constructive criticism
+- Accept feedback gracefully
 
-- **Rust**: 1.70 or later with Cargo
-- **Git**: For version control
-- **Redis**: For caching (development)
-- **PostgreSQL**: For persistent storage (development)
+## Getting Started
 
-### Development Setup
-
-1. **Fork and clone the repository**:
+1. **Fork the Repository**
    ```bash
-   git clone https://github.com/your-username/multivm-process.git
+   # Fork on GitHub, then clone your fork
+   git clone https://github.com/YOUR_USERNAME/multivm-process
    cd multivm-process
    ```
 
-2. **Install dependencies**:
+2. **Set Up Development Environment**
    ```bash
-   # Install Rust if not already installed
+   # Add upstream remote
+   git remote add upstream https://github.com/original/multivm-process
+   
+   # Install Rust
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    
-   # Install required tools
-   cargo install cargo-watch cargo-audit
+   # Install development tools
+   cargo install cargo-watch cargo-edit cargo-audit
    ```
 
-3. **Build the project**:
+3. **Build and Test**
    ```bash
+   # Build the project
    cargo build
-   ```
-
-4. **Run tests**:
-   ```bash
-   cargo test --workspace
-   ```
-
-5. **Start development services** (optional):
-   ```bash
-   # Start Redis
-   redis-server
    
-   # Start PostgreSQL
-   pg_ctl -D /usr/local/var/postgres start
-   ```
-
-## 📋 Development Workflow
-
-### Branch Strategy
-
-- **`main`**: Production-ready code
-- **`develop`**: Integration branch for features
-- **`feature/*`**: Feature development branches
-- **`bugfix/*`**: Bug fix branches
-- **`hotfix/*`**: Critical production fixes
-
-### Making Changes
-
-1. **Create a feature branch**:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Make your changes**:
-   - Follow the coding standards (see below)
-   - Add tests for new functionality
-   - Update documentation as needed
-
-3. **Test your changes**:
-   ```bash
-   # Run all tests
-   cargo test --workspace
+   # Run tests
+   cargo test
    
-   # Run specific component tests
-   cargo test -p multivm-account-mapping
-   
-   # Run with coverage (if available)
-   cargo test --workspace -- --nocapture
+   # Run with all features
+   cargo test --all-features
    ```
 
-4. **Check code quality**:
-   ```bash
-   # Format code
-   cargo fmt
-   
-   # Run linter
-   cargo clippy -- -D warnings
-   
-   # Security audit
-   cargo audit
-   ```
+## Development Workflow
 
-5. **Commit your changes**:
-   ```bash
-   git add .
-   git commit -m "feat: add new cross-VM transaction type"
-   ```
+### 1. Create a Feature Branch
 
-6. **Push and create PR**:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
+```bash
+# Update your fork
+git checkout main
+git pull upstream main
+git push origin main
 
-## 📝 Coding Standards
-
-### Rust Style Guide
-
-- Follow the official [Rust Style Guide](https://doc.rust-lang.org/nightly/style-guide/)
-- Use `cargo fmt` for consistent formatting
-- Use `cargo clippy` to catch common mistakes
-
-### Code Organization
-
-```
-crates/
-├── multivm-common/          # Shared types and utilities
-├── multivm-application/     # Main application server
-├── multivm-account-mapping/ # Cross-VM account management
-├── multivm-consensus/       # Consensus implementation
-├── multivm-p2p/            # P2P networking
-├── multivm-process-manager/ # Process lifecycle
-├── multivm-cli/            # Command-line tools
-├── solana-execution-engine/ # Solana VM integration
-├── reth-execution-engine/   # Ethereum VM integration
-└── multivm-mock-processes/  # Testing utilities
+# Create feature branch
+git checkout -b feature/your-feature-name
 ```
 
-### Naming Conventions
+### 2. Make Your Changes
 
-- **Crates**: `kebab-case` (e.g., `multivm-account-mapping`)
-- **Modules**: `snake_case` (e.g., `account_mapping`)
-- **Types**: `PascalCase` (e.g., `AccountBinding`)
-- **Functions**: `snake_case` (e.g., `bind_accounts`)
-- **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `MAX_RETRIES`)
+- Write clear, concise commit messages
+- Follow the existing code style
+- Add tests for new functionality
+- Update documentation as needed
 
-### Documentation
+### 3. Code Style Guidelines
 
-- Add doc comments for all public APIs
-- Include examples in doc comments where helpful
-- Update README files for significant changes
+#### Rust Code
+- Follow standard Rust formatting: `cargo fmt`
+- Ensure no clippy warnings: `cargo clippy -- -D warnings`
+- Use meaningful variable and function names
+- Add doc comments for public APIs
 
+Example:
 ```rust
-/// Binds accounts across different virtual machines.
-/// 
+/// Processes a MultiVM block by routing transactions to appropriate execution engines.
+///
 /// # Arguments
-/// 
-/// * `solana_address` - The Solana account address
-/// * `ethereum_address` - The Ethereum account address
-/// * `proof` - Cryptographic proof of ownership
-/// 
-/// # Example
-/// 
-/// ```rust
-/// let binding = bind_accounts(
-///     "11111111111111111111111111111112",
-///     "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db5C",
-///     proof_data
-/// ).await?;
-/// ```
-pub async fn bind_accounts(
-    solana_address: &str,
-    ethereum_address: &str, 
-    proof: &[u8]
-) -> Result<AccountBinding, MultivmError> {
+/// * `block` - The MultiVM block to process
+///
+/// # Returns
+/// * `Ok(BlockResult)` - Processing results
+/// * `Err(MultivmError)` - Processing error
+pub async fn process_block(block: MultiVMBlock) -> MultivmResult<BlockResult> {
     // Implementation
 }
 ```
 
-### Error Handling
+#### Documentation
+- Use Markdown for documentation
+- Include code examples where appropriate
+- Keep line length under 100 characters
+- Use proper heading hierarchy
 
-- Use the unified `MultivmError` type from `multivm-common`
-- Provide meaningful error messages
-- Include context where helpful
+### 4. Testing
 
-```rust
-use multivm_common::{MultivmError, MultivmResult};
-
-pub fn validate_address(address: &str) -> MultivmResult<()> {
-    if address.is_empty() {
-        return Err(MultivmError::Validation {
-            field: "address".to_string(),
-            message: "Address cannot be empty".to_string(),
-            value: address.to_string(),
-        });
-    }
-    Ok(())
-}
-```
-
-### Testing
-
-- Write unit tests for all public functions
-- Use integration tests for component interactions
-- Mock external dependencies in tests
-
+#### Unit Tests
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    #[tokio::test]
-    async fn test_account_binding() {
-        let binding = AccountBinding::new(
-            "test_solana_address",
-            "test_ethereum_address",
-            &[1, 2, 3, 4]
-        );
-        
-        assert_eq!(binding.solana_address, "test_solana_address");
-        assert_eq!(binding.ethereum_address, "test_ethereum_address");
+
+    #[test]
+    fn test_feature() {
+        // Test implementation
     }
 }
 ```
 
-## 🔍 Code Review Process
+#### Integration Tests
+Place integration tests in the `tests/` directory:
+```rust
+// tests/integration_test.rs
+use multivm_common::*;
 
-### Submitting Pull Requests
+#[tokio::test]
+async fn test_full_system() {
+    // Test implementation
+}
+```
 
-1. **Ensure your PR**:
-   - Has a clear title and description
-   - References any related issues
-   - Includes tests for new functionality
-   - Updates documentation as needed
-   - Passes all CI checks
+### 5. Submit Pull Request
 
-2. **PR Template**:
-   ```markdown
-   ## Description
-   Brief description of changes
-   
-   ## Type of Change
-   - [ ] Bug fix
-   - [ ] New feature
-   - [ ] Breaking change
-   - [ ] Documentation update
-   
-   ## Testing
-   - [ ] Unit tests added/updated
-   - [ ] Integration tests added/updated
-   - [ ] Manual testing completed
-   
-   ## Checklist
-   - [ ] Code follows style guidelines
-   - [ ] Self-review completed
-   - [ ] Documentation updated
-   - [ ] No new warnings introduced
+1. **Push to Your Fork**
+   ```bash
+   git push origin feature/your-feature-name
    ```
 
-### Review Criteria
+2. **Create Pull Request**
+   - Go to GitHub and create a PR from your fork
+   - Use a clear, descriptive title
+   - Fill out the PR template
+   - Link any related issues
 
-Reviewers will check for:
+3. **PR Guidelines**
+   - Keep PRs focused and reasonably sized
+   - Respond to review feedback promptly
+   - Update your branch if main has changed
+   - Ensure all CI checks pass
 
-- **Correctness**: Does the code work as intended?
-- **Performance**: Are there any performance implications?
-- **Security**: Are there any security concerns?
-- **Maintainability**: Is the code easy to understand and maintain?
-- **Testing**: Are there adequate tests?
-- **Documentation**: Is the code properly documented?
+## Project Structure
 
-## 🐛 Reporting Issues
+Understanding the project structure helps you contribute effectively:
 
-### Bug Reports
+```
+multivm-process/
+├── multivm-common/          # Shared types and traits
+├── multivm-consensus/       # Consensus implementation
+├── multivm-p2p/            # Networking layer
+├── multivm-process-manager/ # Process management
+├── multivm-account-mapping/ # Account system
+├── multivm-application/    # API server
+├── multivm-cli/           # CLI tool
+├── reth-execution-engine/  # Ethereum integration
+└── solana-execution-engine/ # Solana integration
+```
 
-When reporting bugs, please include:
+## Areas for Contribution
 
-- **Environment**: OS, Rust version, component versions
-- **Steps to reproduce**: Clear steps to reproduce the issue
-- **Expected behavior**: What should happen
-- **Actual behavior**: What actually happens
-- **Logs**: Relevant log output or error messages
+### Good First Issues
+- Documentation improvements
+- Test coverage increases
+- Code cleanup and refactoring
+- Bug fixes with clear reproduction steps
 
-### Feature Requests
+### Feature Development
+- New API endpoints
+- Performance optimizations
+- Additional VM integrations
+- Monitoring improvements
 
-For feature requests, please include:
+### Infrastructure
+- CI/CD improvements
+- Docker optimizations
+- Deployment scripts
+- Benchmarking tools
 
-- **Use case**: Why is this feature needed?
-- **Proposed solution**: How should it work?
-- **Alternatives**: Any alternative approaches considered?
-- **Impact**: Who would benefit from this feature?
+## Development Tips
 
-## 🏗️ Architecture Guidelines
+### Running Specific Tests
+```bash
+# Test single module
+cargo test -p multivm-consensus
 
-### Component Design
+# Test with output
+cargo test -- --nocapture
 
-- **Single Responsibility**: Each component should have a clear, single purpose
-- **Loose Coupling**: Minimize dependencies between components
-- **High Cohesion**: Related functionality should be grouped together
-- **Interface Segregation**: Use traits to define clear interfaces
+# Run specific test
+cargo test test_consensus_round
+```
 
-### Performance Considerations
+### Debugging
+```bash
+# Enable debug logging
+RUST_LOG=debug cargo run
 
-- **Async/Await**: Use async programming for I/O operations
-- **Memory Management**: Be mindful of memory allocations
-- **Caching**: Implement appropriate caching strategies
-- **Monitoring**: Add metrics for performance tracking
+# Use println! debugging (remember to remove)
+println!("Debug: {:?}", variable);
 
-### Security Best Practices
+# Use dbg! macro
+dbg!(&variable);
+```
 
-- **Input Validation**: Validate all inputs
-- **Authentication**: Implement proper authentication
-- **Authorization**: Check permissions appropriately
-- **Encryption**: Use encryption for sensitive data
+### Performance Testing
+```bash
+# Run benchmarks
+cargo bench
 
-## 📚 Resources
+# Profile with flamegraph
+cargo flamegraph --bin multivm-node
+```
 
-### Documentation
+## Documentation
 
-- [Rust Book](https://doc.rust-lang.org/book/)
-- [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
-- [Tokio Tutorial](https://tokio.rs/tokio/tutorial)
+### Code Documentation
+- Add doc comments to all public items
+- Include examples in doc comments
+- Run `cargo doc --open` to preview
 
-### Tools
+### Project Documentation
+- Update README.md for user-facing changes
+- Add technical details to docs/
+- Update CHANGELOG.md
 
-- [Rust Analyzer](https://rust-analyzer.github.io/): IDE support
-- [Cargo Watch](https://github.com/watchexec/cargo-watch): Auto-rebuild on changes
-- [Cargo Audit](https://github.com/RustSec/rustsec/tree/main/cargo-audit): Security auditing
+## Release Process
 
-## 🤝 Community
+1. **Version Bump**
+   - Update version in Cargo.toml files
+   - Update CHANGELOG.md
+   - Create version tag
 
-### Communication
+2. **Testing**
+   - Run full test suite
+   - Test on different platforms
+   - Verify documentation builds
 
-- **GitHub Issues**: For bug reports and feature requests
-- **GitHub Discussions**: For general questions and discussions
-- **Pull Requests**: For code contributions
+3. **Release**
+   - Create GitHub release
+   - Publish crates to crates.io
+   - Update Docker images
 
-### Code of Conduct
+## Getting Help
 
-We are committed to providing a welcoming and inclusive environment for all contributors. Please be respectful and professional in all interactions.
+- **Discord**: Join our [Discord server](https://discord.gg/multivm)
+- **Issues**: Check existing [issues](https://github.com/your-org/multivm-process/issues)
+- **Discussions**: Start a [discussion](https://github.com/your-org/multivm-process/discussions)
 
-## 📄 License
+## Recognition
 
-By contributing to MultiVM, you agree that your contributions will be licensed under the MIT License.
-
-## 🙏 Recognition
-
-Contributors will be recognized in:
-
-- The project README
-- Release notes for significant contributions
-- The project's contributor list
+Contributors will be:
+- Listed in CONTRIBUTORS.md
+- Mentioned in release notes
+- Given credit in commit messages
 
 Thank you for contributing to MultiVM! 🚀

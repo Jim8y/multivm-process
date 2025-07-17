@@ -355,3 +355,31 @@ impl EvmTransaction {
         self.to.is_none()
     }
 }
+
+impl Default for MultiVMBlock {
+    fn default() -> Self {
+        Self {
+            header: BlockHeader::default(),
+            svm_transactions: Vec::new(),
+            evm_transactions: Vec::new(),
+            multivm_transactions: Vec::new(),
+            state_transitions: Vec::new(),
+        }
+    }
+}
+
+impl Default for BlockHeader {
+    fn default() -> Self {
+        Self {
+            height: 0,
+            previous_hash: String::new(),
+            state_root: String::new(),
+            transactions_root: String::new(),
+            timestamp: SystemTime::now(),
+            proposer: String::new(),
+            consensus_data: Vec::new(),
+            version: 1,
+            extra_data: Vec::new(),
+        }
+    }
+}

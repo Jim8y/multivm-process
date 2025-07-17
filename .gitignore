@@ -125,8 +125,11 @@ venv/
 # Test and development directories
 test-*/
 test-data/
+test-integrated-*/
+test-fixed-*/
 testnet-7-nodes/
 testnet-production/
+testnet-production-complete/
 reth-data/
 tx-generator/
 

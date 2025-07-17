@@ -3,7 +3,7 @@
 use multivm_common::{config::LoggingConfig, MultivmError, MultivmResult};
 
 // pub mod block_generator;  // Temporarily disabled due to dependency conflicts
-// pub mod block_router;  // Temporarily disabled due to dependency conflicts
+pub mod block_router;
 pub mod consensus_block_generator;
 pub mod coordinator;
 pub mod health;
@@ -36,7 +36,7 @@ mod resource_monitor_tests;
 pub use coordinator::{CoordinatorConfig, MultivmCoordinator};
 pub use health::HealthMonitor;
 pub use manager::MultivmProcessManager;
-// pub use block_router::BlockRouter;  // Temporarily disabled
+pub use block_router::BlockRouter;
 pub use consensus_block_generator::{ConsensusBlockGenerator, ConsensusBlockGeneratorConfig};
 pub use process::ProcessHandle;
 pub use zombie_reaper::{ZombieReaper, ZombieReaperConfig, ZombieReaperStats};

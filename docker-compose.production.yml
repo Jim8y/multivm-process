@@ -1,0 +1,159 @@
+version: '3.8'
+
+services:
+  # MultiVM Node 1 - Leader
+  multivm-node1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multivm-node1
+    hostname: multivm-node1
+    environment:
+      - MULTIVM_NODE_ID=node1
+      - MULTIVM_NODE_TYPE=validator
+      - MULTIVM_P2P_PORT=9000
+      - MULTIVM_RPC_PORT=8000
+      - MULTIVM_CONSENSUS_PORT=7000
+      - MULTIVM_ETHEREUM_MOCK_MODE=false
+      - MULTIVM_SOLANA_MOCK_MODE=false
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=multivm=info,reth=info,solana=info
+    ports:
+      - "8000:8000"  # RPC
+      - "9000:9000"  # P2P
+    volumes:
+      - ./data/node1:/data
+      - ./configs/production:/configs
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - multivm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # MultiVM Node 2
+  multivm-node2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multivm-node2
+    hostname: multivm-node2
+    environment:
+      - MULTIVM_NODE_ID=node2
+      - MULTIVM_NODE_TYPE=validator
+      - MULTIVM_P2P_PORT=9001
+      - MULTIVM_RPC_PORT=8001
+      - MULTIVM_CONSENSUS_PORT=7001
+      - MULTIVM_ETHEREUM_MOCK_MODE=false
+      - MULTIVM_SOLANA_MOCK_MODE=false
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_BOOTSTRAP_PEERS=/dns4/multivm-node1/tcp/9000
+    ports:
+      - "8001:8001"
+      - "9001:9001"
+    volumes:
+      - ./data/node2:/data
+      - ./configs/production:/configs
+    networks:
+      - multivm-network
+    depends_on:
+      - multivm-node1
+    restart: unless-stopped
+
+  # MultiVM Node 3
+  multivm-node3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multivm-node3
+    hostname: multivm-node3
+    environment:
+      - MULTIVM_NODE_ID=node3
+      - MULTIVM_NODE_TYPE=validator
+      - MULTIVM_P2P_PORT=9002
+      - MULTIVM_RPC_PORT=8002
+      - MULTIVM_CONSENSUS_PORT=7002
+      - MULTIVM_ETHEREUM_MOCK_MODE=false
+      - MULTIVM_SOLANA_MOCK_MODE=false
+      - MULTIVM_LOG_LEVEL=info
+      - MULTIVM_BOOTSTRAP_PEERS=/dns4/multivm-node1/tcp/9000
+    ports:
+      - "8002:8002"
+      - "9002:9002"
+    volumes:
+      - ./data/node3:/data
+      - ./configs/production:/configs
+    networks:
+      - multivm-network
+    depends_on:
+      - multivm-node1
+    restart: unless-stopped
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: multivm-prometheus
+    volumes:
+      - ./configs/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - multivm-network
+    restart: unless-stopped
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: multivm-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=multivm-admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+      - ./configs/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+    networks:
+      - multivm-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: multivm-nginx
+    volumes:
+      - ./configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - multivm-network
+    depends_on:
+      - multivm-node1
+      - multivm-node2
+      - multivm-node3
+    restart: unless-stopped
+
+networks:
+  multivm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  prometheus-data:
+  grafana-data:

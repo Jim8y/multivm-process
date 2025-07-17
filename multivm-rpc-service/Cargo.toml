@@ -1,0 +1,84 @@
+[package]
+name = "multivm-rpc-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Unified RPC service for MultiVM platform supporting Ethereum and Solana"
+
+[dependencies]
+# Internal dependencies
+multivm-common = { path = "../multivm-common" }
+multivm-account-mapping = { path = "../multivm-account-mapping" }
+
+# Core async runtime
+tokio = { workspace = true, features = ["full"] }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Web framework and networking
+axum = { version = "0.7", features = ["ws", "macros"] }
+tower = { version = "0.5" }
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout", "compression-gzip"] }
+hyper = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream"] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Error handling and logging
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Blockchain and crypto
+alloy-primitives = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+bs58 = { workspace = true }
+
+# HTTP client and utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+url = { version = "2.5", features = ["serde"] }
+
+# Caching and rate limiting
+moka = { version = "0.12", features = ["future"] }
+governor = { version = "0.6" }
+
+# Additional dependencies
+rand = { workspace = true }
+
+# Configuration
+toml = { workspace = true }
+
+# Concurrency utilities
+parking_lot = { workspace = true }
+dashmap = { version = "6.0" }
+
+# JSON-RPC
+jsonrpsee = { version = "0.24", features = ["server", "client"] }
+
+# Database for caching and analytics
+sqlx = { workspace = true, features = ["postgres", "runtime-tokio-rustls", "macros", "uuid", "chrono"] }
+
+# Metrics
+prometheus = { version = "0.13" }
+metrics = { version = "0.23" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = { workspace = true }
+axum-test = "15.0"
+
+[[bin]]
+name = "multivm-rpc"
+path = "src/bin/multivm-rpc.rs"
+
+[features]
+default = ["ethereum", "solana"]
+ethereum = []
+solana = []
+metrics = []

@@ -1,0 +1,116 @@
+# MultiVM Production Configuration
+
+[general]
+# Node configuration
+node_id = "${MULTIVM_NODE_ID}"
+node_type = "${MULTIVM_NODE_TYPE}" # validator, full, light
+data_dir = "/data"
+log_level = "${MULTIVM_LOG_LEVEL}"
+
+[network]
+# P2P Network configuration
+p2p_host = "0.0.0.0"
+p2p_port = 9000
+max_peers = 50
+enable_mdns = false
+bootstrap_peers = [
+    "/dns4/multivm-node1/tcp/9000",
+    "/dns4/multivm-node2/tcp/9001",
+    "/dns4/multivm-node3/tcp/9002"
+]
+
+# RPC configuration
+rpc_host = "0.0.0.0"
+rpc_port = 8000
+max_connections = 100
+rate_limit_per_minute = 1000
+
+[consensus]
+# Malachite BFT configuration
+consensus_port = 7000
+block_time_ms = 2000
+timeout_propose_ms = 1000
+timeout_prevote_ms = 1000
+timeout_precommit_ms = 1000
+max_block_size_bytes = 1048576 # 1MB
+
+# Validator set
+validators = [
+    "node1",
+    "node2",
+    "node3",
+    "node4",
+    "node5",
+    "node6",
+    "node7"
+]
+
+[execution]
+# Ethereum execution configuration
+[execution.ethereum]
+enabled = true
+mock_mode = false
+executable_path = "reth"
+data_dir = "/data/ethereum"
+chain_id = 1337
+rpc_port = 8545
+ws_port = 8546
+p2p_port = 30303
+max_peers = 0 # Disable P2P for execution engines
+
+# Additional Reth configuration
+[execution.ethereum.extra]
+dev_mode = false
+block_time = "2s"
+pruning_mode = "archive"
+
+# Solana execution configuration
+[execution.solana]
+enabled = true
+mock_mode = false
+executable_path = "/usr/local/bin/solana-private-validator"
+data_dir = "/data/solana"
+rpc_port = 8899
+ws_port = 8900
+gossip_port = 1024
+ticks_per_slot = 64
+slots_per_epoch = 8192
+
+[security]
+# Security settings
+enable_tls = true
+tls_cert_path = "/configs/certs/cert.pem"
+tls_key_path = "/configs/certs/key.pem"
+jwt_secret = "${MULTIVM_JWT_SECRET}"
+enable_rate_limiting = true
+enable_ddos_protection = true
+
+[monitoring]
+# Metrics and monitoring
+enable_metrics = true
+metrics_port = 9091
+metrics_path = "/metrics"
+
+# Health check
+health_check_interval_secs = 30
+health_check_timeout_secs = 5
+
+[storage]
+# Database configuration
+db_backend = "rocksdb"
+db_path = "/data/db"
+cache_size_mb = 1024
+enable_compression = true
+
+[performance]
+# Performance tuning
+worker_threads = 0 # 0 = auto-detect
+max_concurrent_requests = 1000
+queue_size = 10000
+enable_parallel_execution = true
+
+[advanced]
+# Advanced settings
+enable_experimental_features = false
+debug_mode = false
+profile_mode = false

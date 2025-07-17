@@ -1,0 +1,137 @@
+# MultiVM Production Configuration
+# Optimized for security, reliability, and performance
+
+[system]
+chain_id = 1337
+data_dir = "/var/lib/multivm"
+log_level = "info"
+log_format = "json"
+enable_file_logging = true
+log_directory = "/var/log/multivm"
+enable_metrics = true
+metrics_port = 9090
+
+[system.resource_limits]
+max_memory_mb = 32768  # 32GB
+max_file_descriptors = 1048576
+max_cpu_percent = 90.0
+
+[consensus]
+type = "malachite"
+block_time_ms = 3000  # 3 second blocks
+max_block_size_bytes = 31457280  # 30MB
+max_transactions_per_block = 5000
+validator_threshold = 0.67
+view_timeout_ms = 10000
+sync_timeout_ms = 60000
+
+[blockchain.ethereum]
+enabled = true
+chain_id = 1
+rpc_url = "http://localhost:8545"
+engine_api_url = "http://localhost:8551"
+jwt_secret_path = "/etc/multivm/jwt.hex"
+default_gas_price = 25000000000
+max_gas_per_block = 50000000  # 50M gas
+enable_state_sync = true
+state_sync_interval_blocks = 1000
+
+[blockchain.solana]
+enabled = false
+rpc_url = "http://localhost:8899"
+commitment = "finalized"
+max_tps = 50000
+lamports_per_signature = 5000
+
+[p2p]
+listen_addresses = [
+    "/ip4/0.0.0.0/tcp/9000",
+    "/ip6/::/tcp/9000"
+]
+enable_mdns = false  # Disabled in production
+enable_dht = true
+enable_gossipsub = true
+enable_autonat = true
+max_inbound_connections = 500
+max_outbound_connections = 500
+connection_idle_timeout_secs = 600
+
+[api]
+rest_enabled = true
+rest_host = "0.0.0.0"
+rest_port = 8080
+rest_cors_origins = ["https://app.multivm.io"]
+graphql_enabled = true
+graphql_host = "0.0.0.0"
+graphql_port = 8081
+graphql_playground = false  # Disabled in production
+ws_enabled = true
+ws_host = "0.0.0.0"
+ws_port = 8082
+ws_max_connections = 10000
+rpc_enabled = true
+rpc_host = "0.0.0.0"
+rpc_port = 8545
+rpc_max_batch_size = 100
+enable_rate_limiting = true
+rate_limit_requests_per_minute = 10000
+enable_auth = true
+auth_token_secret = "${AUTH_TOKEN_SECRET}"  # From environment
+
+[storage]
+db_engine = "rocksdb"
+consensus_db_path = "/var/lib/multivm/consensus"
+account_mapping_db_path = "/var/lib/multivm/accounts"
+transaction_pool_db_path = "/var/lib/multivm/txpool"
+cache_size_mb = 4096
+bloom_filter_bits = 10
+enable_auto_compaction = true
+compaction_interval_secs = 3600
+
+[ipc.transport]
+type = "unix_socket"
+path = "/var/run/multivm/ipc.sock"
+
+[ipc]
+enable_encryption = true
+enable_authentication = true
+max_message_size_bytes = 104857600  # 100MB
+request_timeout_ms = 60000
+
+[process_manager]
+startup_timeout_secs = 120
+shutdown_timeout_secs = 60
+health_check_interval_secs = 30
+max_restart_attempts = 10
+restart_delay_secs = 30
+enable_cgroups = true
+enable_seccomp = true
+
+[account_mapping]
+require_signature_proof = true
+max_bindings_per_account = 100
+binding_fee_gwei = 10000000  # 0.01 ETH
+
+[monitoring]
+enable_prometheus = true
+prometheus_port = 9090
+health_check_port = 8090
+alert_block_delay_secs = 30
+alert_peer_count_min = 10
+alert_disk_usage_percent = 85
+
+[security]
+enable_tls = true
+tls_cert_path = "/etc/multivm/certs/server.crt"
+tls_key_path = "/etc/multivm/certs/server.key"
+tls_ca_path = "/etc/multivm/certs/ca.crt"
+enable_ip_whitelist = false
+enable_ddos_protection = true
+max_requests_per_ip_per_minute = 1000
+
+[dev]
+skip_genesis_validation = false
+enable_debug_endpoints = false
+enable_unsafe_rpc = false
+mock_execution_engines = false
+deterministic_randomness = false

@@ -54,22 +54,58 @@ impl ProcessHandle {
         config: &BlockchainClientConfig,
         ipc_config: &IpcConfig,
     ) -> MultivmResult<Self> {
-        let binary_path = get_engine_binary_path("mock-solana")?;
-        let ipc_address = get_ipc_address(&ProcessId::Solana, ipc_config);
+        // Use real solana-test-validator or fall back to mock for testing
+        let binary_path = get_real_solana_binary_path()
+            .or_else(|_| get_engine_binary_path("mock-solana"))?;
+        
+        // Create data directory
+        let data_dir = PathBuf::from(&config.rpc_url.replace("http://localhost:", "/tmp/solana_"));
+        std::fs::create_dir_all(&data_dir).map_err(|e| MultivmError::Configuration {
+            component: "solana-engine".to_string(),
+            message: format!("Failed to create data directory: {e}"),
+            validation_errors: None,
+        })?;
 
-        let mut args = vec![
-            "--ipc-address".to_string(),
-            ipc_address,
-            "--rpc-url".to_string(),
-            config.rpc_url.clone(),
-        ];
-
-        args.push("--rpc-port".to_string());
-        args.push("8899".to_string());
+        let args = if binary_path.file_name().unwrap_or_default() == "mock-solana" {
+            // Mock solana arguments
+            let ipc_address = get_ipc_address(&ProcessId::Solana, ipc_config);
+            vec![
+                "--ipc-address".to_string(),
+                ipc_address,
+                "--rpc-url".to_string(),
+                config.rpc_url.clone(),
+                "--rpc-port".to_string(),
+                "8899".to_string(),
+            ]
+        } else {
+            // Real solana-test-validator arguments for MultiVM integration
+            vec![
+                "--ledger".to_string(),
+                data_dir.join("ledger").to_string_lossy().to_string(),
+                "--rpc-port".to_string(),
+                "8899".to_string(),
+                "--rpc-bind-address".to_string(),
+                "0.0.0.0".to_string(),
+                "--dynamic-port-range".to_string(),
+                "8000-8020".to_string(),
+                "--gossip-port".to_string(),
+                "8001".to_string(),
+                "--gossip-host".to_string(),
+                "127.0.0.1".to_string(),
+                "--enable-rpc-transaction-history".to_string(),
+                "--enable-cpi-and-log-storage".to_string(),
+                "--reset".to_string(), // Reset the ledger on startup for development
+                "--quiet".to_string(), // Reduce log noise
+                // Disable P2P networking (isolated mode)
+                "--no-voting".to_string(),
+                "--gossip-host".to_string(),
+                "127.0.0.1".to_string(),
+            ]
+        };
 
         let process_config = ProcessConfig {
             blockchain_type: BlockchainType::Solana,
-            data_dir: "/tmp/solana".to_string(),
+            data_dir: data_dir.to_string_lossy().to_string(),
             rpc_port: 8899,
             ..Default::default()
         };
@@ -79,7 +115,7 @@ impl ProcessHandle {
             child: RwLock::new(None),
             binary_path,
             args,
-            working_dir: std::path::PathBuf::from("/tmp/solana"),
+            working_dir: data_dir,
             config: process_config,
             restart_attempts: Arc::new(Mutex::new(VecDeque::new())),
             last_health_check: Arc::new(Mutex::new(None)),
@@ -98,22 +134,78 @@ impl ProcessHandle {
         config: &BlockchainClientConfig,
         ipc_config: &IpcConfig,
     ) -> MultivmResult<Self> {
-        let binary_path = get_engine_binary_path("mock-reth")?;
-        let ipc_address = get_ipc_address(&ProcessId::Ethereum, ipc_config);
+        // Use real reth binary or fall back to mock for testing
+        let binary_path = get_real_reth_binary_path()
+            .or_else(|_| get_engine_binary_path("mock-reth"))?;
+        
+        // Create data directory
+        let data_dir = PathBuf::from(&config.rpc_url.replace("http://localhost:", "/tmp/ethereum_"));
+        std::fs::create_dir_all(&data_dir).map_err(|e| MultivmError::Configuration {
+            component: "ethereum-engine".to_string(),
+            message: format!("Failed to create data directory: {e}"),
+            validation_errors: None,
+        })?;
 
-        let mut args = vec![
-            "--ipc-address".to_string(),
-            ipc_address,
-            "--rpc-url".to_string(),
-            config.rpc_url.clone(),
-        ];
+        // Generate JWT secret for Engine API authentication
+        let jwt_secret_path = data_dir.join("jwt.hex");
+        if !jwt_secret_path.exists() {
+            let jwt_secret = generate_jwt_secret();
+            std::fs::write(&jwt_secret_path, jwt_secret).map_err(|e| MultivmError::Configuration {
+                component: "ethereum-engine".to_string(),
+                message: format!("Failed to write JWT secret: {e}"),
+                validation_errors: None,
+            })?;
+        }
 
-        args.push("--rpc-port".to_string());
-        args.push("8545".to_string());
+        let args = if binary_path.file_name().unwrap_or_default() == "mock-reth" {
+            // Mock reth arguments
+            let ipc_address = get_ipc_address(&ProcessId::Ethereum, ipc_config);
+            vec![
+                "--ipc-address".to_string(),
+                ipc_address,
+                "--rpc-url".to_string(),
+                config.rpc_url.clone(),
+                "--rpc-port".to_string(),
+                "8545".to_string(),
+            ]
+        } else {
+            // Real reth arguments for MultiVM integration
+            vec![
+                "node".to_string(),
+                "--datadir".to_string(),
+                data_dir.to_string_lossy().to_string(),
+                "--chain".to_string(),
+                "dev".to_string(), // Use dev chain for development
+                "--http".to_string(),
+                "--http.addr".to_string(),
+                "0.0.0.0".to_string(),
+                "--http.port".to_string(),
+                "8545".to_string(),
+                "--http.api".to_string(),
+                "eth,net,web3,debug,trace".to_string(),
+                "--http.corsdomain".to_string(),
+                "*".to_string(),
+                "--authrpc.addr".to_string(),
+                "0.0.0.0".to_string(),
+                "--authrpc.port".to_string(),
+                "8551".to_string(),
+                "--authrpc.jwtsecret".to_string(),
+                jwt_secret_path.to_string_lossy().to_string(),
+                "--disable-discovery".to_string(),
+                "--max-inbound-peers".to_string(),
+                "0".to_string(),
+                "--max-outbound-peers".to_string(),
+                "0".to_string(),
+                "--port".to_string(),
+                "0".to_string(),
+                "--ipcdisable".to_string(),
+                "--dev".to_string(),
+            ]
+        };
 
         let process_config = ProcessConfig {
             blockchain_type: BlockchainType::Ethereum,
-            data_dir: "/tmp/ethereum".to_string(),
+            data_dir: data_dir.to_string_lossy().to_string(),
             rpc_port: 8545,
             ..Default::default()
         };
@@ -123,7 +215,7 @@ impl ProcessHandle {
             child: RwLock::new(None),
             binary_path,
             args,
-            working_dir: std::path::PathBuf::from("/tmp/ethereum"),
+            working_dir: data_dir,
             config: process_config,
             restart_attempts: Arc::new(Mutex::new(VecDeque::new())),
             last_health_check: Arc::new(Mutex::new(None)),
@@ -790,4 +882,74 @@ pub enum ProcessStatus {
     Stopped,
     Starting,
     Stopping,
+}
+
+/// Get the path to the real Reth binary
+fn get_real_reth_binary_path() -> MultivmResult<PathBuf> {
+    // Try common installation paths for Reth
+    let possible_paths = vec![
+        "/usr/local/bin/reth",
+        "/usr/bin/reth", 
+        "/opt/reth/bin/reth",
+        "./target/release/reth",
+        "../reth/target/release/reth",
+        "reth", // Try PATH
+    ];
+    
+    for path in possible_paths {
+        let path_buf = PathBuf::from(path);
+        if path_buf.exists() || (path == "reth" && which::which("reth").is_ok()) {
+            info!("Found Reth binary at: {}", path);
+            return Ok(path_buf);
+        }
+    }
+    
+    Err(MultivmError::Configuration {
+        component: "reth-binary".to_string(),
+        message: "Reth binary not found. Please install Reth or set RETH_BINARY_PATH environment variable.".to_string(),
+        validation_errors: None,
+    })
+}
+
+/// Get the path to the real Solana test validator binary
+fn get_real_solana_binary_path() -> MultivmResult<PathBuf> {
+    // Try common installation paths for Solana
+    let possible_paths = vec![
+        "/usr/local/bin/solana-test-validator",
+        "/usr/bin/solana-test-validator",
+        "~/.local/share/solana/install/active_release/bin/solana-test-validator",
+        "./solana-test-validator",
+        "solana-test-validator", // Try PATH
+    ];
+    
+    for path in possible_paths {
+        let expanded_path = if path.starts_with("~/") {
+            if let Some(home) = std::env::var_os("HOME") {
+                PathBuf::from(home).join(&path[2..])
+            } else {
+                continue;
+            }
+        } else {
+            PathBuf::from(path)
+        };
+        
+        if expanded_path.exists() || (path == "solana-test-validator" && which::which("solana-test-validator").is_ok()) {
+            info!("Found Solana test validator binary at: {}", expanded_path.display());
+            return Ok(expanded_path);
+        }
+    }
+    
+    Err(MultivmError::Configuration {
+        component: "solana-binary".to_string(),
+        message: "Solana test validator binary not found. Please install Solana CLI tools.".to_string(),
+        validation_errors: None,
+    })
+}
+
+/// Generate a JWT secret for Engine API authentication
+fn generate_jwt_secret() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let secret: [u8; 32] = rng.gen();
+    hex::encode(secret)
 }

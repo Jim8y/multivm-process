@@ -294,13 +294,14 @@ impl BlockRouter {
                             BindingProof {
                                 account: proof_account,
                                 proof_type: ProofType::Signature {
-                                    message: hex::decode(proof_message)
-                                        .unwrap_or_else(|_| proof_message.as_bytes().to_vec()),
-                                    signature: hex::decode(proof_signature)
-                                        .unwrap_or_else(|_| proof_signature.as_bytes().to_vec()),
+                                    message: Box::new(hex::decode(proof_message)
+                                        .unwrap_or_else(|_| proof_message.as_bytes().to_vec())),
+                                    signature: Box::new(hex::decode(proof_signature)
+                                        .unwrap_or_else(|_| proof_signature.as_bytes().to_vec())),
                                 },
-                                proof_data: serde_json::to_vec(proof_data).unwrap_or_default(),
+                                proof_data: Box::new(serde_json::to_vec(proof_data).unwrap_or_default()),
                                 timestamp: std::time::SystemTime::now(),
+                                nonce: 0, // TODO: Use proper nonce from transaction
                             }
                         },
                         metadata: None, // Optional metadata can be None for now
@@ -571,7 +572,7 @@ impl BlockRouter {
                     })?;
 
                 let command = IpcCommand::ProcessBlock {
-                    block_data_bytes: block_data,
+                    block_data_bytes: Box::new(block_data),
                     blockchain_type: BlockchainType::Solana,
                     expect_response: false,
                 };
@@ -619,7 +620,7 @@ impl BlockRouter {
                     })?;
 
                 let command = IpcCommand::ProcessBlock {
-                    block_data_bytes: block_data,
+                    block_data_bytes: Box::new(block_data),
                     blockchain_type: BlockchainType::Ethereum,
                     expect_response: false,
                 };

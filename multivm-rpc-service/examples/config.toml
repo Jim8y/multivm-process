@@ -1,0 +1,110 @@
+# MultiVM RPC Service Configuration Example
+
+[server]
+bind_address = "127.0.0.1:8545"
+request_timeout = "30s"
+max_connections = 1000
+cors_enabled = true
+cors_origins = ["*"]
+compression_enabled = true
+websocket_enabled = true
+
+[backends]
+connection_pool.max_connections_per_node = 50
+connection_pool.idle_timeout = "5m"
+connection_pool.keep_alive = "1m"
+
+# Ethereum (Reth) nodes
+[[backends.ethereum]]
+name = "reth-local"
+url = "http://localhost:8551"
+timeout = "10s"
+max_concurrent_requests = 100
+health_check_interval = "30s"
+priority = 100
+
+[[backends.ethereum]]
+name = "reth-backup"
+url = "http://localhost:8552"
+timeout = "10s"
+max_concurrent_requests = 50
+health_check_interval = "30s"
+priority = 90
+
+# Solana nodes
+[[backends.solana]]
+name = "solana-local"
+url = "http://localhost:8899"
+timeout = "10s"
+max_concurrent_requests = 100
+health_check_interval = "30s"
+priority = 100
+
+[[backends.solana]]
+name = "solana-devnet"
+url = "https://api.devnet.solana.com"
+timeout = "15s"
+max_concurrent_requests = 50
+health_check_interval = "60s"
+priority = 80
+
+[cache]
+enabled = true
+max_size = 10000
+persistent = false
+# cache_dir = "./cache"  # Optional persistent cache directory
+
+# Method-specific cache TTLs
+[cache.method_ttl]
+"eth_blockNumber" = "1s"
+"eth_getBlockByNumber" = "60s"
+"eth_getBlockByHash" = "300s"
+"eth_getTransactionByHash" = "300s"
+"eth_getBalance" = "10s"
+"eth_call" = "5s"
+"getSlot" = "1s"
+"getBlock" = "60s"
+"getTransaction" = "300s"
+"getBalance" = "10s"
+"getAccountInfo" = "10s"
+
+[rate_limit]
+enabled = true
+requests_per_second = 100
+burst_size = 200
+by_ip = true
+by_api_key = true
+whitelist = []
+
+[auth]
+enabled = false  # Set to true in production
+
+# Example API keys (generate secure keys in production)
+[auth.api_keys]
+[auth.api_keys."dev-key-12345"]
+name = "Development Key"
+allowed_methods = []  # Empty means all methods allowed
+rate_limit = 1000
+enabled = true
+
+[auth.api_keys."readonly-key-67890"]
+name = "Read-Only Key"
+allowed_methods = [
+    "eth_blockNumber", "eth_getBalance", "eth_getBlockByNumber",
+    "getSlot", "getBalance", "getAccountInfo",
+    "multivm_getVersion", "multivm_getNetworkStats"
+]
+rate_limit = 500
+enabled = true
+
+[metrics]
+enabled = true
+bind_address = "127.0.0.1:9090"
+export_interval = "10s"
+detailed = false
+
+[account_mapping]
+enabled = true
+# service_url = "http://localhost:8080"  # Optional external service
+cache_mappings = true
+cache_ttl = "5m"

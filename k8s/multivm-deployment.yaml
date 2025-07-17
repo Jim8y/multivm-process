@@ -1,0 +1,189 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multivm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: multivm-config
+  namespace: multivm
+data:
+  multivm-config.toml: |
+    [general]
+    node_type = "validator"
+    data_dir = "/data"
+    log_level = "info"
+    
+    [network]
+    p2p_host = "0.0.0.0"
+    p2p_port = 9000
+    max_peers = 50
+    enable_mdns = false
+    
+    [consensus]
+    consensus_port = 7000
+    block_time_ms = 2000
+    
+    [execution]
+    [execution.ethereum]
+    enabled = true
+    mock_mode = false
+    
+    [execution.solana]
+    enabled = true
+    mock_mode = false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: multivm-service
+  namespace: multivm
+spec:
+  selector:
+    app: multivm
+  ports:
+    - name: rpc
+      port: 8000
+      targetPort: 8000
+    - name: p2p
+      port: 9000
+      targetPort: 9000
+    - name: consensus
+      port: 7000
+      targetPort: 7000
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: multivm
+  namespace: multivm
+spec:
+  serviceName: multivm-service
+  replicas: 3
+  selector:
+    matchLabels:
+      app: multivm
+  template:
+    metadata:
+      labels:
+        app: multivm
+    spec:
+      containers:
+      - name: multivm
+        image: multivm/multivm:latest
+        imagePullPolicy: Always
+        env:
+        - name: MULTIVM_NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MULTIVM_NODE_TYPE
+          value: "validator"
+        - name: MULTIVM_ETHEREUM_MOCK_MODE
+          value: "false"
+        - name: MULTIVM_SOLANA_MOCK_MODE
+          value: "false"
+        - name: RUST_LOG
+          value: "multivm=info"
+        ports:
+        - containerPort: 8000
+          name: rpc
+        - containerPort: 9000
+          name: p2p
+        - containerPort: 7000
+          name: consensus
+        - containerPort: 9091
+          name: metrics
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: config
+          mountPath: /configs
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: multivm-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "fast-ssd"
+      resources:
+        requests:
+          storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: multivm-headless
+  namespace: multivm
+spec:
+  clusterIP: None
+  selector:
+    app: multivm
+  ports:
+    - name: p2p
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: multivm-metrics
+  namespace: multivm
+spec:
+  selector:
+    matchLabels:
+      app: multivm
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: multivm-hpa
+  namespace: multivm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: multivm
+  minReplicas: 3
+  maxReplicas: 7
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

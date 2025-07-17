@@ -1,6 +1,16 @@
+#[cfg(feature = "solana-engine")]
 use solana_sdk::commitment_config::CommitmentLevel;
 use std::path::PathBuf;
 use std::time::Duration;
+
+// Mock type for when solana-engine feature is not enabled
+#[cfg(not(feature = "solana-engine"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommitmentLevel {
+    Processed,
+    Confirmed,
+    Finalized,
+}
 
 /// Configuration for Solana execution engine
 #[derive(Debug, Clone)]
@@ -163,6 +173,9 @@ pub struct SolanaConnectionConfig {
     /// Size of the connection pool
     pub connection_pool_size: u32,
     /// Commitment level for transactions
+    #[cfg(feature = "solana-engine")]
+    pub commitment_level: CommitmentLevel,
+    #[cfg(not(feature = "solana-engine"))]
     pub commitment_level: CommitmentLevel,
 }
 
@@ -174,6 +187,9 @@ impl Default for SolanaConnectionConfig {
             request_timeout: Duration::from_secs(30),
             health_check_interval: Duration::from_secs(10),
             connection_pool_size: 10,
+            #[cfg(feature = "solana-engine")]
+            commitment_level: CommitmentLevel::Confirmed,
+            #[cfg(not(feature = "solana-engine"))]
             commitment_level: CommitmentLevel::Confirmed,
         }
     }
@@ -187,6 +203,9 @@ impl SolanaConnectionConfig {
         request_timeout: Duration,
         health_check_interval: Duration,
         connection_pool_size: u32,
+        #[cfg(feature = "solana-engine")]
+        commitment_level: CommitmentLevel,
+        #[cfg(not(feature = "solana-engine"))]
         commitment_level: CommitmentLevel,
     ) -> Self {
         Self {

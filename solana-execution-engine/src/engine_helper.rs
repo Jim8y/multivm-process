@@ -1,9 +1,16 @@
 use std::sync::Arc;
 
 use crate::engine::SolanaEngine;
+#[cfg(feature = "solana-engine")]
 use crate::SolanaEngineError;
 use sha2::{Digest, Sha256};
+use tokio::sync::RwLock;
+#[cfg(feature = "solana-engine")]
+use tracing::info;
+
+#[cfg(feature = "solana-engine")]
 use solana_client::nonblocking::rpc_client::RpcClient;
+#[cfg(feature = "solana-engine")]
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     hash::Hash,
@@ -14,11 +21,18 @@ use solana_sdk::{
     system_instruction,
     transaction::Transaction,
 };
-use tokio::sync::RwLock;
-use tracing::info;
+
+// Import our mock types when feature is not enabled
+#[cfg(not(feature = "solana-engine"))]
+use crate::engine::{Hash, RpcClient, Slot, Transaction};
+#[cfg(not(feature = "solana-engine"))]
+type Pubkey = [u8; 32];
+#[cfg(not(feature = "solana-engine"))]
+type Keypair = Vec<u8>;
 
 impl SolanaEngine {
     /// Request and confirm airdrop to a Solana account
+    #[cfg(feature = "solana-engine")]
     pub async fn request_and_confirm_airdrop(
         &self,
         to_pubkey: &Pubkey,
@@ -50,6 +64,7 @@ impl SolanaEngine {
     }
 
     /// Get the balance of a Solana account
+    #[cfg(feature = "solana-engine")]
     pub async fn get_balance(&self, pubkey: &Pubkey) -> Result<u64, SolanaEngineError> {
         let client_guard = self.internal_client.read().await;
         let client = client_guard
@@ -61,6 +76,7 @@ impl SolanaEngine {
     }
 
     /// Transfer SOL from one account to another
+    #[cfg(feature = "solana-engine")]
     pub async fn transfer_sol(
         &self,
         from_keypair: &Keypair,
@@ -104,6 +120,7 @@ impl SolanaEngine {
     /// ```rust
     /// let blockhash = engine.get_latest_blockhash().await?;
     /// ```
+    #[cfg(feature = "solana-engine")]
     pub async fn get_latest_blockhash(&self) -> Result<Hash, SolanaEngineError> {
         let client_guard = self.internal_client.read().await;
         let client = client_guard
@@ -169,6 +186,7 @@ impl SolanaEngine {
 }
 
 /// Create a signed transfer transaction
+#[cfg(feature = "solana-engine")]
 pub fn create_transfer_transaction(
     from_keypair: &Keypair,
     to_pubkey: &Pubkey,
@@ -214,20 +232,32 @@ pub fn compute_block_hash(
     let mut hasher = Sha256::new();
 
     // Add previous block hash to ensure chain continuity
+    #[cfg(feature = "solana-engine")]
     hasher.update(previous_hash.to_bytes());
+    #[cfg(not(feature = "solana-engine"))]
+    hasher.update(&previous_hash);
 
     // Add slot to hash
     hasher.update(slot.to_le_bytes());
 
     // Add transaction data to hash
     for tx in transactions {
-        if let Some(signature) = tx.signatures.first() {
-            hasher.update(signature.as_ref());
+        #[cfg(feature = "solana-engine")]
+        {
+            if let Some(signature) = tx.signatures.first() {
+                hasher.update(signature.as_ref());
+            }
+            // Include transaction message hash for more entropy
+            let tx_data = bincode::serialize(tx).unwrap_or_default();
+            let tx_hash = Sha256::digest(&tx_data);
+            hasher.update(tx_hash);
         }
-        // Include transaction message hash for more entropy
-        let tx_data = bincode::serialize(tx).unwrap_or_default();
-        let tx_hash = Sha256::digest(&tx_data);
-        hasher.update(tx_hash);
+        #[cfg(not(feature = "solana-engine"))]
+        {
+            // For mock transaction, just hash the raw bytes
+            let tx_hash = Sha256::digest(tx);
+            hasher.update(tx_hash);
+        }
     }
 
     // Add timestamp for uniqueness and consistency
@@ -235,5 +265,12 @@ pub fn compute_block_hash(
 
     // Create hash from digest
     let block_hash = hasher.finalize();
-    Hash::new_from_array(block_hash.into())
+    #[cfg(feature = "solana-engine")]
+    return Hash::new_from_array(block_hash.into());
+    #[cfg(not(feature = "solana-engine"))]
+    {
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&block_hash);
+        hash
+    }
 }

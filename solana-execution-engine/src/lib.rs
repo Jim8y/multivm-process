@@ -1,3 +1,4 @@
+#[cfg(feature = "solana-engine")]
 pub use engine_helper::create_transfer_transaction;
 pub use error::SolanaEngineError;
 pub use multivm_common::{

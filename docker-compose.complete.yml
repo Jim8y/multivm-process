@@ -1,0 +1,413 @@
+version: '3.8'
+
+# MultiVM Complete Integration with Reth
+# Builds and runs complete testnet with Reth from MultiVM fork
+
+networks:
+  multivm-complete:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  reth-data-1:
+  reth-data-2:
+  reth-data-3:
+  reth-data-4:
+  reth-data-5:
+  reth-data-6:
+  reth-data-7:
+  multivm-data-1:
+  multivm-data-2:
+  multivm-data-3:
+  multivm-data-4:
+  multivm-data-5:
+  multivm-data-6:
+  multivm-data-7:
+  prometheus_data:
+  grafana_data:
+
+services:
+  # ==============================================
+  # MultiVM + Reth Node 1 (Genesis Validator)
+  # ==============================================
+  multivm-node1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node1
+    hostname: multivm-node1
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.11
+    ports:
+      - "8080:8080"   # MultiVM REST API
+      - "8545:8545"   # Reth JSON-RPC
+      - "8551:8551"   # Reth Engine API
+      - "26656:26656" # MultiVM P2P
+    environment:
+      - NODE_ID=node1
+      - NODE_TYPE=validator
+      - IS_GENESIS_VALIDATOR=true
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - RETH_DATA_DIR=/opt/reth/data
+      - MULTIVM_DATA_DIR=/opt/multivm/data
+    volumes:
+      - reth-data-1:/opt/reth/data
+      - multivm-data-1:/opt/multivm/data
+      - ./testnet/configs/node1:/opt/multivm/config/node-specific:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # MultiVM + Reth Node 2 (Validator)
+  # ==============================================
+  multivm-node2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node2
+    hostname: multivm-node2
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.12
+    ports:
+      - "8180:8080"
+      - "8645:8545"
+      - "8651:8551"
+      - "26756:26656"
+    environment:
+      - NODE_ID=node2
+      - NODE_TYPE=validator
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - BOOTSTRAP_PEERS=multivm-node1:26656
+    volumes:
+      - reth-data-2:/opt/reth/data
+      - multivm-data-2:/opt/multivm/data
+      - ./testnet/configs/node2:/opt/multivm/config/node-specific:ro
+    depends_on:
+      - multivm-node1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # MultiVM + Reth Node 3 (Validator)
+  # ==============================================
+  multivm-node3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node3
+    hostname: multivm-node3
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.13
+    ports:
+      - "8280:8080"
+      - "8745:8545"
+      - "8751:8551"
+      - "26856:26656"
+    environment:
+      - NODE_ID=node3
+      - NODE_TYPE=validator
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - BOOTSTRAP_PEERS=multivm-node1:26656,multivm-node2:26656
+    volumes:
+      - reth-data-3:/opt/reth/data
+      - multivm-data-3:/opt/multivm/data
+      - ./testnet/configs/node3:/opt/multivm/config/node-specific:ro
+    depends_on:
+      - multivm-node1
+      - multivm-node2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # MultiVM + Reth Node 4 (Validator)
+  # ==============================================
+  multivm-node4:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node4
+    hostname: multivm-node4
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.14
+    ports:
+      - "8380:8080"
+      - "8845:8545"
+      - "8851:8551"
+      - "26956:26656"
+    environment:
+      - NODE_ID=node4
+      - NODE_TYPE=validator
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - BOOTSTRAP_PEERS=multivm-node1:26656,multivm-node2:26656
+    volumes:
+      - reth-data-4:/opt/reth/data
+      - multivm-data-4:/opt/multivm/data
+      - ./testnet/configs/node4:/opt/multivm/config/node-specific:ro
+    depends_on:
+      - multivm-node1
+      - multivm-node2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # MultiVM + Reth Node 5 (Validator)
+  # ==============================================
+  multivm-node5:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node5
+    hostname: multivm-node5
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.15
+    ports:
+      - "8480:8080"
+      - "8945:8545"
+      - "8951:8551"
+      - "27056:26656"
+    environment:
+      - NODE_ID=node5
+      - NODE_TYPE=validator
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - BOOTSTRAP_PEERS=multivm-node1:26656,multivm-node3:26656
+    volumes:
+      - reth-data-5:/opt/reth/data
+      - multivm-data-5:/opt/multivm/data
+      - ./testnet/configs/node5:/opt/multivm/config/node-specific:ro
+    depends_on:
+      - multivm-node1
+      - multivm-node3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # MultiVM + Reth Node 6 (Full Node)
+  # ==============================================
+  multivm-node6:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node6
+    hostname: multivm-node6
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.16
+    ports:
+      - "8580:8080"
+      - "9045:8545"
+      - "9051:8551"
+      - "27156:26656"
+    environment:
+      - NODE_ID=node6
+      - NODE_TYPE=full
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - BOOTSTRAP_PEERS=multivm-node1:26656,multivm-node4:26656
+    volumes:
+      - reth-data-6:/opt/reth/data
+      - multivm-data-6:/opt/multivm/data
+      - ./testnet/configs/node6:/opt/multivm/config/node-specific:ro
+    depends_on:
+      - multivm-node1
+      - multivm-node4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # MultiVM + Reth Node 7 (Full Node)
+  # ==============================================
+  multivm-node7:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-complete-node7
+    hostname: multivm-node7
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.17
+    ports:
+      - "8680:8080"
+      - "9145:8545"
+      - "9151:8551"
+      - "27256:26656"
+    environment:
+      - NODE_ID=node7
+      - NODE_TYPE=full
+      - MULTIVM_LOG_LEVEL=info
+      - RUST_LOG=info,multivm_consensus=debug,reth=info
+      - BOOTSTRAP_PEERS=multivm-node1:26656,multivm-node5:26656
+    volumes:
+      - reth-data-7:/opt/reth/data
+      - multivm-data-7:/opt/multivm/data
+      - ./testnet/configs/node7:/opt/multivm/config/node-specific:ro
+    depends_on:
+      - multivm-node1
+      - multivm-node5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "&&", "curl", "-f", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ==============================================
+  # Blockchain Explorer
+  # ==============================================
+  multivm-explorer:
+    build: ./multivm-explorer
+    container_name: multivm-complete-explorer
+    hostname: multivm-explorer
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.100
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MULTIVM_NODES=multivm-node1:8080,multivm-node2:8080,multivm-node3:8080,multivm-node4:8080,multivm-node5:8080,multivm-node6:8080,multivm-node7:8080
+      - RETH_NODES=multivm-node1:8545,multivm-node2:8545,multivm-node3:8545,multivm-node4:8545,multivm-node5:8545,multivm-node6:8545,multivm-node7:8545
+    depends_on:
+      - multivm-node1
+      - multivm-node2
+      - multivm-node3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ==============================================
+  # Transaction Generator
+  # ==============================================
+  transaction-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_RETH: ${BUILD_RETH:-false}
+    container_name: multivm-tx-generator
+    hostname: tx-generator
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.200
+    environment:
+      - RETH_URL=http://multivm-node1:8545
+      - TX_RATE=1
+      - TX_COUNT=1000
+    depends_on:
+      - multivm-node1
+      - multivm-node2
+      - multivm-node3
+    command: >
+      sh -c "
+        echo 'Waiting for nodes to be ready...' &&
+        sleep 60 &&
+        echo 'Starting transaction generation...' &&
+        cd /opt/testnet/tools/transaction-generators &&
+        python3 send-transactions-continuous.py
+      "
+    restart: unless-stopped
+
+  # ==============================================
+  # Monitoring - Prometheus
+  # ==============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: multivm-prometheus
+    hostname: prometheus
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.101
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+
+  # ==============================================
+  # Monitoring - Grafana
+  # ==============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: multivm-grafana
+    hostname: grafana
+    networks:
+      multivm-complete:
+        ipv4_address: 172.30.0.102
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+

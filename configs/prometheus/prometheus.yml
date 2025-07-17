@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'multivm-production'
+
+scrape_configs:
+  # MultiVM nodes metrics
+  - job_name: 'multivm-nodes'
+    static_configs:
+      - targets:
+          - 'multivm-node1:9091'
+          - 'multivm-node2:9091'
+          - 'multivm-node3:9091'
+        labels:
+          group: 'validators'
+
+  # Ethereum execution engine metrics
+  - job_name: 'reth'
+    static_configs:
+      - targets:
+          - 'multivm-node1:6060'
+          - 'multivm-node2:6060'
+          - 'multivm-node3:6060'
+        labels:
+          chain: 'ethereum'
+
+  # Solana execution engine metrics
+  - job_name: 'solana'
+    static_configs:
+      - targets:
+          - 'multivm-node1:8899'
+          - 'multivm-node2:8899'
+          - 'multivm-node3:8899'
+        labels:
+          chain: 'solana'
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets:
+          - 'multivm-node1:9100'
+          - 'multivm-node2:9100'
+          - 'multivm-node3:9100'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+rule_files:
+  - '/etc/prometheus/alert.rules.yml'

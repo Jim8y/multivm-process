@@ -1,0 +1,85 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        rust: [stable, nightly]
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: ${{ matrix.rust }}
+        override: true
+        components: rustfmt, clippy
+    
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler libssl-dev pkg-config
+    
+    - name: Build project
+      run: cargo build --all-features --release
+    
+    - name: Run unit tests
+      run: cargo test --lib --all-features -- --nocapture
+    
+    - name: Run component integration tests
+      run: cargo test --test component_integration_tests -- --nocapture --test-threads=1
+    
+    - name: Run consensus tests
+      run: cargo test --package multivm-consensus -- --nocapture
+    
+    - name: Run process manager tests
+      run: cargo test --package multivm-process-manager -- --nocapture
+    
+    - name: Check code formatting
+      run: cargo fmt -- --check
+    
+    - name: Run clippy
+      run: cargo clippy --all-features -- -D warnings
+    
+    - name: Generate test coverage
+      if: matrix.rust == 'stable'
+      run: |
+        cargo install cargo-tarpaulin
+        cargo tarpaulin --out Xml --all-features
+    
+    - name: Upload coverage to Codecov
+      if: matrix.rust == 'stable'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./cobertura.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false

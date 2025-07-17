@@ -18,8 +18,13 @@
 
 pub mod address;
 pub mod atomic_coordinator;
+pub mod binding_message;
+pub mod binding_policy;
 pub mod cross_vm_coordinator;
+pub mod distributed_lock;
+pub mod enhanced_mapping;
 pub mod error;
+pub mod events;
 pub mod ipc_integration;
 pub mod mapping;
 pub mod special_tx;
@@ -381,3 +386,5 @@ mod tests {
 
 #[cfg(test)]
 mod address_tests;
+#[cfg(test)]
+mod enhanced_mapping_tests;

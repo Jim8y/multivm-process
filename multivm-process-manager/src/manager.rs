@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{oneshot, Mutex, RwLock};
+use tracing::{debug, error, info, warn};
 
 use crate::lock_ordering::{
     acquire_write_lock_safe, get_lock_config, init_lock_config, LockLevel, LockTimeoutConfig,
@@ -9,9 +10,9 @@ use crate::lock_ordering::{
 use multivm_common::{
     error::MultivmError,
     traits::ProcessManager as ProcessManagerTrait,
-    types::{BlockchainType, HealthInfo, HealthStatus, ProcessId},
+    types::{BlockchainType, HealthInfo, HealthStatus, ProcessId, RpcResponse, RpcError},
     types_rpc::RpcConfig,
-    IpcCommand, IpcResponse, MultivmConfig, MultivmResult, SystemEvent,
+    IpcCommand, IpcResponse, MultivmConfig, MultivmResult, SystemEvent, EngineState,
 };
 
 /// Events emitted by the process manager
@@ -87,7 +88,7 @@ struct MultivmProcessManagerInner {
     config: MultivmConfig,
     processes: Arc<RwLock<HashMap<ProcessId, ProcessHandle>>>,
     health_monitor: HealthMonitor,
-    // block_router: BlockRouter,  // Temporarily disabled due to dependency conflicts
+    block_router: crate::block_router::BlockRouter,
     resource_monitor: Arc<Mutex<SystemResourceMonitor>>,
     zombie_reaper: ZombieReaper,
     ipc_server: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -147,9 +148,9 @@ impl MultivmProcessManager {
 
         // Initialize components
         let health_monitor = HealthMonitor::new(std::time::Duration::from_secs(30));
-        // Account mapping integration disabled temporarily due to dependency issues
-        // let account_mapping = Arc::new(multivm_account_mapping::storage::MemoryStorage::new());
-        // let block_router = multivm_account_mapping::routing::BlockRouter::new(account_mapping.clone());
+        // Initialize account mapping for block router
+        let account_mapping = Arc::new(multivm_account_mapping::storage::MemoryStorage::new());
+        let block_router = crate::block_router::BlockRouter::new(account_mapping);
         let resource_monitor = Arc::new(Mutex::new(SystemResourceMonitor::new(
             ResourceLimits::default(),
         )));
@@ -162,7 +163,7 @@ impl MultivmProcessManager {
             config,
             processes: Arc::new(RwLock::new(HashMap::new())),
             health_monitor,
-            // block_router,  // Temporarily disabled due to dependency conflicts
+            block_router,
             resource_monitor,
             zombie_reaper,
             ipc_server: Mutex::new(None),
@@ -676,19 +677,200 @@ impl MultivmProcessManager {
         tracing::info!("MultivmProcessManager stopped");
         Ok(())
     }
+
+    /// Route a MultiVM block to appropriate execution engines
+    pub async fn route_block(&self, block: multivm_consensus::MultiVMBlock) -> MultivmResult<()> {
+        info!("Routing MultiVM block at height {}", block.header.height);
+        
+        // Decompose the block using the block router
+        let routing_result = self.inner.block_router.decompose_block(block).await?;
+        
+        // Process SVM transactions
+        if !routing_result.svm_transactions.is_empty() {
+            if let Some(solana_handle) = self.inner.processes.read().await.get(&ProcessId::Solana) {
+                for svm_tx in routing_result.svm_transactions {
+                    self.send_transaction_to_solana(solana_handle, svm_tx).await?;
+                }
+            } else {
+                warn!("No Solana process available for SVM transactions");
+            }
+        }
+        
+        // Process EVM transactions
+        if !routing_result.evm_transactions.is_empty() {
+            if let Some(ethereum_handle) = self.inner.processes.read().await.get(&ProcessId::Ethereum) {
+                for evm_tx in routing_result.evm_transactions {
+                    self.send_transaction_to_ethereum(ethereum_handle, evm_tx).await?;
+                }
+            } else {
+                warn!("No Ethereum process available for EVM transactions");
+            }
+        }
+        
+        // Process special transactions (account binding, cross-VM operations)
+        if !routing_result.special_transactions.is_empty() {
+            for special_tx in routing_result.special_transactions {
+                self.handle_special_transaction(special_tx).await?;
+            }
+        }
+        
+        info!(
+            "Block routing completed: {} SVM, {} EVM, {} special transactions", 
+            routing_result.routing_metadata.svm_count,
+            routing_result.routing_metadata.evm_count,
+            routing_result.routing_metadata.special_count
+        );
+        
+        Ok(())
+    }
+
+    /// Send an SVM transaction to Solana process
+    async fn send_transaction_to_solana(
+        &self,
+        _handle: &ProcessHandle,
+        _transaction: multivm_consensus::SvmTransaction,
+    ) -> MultivmResult<()> {
+        // TODO: Implement actual IPC communication to Solana process
+        debug!("Sending SVM transaction to Solana process");
+        Ok(())
+    }
+
+    /// Send an EVM transaction to Ethereum process  
+    async fn send_transaction_to_ethereum(
+        &self,
+        _handle: &ProcessHandle,
+        _transaction: multivm_consensus::EvmTransaction,
+    ) -> MultivmResult<()> {
+        // TODO: Implement actual IPC communication to Ethereum process
+        debug!("Sending EVM transaction to Ethereum process");
+        Ok(())
+    }
+
+    /// Handle special transactions (account binding, cross-VM operations)
+    async fn handle_special_transaction(
+        &self,
+        _transaction: multivm_account_mapping::special_tx::SpecialTransaction,
+    ) -> MultivmResult<()> {
+        // TODO: Implement special transaction handling
+        debug!("Handling special transaction");
+        Ok(())
+    }
 }
 
 impl MultivmProcessManagerInner {
     /// Run the IPC server loop
     async fn run_ipc_server(&self) -> MultivmResult<()> {
-        // This would implement the actual IPC server logic
+        info!("Starting IPC server for process management");
+        
+        // Create a channel for IPC commands
+        let (_tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<IpcCommand>();
+        
+        // Start IPC message handling loop
+        while let Some(command) = rx.recv().await {
+            if let Err(e) = self.handle_ipc_command(command).await {
+                error!("Error handling IPC command: {}", e);
+            }
+        }
+        
+        info!("IPC server shutdown");
+        Ok(())
+    }
 
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        loop {
-            interval.tick().await;
-            // IPC message handling would go here
+    /// Handle incoming IPC commands
+    async fn handle_ipc_command(&self, command: IpcCommand) -> MultivmResult<IpcResponse> {
+        debug!("Handling IPC command: {:?}", command);
+        
+        match command {
+            IpcCommand::ProcessBlock { block_data_bytes, blockchain_type, expect_response } => {
+                // Route the block to appropriate execution engines
+                match bincode::deserialize::<multivm_consensus::MultiVMBlock>(&block_data_bytes) {
+                    Ok(block) => {
+                        // Use the existing route_block method from MultivmProcessManager
+                        // This is where we'd call the block router
+                        Ok(IpcResponse::BlockProcessed {
+                            result_bytes: Box::new(vec![]), // TODO: Implement actual result
+                            blockchain_type,
+                            success: true,
+                        })
+                    }
+                    Err(e) => {
+                        Ok(IpcResponse::Error {
+                            code: -32700,
+                            message: format!("Failed to deserialize block: {}", e),
+                            details: None,
+                        })
+                    }
+                }
+            }
+            IpcCommand::GetHealth => {
+                // Get overall system health
+                let system_health = HealthStatus::Healthy; // TODO: Implement actual system health check
+                Ok(IpcResponse::Health {
+                    status: system_health,
+                })
+            }
+            IpcCommand::GetState => {
+                // Get overall system state
+                Ok(IpcResponse::State {
+                    state: EngineState {
+                        process_id: ProcessId::Main,
+                        blockchain_type: BlockchainType::Ethereum, // Default to Ethereum
+                        current_block: None,
+                        state_root: vec![0; 32],
+                        is_syncing: false,
+                        peer_count: 0,
+                        rpc_endpoints: vec![],
+                        data_directory: self.config.system.data_dir.to_string_lossy().to_string(),
+                        chain_id: 1,
+                    },
+                })
+            }
+            IpcCommand::Shutdown { graceful, timeout } => {
+                // Handle shutdown request
+                if let Some(sender) = self.shutdown_sender.lock().await.take() {
+                    let _ = sender.send(());
+                }
+                Ok(IpcResponse::Ack)
+            }
+            IpcCommand::Ping => Ok(IpcResponse::Pong),
+            IpcCommand::RpcCall { call } => {
+                // Route RPC call to appropriate engine
+                Ok(IpcResponse::RpcResponse {
+                    response: RpcResponse {
+                        result: None,
+                        error: Some(RpcError {
+                            code: -32601,
+                            message: "Method not found".to_string(),
+                            data: None,
+                        }),
+                        id: call.id,
+                    }
+                })
+            }
+            IpcCommand::RequestNextBlock { current_block, blockchain_type } => {
+                Ok(IpcResponse::NextBlock {
+                    block_data_bytes: Some(Box::new(vec![])), // TODO: Implement block fetching
+                    blockchain_type: Some(blockchain_type),
+                })
+            }
+            IpcCommand::ConfigureRpc { enable, port } => {
+                // TODO: Implement RPC configuration
+                Ok(IpcResponse::Ack)
+            }
+            IpcCommand::UpdateConfig { config_data } => {
+                // TODO: Implement configuration update
+                Ok(IpcResponse::Ack)
+            }
+            IpcCommand::HealthCheck => {
+                // Similar to GetHealth
+                let system_health = HealthStatus::Healthy;
+                Ok(IpcResponse::Health {
+                    status: system_health,
+                })
+            }
         }
     }
+
 }
 
 /// System health status

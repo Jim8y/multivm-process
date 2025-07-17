@@ -8,7 +8,6 @@ use reqwest::Client;
 use serde_json::Value;
 use tracing::{debug, error, info, warn};
 
-use crate::engine::SolanaEngine;
 use crate::SolanaEngineError;
 
 /// Engine RPC server for forwarding requests to internal Solana validator
@@ -203,53 +202,5 @@ impl SolanaEngineRpcServer {
     /// Check if the server is running
     pub fn is_running(&self) -> bool {
         self.server_handle.is_some()
-    }
-}
-
-/// Extension trait for SolanaEngine to manage the RPC proxy server
-impl SolanaEngine {
-    /// Get the RPC server host from configuration
-    pub fn get_rpc_server_host(&self) -> &str {
-        &self.solana_engine_config.rpc_server_host
-    }
-
-    /// Get the RPC server port from configuration
-    pub fn get_rpc_server_port(&self) -> u16 {
-        self.solana_engine_config.rpc_server_port
-    }
-
-    /// Get the internal RPC port from configuration
-    pub fn get_internal_rpc_port(&self) -> u16 {
-        self.solana_config.rpc_port
-    }
-
-    /// Start the Engine RPC server
-    pub async fn start_rpc_proxy_server(&mut self) -> Result<(), SolanaEngineError> {
-        let internal_rpc_url = format!(
-            "http://{}:{}",
-            self.get_rpc_server_host(),
-            self.get_internal_rpc_port()
-        );
-
-        let mut engine_rpc_server = SolanaEngineRpcServer::new(
-            self.get_rpc_server_host().to_string(),
-            self.get_rpc_server_port(),
-            internal_rpc_url,
-        );
-
-        engine_rpc_server.start().await?;
-
-        // Store the engine RPC server instance for later shutdown
-        *self.rpc_proxy_server.write().await = Some(engine_rpc_server);
-
-        Ok(())
-    }
-
-    /// Stop the Engine RPC server
-    pub async fn stop_rpc_proxy_server(&mut self) -> Result<(), SolanaEngineError> {
-        match self.rpc_proxy_server.write().await.take() {
-            Some(mut server) => server.stop().await,
-            None => Ok(()),
-        }
     }
 }

@@ -2,16 +2,37 @@ use crate::config::{SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig};
 use crate::engine_helper::compute_block_hash;
 use crate::error::SolanaEngineError;
 use indicatif::{ProgressBar, ProgressStyle};
+use multivm_common::{
+    BlockchainType, EngineState, ExecutionEngine, HealthStatus, ProcessingMetrics,
+    types::rpc::RpcConfig,
+};
 use serde::{Deserialize, Serialize};
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::signature::Signature;
-use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
 use std::time::Instant;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+
+#[cfg(feature = "solana-engine")]
+use solana_client::nonblocking::rpc_client::RpcClient;
+#[cfg(feature = "solana-engine")]
+use solana_sdk::commitment_config::CommitmentConfig;
+#[cfg(feature = "solana-engine")]
+use solana_sdk::signature::Signature;
+#[cfg(feature = "solana-engine")]
+use solana_sdk::{hash::Hash, slot_history::Slot, transaction::Transaction};
+
+// Mock types for when solana-engine feature is not enabled
+#[cfg(not(feature = "solana-engine"))]
+pub type Slot = u64;
+#[cfg(not(feature = "solana-engine"))]
+pub type Hash = [u8; 32];
+#[cfg(not(feature = "solana-engine"))]
+pub type Transaction = Vec<u8>;
+#[cfg(not(feature = "solana-engine"))]
+pub type RpcClient = ();
+#[cfg(not(feature = "solana-engine"))]
+pub type Signature = String;
 
 /// Solana block data type for execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,7 +56,10 @@ pub type SolanaTransaction = Transaction;
 
 /// Solana execution engine that connects to actual Solana validators
 pub struct SolanaEngine {
+    #[cfg(feature = "solana-engine")]
     pub(crate) internal_client: Arc<RwLock<Option<RpcClient>>>,
+    #[cfg(not(feature = "solana-engine"))]
+    pub(crate) internal_client: Arc<RwLock<Option<()>>>,
 
     /// State tracking
     pub(crate) current_slot: Arc<RwLock<Slot>>,
@@ -94,7 +118,10 @@ impl SolanaEngine {
             current_slot: Arc::new(RwLock::new(0)),
             slots_processed: Arc::new(RwLock::new(0)),
             is_running: Arc::new(RwLock::new(false)),
+            #[cfg(feature = "solana-engine")]
             current_blockhash: Arc::new(RwLock::new(Hash::default())),
+            #[cfg(not(feature = "solana-engine"))]
+            current_blockhash: Arc::new(RwLock::new([0u8; 32])),
             rpc_proxy_server: Arc::new(RwLock::new(None)),
             solana_connection_config,
             solana_config,
@@ -243,19 +270,28 @@ impl SolanaEngine {
     async fn init_rpc_clients(&self) -> Result<(), SolanaEngineError> {
         info!("Initializing Solana RPC clients");
 
-        let rpc_url = format!(
-            "http://{}:{}",
-            self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port
-        );
+        #[cfg(feature = "solana-engine")]
+        {
+            let rpc_url = format!(
+                "http://{}:{}",
+                self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port
+            );
 
-        // Create RPC client
-        let commitment = CommitmentConfig {
-            commitment: self.solana_connection_config.commitment_level,
-        };
+            // Create RPC client
+            let commitment = CommitmentConfig {
+                commitment: self.solana_connection_config.commitment_level,
+            };
 
-        let rpc_client = RpcClient::new_with_commitment(rpc_url.clone(), commitment);
+            let rpc_client = RpcClient::new_with_commitment(rpc_url.clone(), commitment);
 
-        *self.internal_client.write().await = Some(rpc_client);
+            *self.internal_client.write().await = Some(rpc_client);
+        }
+
+        #[cfg(not(feature = "solana-engine"))]
+        {
+            // Mock implementation - no real client
+            *self.internal_client.write().await = Some(());
+        }
 
         info!("Solana RPC clients initialized successfully");
         Ok(())
@@ -263,7 +299,7 @@ impl SolanaEngine {
 
     /// Start health monitoring background task
     async fn start_health_monitoring(&self) {
-        let rpc_client = self.internal_client.clone();
+        let _rpc_client = self.internal_client.clone();
         let interval = self.solana_connection_config.health_check_interval;
 
         tokio::spawn(async move {
@@ -272,11 +308,18 @@ impl SolanaEngine {
                 health_interval.tick().await;
 
                 // Check RPC health
-                if let Some(client) = rpc_client.read().await.as_ref() {
-                    match client.get_health().await {
-                        Ok(()) => debug!("Solana RPC health check: OK"),
-                        Err(e) => error!("Solana RPC health check error: {}", e),
+                #[cfg(feature = "solana-engine")]
+                {
+                    if let Some(client) = _rpc_client.read().await.as_ref() {
+                        match client.get_health().await {
+                            Ok(()) => debug!("Solana RPC health check: OK"),
+                            Err(e) => error!("Solana RPC health check error: {}", e),
+                        }
                     }
+                }
+                #[cfg(not(feature = "solana-engine"))]
+                {
+                    debug!("Solana RPC health check: Mock mode");
                 }
             }
         });
@@ -364,50 +407,59 @@ impl SolanaEngine {
     ) -> Result<(), SolanaEngineError> {
         debug!("Submitting Solana block for slot {} via RPC", block.slot);
 
-        let client_guard = self.internal_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
+        #[cfg(feature = "solana-engine")]
+        {
+            let client_guard = self.internal_client.read().await;
+            let client = client_guard
+                .as_ref()
+                .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
 
-        let mut successful_txs = 0;
-        let mut failed_txs = 0;
+            let mut successful_txs = 0;
+            let mut failed_txs = 0;
 
-        // Submit each transaction to the validator
-        for (i, tx_data) in block.transactions.iter().enumerate() {
-            debug!("Submitting transaction {} for slot {}", i, block.slot);
+            // Submit each transaction to the validator
+            for (i, tx_data) in block.transactions.iter().enumerate() {
+                debug!("Submitting transaction {} for slot {}", i, block.slot);
 
-            self.submit_transaction_to_validator(client, tx_data)
-                .await
-                .map(|signature| {
-                    debug!(
-                        "Transaction {} submitted successfully with signature: {}",
-                        i, signature
-                    );
-                    successful_txs += 1;
-                })
-                .unwrap_or_else(|e| {
-                    warn!("Failed to submit transaction {}: {}", i, e);
-                    failed_txs += 1;
-                    // Continue with other transactions rather than failing the entire block
-                });
+                self.submit_transaction_to_validator(client, tx_data)
+                    .await
+                    .map(|signature| {
+                        debug!(
+                            "Transaction {} submitted successfully with signature: {}",
+                            i, signature
+                        );
+                        successful_txs += 1;
+                    })
+                    .unwrap_or_else(|e| {
+                        warn!("Failed to submit transaction {}: {}", i, e);
+                        failed_txs += 1;
+                        // Continue with other transactions rather than failing the entire block
+                    });
+            }
+
+            if successful_txs > 0 {
+                info!(
+                    "Successfully submitted {} transactions for slot {} ({} failed)",
+                    successful_txs, block.slot, failed_txs
+                );
+            } else if !block.transactions.is_empty() {
+                return Err(SolanaEngineError::Rpc(format!(
+                    "Failed to submit any transactions for slot {}",
+                    block.slot
+                )));
+            }
         }
 
-        if successful_txs > 0 {
-            info!(
-                "Successfully submitted {} transactions for slot {} ({} failed)",
-                successful_txs, block.slot, failed_txs
-            );
-        } else if !block.transactions.is_empty() {
-            return Err(SolanaEngineError::Rpc(format!(
-                "Failed to submit any transactions for slot {}",
-                block.slot
-            )));
+        #[cfg(not(feature = "solana-engine"))]
+        {
+            info!("Mock mode: Would submit {} transactions for slot {}", block.transactions.len(), block.slot);
         }
 
         Ok(())
     }
 
     /// Submit a transaction to the Solana Private Validator
+    #[cfg(feature = "solana-engine")]
     async fn submit_transaction_to_validator(
         &self,
         client: &RpcClient,
@@ -438,7 +490,11 @@ impl SolanaEngine {
         *self.is_running.write().await = false;
 
         // Stop the RPC proxy server first
-        self.stop_rpc_proxy_server().await?;
+        if let Some(mut server) = self.rpc_proxy_server.write().await.take() {
+            server.stop().await.map_err(|e| {
+                SolanaEngineError::Rpc(format!("Failed to stop RPC proxy server: {}", e))
+            })?;
+        }
 
         // Clear clients
         *self.internal_client.write().await = None;
@@ -515,35 +571,47 @@ impl SolanaEngine {
             });
         }
 
-        let client_guard = self.internal_client.read().await;
-        let client = client_guard
-            .as_ref()
-            .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
-
-        let mut signatures = Vec::with_capacity(transactions.len());
         let mut successful_transactions = Vec::new();
         let mut successful_count = 0;
         let mut failed_count = 0;
 
-        // Submit each transaction in sequence
-        for (index, transaction) in transactions.iter().enumerate() {
-            match client.send_and_confirm_transaction(transaction).await {
-                Ok(signature) => {
-                    info!(
-                        "Transaction {} submitted successfully with signature: {}",
-                        index + 1,
-                        signature
-                    );
-                    signatures.push(signature.to_string());
-                    successful_transactions.push(transaction.clone());
-                    successful_count += 1;
-                }
-                Err(e) => {
-                    error!("Failed to submit transaction {}: {}", index + 1, e);
-                    failed_count += 1;
-                    // Continue with other transactions rather than failing entirely
+        #[cfg(feature = "solana-engine")]
+        {
+            let client_guard = self.internal_client.read().await;
+            let client = client_guard
+                .as_ref()
+                .ok_or_else(|| SolanaEngineError::Rpc("RPC client not initialized".to_string()))?;
+
+            let mut signatures = Vec::with_capacity(transactions.len());
+
+            // Submit each transaction in sequence
+            for (index, transaction) in transactions.iter().enumerate() {
+                match client.send_and_confirm_transaction(transaction).await {
+                    Ok(signature) => {
+                        info!(
+                            "Transaction {} submitted successfully with signature: {}",
+                            index + 1,
+                            signature
+                        );
+                        signatures.push(signature.to_string());
+                        successful_transactions.push(transaction.clone());
+                        successful_count += 1;
+                    }
+                    Err(e) => {
+                        error!("Failed to submit transaction {}: {}", index + 1, e);
+                        failed_count += 1;
+                        // Continue with other transactions rather than failing entirely
+                    }
                 }
             }
+        }
+
+        #[cfg(not(feature = "solana-engine"))]
+        {
+            // Mock mode - pretend all transactions succeed
+            successful_transactions = transactions.iter().cloned().collect();
+            successful_count = successful_transactions.len();
+            failed_count = 0;
         }
 
         info!(
@@ -594,5 +662,236 @@ impl SolanaEngine {
         );
 
         Ok(block)
+    }
+
+    /// Start the RPC proxy server
+    async fn start_rpc_proxy_server(&self) -> Result<(), SolanaEngineError> {
+        // Construct internal RPC URL
+        let internal_rpc_url = format!(
+            "http://{}:{}",
+            self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port
+        );
+        
+        let mut server = crate::engine_rpc_server::SolanaEngineRpcServer::new(
+            self.solana_engine_config.rpc_server_host.clone(),
+            self.solana_engine_config.rpc_server_port,
+            internal_rpc_url,
+        );
+        
+        server.start().await.map_err(|e| {
+            SolanaEngineError::Rpc(format!("Failed to start RPC proxy server: {}", e))
+        })?;
+        
+        *self.rpc_proxy_server.write().await = Some(server);
+        
+        Ok(())
+    }
+
+
+}
+
+/// Solana execution result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolanaExecutionResult {
+    /// The slot number
+    pub slot: Slot,
+    /// Block hash
+    pub block_hash: Hash,
+    /// Transaction signatures
+    pub signatures: Vec<String>,
+    /// Number of successful transactions
+    pub successful_transactions: usize,
+    /// Number of failed transactions
+    pub failed_transactions: usize,
+    /// Block time
+    pub block_time: Option<i64>,
+    /// Processing duration
+    pub processing_duration_ms: u64,
+}
+
+// Implement ExecutionEngine trait for SolanaEngine
+#[async_trait::async_trait]
+impl ExecutionEngine for SolanaEngine {
+    type BlockType = SolanaBlockData;
+    type ExecutionResult = SolanaExecutionResult;
+    type Error = SolanaEngineError;
+
+    async fn process_block(
+        &mut self,
+        block: Self::BlockType,
+    ) -> Result<Self::ExecutionResult, Self::Error> {
+        let start_time = Instant::now();
+        
+        // Replay the block
+        let success = self.replay_block(block.clone()).await?;
+        
+        if !success {
+            return Err(SolanaEngineError::Process(
+                "Block replay failed".to_string()
+            ));
+        }
+        
+        let processing_duration_ms = start_time.elapsed().as_millis() as u64;
+        
+        // Extract signatures from transactions
+        let signatures: Vec<String> = block.transactions.iter()
+            .map(|tx| {
+                #[cfg(feature = "solana-engine")]
+                {
+                    tx.signatures.first()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "no_signature".to_string())
+                }
+                #[cfg(not(feature = "solana-engine"))]
+                {
+                    // Mock mode - generate fake signature
+                    format!("mock_sig_{}", tx.len())
+                }
+            })
+            .collect();
+        
+        Ok(SolanaExecutionResult {
+            slot: block.slot,
+            block_hash: block.block_hash,
+            signatures,
+            successful_transactions: block.transactions.len(),
+            failed_transactions: 0, // Would need to track this during replay
+            block_time: block.block_time,
+            processing_duration_ms,
+        })
+    }
+
+    async fn get_health(&self) -> Result<HealthStatus, Self::Error> {
+        let is_running = *self.is_running.read().await;
+        
+        // Check if RPC client is healthy
+        let rpc_healthy = {
+            #[cfg(feature = "solana-engine")]
+            {
+                if let Some(client) = self.internal_client.read().await.as_ref() {
+                    client.get_health().await.is_ok()
+                } else {
+                    false
+                }
+            }
+            #[cfg(not(feature = "solana-engine"))]
+            {
+                // Mock mode - always healthy
+                self.internal_client.read().await.is_some()
+            }
+        };
+        
+        // Check if Solana process is running
+        let process_healthy = if let Some(_child) = self.solana_process.read().await.as_ref() {
+            // Try to get process status without waiting
+            true // Simplified - in production would check process status
+        } else {
+            false
+        };
+        
+        let overall_status = if is_running && rpc_healthy && process_healthy {
+            "healthy"
+        } else if is_running && (rpc_healthy || process_healthy) {
+            "degraded"
+        } else {
+            "unhealthy"
+        };
+        
+        if overall_status == "healthy" {
+            Ok(HealthStatus::Healthy)
+        } else if overall_status == "degraded" {
+            Ok(HealthStatus::Degraded)
+        } else {
+            Ok(HealthStatus::Unhealthy)
+        }
+    }
+
+    async fn get_state(&self) -> Result<EngineState, Self::Error> {
+        let _is_running = *self.is_running.read().await;
+        let current_slot = *self.current_slot.read().await;
+        let _slots_processed = *self.slots_processed.read().await;
+        
+        Ok(EngineState {
+            process_id: multivm_common::types::ProcessId::Solana,
+            blockchain_type: BlockchainType::Solana,
+            current_block: Some(current_slot),
+            state_root: vec![0u8; 32], // Simplified - would get actual state root
+            is_syncing: false,
+            peer_count: 0, // Our isolated Solana doesn't have peers
+            rpc_endpoints: vec![format!("http://{}:{}", self.solana_engine_config.rpc_server_host, self.solana_config.rpc_port)],
+            data_directory: self.solana_config.ledger_path.to_string_lossy().to_string(),
+            chain_id: 1, // Simplified chain ID for Solana
+        })
+    }
+
+    async fn start_rpc_server(&self, config: RpcConfig) -> Result<(), Self::Error> {
+        // RPC server is already started in initialize()
+        // This could be enhanced to support dynamic configuration
+        info!("RPC server already running on port {}", self.solana_engine_config.rpc_server_port);
+        Ok(())
+    }
+
+    async fn stop_rpc_server(&self) -> Result<(), Self::Error> {
+        if let Some(mut server) = self.rpc_proxy_server.write().await.take() {
+            server.stop().await.map_err(|e| {
+                SolanaEngineError::Rpc(format!("Failed to stop RPC server: {}", e))
+            })?;
+        }
+        Ok(())
+    }
+
+    async fn initialize(&mut self) -> Result<(), Self::Error> {
+        // Call the engine's initialize method directly
+        SolanaEngine::initialize(self).await
+    }
+
+    async fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), Self::Error> {
+        // Call the engine's shutdown method directly
+        SolanaEngine::shutdown(self, timeout).await
+    }
+
+    fn blockchain_type(&self) -> BlockchainType {
+        BlockchainType::Solana
+    }
+
+    async fn is_ready(&self) -> bool {
+        let is_running = *self.is_running.read().await;
+        let has_client = self.internal_client.read().await.is_some();
+        
+        is_running && has_client
+    }
+
+    async fn get_metrics(&self) -> Result<ProcessingMetrics, Self::Error> {
+        let slots_processed = *self.slots_processed.read().await;
+        let current_slot = *self.current_slot.read().await;
+        
+        Ok(ProcessingMetrics {
+            cpu_time: Duration::from_secs(0), // Would need to track actual CPU time
+            memory_usage_bytes: 0, // Would need system metrics
+            disk_reads: 0, // Would need to track disk I/O
+            disk_writes: 0, // Would need to track disk I/O
+            network_bytes: 0, // Would need to track network I/O
+            compute_units_used: 0, // Would need to track CUs from transactions
+            transaction_count: 0, // Would need to track this
+            account_updates: 0, // Would need to track this
+            total_requests: slots_processed,
+            successful_requests: slots_processed,
+            failed_requests: 0,
+            average_response_time_ms: 400.0, // Solana's ~400ms slot time
+            peak_memory_usage_mb: 0, // Would need system metrics
+            cpu_usage_percent: 0.0, // Would need system metrics
+        })
+    }
+
+    async fn get_latest_block_id(&self) -> Result<u64, Self::Error> {
+        Ok(*self.current_slot.read().await)
+    }
+
+    async fn reset_to_block(&mut self, block_id: u64) -> Result<(), Self::Error> {
+        // For now, just update the current slot
+        // In a real implementation, this would need to reset the entire state
+        *self.current_slot.write().await = block_id;
+        warn!("Reset to block {} - full state reset not implemented", block_id);
+        Ok(())
     }
 }

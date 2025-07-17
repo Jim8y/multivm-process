@@ -1,0 +1,90 @@
+groups:
+  - name: multivm_alerts
+    interval: 30s
+    rules:
+      # Node health alerts
+      - alert: NodeDown
+        expr: up{job="multivm-nodes"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MultiVM node {{ $labels.instance }} is down"
+          description: "MultiVM node {{ $labels.instance }} has been down for more than 2 minutes."
+
+      # Consensus alerts
+      - alert: ConsensusStalled
+        expr: rate(multivm_consensus_blocks_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Consensus has stalled"
+          description: "No new blocks have been produced in the last 5 minutes."
+
+      - alert: HighConsensusLatency
+        expr: multivm_consensus_block_time_seconds > 5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High consensus latency"
+          description: "Block production time is above 5 seconds."
+
+      # Resource alerts
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 90% on {{ $labels.instance }}."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 90% on {{ $labels.instance }}."
+
+      # Execution engine alerts
+      - alert: EthereumEngineDown
+        expr: up{job="reth"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ethereum execution engine down on {{ $labels.instance }}"
+          description: "Reth process is not responding on {{ $labels.instance }}."
+
+      - alert: SolanaEngineDown
+        expr: up{job="solana"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Solana execution engine down on {{ $labels.instance }}"
+          description: "Solana process is not responding on {{ $labels.instance }}."
+
+      # Network alerts
+      - alert: LowPeerCount
+        expr: multivm_p2p_peer_count < 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low peer count on {{ $labels.instance }}"
+          description: "Node {{ $labels.instance }} has less than 2 peers connected."
+
+      # Transaction processing alerts
+      - alert: HighTransactionFailureRate
+        expr: rate(multivm_transaction_failures_total[5m]) / rate(multivm_transaction_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High transaction failure rate"
+          description: "More than 10% of transactions are failing."

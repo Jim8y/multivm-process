@@ -44,6 +44,27 @@ pub enum AccountMappingError {
 
     #[error("Invalid proof: {message}")]
     InvalidProof { message: String },
+
+    #[error("Policy violation: {reason}")]
+    PolicyViolation { reason: String },
+
+    #[error("Lock contention on resource: {resource} (held by: {holder})")]
+    LockContention { resource: String, holder: String },
+
+    #[error("Invalid lock: {reason}")]
+    InvalidLock { reason: String },
+
+    #[error("Rate limit exceeded: {limit_type}")]
+    RateLimitExceeded { limit_type: String },
+
+    #[error("Invalid input: {reason}")]
+    InvalidInput { reason: String },
+
+    #[error("Recovery error: {reason}")]
+    RecoveryError { reason: String },
+
+    #[error("Recovery not allowed: {reason}")]
+    RecoveryNotAllowed { reason: String },
 }
 
 impl From<AccountMappingError> for MultivmError {
@@ -110,6 +131,41 @@ impl From<AccountMappingError> for MultivmError {
                 field: "proof".to_string(),
                 message,
                 value: None,
+            },
+            AccountMappingError::PolicyViolation { reason } => MultivmError::InvalidState {
+                message: format!("Policy violation: {reason}"),
+                current_state: None,
+                expected_state: None,
+            },
+            AccountMappingError::LockContention { resource, holder } => MultivmError::Internal {
+                component: "distributed_lock".to_string(),
+                message: format!("Lock contention on {resource} (held by {holder})"),
+                error_code: Some("LOCK_CONTENTION".to_string()),
+            },
+            AccountMappingError::InvalidLock { reason } => MultivmError::Internal {
+                component: "distributed_lock".to_string(),
+                message: format!("Invalid lock: {reason}"),
+                error_code: Some("INVALID_LOCK".to_string()),
+            },
+            AccountMappingError::RateLimitExceeded { limit_type } => MultivmError::InvalidState {
+                message: format!("Rate limit exceeded: {limit_type}"),
+                current_state: Some("rate_limited".to_string()),
+                expected_state: Some("normal".to_string()),
+            },
+            AccountMappingError::InvalidInput { reason } => MultivmError::Validation {
+                field: "input".to_string(),
+                message: reason,
+                value: None,
+            },
+            AccountMappingError::RecoveryError { reason } => MultivmError::Internal {
+                component: "account_recovery".to_string(),
+                message: format!("Recovery error: {reason}"),
+                error_code: None,
+            },
+            AccountMappingError::RecoveryNotAllowed { reason } => MultivmError::InvalidState {
+                message: format!("Recovery not allowed: {reason}"),
+                current_state: None,
+                expected_state: None,
             },
         }
     }
@@ -272,6 +328,27 @@ pub mod utils {
             AccountMappingError::InvalidProof { message } => {
                 format!("Invalid proof: {message}")
             }
+            AccountMappingError::PolicyViolation { reason } => {
+                format!("Policy violation: {reason}")
+            }
+            AccountMappingError::LockContention { resource, holder } => {
+                format!("Lock contention on resource {resource} held by {holder}")
+            }
+            AccountMappingError::InvalidLock { reason } => {
+                format!("Invalid lock: {reason}")
+            }
+            AccountMappingError::RateLimitExceeded { limit_type } => {
+                format!("Rate limit exceeded for {limit_type}")
+            }
+            AccountMappingError::InvalidInput { reason } => {
+                format!("Invalid input: {reason}")
+            }
+            AccountMappingError::RecoveryError { reason } => {
+                format!("Recovery error: {reason}")
+            }
+            AccountMappingError::RecoveryNotAllowed { reason } => {
+                format!("Recovery not allowed: {reason}")
+            }
         }
     }
 
@@ -290,6 +367,13 @@ pub mod utils {
             AccountMappingError::Internal { .. } => 500,
             AccountMappingError::UnsupportedAccountType { .. } => 501,
             AccountMappingError::InvalidProof { .. } => 400,
+            AccountMappingError::PolicyViolation { .. } => 403,
+            AccountMappingError::LockContention { .. } => 409,
+            AccountMappingError::InvalidLock { .. } => 400,
+            AccountMappingError::RateLimitExceeded { .. } => 429,
+            AccountMappingError::InvalidInput { .. } => 400,
+            AccountMappingError::RecoveryError { .. } => 500,
+            AccountMappingError::RecoveryNotAllowed { .. } => 403,
         }
     }
 }

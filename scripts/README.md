@@ -1,191 +1,172 @@
 # MultiVM Scripts
 
-This directory contains utility scripts for running, testing, and managing the MultiVM blockchain.
+This directory contains utility scripts for building, testing, deploying, and managing the MultiVM blockchain platform.
 
-## Available Scripts
+## 📁 Script Categories
 
-### Single Node Testing
+### 🚀 Quick Start
+- **`quickstart.sh`** - One-command setup for local development
+- **`start-testnet.sh`** - Start a local testnet
 
-#### 🚀 `run-testnet.sh`
+### 🏗️ Setup & Configuration
+- **`setup-validators.sh`** - Configure multi-validator network
+- **`setup-reth-node.sh`** - Setup Reth execution engine
+- **`generate-jwt-token.sh`** - Generate JWT tokens for Engine API
 
-Starts a single-node MultiVM testnet with all services enabled.
+### 🧪 Testing
+- **`test-suite.sh`** - Comprehensive test runner
+- **`test-consensus-features.sh`** - Consensus-specific tests
+- **`test-multivm-reth-integration.sh`** - Integration tests with Reth
+- **`run-integration-tests.sh`** - Full integration test suite
+- **`run-performance-tests.sh`** - Performance benchmarks
+- **`run-consensus-scenarios.sh`** - Consensus scenario tests
 
+### 📊 Monitoring & Administration
+- **`dashboard.sh`** - Real-time monitoring dashboard
+- **`monitor-testnet.sh`** - Testnet monitoring
+- **`validator-admin.sh`** - Validator management tools
+- **`p2p-admin.sh`** - P2P network administration
+- **`check-health.sh`** - Health check utilities
+
+### 🚢 Deployment
+- **`deploy-production.sh`** - Production deployment script
+
+### 🔍 Verification
+- **`verify-testnet.sh`** - Verify testnet setup
+- **`verify-testnet-config.sh`** - Validate configurations
+- **`verify-reth-isolation.sh`** - Ensure Reth isolation
+- **`run-checks.sh`** - Pre-deployment checks
+
+## 🎯 Common Workflows
+
+### Local Development Setup
 ```bash
-./run-testnet.sh
+# Quick start for development
+./quickstart.sh
+
+# Or manual setup
+./setup-validators.sh 3        # Setup 3 validators
+./start-testnet.sh             # Start the testnet
+./dashboard.sh                 # Monitor in real-time
 ```
 
-Features:
-- Automatically cleans up existing processes on required ports
-- Creates necessary directories and configuration
-- Displays colored output for easy monitoring
-- Runs in foreground (press Ctrl+C to stop)
-
-#### 📊 `dashboard.sh`
-
-Real-time monitoring dashboard for the MultiVM blockchain.
-
+### Running Tests
 ```bash
-./dashboard.sh
-```
-
-Displays:
-- Current block height
-- Transaction pool status
-- Recent blocks with timestamps
-- Processing statistics
-- Updates every 2 seconds
-
-#### 🧪 `test-suite.sh`
-
-Comprehensive testing utilities for the MultiVM blockchain.
-
-```bash
-# Show help
-./test-suite.sh --help
-
 # Run all tests
 ./test-suite.sh all
 
-# Individual commands
-./test-suite.sh health      # Check service health
-./test-suite.sh api         # Test REST API endpoints
-./test-suite.sh graphql     # Test GraphQL API
-./test-suite.sh submit-tx   # Submit test transactions
-./test-suite.sh monitor     # Monitor blockchain activity
-./test-suite.sh stress      # Run stress test (100 transactions)
-```
-
-#### 🔧 `run-solo-testnet.sh`
-
-Alternative script for running a solo testnet (legacy).
-
-```bash
-./run-solo-testnet.sh
-```
-
-### Multi-Validator Consensus Testing
-
-#### 🏗️ `setup-validators.sh`
-
-**NEW!** Sets up a multi-validator network for testing consensus features.
-
-```bash
-# Setup 4 validators (default)
-./setup-validators.sh
-
-# Setup custom configuration
-./setup-validators.sh [VALIDATOR_COUNT] [BASE_PORT] [VOTING_POWER]
-
-# Examples
-./setup-validators.sh 7 9000 100    # 7 validators, port 9000+, 100 voting power each
-./setup-validators.sh 4              # 4 validators with defaults
-```
-
-Features:
-- ✅ Round-robin leader selection setup
-- ✅ BFT consensus configuration (2/3 + 1 voting threshold)
-- ✅ View change mechanism
-- ✅ Automatic validator discovery and networking
-- ✅ Individual validator management scripts
-- ✅ Master control scripts (start-all, stop-all, monitor)
-- ✅ Built-in consensus testing
-
-#### 🧪 `test-consensus-features.sh`
-
-**NEW!** Comprehensive testing suite for consensus features.
-
-```bash
-# Run all consensus tests
-./test-consensus-features.sh
-
 # Run specific test categories
-./test-consensus-features.sh -t unit           # Unit tests only
-./test-consensus-features.sh -t integration    # Integration tests
-./test-consensus-features.sh -t leader         # Leader selection tests
-./test-consensus-features.sh -t bft            # BFT consensus tests
-./test-consensus-features.sh -t view-change    # View change tests
-./test-consensus-features.sh -t fault-tolerance # Fault tolerance tests
-./test-consensus-features.sh -t live           # Live network tests
-
-# Custom validator count
-./test-consensus-features.sh -c 7              # Test with 7 validators
+./test-suite.sh unit          # Unit tests only
+./test-suite.sh integration   # Integration tests
+./test-suite.sh consensus     # Consensus tests
+./test-suite.sh performance   # Performance tests
 ```
 
-Test Categories:
-- **Unit Tests**: Leader selection, validator set, view change modules
-- **Integration Tests**: Multi-validator consensus scenarios
-- **Leader Selection**: Round-robin determinism and rotation
-- **BFT Consensus**: Byzantine fault tolerance, voting thresholds
-- **View Change**: Leader failover and recovery
-- **Fault Tolerance**: Network partitions, validator failures
-- **Live Network**: Real multi-validator network testing
-- **Performance**: Benchmarks and stress testing
-
-#### 🔧 `validator-admin.sh`
-
-**NEW!** Advanced validator network administration and monitoring.
-
+### Production Deployment
 ```bash
-# Network status and monitoring
-./validator-admin.sh status          # Show validator network status
-./validator-admin.sh monitor         # Real-time monitoring dashboard
-./validator-admin.sh health          # Comprehensive health check
+# Pre-deployment checks
+./run-checks.sh
 
-# Leader management
-./validator-admin.sh leader          # Show current leader information
-./validator-admin.sh rotate          # Trigger view change (leader rotation)
-
-# Transaction testing
-./validator-admin.sh submit-tx       # Submit test transaction
-./validator-admin.sh stress-test 100 # Run stress test with 100 transactions
-
-# Validator management
-./validator-admin.sh logs validator_01      # Show logs for specific validator
-./validator-admin.sh config validator_01   # Show configuration
-./validator-admin.sh benchmark              # Run performance benchmarks
-./validator-admin.sh cleanup               # Stop all validators and cleanup
+# Deploy to production
+./deploy-production.sh --config production.toml
 ```
 
-Features:
-- 📊 Real-time network monitoring
-- 🏥 Health checks with BFT analysis
-- 👑 Leader selection verification
-- 🔄 Manual view change triggering
-- ⚡ Stress testing and benchmarks
-- 📋 Individual validator management
-- 🧹 Complete network cleanup
+## 🔧 Script Details
 
-## Port Configuration
+### quickstart.sh
+One-command setup for developers:
+- Checks dependencies
+- Builds the project
+- Generates validator keys
+- Starts a 3-node testnet
+- Opens monitoring dashboard
 
-The scripts use the following default ports:
+### start-testnet.sh
+Starts a configurable testnet:
+```bash
+./start-testnet.sh [OPTIONS]
+  --nodes N        Number of validator nodes (default: 3)
+  --port P         Base port number (default: 8080)
+  --reset          Clean existing data before start
+  --background     Run in background
+```
 
-| Service | Port | Description |
-|---------|------|-------------|
-| REST API | 8080 | Main HTTP API |
-| GraphQL | 8081 | GraphQL endpoint |
-| WebSocket | 8082 | Real-time updates |
-| Admin | 8083 | Admin interface |
-| Health | 8090 | Health checks |
-| Metrics | 9090 | Prometheus metrics |
+### test-suite.sh
+Comprehensive testing framework:
+```bash
+./test-suite.sh [CATEGORY] [OPTIONS]
+  all              Run all tests
+  unit             Unit tests only
+  integration      Integration tests
+  consensus        Consensus tests
+  performance      Performance benchmarks
+  --verbose        Show detailed output
+  --coverage       Generate coverage report
+```
 
-## Requirements
+### dashboard.sh
+Real-time monitoring with:
+- Block height and consensus round
+- Transaction pool status
+- Validator health
+- Network topology
+- Performance metrics
 
-- Bash 4.0+
-- `jq` for JSON parsing
-- `curl` for API requests
-- `lsof` for port management (Linux/macOS)
+### validator-admin.sh
+Validator management:
+```bash
+./validator-admin.sh [COMMAND]
+  status           Show validator status
+  start NODE_ID    Start specific validator
+  stop NODE_ID     Stop specific validator
+  restart NODE_ID  Restart validator
+  logs NODE_ID     Show validator logs
+  rotate-leader    Trigger view change
+```
 
-## Tips
+## 📋 Environment Variables
 
-1. **First Time Setup**: Run `cargo build --release` before using any scripts
+Scripts respect these environment variables:
+- `MULTIVM_HOME` - MultiVM installation directory
+- `MULTIVM_DATA` - Data directory (default: /tmp/multivm)
+- `MULTIVM_LOG_LEVEL` - Logging level (trace/debug/info/warn/error)
+- `MULTIVM_CONFIG` - Custom config file path
 
-2. **Port Conflicts**: The scripts automatically clean up processes on required ports
+## ⚙️ Requirements
 
-3. **Logs**: Check `/tmp/multivm-testnet/logs/` for detailed logs
+- **Rust** 1.75+ (for building)
+- **bash** 4.0+
+- **jq** - JSON processing
+- **curl** - HTTP requests
+- **docker** - Container runtime (optional)
+- **python3** - For some test scripts
 
-4. **Configuration**: Testnet config is at `/tmp/multivm-testnet/config/testnet.toml`
+## 🐛 Troubleshooting
 
-5. **Cleanup**: To fully reset, run:
-   ```bash
-   rm -rf /tmp/multivm-testnet
-   ```
+### Port Already in Use
+Scripts automatically detect and offer to clean up conflicting processes.
+
+### Permission Denied
+Some scripts may need elevated permissions:
+```bash
+sudo ./script-name.sh
+```
+
+### Missing Dependencies
+Install required tools:
+```bash
+# Ubuntu/Debian
+sudo apt-get install jq curl netcat
+
+# macOS
+brew install jq curl netcat
+```
+
+## 🤝 Contributing
+
+When adding new scripts:
+1. Use consistent naming (kebab-case)
+2. Add proper documentation headers
+3. Include in this README
+4. Add error handling and validation
+5. Follow existing patterns for output formatting

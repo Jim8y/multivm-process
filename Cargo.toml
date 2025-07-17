@@ -9,7 +9,7 @@ members = [
     "multivm-consensus",
     "multivm-cli",
     "reth-execution-engine",
-    # "solana-execution-engine",  # Temporarily disabled due to multivm-agave compilation issues
+    "solana-execution-engine",
 ]
 resolver = "2"
 
