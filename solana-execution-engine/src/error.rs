@@ -31,6 +31,9 @@ pub enum SolanaEngineError {
 
     #[error("Transaction error: {0}")]
     Transaction(String),
+
+    #[error("Unsanitized transaction: {0}")]
+    UnsanitizedTransaction(String),
 }
 
 impl From<MultivmError> for SolanaEngineError {
@@ -88,6 +91,11 @@ impl From<SolanaEngineError> for MultivmError {
             },
             SolanaEngineError::Transaction(msg) => MultivmError::Process {
                 process_id: "solana-transaction".to_string(),
+                message: msg,
+                exit_code: None,
+            },
+            SolanaEngineError::UnsanitizedTransaction(msg) => MultivmError::Process {
+                process_id: "solana-transaction-validation".to_string(),
                 message: msg,
                 exit_code: None,
             },

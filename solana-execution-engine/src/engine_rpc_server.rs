@@ -1,13 +1,18 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
+use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use reqwest::Client;
 use serde_json::Value;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
+use crate::engine::SolanaEngine;
+use crate::engine_rpc_helper::SolanaEngineRpcHelper;
 use crate::SolanaEngineError;
 
 /// Engine RPC server for forwarding requests to internal Solana validator
@@ -84,29 +89,102 @@ impl SolanaEngineRpcServer {
         }
     }
 
-    /// Check if the request contains a forbidden method
-    fn check_forbidden_method(body_bytes: &[u8]) -> Option<Response<Body>> {
+    /// Handle a special transaction result (requestAirdrop or sendTransaction) with common logic
+    async fn handle_special_transaction_result(
+        method_name: &str,
+        sanitized_transaction_result: Result<
+            crate::engine_rpc_helper::SanitizedTransaction,
+            crate::SolanaEngineError,
+        >,
+        json_value: &Value,
+    ) -> Option<Response<Body>> {
+        match sanitized_transaction_result {
+            Ok(sanitized_transaction) => {
+                info!(
+                    "{} processed successfully: {:?}",
+                    method_name,
+                    sanitized_transaction.signature()
+                );
+
+                // 将交易添加到全局 mempool
+                match crate::engine::GLOBAL_MEMPOOL
+                    .write()
+                    .await
+                    .push(sanitized_transaction.clone())
+                {
+                    Ok(()) => {
+                        info!(
+                            "Transaction added to mempool: {}",
+                            sanitized_transaction.signature()
+                        );
+                    }
+                    Err(e) => {
+                        warn!("Failed to add transaction to mempool: {}", e);
+                    }
+                }
+
+                // 返回成功响应
+                let id = json_value.get("id").cloned().unwrap_or(Value::Null);
+                let response_body = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": sanitized_transaction.signature().to_string(),
+                    "id": id
+                });
+                Some(
+                    Response::builder()
+                        .status(200)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(response_body.to_string()))
+                        .unwrap(),
+                )
+            }
+            Err(e) => {
+                error!("{} failed: {}", method_name, e);
+                let id = json_value.get("id").cloned().unwrap_or(Value::Null);
+                let response_body = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": format!("{} failed: {}", method_name, e)
+                    },
+                    "id": id
+                });
+                Some(
+                    Response::builder()
+                        .status(500)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(response_body.to_string()))
+                        .unwrap(),
+                )
+            }
+        }
+    }
+
+    /// Check if the request contains a special method that needs custom handling
+    async fn check_special_method(body_bytes: &[u8]) -> Option<Response<Body>> {
         let json_str = std::str::from_utf8(body_bytes).ok()?;
         let json_value = serde_json::from_str::<Value>(json_str).ok()?;
         let method = json_value.get("method")?.as_str()?;
 
-        if matches!(
-            method,
-            "requestAirdrop" | "sendTransaction" | "simulateTransaction"
-        ) {
-            warn!("Blocked forbidden RPC method: {}", method);
-            Some(
-                Response::builder()
-                    .status(403)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(
-                        r#"{"error":{"code":-25041,"message":"Method not allowed"}}"#,
-                    ))
-                    .unwrap(),
-            )
-        } else {
-            debug!("Allowing RPC method: {}", method);
-            None
+        match method {
+            "requestAirdrop" => {
+                let result =
+                    SolanaEngineRpcHelper::handle_request_airdrop(Bytes::from(body_bytes.to_vec()))
+                        .await;
+                Self::handle_special_transaction_result("requestAirdrop", result, &json_value).await
+            }
+            "sendTransaction" => {
+                let result = SolanaEngineRpcHelper::handle_send_transaction(Bytes::from(
+                    body_bytes.to_vec(),
+                ))
+                .await;
+                Self::handle_special_transaction_result("sendTransaction", result, &json_value)
+                    .await
+            }
+            _ => {
+                debug!("Allowing RPC method: {}", method);
+                None
+            }
         }
     }
 
@@ -132,9 +210,9 @@ impl SolanaEngineRpcServer {
                 .unwrap());
         }
 
-        // Check for forbidden methods
-        if let Some(forbidden_response) = Self::check_forbidden_method(&body_bytes) {
-            return Ok(forbidden_response);
+        // Check for special methods that need custom handling
+        if let Some(special_response) = Self::check_special_method(&body_bytes).await {
+            return Ok(special_response);
         }
 
         debug!("Forwarding raw RPC request ({} bytes)", body_bytes.len());
@@ -202,5 +280,53 @@ impl SolanaEngineRpcServer {
     /// Check if the server is running
     pub fn is_running(&self) -> bool {
         self.server_handle.is_some()
+    }
+}
+
+/// Extension trait for SolanaEngine to manage the RPC proxy server
+impl SolanaEngine {
+    /// Get the RPC server host from configuration
+    pub fn get_rpc_server_host(&self) -> &str {
+        &self.solana_engine_config.rpc_server_host
+    }
+
+    /// Get the RPC server port from configuration
+    pub fn get_rpc_server_port(&self) -> u16 {
+        self.solana_engine_config.rpc_server_port
+    }
+
+    /// Get the internal RPC port from configuration
+    pub fn get_internal_rpc_port(&self) -> u16 {
+        self.solana_config.rpc_port
+    }
+
+    /// Start the Engine RPC server
+    pub async fn start_rpc_proxy_server(&mut self) -> Result<(), SolanaEngineError> {
+        let internal_rpc_url = format!(
+            "http://{}:{}",
+            self.get_rpc_server_host(),
+            self.get_internal_rpc_port()
+        );
+
+        let mut engine_rpc_server = SolanaEngineRpcServer::new(
+            self.get_rpc_server_host().to_string(),
+            self.get_rpc_server_port(),
+            internal_rpc_url,
+        );
+
+        engine_rpc_server.start().await?;
+
+        // Store the engine RPC server instance for later shutdown
+        *self.rpc_proxy_server.write().await = Some(engine_rpc_server);
+
+        Ok(())
+    }
+
+    /// Stop the Engine RPC server
+    pub async fn stop_rpc_proxy_server(&mut self) -> Result<(), SolanaEngineError> {
+        match self.rpc_proxy_server.write().await.take() {
+            Some(mut server) => server.stop().await,
+            None => Ok(()),
+        }
     }
 }
