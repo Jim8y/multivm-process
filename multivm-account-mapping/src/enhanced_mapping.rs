@@ -429,12 +429,13 @@ impl EnhancedAccountMapper {
 }
 
 /// Simple rate limiter
-struct RateLimiter {
+#[cfg_attr(test, derive(Debug))]
+pub(crate) struct RateLimiter {
     attempts: HashMap<AccountAddress, Vec<SystemTime>>,
 }
 
 impl RateLimiter {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             attempts: HashMap::new(),
         }
