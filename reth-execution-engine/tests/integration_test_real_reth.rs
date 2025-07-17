@@ -75,7 +75,7 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
     // Test 2: Verify process is running
     println!("\n🔍 2. Checking Process Status");
 
-    let is_running = reth_engine.is_reth_process_running().await;
+    let is_running = reth_engine.is_reth_running().await;
     println!("   Process running: {}", is_running);
 
     if let Some(pid) = reth_engine.get_reth_process_pid().await {
@@ -104,7 +104,7 @@ async fn test_real_reth_node_lifecycle() -> Result<(), Box<dyn std::error::Error
 
             // Verify process is actually stopped
             sleep(Duration::from_secs(2)).await;
-            let is_running_after_stop = reth_engine.is_reth_process_running().await;
+            let is_running_after_stop = reth_engine.is_reth_running().await;
             println!("   Process running after stop: {}", is_running_after_stop);
 
             if !is_running_after_stop {
