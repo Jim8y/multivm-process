@@ -55,21 +55,21 @@ fn create_test_accounts() -> (AccountAddress, AccountAddress) {
 fn create_unique_test_accounts() -> (AccountAddress, AccountAddress) {
     use std::sync::atomic::{AtomicU8, Ordering};
     static COUNTER: AtomicU8 = AtomicU8::new(10);
-    
+
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
     // Add randomness to avoid conflicts
     let rand_val = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .subsec_nanos() as u8;
-    
+
     let mut eth_bytes = [0u8; 20];
     eth_bytes[0] = id;
     eth_bytes[1] = rand_val;
     let mut sol_bytes = [0u8; 32];
     sol_bytes[0] = id;
     sol_bytes[1] = rand_val;
-    
+
     let eth_account = AccountAddress::Ethereum(EthereumAddress(eth_bytes));
     let sol_account = AccountAddress::Solana(SolanaAddress(sol_bytes));
     (eth_account, sol_account)
@@ -81,21 +81,21 @@ fn create_test_mapper(
     policy: BindingPolicy,
     recovery_config: RecoveryConfig,
 ) -> EnhancedAccountMapper {
-    use crate::validation::{AccountBindingValidator, ValidationConfig};
     use crate::distributed_lock::{InMemoryLockManager, RetryableLockManager};
-    use crate::events::EventEmitter;
     use crate::enhanced_mapping::RateLimiter;
+    use crate::events::EventEmitter;
+    use crate::validation::{AccountBindingValidator, ValidationConfig};
     use std::collections::HashMap;
     use tokio::sync::RwLock;
-    
+
     let mut validation_config = ValidationConfig::default();
     validation_config.validate_signatures = false; // Disable for tests
-    
+
     // Create a new lock manager instance for each test to avoid contention
     let lock_manager = InMemoryLockManager::new();
     let retryable_lock_manager =
         RetryableLockManager::new(lock_manager, 3, Duration::from_millis(100));
-    
+
     EnhancedAccountMapper {
         storage,
         lock_manager: Arc::new(retryable_lock_manager),
@@ -114,7 +114,7 @@ fn create_test_proof(account: AccountAddress, nonce: u64) -> BindingProof {
     // Create a valid 65-byte signature for testing
     let mut signature = vec![0u8; 65];
     signature[64] = 27; // Recovery ID
-    
+
     BindingProof {
         account,
         proof_type: ProofType::Signature {
@@ -216,9 +216,12 @@ async fn test_concurrent_auto_binding() {
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
-    
+
     // At least one should have succeeded
-    assert!(!results.is_empty(), "At least one auto-binding should succeed");
+    assert!(
+        !results.is_empty(),
+        "At least one auto-binding should succeed"
+    );
 
     // All should return the same MultiVM ID
     let first_id = &results[0];
@@ -292,8 +295,7 @@ async fn test_rate_limiting() {
 #[tokio::test]
 async fn test_binding_message_validation() {
     let storage = Arc::new(MemoryStorage::new());
-    let mapper =
-        create_test_mapper(storage, BindingPolicy::default(), RecoveryConfig::default());
+    let mapper = create_test_mapper(storage, BindingPolicy::default(), RecoveryConfig::default());
 
     let (eth_account, sol_account) = create_test_accounts();
     let multivm_id = MultivmAccountId::from_account(&eth_account);
@@ -440,8 +442,7 @@ async fn test_recovery_initiation() {
     recovery_config.recovery_timelock = Duration::from_secs(3600);
 
     let storage = Arc::new(MemoryStorage::new());
-    let mapper =
-        create_test_mapper(storage.clone(), BindingPolicy::default(), recovery_config);
+    let mapper = create_test_mapper(storage.clone(), BindingPolicy::default(), recovery_config);
 
     let (eth_account, _) = create_unique_test_accounts();
     let guardian = AccountAddress::Ethereum(EthereumAddress([3u8; 20]));
@@ -571,7 +572,7 @@ async fn test_policy_enforcement() {
         .await
         .unwrap();
 
-    // Wait for lock to be released  
+    // Wait for lock to be released
     tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
 
     // Try to add third account (should fail due to policy)

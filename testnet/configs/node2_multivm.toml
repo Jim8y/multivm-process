@@ -1,0 +1,165 @@
+# MultiVM Node 2 Configuration
+# Validator node with full Ethereum and Solana execution
+
+[general]
+node_id = "node2"
+node_type = "validator"
+data_dir = "/data/node2"
+log_level = "info"
+chain_id = 1337
+
+[network]
+# P2P Network configuration
+p2p_host = "0.0.0.0"
+p2p_port = 9001
+max_peers = 50
+enable_mdns = false
+bootstrap_peers = [
+    "/dns4/multivm-node1/tcp/9000",
+    "/dns4/multivm-node3/tcp/9002",
+    "/dns4/multivm-node4/tcp/9003"
+]
+
+# RPC configuration
+rpc_host = "0.0.0.0"
+rpc_port = 8001
+ws_port = 8101
+max_connections = 100
+rate_limit_per_minute = 1000
+
+[consensus]
+# Malachite BFT configuration
+consensus_host = "0.0.0.0"
+consensus_port = 7001
+block_time_ms = 2000
+timeout_propose_ms = 1000
+timeout_prevote_ms = 1000
+timeout_precommit_ms = 1000
+max_block_size_bytes = 1048576 # 1MB
+view_timeout_ms = 5000
+
+# Validator configuration
+validator_key_file = "/data/node2/validator.json"
+voting_power = 100
+enable_block_production = true
+
+# All validators in the network
+validators = [
+    "node1:7000",
+    "node2:7001",
+    "node3:7002",
+    "node4:7003",
+    "node5:7004",
+    "node6:7005",
+    "node7:7006"
+]
+
+[execution]
+# Ethereum/Reth execution configuration
+[execution.ethereum]
+enabled = true
+engine_type = "reth"
+data_dir = "/data/node2/ethereum"
+chain_id = 1337
+
+# RPC endpoints
+http_port = 8555
+ws_port = 8556
+engine_api_port = 8561
+
+# JWT authentication
+jwt_secret_path = "/data/node2/jwt.hex"
+
+# P2P disabled (MultiVM handles consensus)
+p2p_port = 0
+max_peers = 0
+
+# Gas configuration
+default_gas_price = 1000000000 # 1 Gwei for testnet
+max_gas_per_block = 30000000 # 30M gas
+
+# Reth specific settings
+[execution.ethereum.reth]
+disable_discovery = true
+ipcdisable = true
+dev_mode = false
+pruning_mode = "archive"
+db_path = "/data/node2/ethereum/db"
+log_level = "info"
+
+# Solana execution configuration
+[execution.solana]
+enabled = true
+executable_path = "solana-private-validator"
+data_dir = "/data/node2/solana"
+rpc_port = 8909
+ws_port = 8910
+gossip_port = 1025
+ticks_per_slot = 64
+slots_per_epoch = 8192
+
+[ipc]
+# IPC configuration for process communication
+transport_type = "unix_socket"
+socket_path = "/tmp/multivm-node2.sock"
+enable_encryption = true
+enable_authentication = true
+max_message_size_bytes = 10485760 # 10MB
+request_timeout_ms = 30000
+
+[storage]
+# Database configuration
+db_backend = "rocksdb"
+consensus_db_path = "/data/node2/consensus"
+account_mapping_db_path = "/data/node2/accounts"
+transaction_pool_db_path = "/data/node2/txpool"
+cache_size_mb = 1024
+enable_compression = true
+enable_auto_compaction = true
+compaction_interval_secs = 3600
+
+[security]
+# Security settings
+enable_tls = false # For testnet
+jwt_secret = "${MULTIVM_JWT_SECRET}"
+enable_rate_limiting = true
+max_requests_per_ip_per_minute = 100
+enable_ddos_protection = true
+
+[monitoring]
+# Metrics and monitoring
+enable_metrics = true
+metrics_port = 9092
+metrics_path = "/metrics"
+health_check_port = 8091
+health_check_interval_secs = 30
+enable_prometheus = true
+prometheus_port = 9093
+
+[api]
+# API configuration
+rest_enabled = true
+rest_host = "0.0.0.0"
+rest_port = 8082
+rest_cors_origins = ["*"]
+
+graphql_enabled = true
+graphql_host = "0.0.0.0"
+graphql_port = 8083
+graphql_playground = true
+
+enable_auth = false # For testnet
+
+[performance]
+# Performance tuning
+worker_threads = 0 # 0 = auto-detect
+max_concurrent_requests = 1000
+queue_size = 10000
+enable_parallel_execution = true
+
+[dev]
+# Development settings for testnet
+enable_debug_endpoints = true
+enable_unsafe_rpc = true
+mock_execution_engines = false
+deterministic_randomness = false

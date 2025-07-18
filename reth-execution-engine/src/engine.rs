@@ -3167,10 +3167,34 @@ fn get_cpu_usage_standard() -> f64 {
 /// Generate mock Reth block data for testing
 #[allow(dead_code)]
 pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> RethBlock {
-    use alloy_primitives::{Bloom, Bytes};
+    use alloy_consensus::{Signed, TxEip1559, TxEnvelope};
+    use alloy_primitives::{Bloom, Bytes, TxKind};
 
-    // Create an empty block with no transactions to match reth's genesis block structure
-    let transactions = Vec::new();
+    // Create mock transactions if requested
+    let transactions = (0..transaction_count)
+        .map(|i| {
+            let tx = TxEip1559 {
+                chain_id: 1337,
+                nonce: i as u64,
+                max_priority_fee_per_gas: 1_000_000_000, // 1 gwei
+                max_fee_per_gas: 2_000_000_000,          // 2 gwei
+                gas_limit: 21000,
+                to: TxKind::Call(Address::from([0x01; 20])),
+                value: U256::from(1000000000000000u64), // 0.001 ETH
+                input: Bytes::new(),
+                access_list: Default::default(),
+            };
+
+            // Create a dummy signature
+            let signature = alloy_primitives::Signature::from_scalars_and_parity(
+                B256::from([0x01; 32]),
+                B256::from([0x02; 32]),
+                false,
+            );
+
+            TxEnvelope::Eip1559(Signed::new_unchecked(tx, signature, B256::from([0x03; 32])))
+        })
+        .collect();
 
     // Use reth-compatible values with proper Alloy types
     let header = Header {
@@ -3203,7 +3227,7 @@ pub fn generate_mock_reth_block(block_number: u64, transaction_count: usize) -> 
         difficulty: U256::ZERO, // Zero difficulty for PoS
         number: block_number,
         gas_limit: 30_000_000,
-        gas_used: 0, // Empty block
+        gas_used: (transaction_count as u64) * 21000, // Each transaction uses 21000 gas
         timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

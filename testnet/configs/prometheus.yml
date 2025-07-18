@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'multivm-nodes'
+    static_configs:
+      - targets:
+          - 'multivm-node-1:9080'
+          - 'multivm-node-2:9081'
+          - 'multivm-node-3:9082'
+          - 'multivm-node-4:9083'
+          - 'multivm-node-5:9084'
+          - 'multivm-node-6:9085'
+          - 'multivm-node-7:9086'
+        labels:
+          group: 'multivm'
+
+  - job_name: 'reth'
+    static_configs:
+      - targets: ['reth:9001']
+        labels:
+          group: 'execution'
