@@ -57,6 +57,14 @@ mod tests {
         while current_slot < target_slot && check_count < max_checks {
             check_count += 1;
 
+            // Tick the validator to advance slots (since it's in deterministic mode)
+            // We need to tick multiple times per slot based on ticks_per_slot config
+            for _ in 0..2 {  // Default ticks_per_slot is 2
+                if let Err(e) = engine.tick().await {
+                    warn!("Failed to tick validator: {}", e);
+                }
+            }
+
             // Call the getSlot RPC method through the Solana RPC client
             let rpc_client_clone = Arc::clone(&rpc_client);
             let spawn_result = tokio::task::spawn_blocking(move || rpc_client_clone.get_slot())

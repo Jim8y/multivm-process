@@ -1,11 +1,41 @@
 use solana_execution_engine::engine::SolanaEngine;
-use solana_execution_engine::SolanaEngineError;
+use solana_execution_engine::{SolanaEngineError, config::SolanaConfigBuilder};
 use solana_sdk::signature::Keypair;
+use std::sync::atomic::{AtomicU16, Ordering};
 use tracing::info;
 
 /// Create a Solana keypair for testing
 pub fn create_test_keypair() -> Keypair {
     Keypair::new()
+}
+
+// Atomic counter for generating unique ports
+static PORT_COUNTER: AtomicU16 = AtomicU16::new(0);
+
+/// Get unique ports for testing
+pub fn get_unique_ports() -> (u16, u16, u16) {
+    // Use process ID and time to ensure uniqueness across test runs
+    let pid = std::process::id() as u16;
+    let time_component = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() % 1000) as u16;
+    
+    // Use a larger increment to avoid collisions
+    let increment = PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let base = 30000 + (pid % 1000) + time_component + (increment * 10);
+    let gossip_port = base;
+    let rpc_port = base + 1;
+    let rpc_server_port = base + 2;
+    
+    // Ensure ports are in valid range (1024-65535)
+    let gossip_port = gossip_port.min(65530);
+    let rpc_port = rpc_port.min(65531);
+    let rpc_server_port = rpc_server_port.min(65532);
+    
+    info!("Allocated ports - gossip: {}, rpc: {}, rpc_server: {}", gossip_port, rpc_port, rpc_server_port);
+    
+    (gossip_port, rpc_port, rpc_server_port)
 }
 
 pub fn setup_logging() {
@@ -20,10 +50,17 @@ pub fn setup_logging() {
         .ok();
 }
 
-/// Create a new SolanaEngine with default configuration
+/// Create a new SolanaEngine with unique ports for testing
 pub async fn create_engine() -> Result<SolanaEngine, SolanaEngineError> {
     info!("Creating SolanaEngine for test...");
-    let engine = SolanaEngine::new_default().await?;
+    let (gossip_port, rpc_port, rpc_server_port) = get_unique_ports();
+    
+    let config = SolanaConfigBuilder::new()
+        .gossip_port(gossip_port)
+        .rpc_port(rpc_port)
+        .build();
+    
+    let engine = SolanaEngine::new(config, rpc_server_port).await?;
     Ok(engine)
 }
 

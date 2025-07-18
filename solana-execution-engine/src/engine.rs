@@ -1,11 +1,10 @@
 use crate::config::{
-    SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig, DEFAULT_TICK_IPC_PATH,
+    SolanaConfig, SolanaConnectionConfig, SolanaEngineConfig,
 };
 use crate::engine_helper::compute_block_hash;
 use crate::error::SolanaEngineError;
 use crate::mempool::SolanaMempool;
 use agave_validator::bridge::ipc::IpcClient;
-use clap::arg;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -118,6 +117,23 @@ impl SolanaEngine {
         })
     }
 
+    /// Create a new Solana execution engine with custom RPC server port
+    pub async fn new(
+        solana_config: SolanaConfig,
+        rpc_server_port: u16,
+    ) -> Result<Self, SolanaEngineError> {
+        let solana_engine_config = SolanaEngineConfig::new_with_config(
+            "127.0.0.1".to_string(),
+            rpc_server_port,
+        );
+        Self::new_with_config(
+            solana_engine_config,
+            SolanaConnectionConfig::default(),
+            solana_config,
+        )
+        .await
+    }
+
     /// Initialize the Solana engine
     pub async fn initialize(&mut self) -> Result<(), SolanaEngineError> {
         info!("Initializing Solana execution engine");
@@ -180,12 +196,15 @@ impl SolanaEngine {
             cmd.arg("--reset");
         }
 
-        cmd.stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+        // For debugging, let's capture the output to files
+        let log_file = std::fs::File::create(&self.solana_config.log_path)
+            .map_err(|e| SolanaEngineError::Configuration(format!("Failed to create log file: {e}")))?;
+        let err_file = log_file.try_clone()
+            .map_err(|e| SolanaEngineError::Configuration(format!("Failed to clone log file: {e}")))?;
+        
+        cmd.stdout(log_file)
+            .stderr(err_file)
             .kill_on_drop(true);
-        // cmd.stdout(std::process::Stdio::inherit())
-        //     .stderr(std::process::Stdio::inherit())
-        //     .kill_on_drop(true);
 
         debug!("Solana Private Validator command: {:?}", cmd);
         info!(
@@ -625,7 +644,7 @@ impl SolanaEngine {
         Ok(block)
     }
 
-    pub(crate) async fn tick(&self) -> Result<(), SolanaEngineError> {
+    pub async fn tick(&self) -> Result<(), SolanaEngineError> {
         let tick_client_guard = self.internal_tick.read().await;
         let tick_client = tick_client_guard.as_ref().ok_or_else(|| {
             SolanaEngineError::Configuration("Tick client not initialized".to_string())

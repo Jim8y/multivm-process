@@ -6,10 +6,9 @@ use multivm_common::config::VmType;
 // Import native Reth and Alloy types
 use alloy_consensus::private::alloy_eips::eip2718::Encodable2718;
 use alloy_consensus::{
-    Block, BlockBody, Eip658Value, Header, Receipt, ReceiptEnvelope, TxEnvelope, TxReceipt,
+    Block, BlockBody, Header, Receipt, TxEnvelope, TxReceipt,
 };
-use alloy_primitives::{Address, Bloom, Bytes, Log, TxHash, B256, U256};
-use alloy_rpc_types_eth::TransactionReceipt;
+use alloy_primitives::{Address, Bloom, Bytes, Log, B256, U256};
 use serde::{Deserialize, Serialize};
 
 // Use native Alloy types with concrete transaction types

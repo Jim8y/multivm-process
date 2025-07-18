@@ -88,7 +88,7 @@ impl VmRpcClient {
             .await
             .map_err(|e| ApplicationError::GatewayError {
                 vm_type: format!("{:?}", self.vm_type),
-                message: format!("RPC request failed: {}", e),
+                message: format!("RPC request failed: {e}"),
             })?;
 
         if !response.status().is_success() {
@@ -104,7 +104,7 @@ impl VmRpcClient {
                 .await
                 .map_err(|e| ApplicationError::GatewayError {
                     vm_type: format!("{:?}", self.vm_type),
-                    message: format!("Failed to parse RPC response: {}", e),
+                    message: format!("Failed to parse RPC response: {e}"),
                 })?;
 
         if let Some(error) = rpc_response.error {
@@ -144,7 +144,7 @@ impl VmRpcClient {
                 u64::from_str_radix(hex_str.trim_start_matches("0x"), 16).map_err(|e| {
                     ApplicationError::GatewayError {
                         vm_type: format!("{:?}", self.vm_type),
-                        message: format!("Failed to parse block number: {}", e),
+                        message: format!("Failed to parse block number: {e}"),
                     }
                 })
             }
@@ -165,7 +165,7 @@ impl VmRpcClient {
     ) -> ApplicationResult<Value> {
         match self.vm_type {
             VmType::Evm => {
-                let block_param = format!("0x{:x}", block_number);
+                let block_param = format!("0x{block_number:x}");
                 self.call_method(
                     "eth_getBlockByNumber",
                     vec![Value::String(block_param), Value::Bool(full_txs)],

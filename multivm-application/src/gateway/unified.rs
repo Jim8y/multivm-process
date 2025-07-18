@@ -1091,7 +1091,7 @@ impl UnifiedGateway {
         u64::from_str_radix(hex_str.trim_start_matches("0x"), 16).map_err(|e| {
             ApplicationError::GatewayError {
                 vm_type: format!("{:?}", self.config.vm_type),
-                message: format!("Failed to parse hex: {}", e),
+                message: format!("Failed to parse hex: {e}"),
             }
         })
     }

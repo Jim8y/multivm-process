@@ -98,9 +98,9 @@ async fn main() -> Result<()> {
 
 async fn run_throughput_benchmark(duration: u64, clients: usize, batch_size: usize) -> Result<()> {
     println!("=== Throughput Benchmark ===");
-    println!("Duration: {} seconds", duration);
-    println!("Clients: {}", clients);
-    println!("Batch size: {}", batch_size);
+    println!("Duration: {duration} seconds");
+    println!("Clients: {clients}");
+    println!("Batch size: {batch_size}");
     println!();
 
     // Check if test mode
@@ -124,7 +124,7 @@ async fn run_throughput_benchmark(duration: u64, clients: usize, batch_size: usi
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
 
-            println!("Client {} processed {} transactions", i, tx_count);
+            println!("Client {i} processed {tx_count} transactions");
             tx_count
         });
         handles.push(handle);
@@ -139,9 +139,9 @@ async fn run_throughput_benchmark(duration: u64, clients: usize, batch_size: usi
     let tps = total_transactions as f64 / elapsed.as_secs_f64();
 
     println!("\n--- Results ---");
-    println!("Total transactions: {}", total_transactions);
-    println!("Duration: {:?}", elapsed);
-    println!("Average TPS: {:.2}", tps);
+    println!("Total transactions: {total_transactions}");
+    println!("Duration: {elapsed:?}");
+    println!("Average TPS: {tps:.2}");
     println!("Peak TPS: {:.2}", tps * 1.2); // Mock peak
 
     Ok(())
@@ -149,8 +149,8 @@ async fn run_throughput_benchmark(duration: u64, clients: usize, batch_size: usi
 
 async fn run_latency_benchmark(iterations: usize, delay: u64) -> Result<()> {
     println!("=== Latency Benchmark ===");
-    println!("Iterations: {}", iterations);
-    println!("Delay: {} ms", delay);
+    println!("Iterations: {iterations}");
+    println!("Delay: {delay} ms");
     println!();
 
     let test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok();
@@ -168,7 +168,7 @@ async fn run_latency_benchmark(iterations: usize, delay: u64) -> Result<()> {
         latencies.push(latency.as_millis() as f64);
 
         if i % 100 == 0 {
-            println!("Processed {} transactions", i);
+            println!("Processed {i} transactions");
         }
 
         tokio::time::sleep(Duration::from_millis(delay)).await;
@@ -182,10 +182,10 @@ async fn run_latency_benchmark(iterations: usize, delay: u64) -> Result<()> {
     let p99 = latencies[latencies.len() * 99 / 100];
 
     println!("\n--- Results ---");
-    println!("Average Latency: {:.2} ms", avg);
-    println!("P50 Latency: {:.2} ms", p50);
-    println!("P95 Latency: {:.2} ms", p95);
-    println!("P99 Latency: {:.2} ms", p99);
+    println!("Average Latency: {avg:.2} ms");
+    println!("P50 Latency: {p50:.2} ms");
+    println!("P95 Latency: {p95:.2} ms");
+    println!("P99 Latency: {p99:.2} ms");
     println!("Max Latency: {:.2} ms", latencies.last().unwrap());
 
     Ok(())
@@ -193,15 +193,15 @@ async fn run_latency_benchmark(iterations: usize, delay: u64) -> Result<()> {
 
 async fn run_scalability_test(max_clients: usize, step: usize) -> Result<()> {
     println!("=== Scalability Test ===");
-    println!("Max clients: {}", max_clients);
-    println!("Step size: {}", step);
+    println!("Max clients: {max_clients}");
+    println!("Step size: {step}");
     println!();
 
     let test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok();
     let actual_max = if test_mode { 20 } else { max_clients };
 
     for clients in (step..=actual_max).step_by(step) {
-        println!("Testing with {} clients...", clients);
+        println!("Testing with {clients} clients...");
 
         // Run mini benchmark
         let start = std::time::Instant::now();
@@ -215,7 +215,7 @@ async fn run_scalability_test(max_clients: usize, step: usize) -> Result<()> {
         let elapsed = start.elapsed();
         let tps = total as f64 / elapsed.as_secs_f64();
 
-        println!("Clients: {} - TPS: {:.2}", clients, tps);
+        println!("Clients: {clients} - TPS: {tps:.2}");
 
         // Cool down between tests
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -226,8 +226,8 @@ async fn run_scalability_test(max_clients: usize, step: usize) -> Result<()> {
 
 async fn run_stress_test(duration: u64, load_factor: f64) -> Result<()> {
     println!("=== Stress Test ===");
-    println!("Duration: {} seconds", duration);
-    println!("Load factor: {}", load_factor);
+    println!("Duration: {duration} seconds");
+    println!("Load factor: {load_factor}");
     println!();
 
     let test_mode = std::env::var("MULTIVM_TEST_MODE").is_ok();
@@ -272,12 +272,12 @@ async fn run_stress_test(duration: u64, load_factor: f64) -> Result<()> {
     let error_rate = errors as f64 / (total_transactions + errors) as f64 * 100.0;
 
     println!("\n--- Results ---");
-    println!("Total transactions: {}", total_transactions);
-    println!("Total errors: {}", errors);
-    println!("Duration: {:?}", elapsed);
-    println!("Achieved TPS: {:.2}", achieved_tps);
-    println!("Target TPS: {:.2}", target_tps);
-    println!("Error rate: {:.2}%", error_rate);
+    println!("Total transactions: {total_transactions}");
+    println!("Total errors: {errors}");
+    println!("Duration: {elapsed:?}");
+    println!("Achieved TPS: {achieved_tps:.2}");
+    println!("Target TPS: {target_tps:.2}");
+    println!("Error rate: {error_rate:.2}%");
 
     if error_rate > 5.0 {
         println!("\nWARNING: High error rate detected!");

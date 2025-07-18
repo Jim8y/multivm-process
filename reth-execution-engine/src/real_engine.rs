@@ -5,7 +5,6 @@
 //! production-grade EVM transaction execution and state management.
 
 use crate::engine::{RethBlock, RethEngineError, RethExecutionResult};
-use alloy_consensus;
 use alloy_rlp;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -18,8 +17,6 @@ use tracing::{debug, error, info, warn};
 
 // Additional imports for JWT and process management
 use hex;
-use hmac;
-use rand;
 
 /// Real Reth execution engine that connects to actual Reth nodes
 pub struct RealRethEngine {

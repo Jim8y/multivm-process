@@ -3,7 +3,6 @@
 //! This module provides secure IPC transport with encryption, message queuing,
 //! connection recovery, and health monitoring for communication with external Reth processes.
 
-use crate::engine::RethEngineError;
 use multivm_common::{IpcCommand, IpcMessage, IpcResponse, MultivmError, MultivmResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -19,7 +18,7 @@ use uuid::Uuid;
 
 // Encryption imports
 use chacha20poly1305::{
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
 use rand::{thread_rng, Rng};

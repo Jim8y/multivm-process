@@ -575,8 +575,8 @@ impl ExecutionEngineManager {
         for (blockchain_type, status) in health_status {
             if !matches!(status, HealthStatus::Healthy) {
                 return Err(multivm_common::MultivmError::Process {
-                    process_id: format!("{:?}-engine", blockchain_type),
-                    message: format!("{:?} engine is unhealthy", blockchain_type),
+                    process_id: format!("{blockchain_type:?}-engine"),
+                    message: format!("{blockchain_type:?} engine is unhealthy"),
                     exit_code: None,
                 });
             }

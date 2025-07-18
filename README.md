@@ -48,6 +48,11 @@ MultiVM is a revolutionary blockchain architecture that:
 - Rust 1.75+ 
 - Docker & Docker Compose
 - Git
+- **Custom Fork Binaries** (REQUIRED):
+  - Reth: `git@github.com:vm-multiverse/reth.git` (dev branch)
+  - Solana: `git@github.com:vm-multiverse/multivm-agave.git` (master branch)
+  
+⚠️ **IMPORTANT**: Do NOT use official Reth or Solana binaries. MultiVM requires custom forks with P2P and consensus disabled.
 
 ### Installation
 
@@ -56,11 +61,30 @@ MultiVM is a revolutionary blockchain architecture that:
 git clone https://github.com/your-org/multivm-process
 cd multivm-process
 
+# Setup custom fork binaries (REQUIRED)
+./scripts/setup-test-binaries.sh
+
 # Build the project
 cargo build --release
 
 # Run tests
 cargo test
+```
+
+### Building Custom Forks
+
+```bash
+# Option 1: Automated setup
+./scripts/setup-test-binaries.sh
+
+# Option 2: Manual build
+# Reth
+git clone -b dev git@github.com:vm-multiverse/reth.git
+cd reth && cargo build --release --bin reth
+
+# Solana
+git clone -b master git@github.com:vm-multiverse/multivm-agave.git
+cd multivm-agave && cargo build --release --bin solana-test-validator
 ```
 
 ### Running a Local Testnet

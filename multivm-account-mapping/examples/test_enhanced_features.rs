@@ -33,7 +33,7 @@ async fn main() {
     };
 
     // Create enhanced mapper
-    let mut mapper = EnhancedAccountMapper::new(storage.clone(), policy, recovery_config);
+    let mapper = EnhancedAccountMapper::new(storage.clone(), policy, recovery_config);
 
     // Add event listener
     mapper

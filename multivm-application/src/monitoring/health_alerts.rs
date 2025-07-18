@@ -289,7 +289,7 @@ impl AlertManager {
         // Send webhooks
         for webhook in &self.config.webhooks {
             if alert.severity as u8 >= webhook.min_severity as u8 {
-                if let Err(e) = self.send_webhook(&webhook, &alert).await {
+                if let Err(e) = self.send_webhook(webhook, &alert).await {
                     error!("Failed to send webhook alert: {}", e);
                 }
             }
@@ -298,7 +298,7 @@ impl AlertManager {
         // Send email if configured
         if let Some(email_config) = &self.config.email {
             if alert.severity as u8 >= email_config.min_severity as u8 {
-                if let Err(e) = self.send_email(&email_config, &alert).await {
+                if let Err(e) = self.send_email(email_config, &alert).await {
                     error!("Failed to send email alert: {}", e);
                 }
             }
@@ -398,10 +398,9 @@ pub fn create_metric_alert(
         timestamp: chrono::Utc::now(),
         severity,
         component: "metrics".to_string(),
-        title: format!("{} Threshold Exceeded", metric_name),
+        title: format!("{metric_name} Threshold Exceeded"),
         description: format!(
-            "{} is {:.2}, which exceeds threshold of {:.2}",
-            metric_name, current_value, threshold
+            "{metric_name} is {current_value:.2}, which exceeds threshold of {threshold:.2}"
         ),
         metadata: serde_json::json!({
             "metric": metric_name,

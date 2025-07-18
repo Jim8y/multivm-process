@@ -57,6 +57,8 @@ pub struct SolanaConfig {
     pub reset: bool,
     /// Path to the tick IPC socket
     pub tick_ipc_path: String,
+    /// Path to the validator log file
+    pub log_path: String,
 }
 
 impl Default for SolanaConfig {
@@ -67,6 +69,7 @@ impl Default for SolanaConfig {
             .unwrap_or_default()
             .as_nanos();
         let ledger_path = PathBuf::from(format!("/tmp/solana-private-ledger_{}", random_suffix));
+        let log_path = format!("{}/validator.log", ledger_path.display());
 
         Self {
             gossip_port: 1024,
@@ -77,6 +80,7 @@ impl Default for SolanaConfig {
             deterministic: true,
             reset: true,
             tick_ipc_path: DEFAULT_TICK_IPC_PATH.to_string(),
+            log_path,
         }
     }
 }

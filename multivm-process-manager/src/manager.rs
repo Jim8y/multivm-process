@@ -788,11 +788,11 @@ impl MultivmProcessManagerInner {
             IpcCommand::ProcessBlock {
                 block_data_bytes,
                 blockchain_type,
-                expect_response,
+                expect_response: _,
             } => {
                 // Route the block to appropriate execution engines
                 match bincode::deserialize::<multivm_consensus::MultiVMBlock>(&block_data_bytes) {
-                    Ok(block) => {
+                    Ok(_block) => {
                         // Use the existing route_block method from MultivmProcessManager
                         // This is where we'd call the block router
                         Ok(IpcResponse::BlockProcessed {
