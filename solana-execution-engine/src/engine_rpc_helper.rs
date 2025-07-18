@@ -133,8 +133,8 @@ mod tests {
     #[ignore]
     async fn test_rpc_proxy_server_for_cli() -> Result<()> {
         setup_logging();
-        let mut rpc_server = init_test_rpc_server().await?;
-        let rpc_client = create_test_rpc_client().await?;
+        let mut rpc_server = init_test_rpc_server(8887).await?;
+        let rpc_client = create_test_rpc_client(8887).await?;
         let now_slot = rpc_client.get_slot()?;
         assert!(now_slot > 0, "Slot should be greater than 0");
 
